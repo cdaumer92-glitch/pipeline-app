@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipeline Commerciaux</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f5;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    // ================== APP PRINCIPALE ==================
+    const API_URL = 'http://localhost:5000/api';
+
+    function App() {
+      const [user, setUser] = React.useState(null);
+      const [prospects, setProspects] = React.useState([]);
+      const [activities, setActivities] = React.useState({});
+      const [selectedProspect, setSelectedProspect] = React.useState(null);
+      const [showForm, setShowForm] = React.useState(false);
+      const [formData, setFormData] = React.useState(getEmptyProspect());
+      const [filterStatus, setFilterStatus] = React.useState('Tous');
+      const [searchTerm, setSearchTerm] = React.useState('');
+
+      React.useEffect(() => {
+        if (user) {
+          fetchProspects();
+        }
+      }, [user]);
+
+      const fetchProspects = async () => {
+        try {
+          const res = await fetch(`${API_URL}/prospects`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          const data = await res.json();
+          setProspects(data);
+        } catch (err) {
+          console.error('Erreur:', err);
+        }
+      };
+
+      const fetchActivities = async (prospectId) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/activities`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          const data = await res.json();
+          setActivities(prev => ({ ...prev, [prospectId]: data }));
+        } catch (err) {
+          console.error('Erreur:', err);
+        }
+      };
+
+      const handleLogin = async (email, password, name, isRegister) => {
+        try {
+          const endpoint = isRegister ? 'register' : 'login';
+          const payload = isRegister 
+            ? { email, password, name }
+            : { email, password };
+          
+          const res = await fetch(`${API_URL}/auth/${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          
+          const data = await res.json();
+          if (data.token) {
+            setUser({ ...data.user, token: data.token });
+          } else {
+            alert('Erreur: ' + data.error);
+          }
+        } catch (err) {
+          alert('Erreur connexion: ' + err.message);
+        }
+      };
+
+      const handleSaveProspect = async () => {
+        if (!formData.name) {
+          alert('Le nom du prospect est requis');
+          return;
+        }
+
+        try {
+          const method = formData.id ? 'PUT' : 'POST';
+          const url = formData.id 
+            ? `${API_URL}/prospects/${formData.id}`
+            : `${API_URL}/prospects`;
+
+          const res = await fetch(url, {
+            method,
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify(formData)
+          });
+
+          if (res.ok) {
+            fetchProspects();
+            setShowForm(false);
+            setFormData(getEmptyProspect());
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleDeleteProspect = async (id) => {
+        if (window.confirm('Supprimer ce prospect ?')) {
+          try {
+            const res = await fetch(`${API_URL}/prospects/${id}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${user.token}` }
+            });
+            if (res.ok) {
+              fetchProspects();
+              setSelectedProspect(null);
+            }
+          } catch (err) {
+            alert('Erreur: ' + err.message);
+          }
+        }
+      };
+
+      const handleAddActivity = async (prospectId, activityType, description) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/activities`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ activity_type: activityType, description })
+          });
+          if (res.ok) {
+            fetchActivities(prospectId);
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleEditProspect = (prospect) => {
+        setFormData(prospect);
+        setShowForm(true);
+      };
+
+      const handleSelectProspect = (prospect) => {
+        setSelectedProspect(prospect);
+        if (!activities[prospect.id]) {
+          fetchActivities(prospect.id);
+        }
+      };
+
+      const filteredProspects = prospects.filter(p => {
+        const matchStatus = filterStatus === 'Tous' || p.status === filterStatus;
+        const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (p.contact_name && p.contact_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                           (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase()));
+        return matchStatus && matchSearch;
+      });
+
+      if (!user) {
+        return <LoginForm onLogin={handleLogin} />;
+      }
+
+      return (
+        <div style={styles.container}>
+          <Header user={user} onLogout={() => setUser(null)} />
+          
+          <div style={styles.content}>
+            <LeftPanel
+              prospects={filteredProspects}
+              selectedProspect={selectedProspect}
+              onSelect={handleSelectProspect}
+              filterStatus={filterStatus}
+              onFilterChange={setFilterStatus}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              onNewProspect={() => {
+                setFormData(getEmptyProspect());
+                setShowForm(true);
+              }}
+            />
+
+            <RightPanel
+              selectedProspect={selectedProspect}
+              activities={activities}
+              onEdit={handleEditProspect}
+              onDelete={handleDeleteProspect}
+              onAddActivity={handleAddActivity}
+              showForm={showForm}
+              formData={formData}
+              onFormChange={setFormData}
+              onSave={handleSaveProspect}
+              onCancel={() => {
+                setShowForm(false);
+                setFormData(getEmptyProspect());
+              }}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // ================== COMPOSANTS ==================
+
+    function Header({ user, onLogout }) {
+      return (
+        <div style={styles.header}>
+          <h1>📊 Pipeline Commerciaux</h1>
+          <div style={styles.userInfo}>
+            <span>{user.name}</span>
+            <button onClick={onLogout} style={styles.logoutBtn}>Déconnexion</button>
+          </div>
+        </div>
+      );
+    }
+
+    function LoginForm({ onLogin }) {
+      const [email, setEmail] = React.useState('');
+      const [password, setPassword] = React.useState('');
+      const [name, setName] = React.useState('');
+      const [isRegister, setIsRegister] = React.useState(false);
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        onLogin(email, password, name, isRegister);
+      };
+
+      return (
+        <div style={styles.loginContainer}>
+          <div style={styles.loginBox}>
+            <h2>Pipeline Commerciaux</h2>
+            <form onSubmit={handleSubmit} style={styles.form}>
+              {isRegister && (
+                <input
+                  type="text"
+                  placeholder="Nom complet"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={styles.input}
+                  required
+                />
+              )}
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={styles.input}
+                required
+              />
+              <input
+                type="password"
+                placeholder="Mot de passe"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={styles.input}
+                required
+              />
+              <button type="submit" style={styles.submitBtn}>
+                {isRegister ? 'S\'inscrire' : 'Se connecter'}
+              </button>
+            </form>
+            <p style={styles.toggleAuth}>
+              {isRegister ? 'Déjà inscrit?' : 'Pas encore inscrit?'}{' '}
+              <a href="#" onClick={(e) => {
+                e.preventDefault();
+                setIsRegister(!isRegister);
+              }} style={styles.link}>
+                {isRegister ? 'Se connecter' : 'S\'inscrire'}
+              </a>
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    function LeftPanel({ prospects, selectedProspect, onSelect, filterStatus, onFilterChange, searchTerm, onSearchChange, onNewProspect }) {
+      return (
+        <div style={styles.leftPanel}>
+          <button onClick={onNewProspect} style={styles.newBtn}>+ Nouveau prospect</button>
+          
+          <input
+            type="text"
+            placeholder="Chercher..."
+            value={searchTerm}
+            onChange={(e) => onSearchChange(e.target.value)}
+            style={styles.searchInput}
+          />
+
+          <div style={styles.filterContainer}>
+            {['Tous', 'Prospection', 'Devis', 'Négociation', 'Signé', 'Perdu'].map(status => (
+              <button
+                key={status}
+                onClick={() => onFilterChange(status)}
+                style={{
+                  ...styles.filterBtn,
+                  ...(filterStatus === status ? styles.filterBtnActive : {})
+                }}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+
+          <div style={styles.prospectsList}>
+            {prospects.map(prospect => (
+              <div
+                key={prospect.id}
+                onClick={() => onSelect(prospect)}
+                style={{
+                  ...styles.prospectItem,
+                  ...(selectedProspect?.id === prospect.id ? styles.prospectItemActive : {})
+                }}
+              >
+                <div style={styles.prospectName}>{prospect.name}</div>
+                <div style={styles.prospectSubtitle}>{prospect.contact_name}</div>
+                <div style={styles.prospectStatus}>{prospect.status}</div>
+                <div style={styles.prospectAmount}>
+                  {formatCurrency(calculateTotal(prospect))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function RightPanel({ selectedProspect, activities, onEdit, onDelete, onAddActivity, showForm, formData, onFormChange, onSave, onCancel }) {
+      const [newActivityType, setNewActivityType] = React.useState('Appel');
+      const [newActivityDesc, setNewActivityDesc] = React.useState('');
+
+      const handleAddActivity = () => {
+        if (newActivityDesc.trim()) {
+          onAddActivity(selectedProspect.id, newActivityType, newActivityDesc);
+          setNewActivityDesc('');
+        }
+      };
+
+      if (showForm) {
+        return <ProspectForm formData={formData} onFormChange={onFormChange} onSave={onSave} onCancel={onCancel} />;
+      }
+
+      if (!selectedProspect) {
+        return <div style={styles.rightPanel}><p style={styles.emptyState}>Sélectionnez un prospect</p></div>;
+      }
+
+      const total = calculateTotal(selectedProspect);
+      const expectedValue = total * (selectedProspect.chance_percent / 100);
+
+      return (
+        <div style={styles.rightPanel}>
+          <div style={styles.prospectDetail}>
+            <div style={styles.detailHeader}>
+              <h2>{selectedProspect.name}</h2>
+              <div style={styles.detailActions}>
+                <button onClick={() => onEdit(selectedProspect)} style={styles.editBtn}>✏️ Modifier</button>
+                <button onClick={() => onDelete(selectedProspect.id)} style={styles.deleteBtn}>🗑️ Supprimer</button>
+              </div>
+            </div>
+
+            <div style={styles.detailGrid}>
+              <div style={styles.detailItem}>
+                <label>Contact</label>
+                <div>{selectedProspect.contact_name}</div>
+              </div>
+              <div style={styles.detailItem}>
+                <label>Email</label>
+                <div>{selectedProspect.email}</div>
+              </div>
+              <div style={styles.detailItem}>
+                <label>Téléphone</label>
+                <div>{selectedProspect.phone}</div>
+              </div>
+              <div style={styles.detailItem}>
+                <label>Statut</label>
+                <div style={{ fontWeight: 'bold', color: getStatusColor(selectedProspect.status) }}>
+                  {selectedProspect.status}
+                </div>
+              </div>
+            </div>
+
+            <div style={styles.amountsGrid}>
+              <div style={styles.amountItem}>
+                <label>Setup</label>
+                <div>{formatCurrency(selectedProspect.setup_amount)}</div>
+              </div>
+              <div style={styles.amountItem}>
+                <label>Abonnement (mois)</label>
+                <div>{formatCurrency(selectedProspect.monthly_amount)}</div>
+              </div>
+              <div style={styles.amountItem}>
+                <label>Formation</label>
+                <div>{formatCurrency(selectedProspect.training_amount)}</div>
+              </div>
+            </div>
+
+            <div style={styles.summaryBox}>
+              <div>Total: <strong>{formatCurrency(total)}</strong></div>
+              <div>Chance: <strong>{selectedProspect.chance_percent}%</strong></div>
+              <div>Valeur attendue: <strong>{formatCurrency(expectedValue)}</strong></div>
+            </div>
+
+            <div style={styles.otherDetails}>
+              <div><strong>Commercial:</strong> {selectedProspect.assigned_to}</div>
+              <div><strong>Prochaine action:</strong> {selectedProspect.next_action}</div>
+              <div><strong>Date limite:</strong> {selectedProspect.deadline}</div>
+              <div><strong>Notes:</strong> {selectedProspect.notes}</div>
+            </div>
+          </div>
+
+          <ActivitiesSection
+            activities={activities[selectedProspect.id] || []}
+            prospectId={selectedProspect.id}
+            onAddActivity={handleAddActivity}
+            newActivityType={newActivityType}
+            onActivityTypeChange={setNewActivityType}
+            newActivityDesc={newActivityDesc}
+            onActivityDescChange={setNewActivityDesc}
+          />
+        </div>
+      );
+    }
+
+    function ProspectForm({ formData, onFormChange, onSave, onCancel }) {
+      const handleChange = (field, value) => {
+        onFormChange({ ...formData, [field]: value });
+      };
+
+      const total = calculateTotal(formData);
+
+      return (
+        <div style={styles.rightPanel}>
+          <div style={styles.formContainer}>
+            <h2>{formData.id ? 'Modifier' : 'Nouveau'} prospect</h2>
+            
+            <div style={styles.formSection}>
+              <h3>Informations générales</h3>
+              <div style={styles.formGrid}>
+                <input
+                  type="text"
+                  placeholder="Nom du prospect"
+                  value={formData.name}
+                  onChange={(e) => handleChange('name', e.target.value)}
+                  style={styles.formInput}
+                />
+                <input
+                  type="text"
+                  placeholder="Contact principal"
+                  value={formData.contact_name}
+                  onChange={(e) => handleChange('contact_name', e.target.value)}
+                  style={styles.formInput}
+                />
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={formData.email}
+                  onChange={(e) => handleChange('email', e.target.value)}
+                  style={styles.formInput}
+                />
+                <input
+                  type="tel"
+                  placeholder="Téléphone"
+                  value={formData.phone}
+                  onChange={(e) => handleChange('phone', e.target.value)}
+                  style={styles.formInput}
+                />
+              </div>
+            </div>
+
+            <div style={styles.formSection}>
+              <h3>Montants</h3>
+              <div style={styles.formGrid}>
+                <input
+                  type="number"
+                  placeholder="Setup"
+                  value={formData.setup_amount}
+                  onChange={(e) => handleChange('setup_amount', parseFloat(e.target.value) || 0)}
+                  style={styles.formInput}
+                />
+                <input
+                  type="number"
+                  placeholder="Abonnement (mensuel)"
+                  value={formData.monthly_amount}
+                  onChange={(e) => handleChange('monthly_amount', parseFloat(e.target.value) || 0)}
+                  style={styles.formInput}
+                />
+                <input
+                  type="number"
+                  placeholder="Formation"
+                  value={formData.training_amount}
+                  onChange={(e) => handleChange('training_amount', parseFloat(e.target.value) || 0)}
+                  style={styles.formInput}
+                />
+              </div>
+              <div style={styles.totalCalc}>
+                <strong>Total: {formatCurrency(total)}</strong>
+              </div>
+            </div>
+
+            <div style={styles.formSection}>
+              <h3>Détails</h3>
+              <div style={styles.formGrid}>
+                <select
+                  value={formData.status}
+                  onChange={(e) => handleChange('status', e.target.value)}
+                  style={styles.formInput}
+                >
+                  <option>Prospection</option>
+                  <option>Devis</option>
+                  <option>Négociation</option>
+                  <option>Signé</option>
+                  <option>Perdu</option>
+                </select>
+                <input
+                  type="number"
+                  placeholder="Chance %"
+                  min="0"
+                  max="100"
+                  value={formData.chance_percent}
+                  onChange={(e) => handleChange('chance_percent', parseInt(e.target.value) || 0)}
+                  style={styles.formInput}
+                />
+                <select
+                  value={formData.assigned_to}
+                  onChange={(e) => handleChange('assigned_to', e.target.value)}
+                  style={styles.formInput}
+                >
+                  <option value="">-- Sélectionne un commercial --</option>
+                  <option>Roger</option>
+                  <option>Christian</option>
+                  <option>Frédéric</option>
+                </select>
+                <input
+                  type="date"
+                  value={formData.deadline}
+                  onChange={(e) => handleChange('deadline', e.target.value)}
+                  style={styles.formInput}
+                />
+                <textarea
+                  placeholder="Prochaine action"
+                  value={formData.next_action}
+                  onChange={(e) => handleChange('next_action', e.target.value)}
+                  style={{...styles.formInput, gridColumn: '1 / -1', minHeight: '60px'}}
+                />
+                <textarea
+                  placeholder="Notes"
+                  value={formData.notes}
+                  onChange={(e) => handleChange('notes', e.target.value)}
+                  style={{...styles.formInput, gridColumn: '1 / -1', minHeight: '80px'}}
+                />
+              </div>
+            </div>
+
+            <div style={styles.formActions}>
+              <button onClick={onSave} style={styles.saveBtn}>Enregistrer</button>
+              <button onClick={onCancel} style={styles.cancelBtn}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function ActivitiesSection({ activities, prospectId, onAddActivity, newActivityType, onActivityTypeChange, newActivityDesc, onActivityDescChange }) {
+      return (
+        <div style={styles.activitiesSection}>
+          <h3>📋 Suivi des activités</h3>
+          
+          <div style={styles.activityForm}>
+            <select value={newActivityType} onChange={(e) => onActivityTypeChange(e.target.value)} style={styles.activitySelect}>
+              <option>Appel</option>
+              <option>Email</option>
+              <option>Réunion</option>
+              <option>Devis</option>
+              <option>Relance</option>
+              <option>Autre</option>
+            </select>
+            <textarea
+              placeholder="Détail de l'action..."
+              value={newActivityDesc}
+              onChange={(e) => onActivityDescChange(e.target.value)}
+              style={styles.activityInput}
+            />
+            <button onClick={onAddActivity} style={styles.activityBtn}>Ajouter</button>
+          </div>
+
+          <div style={styles.activitiesList}>
+            {activities.map((activity) => (
+              <div key={activity.id} style={styles.activityItem}>
+                <div style={styles.activityHeader}>
+                  <span style={styles.activityType}>{activity.activity_type}</span>
+                  <span style={styles.activityDate}>{new Date(activity.activity_date).toLocaleDateString()}</span>
+                </div>
+                <div style={styles.activityDesc}>{activity.description}</div>
+                <div style={styles.activityBy}>{activity.created_by}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ================== UTILITAIRES ==================
+
+    function getEmptyProspect() {
+      return {
+        id: null,
+        name: '',
+        contact_name: '',
+        email: '',
+        phone: '',
+        status: 'Prospection',
+        setup_amount: 0,
+        monthly_amount: 0,
+        training_amount: 0,
+        material_amount: 0,
+        chance_percent: 20,
+        assigned_to: '',
+        next_action: '',
+        deadline: '',
+        notes: ''
+      };
+    }
+
+    function calculateTotal(prospect) {
+      const annual = prospect.monthly_amount * 12;
+      return (prospect.setup_amount || 0) + annual + (prospect.training_amount || 0);
+    }
+
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
+    }
+
+    function getStatusColor(status) {
+      const colors = {
+        'Prospection': '#666',
+        'Devis': '#0066cc',
+        'Négociation': '#ff9900',
+        'Signé': '#00cc00',
+        'Perdu': '#cc0000'
+      };
+      return colors[status] || '#666';
+    }
+
+    // ================== STYLES ==================
+
+    const styles = {
+      container: {
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        backgroundColor: '#f5f5f5'
+      },
+      header: {
+        backgroundColor: '#002147',
+        color: 'white',
+        padding: '20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+      },
+      userInfo: {
+        display: 'flex',
+        gap: '15px',
+        alignItems: 'center'
+      },
+      logoutBtn: {
+        padding: '8px 15px',
+        backgroundColor: '#d9534f',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontSize: '14px'
+      },
+      content: {
+        display: 'flex',
+        flex: 1,
+        gap: '0',
+        overflow: 'hidden'
+      },
+      leftPanel: {
+        width: '350px',
+        backgroundColor: 'white',
+        borderRight: '1px solid #ddd',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      },
+      rightPanel: {
+        flex: 1,
+        backgroundColor: '#f9f9f9',
+        overflowY: 'auto'
+      },
+      newBtn: {
+        margin: '15px',
+        padding: '12px 15px',
+        backgroundColor: '#28a745',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        fontSize: '14px'
+      },
+      searchInput: {
+        margin: '0 15px 15px 15px',
+        padding: '10px',
+        border: '1px solid #ddd',
+        borderRadius: '4px',
+        width: 'calc(100% - 30px)',
+        boxSizing: 'border-box'
+      },
+      filterContainer: {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '5px',
+        padding: '0 15px 15px 15px',
+        borderBottom: '1px solid #eee'
+      },
+      filterBtn: {
+        padding: '6px 12px',
+        backgroundColor: '#f0f0f0',
+        border: '1px solid #ddd',
+        borderRadius: '20px',
+        cursor: 'pointer',
+        fontSize: '12px',
+        transition: 'all 0.2s'
+      },
+      filterBtnActive: {
+        backgroundColor: '#002147',
+        color: 'white',
+        borderColor: '#002147'
+      },
+      prospectsList: {
+        flex: 1,
+        overflowY: 'auto',
+        paddingBottom: '15px'
+      },
+      prospectItem: {
+        padding: '15px',
+        borderBottom: '1px solid #eee',
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+        borderLeft: '3px solid transparent'
+      },
+      prospectItemActive: {
+        backgroundColor: '#e8f4f8',
+        borderLeftColor: '#002147'
+      },
+      prospectName: {
+        fontWeight: 'bold',
+        fontSize: '15px',
+        marginBottom: '4px'
+      },
+      prospectSubtitle: {
+        fontSize: '12px',
+        color: '#666',
+        marginBottom: '4px'
+      },
+      prospectStatus: {
+        fontSize: '11px',
+        fontWeight: 'bold',
+        color: '#0066cc',
+        marginBottom: '4px'
+      },
+      prospectAmount: {
+        fontSize: '13px',
+        fontWeight: 'bold',
+        color: '#002147'
+      },
+      prospectDetail: {
+        padding: '20px'
+      },
+      detailHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '20px',
+        borderBottom: '2px solid #ddd',
+        paddingBottom: '15px'
+      },
+      detailActions: {
+        display: 'flex',
+        gap: '10px'
+      },
+      editBtn: {
+        padding: '8px 12px',
+        backgroundColor: '#17a2b8',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontSize: '13px'
+      },
+      deleteBtn: {
+        padding: '8px 12px',
+        backgroundColor: '#dc3545',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontSize: '13px'
+      },
+      detailGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: '15px',
+        marginBottom: '20px'
+      },
+      detailItem: {
+        backgroundColor: 'white',
+        padding: '12px',
+        borderRadius: '4px',
+        borderLeft: '3px solid #002147'
+      },
+      amountsGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '12px',
+        marginBottom: '20px'
+      },
+      amountItem: {
+        backgroundColor: 'white',
+        padding: '12px',
+        borderRadius: '4px',
+        textAlign: 'center',
+        borderTop: '3px solid #28a745'
+      },
+      summaryBox: {
+        backgroundColor: '#e8f4f8',
+        padding: '15px',
+        borderRadius: '4px',
+        marginBottom: '20px',
+        display: 'flex',
+        gap: '20px',
+        borderLeft: '4px solid #002147'
+      },
+      otherDetails: {
+        backgroundColor: 'white',
+        padding: '15px',
+        borderRadius: '4px',
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gap: '10px',
+        fontSize: '13px',
+        marginBottom: '20px'
+      },
+      activitiesSection: {
+        padding: '20px',
+        backgroundColor: 'white',
+        borderTop: '1px solid #ddd'
+      },
+      activityForm: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+        marginBottom: '20px'
+      },
+      activitySelect: {
+        padding: '8px',
+        border: '1px solid #ddd',
+        borderRadius: '4px',
+        fontSize: '13px'
+      },
+      activityInput: {
+        padding: '10px',
+        border: '1px solid #ddd',
+        borderRadius: '4px',
+        minHeight: '60px',
+        fontFamily: 'inherit',
+        fontSize: '13px',
+        resize: 'vertical'
+      },
+      activityBtn: {
+        padding: '10px',
+        backgroundColor: '#002147',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontWeight: 'bold'
+      },
+      activitiesList: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px'
+      },
+      activityItem: {
+        backgroundColor: '#f5f5f5',
+        padding: '12px',
+        borderRadius: '4px',
+        borderLeft: '3px solid #0066cc'
+      },
+      activityHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        marginBottom: '5px',
+        fontSize: '12px'
+      },
+      activityType: {
+        fontWeight: 'bold',
+        color: '#0066cc'
+      },
+      activityDate: {
+        color: '#999',
+        fontSize: '11px'
+      },
+      activityDesc: {
+        fontSize: '13px',
+        marginBottom: '5px',
+        lineHeight: '1.4'
+      },
+      activityBy: {
+        fontSize: '11px',
+        color: '#999',
+        fontStyle: 'italic'
+      },
+      formContainer: {
+        padding: '20px',
+        maxWidth: '1000px',
+        margin: '0 auto'
+      },
+      formSection: {
+        marginBottom: '25px'
+      },
+      formGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: '15px',
+        marginTop: '10px'
+      },
+      formInput: {
+        padding: '10px',
+        border: '1px solid #ddd',
+        borderRadius: '4px',
+        fontSize: '13px',
+        fontFamily: 'inherit'
+      },
+      totalCalc: {
+        marginTop: '15px',
+        padding: '10px',
+        backgroundColor: '#e8f4f8',
+        borderLeft: '4px solid #002147',
+        fontSize: '14px'
+      },
+      formActions: {
+        display: 'flex',
+        gap: '10px',
+        marginTop: '20px'
+      },
+      saveBtn: {
+        flex: 1,
+        padding: '12px',
+        backgroundColor: '#28a745',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        fontSize: '14px'
+      },
+      cancelBtn: {
+        flex: 1,
+        padding: '12px',
+        backgroundColor: '#6c757d',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        fontSize: '14px'
+      },
+      loginContainer: {
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        backgroundColor: '#f5f5f5'
+      },
+      loginBox: {
+        backgroundColor: 'white',
+        padding: '40px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        width: '100%',
+        maxWidth: '400px'
+      },
+      form: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        marginTop: '20px'
+      },
+      input: {
+        padding: '10px',
+        border: '1px solid #ddd',
+        borderRadius: '4px',
+        fontSize: '14px'
+      },
+      submitBtn: {
+        padding: '12px',
+        backgroundColor: '#002147',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        fontSize: '14px'
+      },
+      toggleAuth: {
+        marginTop: '15px',
+        textAlign: 'center',
+        fontSize: '13px',
+        color: '#666'
+      },
+      link: {
+        color: '#0066cc',
+        cursor: 'pointer',
+        textDecoration: 'none'
+      },
+      emptyState: {
+        textAlign: 'center',
+        color: '#999',
+        padding: '40px',
+        fontSize: '14px'
+      }
+    };
+
+    // ================== LANCEMENT ==================
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
