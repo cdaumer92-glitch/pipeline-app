@@ -484,7 +484,7 @@ app.delete('/api/users/:id', authenticate, async (req, res) => {
 
 // ===================== DÉMARRAGE SERVEUR =====================
 initializeDatabase().then(() => {
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 Serveur lancé sur http://localhost:${PORT}`);
     console.log('📊 BD PostgreSQL connectée (IP publique)\n');
   });
