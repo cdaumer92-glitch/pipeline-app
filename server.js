@@ -17,14 +17,30 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // ===================== BD POSTGRESQL =====================
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'pipeline',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'Connect@bdd1286',
-  ssl: process.env.DB_SSL ? { rejectUnauthorized: false } : false
-});
+let pool;
+
+// Déterminer la configuration PostgreSQL
+if (process.env.INSTANCE_CONNECTION_NAME) {
+  // Mode Cloud SQL (GCP)
+  console.log('🔗 Mode Cloud SQL Connector...');
+  pool = new Pool({
+    host: `/cloudsql/${process.env.INSTANCE_CONNECTION_NAME}`,
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'Connect@bdd1286',
+    database: process.env.DB_NAME || 'pipeline',
+  });
+} else {
+  // Mode local ou IP publique
+  console.log('🔗 Mode IP publique...');
+  pool = new Pool({
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DB_NAME || 'pipeline',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'Connect@bdd1286',
+    ssl: process.env.DB_SSL ? { rejectUnauthorized: false } : false
+  });
+}
 
 pool.on('error', (err) => {
   console.error('Erreur pool BD:', err);
