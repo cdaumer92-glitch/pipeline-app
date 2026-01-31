@@ -9,7 +9,7 @@ import { dirname } from 'path';
 const { Pool } = pkg;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8080;
 const JWT_SECRET = 'ta-clé-secrète-change-en-prod-2024';
 
 app.use(cors());
@@ -17,33 +17,17 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // ===================== BD POSTGRESQL =====================
-let pool;
-
-// Déterminer la configuration PostgreSQL
-if (process.env.INSTANCE_CONNECTION_NAME) {
-  // Mode Cloud SQL (GCP)
-  console.log('🔗 Mode Cloud SQL Connector...');
-  pool = new Pool({
-    host: `/cloudsql/${process.env.INSTANCE_CONNECTION_NAME}`,
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'Connect@bdd1286',
-    database: process.env.DB_NAME || 'pipeline',
-  });
-} else {
-  // Mode local ou IP publique
-  console.log('🔗 Mode IP publique...');
-  pool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
-    database: process.env.DB_NAME || 'pipeline',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'Connect@bdd1286',
-    ssl: process.env.DB_SSL ? { rejectUnauthorized: false } : false
-  });
-}
+const pool = new Pool({
+  host: '34.34.133.198',
+  port: 5432,
+  database: process.env.DB_NAME || 'pipeline',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'Connect@bdd1286',
+  ssl: { rejectUnauthorized: false }
+});
 
 pool.on('error', (err) => {
-  console.error('Erreur pool BD:', err);
+  console.error('❌ Erreur pool BD:', err);
 });
 
 // Initialiser les tables
@@ -224,7 +208,7 @@ app.post('/api/prospects', authenticate, async (req, res) => {
       `INSERT INTO prospects
       (name, contact_name, email, phone, status, status_date, setup_amount, monthly_amount, annual_amount, training_amount, material_amount, chance_percent, assigned_to, quote_date, decision_maker, notes, user_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
-      [name, contact_name, email, phone, status || 'Prospection', today, setup_amount || 0, monthly_amount || 0, annual_amount || 0, training_amount || 0, material_amount || 0, chance_percent || 20, assigned_to, quote_date, decision_maker, notes, req.userId]
+      [name, contact_name, email || null, phone || null, status || 'Prospection', today, setup_amount || 0, monthly_amount || 0, annual_amount || 0, training_amount || 0, material_amount || 0, chance_percent || 20, assigned_to, quote_date || null, decision_maker || null, notes || null, req.userId]
     );
     res.json({ id: result.rows[0].id, message: 'Prospect créé' });
   } catch (err) {
@@ -246,15 +230,15 @@ app.put('/api/prospects/:id', authenticate, async (req, res) => {
       `UPDATE prospects
       SET name=$1, contact_name=$2, email=$3, phone=$4, status=$5, setup_amount=$6, monthly_amount=$7, annual_amount=$8, training_amount=$9, material_amount=$10, chance_percent=$11, assigned_to=$12, quote_date=$13, decision_maker=$14, notes=$15 ${statusChanged ? ', status_date=$16' : ''}, updated_at=CURRENT_TIMESTAMP
       WHERE id=${statusChanged ? '$17' : '$16'} AND user_id=${statusChanged ? '$18' : '$17'}`,
-      statusChanged ? [name, contact_name, email, phone, status, setup_amount, monthly_amount, annual_amount, training_amount, material_amount, chance_percent, assigned_to, quote_date, decision_maker, notes, today, id, req.userId]
-                    : [name, contact_name, email, phone, status, setup_amount, monthly_amount, annual_amount, training_amount, material_amount, chance_percent, assigned_to, quote_date, decision_maker, notes, id, req.userId]
+      statusChanged ? [name, contact_name, email || null, phone || null, status, setup_amount || 0, monthly_amount || 0, annual_amount || 0, training_amount || 0, material_amount || 0, chance_percent || 20, assigned_to, quote_date || null, decision_maker || null, notes || null, today, id, req.userId]
+                    : [name, contact_name, email || null, phone || null, status, setup_amount || 0, monthly_amount || 0, annual_amount || 0, training_amount || 0, material_amount || 0, chance_percent || 20, assigned_to, quote_date || null, decision_maker || null, notes || null, id, req.userId]
     );
 
     if (statusChanged) {
       await pool.query(
         `INSERT INTO status_history (prospect_id, old_status, new_status, status_date, notes, user_id)
         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [id, oldStatus, status, today, notes, req.userId]
+        [id, oldStatus, status, today, notes || null, req.userId]
       );
     }
 
@@ -268,10 +252,6 @@ app.delete('/api/prospects/:id', authenticate, async (req, res) => {
   const { id } = req.params;
 
   try {
-    await pool.query('DELETE FROM activities WHERE prospect_id = $1', [id]);
-    await pool.query('DELETE FROM next_actions WHERE prospect_id = $1', [id]);
-    await pool.query('DELETE FROM status_history WHERE prospect_id = $1', [id]);
-    
     const result = await pool.query(
       'DELETE FROM prospects WHERE id = $1 AND user_id = $2 RETURNING id',
       [id, req.userId]
@@ -341,7 +321,7 @@ app.post('/api/prospects/:id/next_actions', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
       'INSERT INTO next_actions (prospect_id, action_type, planned_date, actor, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [id, action_type, planned_date, actor, req.userId]
+      [id, action_type, planned_date || null, actor, req.userId]
     );
     res.json({ id: result.rows[0].id, message: 'Action créée' });
   } catch (err) {
@@ -506,7 +486,7 @@ app.delete('/api/users/:id', authenticate, async (req, res) => {
 initializeDatabase().then(() => {
   app.listen(PORT, () => {
     console.log(`\n🚀 Serveur lancé sur http://localhost:${PORT}`);
-    console.log('📊 BD PostgreSQL connectée\n');
+    console.log('📊 BD PostgreSQL connectée (IP publique)\n');
   });
 }).catch(err => {
   console.error('❌ Erreur lors de l\'initialisation:', err);
