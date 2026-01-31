@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pipeline Commerciaux</title>
+  <title>Pipeline TexasWin</title>
   <style>
     * {
       margin: 0;
@@ -11,8 +11,10 @@
       box-sizing: border-box;
     }
     body {
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
       background: #f5f5f5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
   </style>
 </head>
@@ -25,17 +27,102 @@
 
   <script type="text/babel">
     // ================== APP PRINCIPALE ==================
-    const API_URL = 'https://pipeline-app-702707858708.europe-west9.run.app/api';
+    const API_URL = 'https://pipeline-app-702707858708.europe-west9.run.app';
+
+    // ================== UTILITAIRES (définis avant App) ==================
+    
+    function getActionStatus(actions) {
+      if (!actions || actions.length === 0) return { hasAction: false, isLate: false };
+      
+      const incompletedActions = actions.filter(a => !a.completed);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      let isLate = false;
+      incompletedActions.forEach(action => {
+        const actionDate = new Date(action.planned_date);
+        actionDate.setHours(0, 0, 0, 0);
+        if (actionDate < today) isLate = true;
+      });
+      
+      return { hasAction: actions.length > 0, isLate };
+    }
+
+    function getEmptyProspect() {
+      return {
+        id: null,
+        name: '',
+        contact_name: '',
+        email: '',
+        phone: '',
+        status: 'Prospection',
+        status_date: '',
+        setup_amount: 0,
+        monthly_amount: 0,
+        annual_amount: 0,
+        training_amount: 0,
+        material_amount: 0,
+        chance_percent: 20,
+        assigned_to: '',
+        quote_date: '',
+        decision_maker: '',
+        notes: ''
+      };
+    }
+
+    function calculateTotal(prospect) {
+      const monthlyAnnual = prospect.monthly_amount * 12;
+      return (prospect.setup_amount || 0) + monthlyAnnual + (prospect.annual_amount || 0) + (prospect.training_amount || 0);
+    }
+
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
+    }
+
+    function formatNumber(num) {
+      return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(num) || 0) + ' € H.T.';
+    }
+
+    function getStatusColor(status) {
+      const colors = {
+        'Prospection': '#666',
+        'Devis': '#0066cc',
+        'Démo': '#9933cc',
+        'Négociation': '#ff9900',
+        'Signé': '#00cc00',
+        'Perdu': '#cc0000'
+      };
+      return colors[status] || '#666';
+    }
+
+    function getProspectCountByCommercial(prospects, commercial) {
+      if (commercial === 'Tous') {
+        return prospects.length;
+      }
+      return prospects.filter(p => p.assigned_to === commercial).length;
+    }
 
     function App() {
       const [user, setUser] = React.useState(null);
+      const [isDashboard, setIsDashboard] = React.useState(true);
+      const [selectedCommercial, setSelectedCommercial] = React.useState(null);
+      const [showSettings, setShowSettings] = React.useState(false);
       const [prospects, setProspects] = React.useState([]);
       const [activities, setActivities] = React.useState({});
+      const [nextActions, setNextActions] = React.useState([]);
+      const [statusHistory, setStatusHistory] = React.useState([]);
+      const [actionNotes, setActionNotes] = React.useState({});
+      const [prospectActionsInfo, setProspectActionsInfo] = React.useState({});
+      const [newActionType, setNewActionType] = React.useState('Relance');
+      const [newActionDate, setNewActionDate] = React.useState(new Date().toISOString().split('T')[0]);
+      const [newActionActor, setNewActionActor] = React.useState('Roger');
       const [selectedProspect, setSelectedProspect] = React.useState(null);
       const [showForm, setShowForm] = React.useState(false);
       const [formData, setFormData] = React.useState(getEmptyProspect());
       const [filterStatus, setFilterStatus] = React.useState('Tous');
+      const [filterCommercial, setFilterCommercial] = React.useState('Tous');
       const [searchTerm, setSearchTerm] = React.useState('');
+      const [sortBy, setSortBy] = React.useState('name');
 
       React.useEffect(() => {
         if (user) {
@@ -62,6 +149,34 @@
           });
           const data = await res.json();
           setActivities(prev => ({ ...prev, [prospectId]: data }));
+        } catch (err) {
+          console.error('Erreur:', err);
+        }
+      };
+
+      const fetchNextActions = async (prospectId) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/next_actions`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          const data = await res.json();
+          setNextActions(data || []);
+          
+          // Calculer l'état des actions
+          const actionInfo = getActionStatus(data || []);
+          setProspectActionsInfo(prev => ({...prev, [prospectId]: actionInfo}));
+        } catch (err) {
+          console.error('Erreur:', err);
+        }
+      };
+
+      const fetchStatusHistory = async (prospectId) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/status_history`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          const data = await res.json();
+          setStatusHistory(data || []);
         } catch (err) {
           console.error('Erreur:', err);
         }
@@ -97,6 +212,21 @@
           return;
         }
 
+        // Vérifier le format de la date de devis si elle existe
+        if (formData.quote_date) {
+          const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+          if (!dateRegex.test(formData.quote_date)) {
+            alert('Format de date invalide pour la date du devis. Utilisez le format YYYY-MM-DD');
+            return;
+          }
+        }
+
+        // Vérifier qu'il y a une date de devis si le statut est Devis, Démo, Négociation ou Signé
+        if (['Devis', 'Démo', 'Négociation', 'Signé'].includes(formData.status) && !formData.quote_date) {
+          alert('Une date de devis est requise pour le statut ' + formData.status);
+          return;
+        }
+
         try {
           const method = formData.id ? 'PUT' : 'POST';
           const url = formData.id 
@@ -113,7 +243,13 @@
           });
 
           if (res.ok) {
-            fetchProspects();
+            await fetchProspects();
+            // Mettre à jour selectedProspect et recharger les données
+            if (formData.id) {
+              setSelectedProspect(formData);
+              await fetchStatusHistory(formData.id);
+              await fetchNextActions(formData.id);
+            }
             setShowForm(false);
             setFormData(getEmptyProspect());
           }
@@ -157,24 +293,106 @@
         }
       };
 
+      const handleAddNextAction = async () => {
+        if (!selectedProspect) return;
+        try {
+          const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/next_actions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ action_type: newActionType, planned_date: newActionDate, actor: newActionActor })
+          });
+          if (res.ok) {
+            fetchNextActions(selectedProspect.id);
+            setNewActionType('Relance');
+            setNewActionDate(new Date().toISOString().split('T')[0]);
+            setNewActionActor('Roger');
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleToggleNextAction = async (actionId, completed, notes = '') => {
+        try {
+          const res = await fetch(`${API_URL}/next_actions/${actionId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ completed: !completed, completed_notes: notes })
+          });
+          if (res.ok) {
+            fetchNextActions(selectedProspect.id);
+            setActionNotes({...actionNotes, [actionId]: ''});
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleDeleteNextAction = async (actionId) => {
+        if (window.confirm('Supprimer cette action ?')) {
+          try {
+            const res = await fetch(`${API_URL}/next_actions/${actionId}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${user.token}` }
+            });
+            if (res.ok) {
+              fetchNextActions(selectedProspect.id);
+            }
+          } catch (err) {
+            alert('Erreur: ' + err.message);
+          }
+        }
+      };
+
       const handleEditProspect = (prospect) => {
         setFormData(prospect);
         setShowForm(true);
       };
 
       const handleSelectProspect = (prospect) => {
+        console.log('Clicking on prospect:', prospect.id, prospect.name);
         setSelectedProspect(prospect);
+        setShowForm(false);  // Fermer le formulaire pour afficher les activités
         if (!activities[prospect.id]) {
           fetchActivities(prospect.id);
         }
+        fetchNextActions(prospect.id);
+        fetchStatusHistory(prospect.id);
+        setNewActionDate(new Date().toISOString().split('T')[0]);
       };
 
       const filteredProspects = prospects.filter(p => {
         const matchStatus = filterStatus === 'Tous' || p.status === filterStatus;
+        const matchCommercial = filterCommercial === 'Tous' || p.assigned_to === filterCommercial;
         const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (p.contact_name && p.contact_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
                            (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase()));
-        return matchStatus && matchSearch;
+        return matchStatus && matchCommercial && matchSearch;
+      }).sort((a, b) => {
+        if (sortBy === 'name') {
+          return a.name.localeCompare(b.name);
+        } else if (sortBy === 'ancienneté') {
+          // Les plus anciens d'abord - utiliser quote_date ou created_at
+          const dateStrA = a.quote_date || a.created_at;
+          const dateStrB = b.quote_date || b.created_at;
+          
+          // Si pas de date, mettre à la fin
+          if (!dateStrA && !dateStrB) return 0;
+          if (!dateStrA) return 1;
+          if (!dateStrB) return -1;
+          
+          // Parser les dates correctement
+          const dateA = new Date(dateStrA.includes('-') ? dateStrA : dateStrA.split('/').reverse().join('-')).getTime();
+          const dateB = new Date(dateStrB.includes('-') ? dateStrB : dateStrB.split('/').reverse().join('-')).getTime();
+          return dateA - dateB;  // Plus ancien d'abord
+        }
+        return 0;
       });
 
       if (!user) {
@@ -183,29 +401,47 @@
 
       return (
         <div style={styles.container}>
-          <Header user={user} onLogout={() => setUser(null)} />
+          <Header user={user} onLogout={() => setUser(null)} onDashboard={() => setIsDashboard(!isDashboard)} isDashboard={isDashboard} onSettings={() => setShowSettings(true)} />
           
+          {showSettings && <Settings onClose={() => setShowSettings(false)} user={user} />}
+          
+          {isDashboard ? (
+            <Dashboard prospects={prospects} selectedCommercial={selectedCommercial} onSelectCommercial={setSelectedCommercial} onSelectProspect={handleSelectProspect} onOpenDashboard={() => setIsDashboard(false)} />
+          ) : (
           <div style={styles.content}>
             <LeftPanel
               prospects={filteredProspects}
+              allProspects={prospects}
               selectedProspect={selectedProspect}
               onSelect={handleSelectProspect}
               filterStatus={filterStatus}
               onFilterChange={setFilterStatus}
+              filterCommercial={filterCommercial}
+              onFilterCommercialChange={setFilterCommercial}
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              prospectActionsInfo={prospectActionsInfo}
               onNewProspect={() => {
+                setSelectedProspect(null);
                 setFormData(getEmptyProspect());
                 setShowForm(true);
               }}
             />
 
             <RightPanel
+              key={selectedProspect?.id}
               selectedProspect={selectedProspect}
               activities={activities}
+              nextActions={nextActions}
+              statusHistory={statusHistory}
               onEdit={handleEditProspect}
               onDelete={handleDeleteProspect}
               onAddActivity={handleAddActivity}
+              onAddNextAction={handleAddNextAction}
+              onToggleNextAction={handleToggleNextAction}
+              onDeleteNextAction={handleDeleteNextAction}
               showForm={showForm}
               formData={formData}
               onFormChange={setFormData}
@@ -214,21 +450,245 @@
                 setShowForm(false);
                 setFormData(getEmptyProspect());
               }}
+              newActionType={newActionType}
+              onActionTypeChange={setNewActionType}
+              newActionDate={newActionDate}
+              onActionDateChange={setNewActionDate}
+              newActionActor={newActionActor}
+              onActionActorChange={setNewActionActor}
             />
           </div>
+          )}
         </div>
       );
     }
 
     // ================== COMPOSANTS ==================
 
-    function Header({ user, onLogout }) {
+    function Header({ user, onLogout, onDashboard, isDashboard, onSettings }) {
       return (
         <div style={styles.header}>
-          <h1>📊 Pipeline Commerciaux</h1>
-          <div style={styles.userInfo}>
-            <span>{user.name}</span>
-            <button onClick={onLogout} style={styles.logoutBtn}>Déconnexion</button>
+          <div style={styles.headerLeft}>
+            <img src="texaswin-logo.png" alt="TexasWin" style={{height: '40px', marginRight: '15px', verticalAlign: 'middle'}} />
+            <h1 style={{display: 'inline-block', margin: 0}}>Pipeline TexasWin</h1>
+          </div>
+          <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
+            <button onClick={onDashboard} style={{...styles.dashboardBtn, ...(isDashboard ? {backgroundColor: '#10a0dc', color: 'white'} : {})}}>📊 Dashboard</button>
+            {user.name === 'Christian' && (
+              <button onClick={onSettings} style={styles.settingsBtn}>⚙️ Paramètres</button>
+            )}
+            <div style={styles.userInfo}>
+              <span>{user.name}</span>
+              <button onClick={onLogout} style={styles.logoutBtn}>Déconnexion</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function Settings({ onClose, user }) {
+      const [users, setUsers] = React.useState([]);
+      const [newUserEmail, setNewUserEmail] = React.useState('');
+      const [newUserPassword, setNewUserPassword] = React.useState('');
+      const [newUserName, setNewUserName] = React.useState('');
+      const [editingUserId, setEditingUserId] = React.useState(null);
+      const [newPassword, setNewPassword] = React.useState('');
+      const [showNewPassword, setShowNewPassword] = React.useState(false);
+      const [showPassword, setShowPassword] = React.useState({});
+      const [showTempPassword, setShowTempPassword] = React.useState({});
+
+      React.useEffect(() => {
+        fetchUsers();
+      }, []);
+
+      const fetchUsers = async () => {
+        try {
+          const res = await fetch(`${API_URL}/users`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setUsers(data);
+          }
+        } catch (err) {
+          console.error('Erreur:', err);
+        }
+      };
+
+      const handleCreateUser = async () => {
+        if (!newUserEmail || !newUserPassword || !newUserName) {
+          alert('Remplissez tous les champs');
+          return;
+        }
+        try {
+          const res = await fetch(`${API_URL}/users`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ email: newUserEmail, password: newUserPassword, name: newUserName })
+          });
+          if (res.ok) {
+            setNewUserEmail('');
+            setNewUserPassword('');
+            setNewUserName('');
+            fetchUsers();
+          } else {
+            alert('Erreur: ' + (await res.text()));
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleChangePassword = async (userId) => {
+        if (!newPassword) {
+          alert('Entrez un nouveau mot de passe');
+          return;
+        }
+        try {
+          const res = await fetch(`${API_URL}/users/${userId}/password`, {
+            method: 'PUT',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ password: newPassword })
+          });
+          if (res.ok) {
+            setEditingUserId(null);
+            setNewPassword('');
+            fetchUsers();
+            alert('Mot de passe modifié');
+          } else {
+            alert('Erreur: ' + (await res.text()));
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleDeleteUser = async (userId, userName) => {
+        if (window.confirm(`Êtes-vous sûr de vouloir supprimer ${userName} ?`)) {
+          try {
+            const res = await fetch(`${API_URL}/users/${userId}`, {
+              method: 'DELETE',
+              headers: { 
+                'Authorization': `Bearer ${user.token}`
+              }
+            });
+            if (res.ok) {
+              fetchUsers();
+              alert('Utilisateur supprimé');
+            } else {
+              alert('Erreur: ' + (await res.text()));
+            }
+          } catch (err) {
+            alert('Erreur: ' + err.message);
+          }
+        }
+      };
+
+      return (
+        <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000}}>
+          <div style={{backgroundColor: 'white', borderRadius: '8px', padding: '30px', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+              <h2 style={{margin: 0}}>Gestion des comptes</h2>
+              <button onClick={onClose} style={{backgroundColor: '#ccc', border: 'none', borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '16px'}}>✕</button>
+            </div>
+
+            {/* Créer un nouvel utilisateur */}
+            <div style={{backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '20px'}}>
+              <h3>Créer un nouveau compte</h3>
+              <input
+                type="email"
+                placeholder="Email"
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+                style={{width: '100%', padding: '10px', marginBottom: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box'}}
+              />
+              <input
+                type="text"
+                placeholder="Nom complet"
+                value={newUserName}
+                onChange={(e) => setNewUserName(e.target.value)}
+                style={{width: '100%', padding: '10px', marginBottom: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box'}}
+              />
+              <div style={{display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px'}}>
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  placeholder="Mot de passe"
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  style={{flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box'}}
+                />
+                <input
+                  type="checkbox"
+                  checked={showNewPassword}
+                  onChange={(e) => setShowNewPassword(e.target.checked)}
+                  style={{cursor: 'pointer'}}
+                  title="Afficher le mot de passe"
+                />
+              </div>
+              <button onClick={handleCreateUser} style={{backgroundColor: '#10a0dc', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>Créer</button>
+            </div>
+
+            {/* Liste des utilisateurs */}
+            <div>
+              <h3>Utilisateurs existants</h3>
+              {users.map(u => (
+                <div key={u.id} style={{backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '10px'}}>
+                  <div style={{marginBottom: '10px'}}>
+                    <strong>{u.name}</strong> ({u.email})
+                  </div>
+                  {u.temp_password && (
+                    <div style={{backgroundColor: '#fff3cd', padding: '10px', borderRadius: '4px', marginBottom: '10px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                      <span>
+                        <strong>Mot de passe temporaire:</strong> {showTempPassword[u.id] ? u.temp_password : '••••••••••••'}
+                      </span>
+                      <button onClick={() => setShowTempPassword({...showTempPassword, [u.id]: !showTempPassword[u.id]})} style={{backgroundColor: '#ffc107', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold'}}>
+                        {showTempPassword[u.id] ? 'Masquer' : 'Voir'}
+                      </button>
+                    </div>
+                  )}
+                  {editingUserId === u.id ? (
+                    <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
+                      <input
+                        type={showPassword[u.id] ? "text" : "password"}
+                        placeholder="Nouveau mot de passe"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        style={{flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '4px'}}
+                      />
+                      <input
+                        type="checkbox"
+                        checked={showPassword[u.id] || false}
+                        onChange={(e) => setShowPassword({...showPassword, [u.id]: e.target.checked})}
+                        style={{cursor: 'pointer'}}
+                        title="Afficher le mot de passe"
+                      />
+                      <button onClick={() => handleChangePassword(u.id)} style={{backgroundColor: '#10a0dc', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '4px', cursor: 'pointer'}}>Valider</button>
+                      <button onClick={() => {setEditingUserId(null); setNewPassword('');}} style={{backgroundColor: '#ccc', border: 'none', padding: '10px 15px', borderRadius: '4px', cursor: 'pointer'}}>Annuler</button>
+                    </div>
+                  ) : (
+                    <div style={{display: 'flex', gap: '10px'}}>
+                      <button onClick={() => setEditingUserId(u.id)} style={{backgroundColor: '#ffc107', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>Modifier mot de passe</button>
+                      {u.temp_password && (
+                        <button onClick={() => setShowTempPassword({...showTempPassword, [u.id]: !showTempPassword[u.id]})} style={{backgroundColor: '#17a2b8', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>
+                          {showTempPassword[u.id] ? 'Masquer mot de passe' : 'Voir mot de passe'}
+                        </button>
+                      )}
+                      {u.name !== 'Christian' && (
+                        <button onClick={() => handleDeleteUser(u.id, u.name)} style={{backgroundColor: '#dc3545', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>
+                          Supprimer
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       );
@@ -248,7 +708,7 @@
       return (
         <div style={styles.loginContainer}>
           <div style={styles.loginBox}>
-            <h2>Pipeline Commerciaux</h2>
+            <h2>Pipeline TexasWin</h2>
             <form onSubmit={handleSubmit} style={styles.form}>
               {isRegister && (
                 <input
@@ -294,7 +754,7 @@
       );
     }
 
-    function LeftPanel({ prospects, selectedProspect, onSelect, filterStatus, onFilterChange, searchTerm, onSearchChange, onNewProspect }) {
+    function LeftPanel({ prospects, allProspects, selectedProspect, onSelect, filterStatus, onFilterChange, filterCommercial, onFilterCommercialChange, searchTerm, onSearchChange, sortBy, onSortChange, prospectActionsInfo, onNewProspect }) {
       return (
         <div style={styles.leftPanel}>
           <button onClick={onNewProspect} style={styles.newBtn}>+ Nouveau prospect</button>
@@ -308,7 +768,7 @@
           />
 
           <div style={styles.filterContainer}>
-            {['Tous', 'Prospection', 'Devis', 'Négociation', 'Signé', 'Perdu'].map(status => (
+            {['Tous', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Perdu'].map(status => (
               <button
                 key={status}
                 onClick={() => onFilterChange(status)}
@@ -322,6 +782,91 @@
             ))}
           </div>
 
+          <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
+            <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Commercial:</span>
+            {['Tous', 'Roger', 'Christian', 'Frédéric'].map(commercial => {
+              const count = getProspectCountByCommercial(allProspects, commercial);
+              return (
+                <button
+                  key={commercial}
+                  onClick={() => onFilterCommercialChange(commercial)}
+                  style={{
+                    ...styles.filterBtn,
+                    ...(filterCommercial === commercial ? styles.filterBtnActive : {}),
+                    fontSize: '12px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <span>{commercial}</span>
+                  <span style={{fontSize: '11px', marginLeft: '8px', opacity: 0.7}}>({count})</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
+            <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Trier par:</span>
+            {[{label: 'Nom', value: 'name'}, {label: 'Ancienneté', value: 'ancienneté'}].map(option => (
+              <button
+                key={option.value}
+                onClick={() => onSortChange(option.value)}
+                style={{
+                  ...styles.filterBtn,
+                  ...(sortBy === option.value ? styles.filterBtnActive : {}),
+                  fontSize: '12px'
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {(() => {
+            let statusesToInclude = [];
+            let filterLabel = filterStatus;
+            
+            if (filterStatus === 'Tous') {
+              statusesToInclude = ['Devis', 'Démo', 'Négociation'];
+              filterLabel = 'Tous';
+            } else if (filterStatus === 'Prospection') {
+              statusesToInclude = ['Négociation'];
+              filterLabel = 'Prospection';
+            } else if (filterStatus === 'Devis') {
+              statusesToInclude = ['Devis'];
+              filterLabel = 'Devis';
+            } else if (filterStatus === 'Démo') {
+              statusesToInclude = ['Démo'];
+              filterLabel = 'Démo';
+            } else if (filterStatus === 'Négociation') {
+              statusesToInclude = ['Négociation'];
+              filterLabel = 'Négociation';
+            } else if (filterStatus === 'Signé') {
+              statusesToInclude = ['Signé'];
+              filterLabel = 'Signé';
+            } else if (filterStatus === 'Perdu') {
+              statusesToInclude = ['Perdu'];
+              filterLabel = 'Perdu';
+            }
+            
+            const cumulMonthly = prospects
+              .filter(p => statusesToInclude.includes(p.status))
+              .reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
+            
+            const cumulAnnual = prospects
+              .filter(p => statusesToInclude.includes(p.status))
+              .reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0), 0);
+            
+            return (
+              <div style={{padding: '15px', backgroundColor: '#f0f0f0', borderRadius: '4px', margin: '0 15px', textAlign: 'center'}}>
+                <div style={{fontSize: '12px', color: '#666', marginBottom: '5px'}}>Cumul Abonnement {filterLabel}</div>
+                <div style={{fontSize: '14px', fontWeight: 'bold', color: '#0066cc'}}>{formatCurrency(cumulMonthly)}/mois</div>
+                {cumulAnnual > 0 && <div style={{fontSize: '14px', fontWeight: 'bold', color: '#28a745'}}>{formatCurrency(cumulAnnual)}/an</div>}
+              </div>
+            );
+          })()}
+
           <div style={styles.prospectsList}>
             {prospects.map(prospect => (
               <div
@@ -329,14 +874,22 @@
                 onClick={() => onSelect(prospect)}
                 style={{
                   ...styles.prospectItem,
-                  ...(selectedProspect?.id === prospect.id ? styles.prospectItemActive : {})
+                  ...(selectedProspect?.id === prospect.id ? styles.prospectItemActive : {}),
+                  ...(prospect.status === 'Perdu' ? { backgroundColor: '#ffe6e6', borderLeft: '4px solid #ff6666' } : {})
                 }}
               >
                 <div style={styles.prospectName}>{prospect.name}</div>
                 <div style={styles.prospectSubtitle}>{prospect.contact_name}</div>
-                <div style={styles.prospectStatus}>{prospect.status}</div>
+                <div style={styles.prospectStatusRow}>
+                  <span style={styles.prospectStatus}>{prospect.status}</span>
+                  {prospect.quote_date && <span style={styles.prospectQuoteDate}>{new Date(prospect.quote_date).toLocaleDateString()}</span>}
+                </div>
+                <div style={{fontSize: '12px', marginTop: '6px', color: '#666'}}>
+                  Action planifiée: <strong style={{color: prospectActionsInfo[prospect.id]?.hasAction ? '#28a745' : '#cc0000'}}>{prospectActionsInfo[prospect.id]?.hasAction ? 'Oui' : 'Non'}</strong>
+                  {prospectActionsInfo[prospect.id]?.isLate && <span style={{color: '#cc0000', fontWeight: 'bold'}}> - En retard</span>}
+                </div>
                 <div style={styles.prospectAmount}>
-                  {formatCurrency(calculateTotal(prospect))}
+                  {formatCurrency(prospect.monthly_amount)}/mois + {formatCurrency(prospect.annual_amount)}/an
                 </div>
               </div>
             ))}
@@ -345,9 +898,223 @@
       );
     }
 
-    function RightPanel({ selectedProspect, activities, onEdit, onDelete, onAddActivity, showForm, formData, onFormChange, onSave, onCancel }) {
+    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard }) {
+      const [sortBy, setSortBy] = React.useState('name');
+      const [sortAsc, setSortAsc] = React.useState(true);
+      
+      const stats = {
+        total: prospects.length,
+        prospection: prospects.filter(p => p.status === 'Prospection').length,
+        devis: prospects.filter(p => p.status === 'Devis').length,
+        demo: prospects.filter(p => p.status === 'Démo').length,
+        negotiation: prospects.filter(p => p.status === 'Négociation').length,
+        signed: prospects.filter(p => p.status === 'Signé').length,
+        lost: prospects.filter(p => p.status === 'Perdu').length,
+        totalValue: prospects.reduce((sum, p) => sum + (p.monthly_amount * 12 + p.annual_amount), 0)
+      };
+
+      // Prospects hors Signé et Perdu
+      const prospectsPipeline = prospects.filter(p => p.status !== 'Signé' && p.status !== 'Perdu');
+      const monthlyAbonnement = prospectsPipeline.reduce((sum, p) => sum + (p.monthly_amount || 0), 0);
+      const setupAmount = prospectsPipeline.reduce((sum, p) => sum + (p.setup_amount || 0), 0);
+      const formationAmount = prospectsPipeline.reduce((sum, p) => sum + (p.training_amount || 0), 0);
+
+      const commercials = ['Roger', 'Christian', 'Frédéric'];
+
+      // Fonction pour trier la liste
+      const getSortedProspects = (commercialName) => {
+        const filtered = prospects.filter(p => p.assigned_to === commercialName);
+        return filtered.sort((a, b) => {
+          let compareA, compareB;
+          
+          switch(sortBy) {
+            case 'name':
+              compareA = a.name.toLowerCase();
+              compareB = b.name.toLowerCase();
+              return sortAsc ? compareA.localeCompare(compareB) : compareB.localeCompare(compareA);
+            case 'setup':
+              compareA = a.setup_amount || 0;
+              compareB = b.setup_amount || 0;
+              return sortAsc ? compareA - compareB : compareB - compareA;
+            case 'monthly':
+              compareA = a.monthly_amount || 0;
+              compareB = b.monthly_amount || 0;
+              return sortAsc ? compareA - compareB : compareB - compareA;
+            case 'annual':
+              compareA = a.annual_amount || 0;
+              compareB = b.annual_amount || 0;
+              return sortAsc ? compareA - compareB : compareB - compareA;
+            case 'formation':
+              compareA = a.training_amount || 0;
+              compareB = b.training_amount || 0;
+              return sortAsc ? compareA - compareB : compareB - compareA;
+            case 'status':
+              compareA = a.status;
+              compareB = b.status;
+              return sortAsc ? compareA.localeCompare(compareB) : compareB.localeCompare(compareA);
+            case 'statusDate':
+              compareA = new Date(a.status_date || '').getTime() || 0;
+              compareB = new Date(b.status_date || '').getTime() || 0;
+              return sortAsc ? compareA - compareB : compareB - compareA;
+            default:
+              return 0;
+          }
+        });
+      };
+
+      const handleSort = (field) => {
+        if (sortBy === field) {
+          setSortAsc(!sortAsc);
+        } else {
+          setSortBy(field);
+          setSortAsc(true);
+        }
+      };
+      
+      const renderHeader = (label, field) => (
+        <th style={{padding: '10px', textAlign: field === 'name' ? 'left' : 'right', fontWeight: 'bold', cursor: 'pointer', userSelect: 'none', backgroundColor: sortBy === field ? '#e0e0e0' : 'transparent'}} onClick={() => handleSort(field)}>
+          {label} {sortBy === field && (sortAsc ? '↑' : '↓')}
+        </th>
+      );
+      
+      return (
+        <div style={{padding: '30px', backgroundColor: '#f9f9f9', overflowY: 'auto', flex: 1}}>
+          <h2 style={{marginBottom: '30px'}}>Dashboard Commerciaux</h2>
+          
+          {/* Statistiques globales */}
+          <div style={{display: 'flex', gap: '20px', marginBottom: '40px'}}>
+            {/* Gauche: 3 cadres */}
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', flex: 1}}>
+              <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
+                <div style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>Total prospects</div>
+                <div style={{fontSize: '32px', fontWeight: 'bold', color: '#333'}}>{stats.total}</div>
+              </div>
+              <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
+                <div style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>Signés</div>
+                <div style={{fontSize: '32px', fontWeight: 'bold', color: '#00cc00'}}>{stats.signed}</div>
+              </div>
+              <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
+                <div style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>Perdus</div>
+                <div style={{fontSize: '32px', fontWeight: 'bold', color: '#cc0000'}}>{stats.lost}</div>
+              </div>
+            </div>
+            {/* Droite: Montants en pipeline */}
+            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', minWidth: '350px'}}>
+              <div style={{fontSize: '14px', color: '#666', marginBottom: '15px', fontWeight: 'bold'}}>Montants en pipeline</div>
+              <div style={{fontSize: '15px', color: '#333', lineHeight: '2.2', fontWeight: '500'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                  <span>📅 Abonnement mensuel:</span>
+                  <strong style={{color: '#10a0dc', fontSize: '16px'}}>{formatNumber(monthlyAbonnement)}</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                  <span>🔧 Prestations initiales:</span>
+                  <strong style={{color: '#10a0dc', fontSize: '16px'}}>{formatNumber(setupAmount)}</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                  <span>📚 Formations:</span>
+                  <strong style={{color: '#10a0dc', fontSize: '16px'}}>{formatNumber(formationAmount)}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Par statut */}
+          <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '40px'}}>
+            <h3 style={{marginTop: 0}}>Par statut</h3>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px'}}>
+              <div style={{textAlign: 'center', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '6px'}}>
+                <div style={{fontSize: '14px', color: '#666', marginBottom: '8px'}}>Prospection</div>
+                <div style={{fontSize: '24px', fontWeight: 'bold', color: '#666'}}>{stats.prospection}</div>
+              </div>
+              <div style={{textAlign: 'center', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '6px'}}>
+                <div style={{fontSize: '14px', color: '#666', marginBottom: '8px'}}>Devis</div>
+                <div style={{fontSize: '24px', fontWeight: 'bold', color: '#0066cc'}}>{stats.devis}</div>
+              </div>
+              <div style={{textAlign: 'center', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '6px'}}>
+                <div style={{fontSize: '14px', color: '#666', marginBottom: '8px'}}>Démo</div>
+                <div style={{fontSize: '24px', fontWeight: 'bold', color: '#9933cc'}}>{stats.demo}</div>
+              </div>
+              <div style={{textAlign: 'center', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '6px'}}>
+                <div style={{fontSize: '14px', color: '#666', marginBottom: '8px'}}>Négociation</div>
+                <div style={{fontSize: '24px', fontWeight: 'bold', color: '#ff9900'}}>{stats.negotiation}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Par commercial */}
+          <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
+            <h3 style={{marginTop: 0}}>Par commercial</h3>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px'}}>
+              {commercials.map(commercial => {
+                const commercialProspects = prospects.filter(p => p.assigned_to === commercial);
+                const commercialPipeline = commercialProspects.filter(p => p.status !== 'Signé' && p.status !== 'Perdu');
+                const signed = commercialProspects.filter(p => p.status === 'Signé').length;
+                const monthlyValue = commercialPipeline.reduce((sum, p) => sum + (p.monthly_amount || 0), 0);
+                return (
+                  <div key={commercial} style={{borderLeft: '4px solid #10a0dc', paddingLeft: '15px', cursor: 'pointer', padding: '15px', backgroundColor: selectedCommercial === commercial ? '#e8f4f8' : 'transparent', borderRadius: '6px', transition: 'background-color 0.2s'}} onClick={() => onSelectCommercial(selectedCommercial === commercial ? null : commercial)}>
+                    <h4 style={{margin: '0 0 10px 0', color: selectedCommercial === commercial ? '#10a0dc' : '#333'}}>{commercial}</h4>
+                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Prospects: <strong>{commercialProspects.length}</strong></div>
+                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Signés: <strong style={{color: '#00cc00'}}>{signed}</strong></div>
+                    <div style={{fontSize: '13px', color: '#666'}}>Valeur abonnement mensuel: <strong style={{color: '#10a0dc'}}>{formatNumber(monthlyValue)}</strong></div>
+                    <div style={{fontSize: '12px', marginTop: '10px', color: '#999'}}>
+                      {commercialProspects.filter(p => p.status === 'Prospection').length} prospection | {commercialProspects.filter(p => p.status === 'Devis').length} devis | {commercialProspects.filter(p => p.status === 'Négociation').length} négociation
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Liste des prospects du commercial sélectionné */}
+          {selectedCommercial && (
+            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginTop: '30px'}}>
+              <h3 style={{marginTop: 0}}>Prospects - {selectedCommercial}</h3>
+              <div style={{overflowX: 'auto'}}>
+                <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '13px'}}>
+                  <thead>
+                    <tr style={{borderBottom: '2px solid #ddd', backgroundColor: '#f9f9f9'}}>
+                      {renderHeader('Nom prospect', 'name')}
+                      <th style={{padding: '10px', textAlign: 'left', fontWeight: 'bold'}}>Contact</th>
+                      {renderHeader('Setup', 'setup')}
+                      {renderHeader('Abonnement mois', 'monthly')}
+                      {renderHeader('Abonnement annuel', 'annual')}
+                      {renderHeader('Formation', 'formation')}
+                      {renderHeader('Statut', 'status')}
+                      {renderHeader('Date statut', 'statusDate')}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getSortedProspects(selectedCommercial).map(prospect => (
+                      <tr key={prospect.id} style={{borderBottom: '1px solid #eee', cursor: 'pointer'}} onClick={() => {
+                        onSelectProspect(prospect);
+                        onOpenDashboard();
+                      }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                        <td style={{padding: '10px'}}><strong>{prospect.name}</strong></td>
+                        <td style={{padding: '10px'}}>{prospect.contact_name || '-'}</td>
+                        <td style={{padding: '10px', textAlign: 'right'}}>{formatNumber(prospect.setup_amount || 0)}</td>
+                        <td style={{padding: '10px', textAlign: 'right'}}>{formatNumber(prospect.monthly_amount || 0)}</td>
+                        <td style={{padding: '10px', textAlign: 'right'}}>{formatNumber(prospect.annual_amount || 0)}</td>
+                        <td style={{padding: '10px', textAlign: 'right'}}>{formatNumber(prospect.training_amount || 0)}</td>
+                        <td style={{padding: '10px', textAlign: 'center'}}><span style={{backgroundColor: getStatusColor(prospect.status), color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold'}}>{prospect.status}</span></td>
+                        <td style={{padding: '10px', textAlign: 'right', fontSize: '12px', color: '#666'}}>{prospect.status_date ? new Date(prospect.status_date).toLocaleDateString('fr-FR') : '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
+      const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
+      const [newNextActionType, setNewNextActionType] = React.useState('');
+      const [newNextActionDate, setNewNextActionDate] = React.useState('');
+      const [newActivityActor, setNewActivityActor] = React.useState('');
 
       const handleAddActivity = () => {
         if (newActivityDesc.trim()) {
@@ -357,7 +1124,7 @@
       };
 
       if (showForm) {
-        return <ProspectForm formData={formData} onFormChange={onFormChange} onSave={onSave} onCancel={onCancel} />;
+        return <ProspectForm formData={formData} onFormChange={onFormChange} onSave={onSave} onCancel={onCancel} selectedProspect={selectedProspect} />;
       }
 
       if (!selectedProspect) {
@@ -378,39 +1145,33 @@
               </div>
             </div>
 
-            <div style={styles.detailGrid}>
-              <div style={styles.detailItem}>
-                <label>Contact</label>
-                <div>{selectedProspect.contact_name}</div>
-              </div>
-              <div style={styles.detailItem}>
-                <label>Email</label>
-                <div>{selectedProspect.email}</div>
-              </div>
-              <div style={styles.detailItem}>
-                <label>Téléphone</label>
-                <div>{selectedProspect.phone}</div>
-              </div>
-              <div style={styles.detailItem}>
-                <label>Statut</label>
-                <div style={{ fontWeight: 'bold', color: getStatusColor(selectedProspect.status) }}>
-                  {selectedProspect.status}
-                </div>
-              </div>
+            <div style={styles.detailRowInline}>
+              <span><strong>Décideur:</strong> {selectedProspect.decision_maker}</span>
+              <span><strong>Contact:</strong> {selectedProspect.contact_name}</span>
+              <span><strong>Statut:</strong> <span style={{ color: getStatusColor(selectedProspect.status) }}>{selectedProspect.status}</span> {selectedProspect.status_date && <span style={{fontSize: '12px', color: '#999'}}>depuis le {new Date(selectedProspect.status_date).toLocaleDateString()}</span>}</span>
+            </div>
+
+            <div style={styles.detailRowInline}>
+              <span><strong>Email:</strong> {selectedProspect.email}</span>
+              <span><strong>Tél:</strong> {selectedProspect.phone}</span>
             </div>
 
             <div style={styles.amountsGrid}>
               <div style={styles.amountItem}>
-                <label>Setup</label>
-                <div>{formatCurrency(selectedProspect.setup_amount)}</div>
+                <label style={styles.amountLabelSetup}>Setup</label>
+                <div style={styles.amountValue}>{formatCurrency(selectedProspect.setup_amount)}</div>
               </div>
               <div style={styles.amountItem}>
-                <label>Abonnement (mois)</label>
-                <div>{formatCurrency(selectedProspect.monthly_amount)}</div>
+                <label style={styles.amountLabelAbonnement}>Abonnement (mois)</label>
+                <div style={styles.amountValue}>{formatCurrency(selectedProspect.monthly_amount)}</div>
               </div>
               <div style={styles.amountItem}>
-                <label>Formation</label>
-                <div>{formatCurrency(selectedProspect.training_amount)}</div>
+                <label style={styles.amountLabelAnnual}>Abonnement (an)</label>
+                <div style={styles.amountValue}>{formatCurrency(selectedProspect.annual_amount)}</div>
+              </div>
+              <div style={styles.amountItem}>
+                <label style={styles.amountLabelFormation}>Formation</label>
+                <div style={styles.amountValue}>{formatCurrency(selectedProspect.training_amount)}</div>
               </div>
             </div>
 
@@ -422,26 +1183,41 @@
 
             <div style={styles.otherDetails}>
               <div><strong>Commercial:</strong> {selectedProspect.assigned_to}</div>
-              <div><strong>Prochaine action:</strong> {selectedProspect.next_action}</div>
-              <div><strong>Date limite:</strong> {selectedProspect.deadline}</div>
+              <div>
+                <strong>Prochaine action:</strong> {
+                  nextActions.length === 0 ? 'Aucune' :
+                  nextActions.length === 1 ? nextActions[0].action_type :
+                  nextActions.length + ' actions'
+                }
+              </div>
+              <div>
+                <strong>Date:</strong> {
+                  nextActions.length === 0 ? '-' :
+                  new Date(nextActions.sort((a, b) => new Date(a.planned_date) - new Date(b.planned_date))[0].planned_date).toLocaleDateString()
+                }
+              </div>
               <div><strong>Notes:</strong> {selectedProspect.notes}</div>
             </div>
           </div>
 
           <ActivitiesSection
-            activities={activities[selectedProspect.id] || []}
-            prospectId={selectedProspect.id}
-            onAddActivity={handleAddActivity}
-            newActivityType={newActivityType}
-            onActivityTypeChange={setNewActivityType}
-            newActivityDesc={newActivityDesc}
-            onActivityDescChange={setNewActivityDesc}
+            nextActions={nextActions}
+            statusHistory={statusHistory}
+            onAddNextAction={onAddNextAction}
+            onToggleNextAction={onToggleNextAction}
+            onDeleteNextAction={onDeleteNextAction}
+            newActionType={newActionType}
+            onActionTypeChange={onActionTypeChange}
+            newActionDate={newActionDate}
+            onActionDateChange={onActionDateChange}
+            newActionActor={newActionActor}
+            onActionActorChange={onActionActorChange}
           />
         </div>
       );
     }
 
-    function ProspectForm({ formData, onFormChange, onSave, onCancel }) {
+    function ProspectForm({ formData, onFormChange, onSave, onCancel, selectedProspect }) {
       const handleChange = (field, value) => {
         onFormChange({ ...formData, [field]: value });
       };
@@ -484,62 +1260,6 @@
                   onChange={(e) => handleChange('phone', e.target.value)}
                   style={styles.formInput}
                 />
-              </div>
-            </div>
-
-            <div style={styles.formSection}>
-              <h3>Montants</h3>
-              <div style={styles.formGrid}>
-                <input
-                  type="number"
-                  placeholder="Setup"
-                  value={formData.setup_amount}
-                  onChange={(e) => handleChange('setup_amount', parseFloat(e.target.value) || 0)}
-                  style={styles.formInput}
-                />
-                <input
-                  type="number"
-                  placeholder="Abonnement (mensuel)"
-                  value={formData.monthly_amount}
-                  onChange={(e) => handleChange('monthly_amount', parseFloat(e.target.value) || 0)}
-                  style={styles.formInput}
-                />
-                <input
-                  type="number"
-                  placeholder="Formation"
-                  value={formData.training_amount}
-                  onChange={(e) => handleChange('training_amount', parseFloat(e.target.value) || 0)}
-                  style={styles.formInput}
-                />
-              </div>
-              <div style={styles.totalCalc}>
-                <strong>Total: {formatCurrency(total)}</strong>
-              </div>
-            </div>
-
-            <div style={styles.formSection}>
-              <h3>Détails</h3>
-              <div style={styles.formGrid}>
-                <select
-                  value={formData.status}
-                  onChange={(e) => handleChange('status', e.target.value)}
-                  style={styles.formInput}
-                >
-                  <option>Prospection</option>
-                  <option>Devis</option>
-                  <option>Négociation</option>
-                  <option>Signé</option>
-                  <option>Perdu</option>
-                </select>
-                <input
-                  type="number"
-                  placeholder="Chance %"
-                  min="0"
-                  max="100"
-                  value={formData.chance_percent}
-                  onChange={(e) => handleChange('chance_percent', parseInt(e.target.value) || 0)}
-                  style={styles.formInput}
-                />
                 <select
                   value={formData.assigned_to}
                   onChange={(e) => handleChange('assigned_to', e.target.value)}
@@ -551,28 +1271,143 @@
                   <option>Frédéric</option>
                 </select>
                 <input
-                  type="date"
-                  value={formData.deadline}
-                  onChange={(e) => handleChange('deadline', e.target.value)}
+                  type="text"
+                  placeholder="Décideur"
+                  value={formData.decision_maker}
+                  onChange={(e) => handleChange('decision_maker', e.target.value)}
                   style={styles.formInput}
-                />
-                <textarea
-                  placeholder="Prochaine action"
-                  value={formData.next_action}
-                  onChange={(e) => handleChange('next_action', e.target.value)}
-                  style={{...styles.formInput, gridColumn: '1 / -1', minHeight: '60px'}}
-                />
-                <textarea
-                  placeholder="Notes"
-                  value={formData.notes}
-                  onChange={(e) => handleChange('notes', e.target.value)}
-                  style={{...styles.formInput, gridColumn: '1 / -1', minHeight: '80px'}}
                 />
               </div>
             </div>
 
+            {['Devis', 'Démo', 'Négociation', 'Signé', 'Perdu'].includes(formData.status) && (
+            <div style={styles.formSection}>
+              <h3>Montants et Probabilité</h3>
+              <div style={styles.montantsWithChanceContainer}>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelSetup}>Setup</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={formData.setup_amount}
+                    onChange={(e) => handleChange('setup_amount', parseFloat(e.target.value) || 0)}
+                    style={styles.formInput}
+                  />
+                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.setup_amount) || 0)}</div>
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelAbonnement}>Abonnement (mensuel)</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={formData.monthly_amount}
+                    onChange={(e) => handleChange('monthly_amount', parseFloat(e.target.value) || 0)}
+                    style={styles.formInput}
+                  />
+                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.monthly_amount) || 0)}</div>
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelAnnual}>Abonnement (annuel)</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={formData.annual_amount}
+                    onChange={(e) => handleChange('annual_amount', parseFloat(e.target.value) || 0)}
+                    style={styles.formInput}
+                  />
+                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.annual_amount) || 0)}</div>
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelFormation}>Formation</label>
+                  <input
+                    type="text"
+                    placeholder="0"
+                    value={formatNumber(Number(formData.training_amount) || 0)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\s/g, '');
+                      handleChange('training_amount', parseFloat(val) || 0);
+                    }}
+                    style={styles.formInput}
+                  />
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelMontant}>Probabilité</label>
+                  <select
+                    value={formData.chance_percent}
+                    onChange={(e) => handleChange('chance_percent', parseInt(e.target.value) || 0)}
+                    style={styles.formInput}
+                  >
+                    <option value="0">0%</option>
+                    <option value="20">20%</option>
+                    <option value="40">40%</option>
+                    <option value="60">60%</option>
+                    <option value="80">80%</option>
+                    <option value="100">100%</option>
+                  </select>
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelMontant}>Date du Devis</label>
+                  <input
+                    type="date"
+                    value={formData.quote_date}
+                    onChange={(e) => handleChange('quote_date', e.target.value)}
+                    style={styles.formInput}
+                  />
+                </div>
+              </div>
+              <div style={styles.totalCalc}>
+                <strong>Total: {formatCurrency(total)}</strong>
+              </div>
+            </div>
+            )}
+
+            <div style={styles.formSection}>
+              <h3>Statut</h3>
+              
+              {selectedProspect && selectedProspect.id && (
+                <div style={styles.oldStatusBox}>
+                  <div style={styles.oldStatusLabel}>Ancien statut</div>
+                  <div style={styles.oldStatusValue}>{selectedProspect.status}</div>
+                  {selectedProspect.status_date && (
+                    <div style={{...styles.oldStatusLabel, marginTop: '5px', fontWeight: 'normal', color: '#999'}}>
+                      depuis le {new Date(selectedProspect.status_date).toLocaleDateString()}
+                    </div>
+                  )}
+                  {selectedProspect.notes && (
+                    <>
+                      <div style={{...styles.oldStatusLabel, marginTop: '10px'}}>Notes associées</div>
+                      <div style={styles.oldStatusNotes}>{selectedProspect.notes}</div>
+                    </>
+                  )}
+                </div>
+              )}
+              
+              <div style={styles.formGrid}>
+                <select
+                  value={formData.status}
+                  onChange={(e) => handleChange('status', e.target.value)}
+                  style={styles.formInput}
+                  key={formData.id || 'new'}
+                >
+                  <option>Prospection</option>
+                  <option>Devis</option>
+                  <option>Démo</option>
+                  <option>Négociation</option>
+                  <option>Signé</option>
+                  <option>Perdu</option>
+                </select>
+              </div>
+              
+              <textarea
+                placeholder="Notes"
+                value={formData.notes}
+                onChange={(e) => handleChange('notes', e.target.value)}
+                style={{padding: '10px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px', marginTop: '10px', width: 'calc(100% - 40px)', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: '14px'}}
+              />
+            </div>
+
             <div style={styles.formActions}>
-              <button onClick={onSave} style={styles.saveBtn}>Enregistrer</button>
+              <button onClick={onSave} style={styles.saveBtn}>Enregistrer / Activités</button>
               <button onClick={onCancel} style={styles.cancelBtn}>Annuler</button>
             </div>
           </div>
@@ -580,87 +1415,109 @@
       );
     }
 
-    function ActivitiesSection({ activities, prospectId, onAddActivity, newActivityType, onActivityTypeChange, newActivityDesc, onActivityDescChange }) {
+    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange }) {
+      const [actionNotes, setActionNotes] = React.useState({});
       return (
         <div style={styles.activitiesSection}>
           <h3>📋 Suivi des activités</h3>
           
-          <div style={styles.activityForm}>
-            <select value={newActivityType} onChange={(e) => onActivityTypeChange(e.target.value)} style={styles.activitySelect}>
-              <option>Appel</option>
-              <option>Email</option>
-              <option>Réunion</option>
-              <option>Devis</option>
-              <option>Relance</option>
-              <option>Autre</option>
-            </select>
-            <textarea
-              placeholder="Détail de l'action..."
-              value={newActivityDesc}
-              onChange={(e) => onActivityDescChange(e.target.value)}
-              style={styles.activityInput}
-            />
-            <button onClick={onAddActivity} style={styles.activityBtn}>Ajouter</button>
-          </div>
-
-          <div style={styles.activitiesList}>
-            {activities.map((activity) => (
-              <div key={activity.id} style={styles.activityItem}>
-                <div style={styles.activityHeader}>
-                  <span style={styles.activityType}>{activity.activity_type}</span>
-                  <span style={styles.activityDate}>{new Date(activity.activity_date).toLocaleDateString()}</span>
+          {/* Historique des statuts */}
+          {statusHistory.length > 0 && (
+            <div style={styles.statusHistoryBox}>
+              <h4 style={{marginTop: 0}}>Historique des statuts</h4>
+              {statusHistory.map((history, idx) => (
+                <div key={idx} style={styles.historyItem}>
+                  <span style={{fontWeight: 'bold', color: '#333'}}>{history.old_status}</span>
+                  <span style={{margin: '0 8px', color: '#999'}}>→</span>
+                  <span style={{fontWeight: 'bold', color: '#0066cc'}}>{history.new_status}</span>
+                  <span style={{fontSize: '12px', color: '#999', marginLeft: '10px'}}>
+                    {new Date(history.status_date).toLocaleDateString()}
+                  </span>
+                  {history.notes && <div style={{fontSize: '12px', color: '#666', marginTop: '5px'}}>📝 {history.notes}</div>}
                 </div>
-                <div style={styles.activityDesc}>{activity.description}</div>
-                <div style={styles.activityBy}>{activity.created_by}</div>
-              </div>
-            ))}
+              ))}
+            </div>
+          )}
+          
+          {/* Next Actions complétées et en cours */}
+          {nextActions.length > 0 && (
+            <div style={styles.nextActionsListBox}>
+              <h4>Actions</h4>
+              {nextActions.map((action) => (
+                <div key={action.id} style={{...styles.nextActionItem, opacity: action.completed ? 0.6 : 1}}>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px'}}>
+                    <div style={{display: 'flex', gap: '10px', alignItems: 'flex-start', flex: 1}}>
+                      <input 
+                        type="checkbox" 
+                        checked={action.completed}
+                        onChange={() => onToggleNextAction(action.id, action.completed, actionNotes[action.id] || '')}
+                        style={{cursor: 'pointer', marginTop: '2px', flexShrink: 0}}
+                      />
+                      <span style={{textDecoration: action.completed ? 'line-through' : 'none'}}>
+                        <strong>{action.action_type}</strong> | {new Date(action.planned_date).toLocaleDateString()} | {action.actor}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => onDeleteNextAction(action.id)}
+                      style={{padding: '4px 8px', fontSize: '12px', backgroundColor: '#ff6666', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, display: action.completed ? 'none' : 'block'}}
+                    >
+                      ✕ Supprimer
+                    </button>
+                  </div>
+                  
+                  <textarea
+                    placeholder="Commentaire (optionnel)..."
+                    value={actionNotes[action.id] || ''}
+                    onChange={(e) => setActionNotes({...actionNotes, [action.id]: e.target.value})}
+                    style={{display: action.completed ? 'none' : 'block', padding: '11px 12px', border: '1px solid #d0d0d0', borderRadius: '6px', minHeight: '60px', fontFamily: 'inherit', fontSize: '13px', lineHeight: '1.5', marginLeft: '24px', marginTop: '8px', marginBottom: '8px', width: 'calc(100% - 48px)', boxSizing: 'border-box', resize: 'none', outline: 'none'}}
+                  />
+                  
+                  <div style={{fontSize: '12px', color: '#28a745', marginLeft: '24px', marginTop: '8px', display: action.completed && action.completed_date ? 'block' : 'none'}}>
+                    ✓ Fait le {action.completed_date && new Date(action.completed_date).toLocaleDateString()}
+                  </div>
+                  
+                  <div style={{fontSize: '14px', color: '#1a3a52', marginLeft: '24px', marginTop: '8px', backgroundColor: '#d4e6f1', padding: '10px 12px', borderRadius: '6px', borderLeft: '4px solid #0088cc', display: action.completed && action.completed_note ? 'block' : 'none'}}>
+                    💬 {action.completed_note}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Formulaire pour ajouter une nouvelle action */}
+          <div style={styles.activityForm}>
+            <h4>Ajouter une action</h4>
+            <div style={styles.activityRow}>
+              <select value={newActionType} onChange={(e) => onActionTypeChange(e.target.value)} style={{...styles.activitySelect, flex: 1}}>
+                <option>Relance</option>
+                <option>Email</option>
+                <option>Point technique</option>
+                <option>Démo</option>
+                <option>Négociation</option>
+                <option>Signature</option>
+              </select>
+              <input
+                type="date"
+                value={newActionDate}
+                onChange={(e) => onActionDateChange(e.target.value)}
+                style={{...styles.activitySelect, flex: 1}}
+              />
+              <select value={newActionActor} onChange={(e) => onActionActorChange(e.target.value)} style={{...styles.activitySelect, flex: 1}}>
+                <option>Roger</option>
+                <option>Christian</option>
+                <option>Frédéric</option>
+                <option>Claude</option>
+              </select>
+            </div>
+            <div style={{display: 'flex', gap: '10px', marginTop: '10px'}}>
+              <button onClick={onAddNextAction} style={{...styles.activityBtn, width: '100%'}}>Ajouter</button>
+            </div>
           </div>
         </div>
       );
     }
 
-    // ================== UTILITAIRES ==================
-
-    function getEmptyProspect() {
-      return {
-        id: null,
-        name: '',
-        contact_name: '',
-        email: '',
-        phone: '',
-        status: 'Prospection',
-        setup_amount: 0,
-        monthly_amount: 0,
-        training_amount: 0,
-        material_amount: 0,
-        chance_percent: 20,
-        assigned_to: '',
-        next_action: '',
-        deadline: '',
-        notes: ''
-      };
-    }
-
-    function calculateTotal(prospect) {
-      const annual = prospect.monthly_amount * 12;
-      return (prospect.setup_amount || 0) + annual + (prospect.training_amount || 0);
-    }
-
-    function formatCurrency(amount) {
-      return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
-    }
-
-    function getStatusColor(status) {
-      const colors = {
-        'Prospection': '#666',
-        'Devis': '#0066cc',
-        'Négociation': '#ff9900',
-        'Signé': '#00cc00',
-        'Perdu': '#cc0000'
-      };
-      return colors[status] || '#666';
-    }
-
+    
     // ================== STYLES ==================
 
     const styles = {
@@ -680,6 +1537,34 @@
         alignItems: 'center',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
       },
+      headerLeft: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '30px'
+      },
+      cumulBox: {
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        padding: '12px 20px',
+        borderRadius: '8px',
+        borderLeft: '4px solid #00d4ff'
+      },
+      cumulLabel: {
+        fontSize: '12px',
+        color: '#b0d4ff',
+        fontWeight: '500',
+        marginBottom: '5px'
+      },
+      cumulAmount: {
+        fontSize: '24px',
+        fontWeight: 'bold',
+        color: '#00ff88'
+      },
+      headerSubtitle: {
+        fontSize: '13px',
+        color: '#b0d4ff',
+        marginTop: '5px',
+        fontWeight: '500'
+      },
       userInfo: {
         display: 'flex',
         gap: '15px',
@@ -693,6 +1578,26 @@
         borderRadius: '4px',
         cursor: 'pointer',
         fontSize: '14px'
+      },
+      dashboardBtn: {
+        padding: '8px 15px',
+        backgroundColor: '#f0f0f0',
+        color: '#333',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontSize: '14px',
+        fontWeight: 'bold'
+      },
+      settingsBtn: {
+        padding: '8px 15px',
+        backgroundColor: '#fff3cd',
+        color: '#333',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontSize: '14px',
+        fontWeight: 'bold'
       },
       content: {
         display: 'flex',
@@ -716,7 +1621,7 @@
       newBtn: {
         margin: '15px',
         padding: '12px 15px',
-        backgroundColor: '#28a745',
+        backgroundColor: '#10a0dc',
         color: 'white',
         border: 'none',
         borderRadius: '4px',
@@ -785,6 +1690,17 @@
         color: '#0066cc',
         marginBottom: '4px'
       },
+      prospectStatusRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '4px'
+      },
+      prospectQuoteDate: {
+        fontSize: '10px',
+        color: '#666',
+        fontStyle: 'italic'
+      },
       prospectAmount: {
         fontSize: '13px',
         fontWeight: 'bold',
@@ -823,6 +1739,24 @@
         cursor: 'pointer',
         fontSize: '13px'
       },
+      detailRow: {
+        display: 'flex',
+        gap: '20px',
+        marginBottom: '15px'
+      },
+      detailRowInline: {
+        display: 'flex',
+        gap: '80px',
+        marginBottom: '15px',
+        fontSize: '15px',
+        flexWrap: 'nowrap'
+      },
+      detailItemHalf: {
+        flex: 1
+      },
+      detailItemThird: {
+        flex: 1
+      },
       detailGrid: {
         display: 'grid',
         gridTemplateColumns: 'repeat(2, 1fr)',
@@ -837,7 +1771,7 @@
       },
       amountsGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
+        gridTemplateColumns: 'repeat(4, 1fr)',
         gap: '12px',
         marginBottom: '20px'
       },
@@ -847,6 +1781,39 @@
         borderRadius: '4px',
         textAlign: 'center',
         borderTop: '3px solid #28a745'
+      },
+      amountLabelSetup: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '14px',
+        color: '#000000'
+      },
+      amountLabelAbonnement: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '14px',
+        color: '#10a0dc'
+      },
+      amountLabelFormation: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '14px',
+        color: '#ff9500'
+      },
+      amountLabelAnnual: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '14px',
+        color: '#28a745'
+      },
+      amountValue: {
+        fontSize: '16px',
+        fontWeight: 'bold',
+        color: '#002147'
       },
       summaryBox: {
         backgroundColor: '#e8f4f8',
@@ -872,35 +1839,80 @@
         backgroundColor: 'white',
         borderTop: '1px solid #ddd'
       },
+      statusHistoryBox: {
+        backgroundColor: '#f9f9f9',
+        padding: '12px',
+        borderRadius: '6px',
+        marginBottom: '15px',
+        border: '1px solid #eee'
+      },
+      nextActionsListBox: {
+        backgroundColor: '#f9f9f9',
+        padding: '12px',
+        borderRadius: '6px',
+        marginBottom: '15px',
+        border: '1px solid #eee'
+      },
+      nextActionItem: {
+        padding: '10px',
+        marginBottom: '8px',
+        backgroundColor: 'white',
+        borderRadius: '4px',
+        border: '1px solid #ddd'
+      },
+      historyItem: {
+        padding: '8px',
+        marginBottom: '8px',
+        backgroundColor: 'white',
+        borderRadius: '4px',
+        fontSize: '13px',
+        border: '1px solid #ddd'
+      },
       activityForm: {
         display: 'flex',
         flexDirection: 'column',
         gap: '10px',
         marginBottom: '20px'
       },
+      activityRow: {
+        display: 'flex',
+        gap: '10px'
+      },
       activitySelect: {
-        padding: '8px',
-        border: '1px solid #ddd',
-        borderRadius: '4px',
-        fontSize: '13px'
+        padding: '10px 12px',
+        border: '1px solid #d0d0d0',
+        borderRadius: '6px',
+        fontSize: '13px',
+        fontFamily: 'inherit',
+        backgroundColor: 'white',
+        cursor: 'pointer',
+        transition: 'border-color 0.2s',
+        maxWidth: '200px',
+        flex: '1'
       },
       activityInput: {
-        padding: '10px',
-        border: '1px solid #ddd',
-        borderRadius: '4px',
-        minHeight: '60px',
+        padding: '11px 12px',
+        border: '1px solid #d0d0d0',
+        borderRadius: '6px',
+        minHeight: '80px',
         fontFamily: 'inherit',
         fontSize: '13px',
-        resize: 'vertical'
+        lineHeight: '1.5',
+        resize: 'none',
+        transition: 'border-color 0.2s',
+        maxWidth: '600px'
       },
       activityBtn: {
-        padding: '10px',
-        backgroundColor: '#002147',
+        padding: '11px 16px',
+        backgroundColor: '#10a0dc',
         color: 'white',
         border: 'none',
-        borderRadius: '4px',
+        borderRadius: '6px',
         cursor: 'pointer',
-        fontWeight: 'bold'
+        fontWeight: '600',
+        fontSize: '13px',
+        transition: 'background-color 0.2s, box-shadow 0.2s',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
       },
       activitiesList: {
         display: 'flex',
@@ -939,24 +1951,110 @@
       },
       formContainer: {
         padding: '20px',
-        maxWidth: '1000px',
         margin: '0 auto'
+      },
+      oldStatusBox: {
+        backgroundColor: '#f5f5f5',
+        padding: '12px',
+        borderRadius: '6px',
+        marginBottom: '15px',
+        border: '1px solid #ddd'
+      },
+      oldStatusLabel: {
+        fontSize: '12px',
+        fontWeight: 'bold',
+        color: '#666',
+        marginBottom: '5px'
+      },
+      oldStatusValue: {
+        fontSize: '14px',
+        color: '#333',
+        fontWeight: 'bold'
+      },
+      oldStatusNotes: {
+        fontSize: '13px',
+        color: '#555',
+        lineHeight: '1.5',
+        padding: '8px',
+        backgroundColor: 'white',
+        borderRadius: '4px',
+        borderLeft: '3px solid #ddd'
       },
       formSection: {
         marginBottom: '25px'
       },
+      labelMontant: {
+        display: 'block',
+        fontWeight: '600',
+        marginBottom: '8px',
+        fontSize: '13px',
+        color: '#2c3e50',
+        letterSpacing: '0.3px'
+      },
+      labelSetup: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '13px',
+        color: '#000000',
+        letterSpacing: '0.3px'
+      },
+      labelAbonnement: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '13px',
+        color: '#10a0dc',
+        letterSpacing: '0.3px'
+      },
+      labelFormation: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '13px',
+        color: '#ff9500',
+        letterSpacing: '0.3px'
+      },
+      labelAnnual: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '13px',
+        color: '#28a745',
+        letterSpacing: '0.3px'
+      },
+      montantsContainer: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '12px',
+        marginBottom: '15px',
+        maxWidth: '600px'
+      },
+      montantsWithChanceContainer: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(5, 1fr)',
+        gap: '12px',
+        marginBottom: '15px',
+        maxWidth: '1100px'
+      },
+      montantItem: {
+        display: 'flex',
+        flexDirection: 'column'
+      },
       formGrid: {
         display: 'grid',
         gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: '15px',
+        gap: '12px',
         marginTop: '10px'
       },
       formInput: {
-        padding: '10px',
-        border: '1px solid #ddd',
-        borderRadius: '4px',
-        fontSize: '13px',
-        fontFamily: 'inherit'
+        padding: '11px 12px',
+        border: '1px solid #d0d0d0',
+        borderRadius: '6px',
+        fontSize: '14px',
+        fontFamily: 'inherit',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        maxWidth: '280px'
       },
       totalCalc: {
         marginTop: '15px',
@@ -973,7 +2071,7 @@
       saveBtn: {
         flex: 1,
         padding: '12px',
-        backgroundColor: '#28a745',
+        backgroundColor: '#10a0dc',
         color: 'white',
         border: 'none',
         borderRadius: '4px',
