@@ -14,7 +14,7 @@ const JWT_SECRET = 'ta-clé-secrète-change-en-prod-2024';
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(__dirname));
+// app.use(express.static(__dirname));// désactivé temporairement
 
 // ===================== BD POSTGRESQL =====================
 const pool = new Pool({
