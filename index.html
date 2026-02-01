@@ -1513,9 +1513,11 @@
                     ✓ Fait le {action.completed_date && new Date(action.completed_date).toLocaleDateString()}
                   </div>
                   
-                  <div style={{fontSize: '14px', color: '#1a3a52', marginLeft: '24px', marginTop: '8px', backgroundColor: '#d4e6f1', padding: '10px 12px', borderRadius: '6px', borderLeft: '4px solid #0088cc', display: action.completed && action.completed_note ? 'block' : 'none'}}>
-                    💬 {action.completed_note}
-                  </div>
+                  {action.completed_note && (
+                    <div style={{fontSize: '14px', color: '#1a3a52', marginLeft: '24px', marginTop: '8px', backgroundColor: '#d4e6f1', padding: '10px 12px', borderRadius: '6px', borderLeft: '4px solid #0088cc'}}>
+                      💬 {action.completed_note}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
