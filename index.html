@@ -354,8 +354,21 @@
         }
       };
 
+      const formatDateForInput = (dateStr) => {
+        if (!dateStr) return '';
+        // Si format ISO (avec T), convertir en yyyy-MM-dd
+        if (dateStr.includes('T')) {
+          return dateStr.split('T')[0];
+        }
+        return dateStr;
+      };
+
       const handleEditProspect = (prospect) => {
-        setFormData(prospect);
+        const formattedProspect = {
+          ...prospect,
+          quote_date: formatDateForInput(prospect.quote_date)
+        };
+        setFormData(formattedProspect);
         setShowForm(true);
       };
 
@@ -1431,11 +1444,15 @@
             </div>
             )}
 
-            {formData.id && ['Devis', 'Démo', 'Négociation', 'Signé'].includes(formData.status) && (
+            {['Devis', 'Démo', 'Négociation', 'Signé'].includes(formData.status) && (
             <div style={styles.formSection}>
               <h3>Devis PDF</h3>
               
-              {formData.pdf_url ? (
+              {!formData.id ? (
+                <div style={{backgroundColor: '#fff3cd', padding: '15px', borderRadius: '4px', marginBottom: '15px', color: '#856404'}}>
+                  📝 Créez le prospect d'abord pour ajouter un PDF
+                </div>
+              ) : formData.pdf_url ? (
                 <div style={{backgroundColor: '#e8f4f8', padding: '15px', borderRadius: '4px', marginBottom: '15px'}}>
                   <div style={{marginBottom: '10px'}}>
                     ✅ <strong>PDF uploadé</strong>
