@@ -673,6 +673,33 @@
                       </button>
                     </div>
                   )}
+                  {!editingUserId && (
+                    <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${API_URL}/users/${u.id}/temp-password`, {
+                              method: 'POST',
+                              headers: { 'Authorization': `Bearer ${user.token}` }
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              setShowTempPassword({...showTempPassword, [u.id]: true});
+                              fetchUsers();
+                              alert('✅ Mot de passe temporaire généré !');
+                            } else {
+                              alert('Erreur: ' + (await res.text()));
+                            }
+                          } catch (err) {
+                            alert('Erreur: ' + err.message);
+                          }
+                        }}
+                        style={{backgroundColor: '#28a745', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px'}}
+                      >
+                        🔑 Générer mot de passe
+                      </button>
+                    </div>
+                  )}
                   {editingUserId === u.id ? (
                     <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
                       <input

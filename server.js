@@ -306,6 +306,27 @@ app.delete('/api/users/:id', auth, async (req, res) => {
   }
 });
 
+// ===================== GENERATE TEMP PASSWORD =====================
+app.post('/api/users/:id/temp-password', auth, async (req, res) => {
+  try {
+    // Générer un mot de passe temporaire aléatoire
+    const tempPassword = Math.random().toString(36).slice(-12).toUpperCase();
+    
+    // Le hasher et l'enregistrer
+    const hashedPassword = await bcryptjs.hash(tempPassword, 10);
+    
+    // Mettre à jour l'utilisateur avec le mot de passe hashé ET le temp_password en clair
+    await pool.query(
+      'UPDATE users SET password = $1, temp_password = $2 WHERE id = $3',
+      [hashedPassword, tempPassword, req.params.id]
+    );
+    
+    res.json({ temp_password: tempPassword });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ===================== CHANGE PASSWORD =====================
 app.put('/api/users/:id/password', auth, async (req, res) => {
   try {
