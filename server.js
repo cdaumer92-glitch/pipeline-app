@@ -199,11 +199,11 @@ app.get('/api/prospects/:id/next_actions', auth, async (req, res) => {
 });
 
 app.post('/api/prospects/:id/next_actions', auth, async (req, res) => {
-  const { action_type, planned_date, actor } = req.body;
+  const { action_type, planned_date, actor, completed_note } = req.body;
   try {
     const result = await pool.query(
-      'INSERT INTO next_actions (prospect_id, action_type, planned_date, actor, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [req.params.id, action_type, planned_date || null, actor, req.userId]
+      'INSERT INTO next_actions (prospect_id, action_type, planned_date, actor, completed_note, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      [req.params.id, action_type, planned_date || null, actor, completed_note || null, req.userId]
     );
     res.json({ id: result.rows[0].id });
   } catch (err) {

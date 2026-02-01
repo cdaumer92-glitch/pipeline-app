@@ -304,7 +304,7 @@
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${user.token}`
             },
-            body: JSON.stringify({ action_type: newActionType, planned_date: newActionDate, actor: newActionActor })
+            body: JSON.stringify({ action_type: newActionType, planned_date: newActionDate, actor: newActionActor, completed_note: newActionComment })
           });
           if (res.ok) {
             fetchNextActions(selectedProspect.id);
