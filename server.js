@@ -212,12 +212,21 @@ app.post('/api/prospects/:id/next_actions', auth, async (req, res) => {
 });
 
 app.put('/api/next_actions/:id', auth, async (req, res) => {
-  const { completed, completed_notes } = req.body;
+  const { completed, completed_notes, saveNotesOnly } = req.body;
   try {
-    await pool.query(
-      `UPDATE next_actions SET completed=$1, completed_date=$2, completed_note=$3 WHERE id=$4 AND user_id=$5`,
-      [completed ? 1 : 0, completed ? new Date().toISOString().split('T')[0] : null, completed_notes || null, req.params.id, req.userId]
-    );
+    if (saveNotesOnly) {
+      // Sauvegarder juste les notes sans marquer comme complétée
+      await pool.query(
+        `UPDATE next_actions SET completed_note=$1 WHERE id=$2 AND user_id=$3`,
+        [completed_notes || null, req.params.id, req.userId]
+      );
+    } else {
+      // Marquer comme complétée et sauvegarder les notes
+      await pool.query(
+        `UPDATE next_actions SET completed=$1, completed_date=$2, completed_note=$3 WHERE id=$4 AND user_id=$5`,
+        [completed ? 1 : 0, completed ? new Date().toISOString().split('T')[0] : null, completed_notes || null, req.params.id, req.userId]
+      );
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

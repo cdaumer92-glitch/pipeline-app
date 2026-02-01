@@ -115,7 +115,9 @@
       const [prospectActionsInfo, setProspectActionsInfo] = React.useState({});
       const [newActionType, setNewActionType] = React.useState('Relance');
       const [newActionDate, setNewActionDate] = React.useState(new Date().toISOString().split('T')[0]);
-      const [newActionActor, setNewActionActor] = React.useState('Roger');
+      const [newActionComment, setNewActionComment] = React.useState('');
+      const [newActionActor, setNewActionActor] = React.useState('');
+      const [tempActionComments, setTempActionComments] = React.useState({});
       const [selectedProspect, setSelectedProspect] = React.useState(null);
       const [showForm, setShowForm] = React.useState(false);
       const [formData, setFormData] = React.useState(getEmptyProspect());
@@ -308,7 +310,8 @@
             fetchNextActions(selectedProspect.id);
             setNewActionType('Relance');
             setNewActionDate(new Date().toISOString().split('T')[0]);
-            setNewActionActor('Roger');
+            setNewActionActor('');
+            setNewActionComment('');
           }
         } catch (err) {
           alert('Erreur: ' + err.message);
@@ -1466,8 +1469,26 @@
                       </span>
                     </div>
                     <button 
+                      onClick={() => {
+                        // Sauvegarder juste le commentaire sans marquer comme complétée
+                        fetch(`${API_URL}/next_actions/${action.id}`, {
+                          method: 'PUT',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${user.token}`
+                          },
+                          body: JSON.stringify({ saveNotesOnly: true, completed_notes: actionNotes[action.id] || '' })
+                        }).then(() => {
+                          alert('✅ Commentaire sauvegardé!');
+                        });
+                      }}
+                      style={{padding: '4px 8px', fontSize: '12px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, display: action.completed ? 'none' : 'block', marginLeft: '10px'}}
+                    >
+                      💾 Sauvegarder
+                    </button>
+                    <button 
                       onClick={() => onDeleteNextAction(action.id)}
-                      style={{padding: '4px 8px', fontSize: '12px', backgroundColor: '#ff6666', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, display: action.completed ? 'none' : 'block'}}
+                      style={{padding: '4px 8px', fontSize: '12px', backgroundColor: '#ff6666', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', flexShrink: 0}}
                     >
                       ✕ Supprimer
                     </button>
@@ -1520,7 +1541,8 @@
             </div>
             <textarea
               placeholder="Commentaire (optionnel)..."
-              id="newActionComment"
+              value={newActionComment}
+              onChange={(e) => setNewActionComment(e.target.value)}
               style={{padding: '11px 12px', border: '1px solid #d0d0d0', borderRadius: '6px', minHeight: '50px', fontFamily: 'inherit', fontSize: '13px', lineHeight: '1.5', marginTop: '8px', width: '100%', boxSizing: 'border-box', resize: 'none'}}
             />
             <div style={{display: 'flex', gap: '10px', marginTop: '10px'}}>
@@ -1530,7 +1552,7 @@
                   return;
                 }
                 onAddNextAction();
-                document.getElementById('newActionComment').value = '';
+                setNewActionComment('');
               }} style={{...styles.activityBtn, width: '100%'}}>Ajouter</button>
             </div>
           </div>
