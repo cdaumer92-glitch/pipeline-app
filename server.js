@@ -327,20 +327,19 @@ app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
     // Uploader le fichier
     await blob.save(pdfFile.data);
 
-    // Générer une signed URL (valide 7 jours)
-    const [signedUrl] = await blob.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 jours
-    });
+    // Rendre le fichier public
+    await blob.makePublic();
 
-    // Sauvegarder l'URL signée en base de données
+    // L'URL publique
+    const pdfUrl = `https://storage.googleapis.com/pipeline-devis/${fileName}`;
+
+    // Sauvegarder l'URL en base de données
     await pool.query(
       `UPDATE prospects SET pdf_url = $1 WHERE id = $2 AND user_id = $3`,
-      [signedUrl, req.params.id, req.userId]
+      [pdfUrl, req.params.id, req.userId]
     );
 
-    res.json({ pdf_url: signedUrl, success: true });
+    res.json({ pdf_url: pdfUrl, success: true });
   } catch (err) {
     console.error('PDF Upload Error:', err);
     res.status(500).json({ error: err.message });
