@@ -376,6 +376,40 @@ app.delete('/api/prospects/:id/pdf', auth, async (req, res) => {
   }
 });
 
+// ===================== PDF DOWNLOAD/VIEW =====================
+app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
+  try {
+    // Récupérer l'URL du PDF
+    const result = await pool.query(
+      `SELECT pdf_url FROM prospects WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.userId]
+    );
+
+    if (!result.rows[0]?.pdf_url) {
+      return res.status(404).json({ error: 'Pas de PDF pour ce prospect' });
+    }
+
+    const pdfUrl = result.rows[0].pdf_url;
+    const fileName = pdfUrl.split('/').pop();
+    const blob = bucket.file(fileName);
+
+    // Vérifier que le fichier existe
+    const [exists] = await blob.exists();
+    if (!exists) {
+      return res.status(404).json({ error: 'Fichier PDF non trouvé' });
+    }
+
+    // Récupérer le fichier et le servir
+    const [fileContent] = await blob.download();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.send(fileContent);
+  } catch (err) {
+    console.error('PDF Download Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ===================== START =====================
 initDB().then(() => {
   app.listen(PORT, '0.0.0.0', () => {

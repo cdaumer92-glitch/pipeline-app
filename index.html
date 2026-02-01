@@ -1230,7 +1230,7 @@
               </div>
               <div style={{display: 'flex', gap: '10px'}}>
                 <a 
-                  href={selectedProspect.pdf_url} 
+                  href={`${API_URL}/prospects/${selectedProspect.id}/download-pdf`}
                   target="_blank" 
                   rel="noopener noreferrer"
                   style={{padding: '8px 12px', backgroundColor: '#17a2b8', color: 'white', textDecoration: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
@@ -1479,7 +1479,7 @@
                   </div>
                   <div style={{display: 'flex', gap: '10px'}}>
                     <a 
-                      href={formData.pdf_url} 
+                      href={`${API_URL}/prospects/${formData.id}/download-pdf`}
                       target="_blank" 
                       rel="noopener noreferrer"
                       style={{padding: '8px 12px', backgroundColor: '#17a2b8', color: 'white', textDecoration: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
