@@ -74,6 +74,12 @@ async function initDB() {
       updated_at TIMESTAMP DEFAULT NOW()
     )`);
 
+    // Migration: Ajouter pdf_url si elle n'existe pas
+    await client.query(`
+      ALTER TABLE prospects 
+      ADD COLUMN IF NOT EXISTS pdf_url TEXT
+    `);
+
     await client.query(`CREATE TABLE IF NOT EXISTS next_actions (
       id SERIAL PRIMARY KEY,
       prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
