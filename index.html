@@ -682,13 +682,12 @@
                         onChange={(e) => setNewPassword(e.target.value)}
                         style={{flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '4px'}}
                       />
-                      <input
-                        type="checkbox"
-                        checked={showPassword[u.id] || false}
-                        onChange={(e) => setShowPassword({...showPassword, [u.id]: e.target.checked})}
-                        style={{cursor: 'pointer'}}
-                        title="Afficher le mot de passe"
-                      />
+                      <button
+                        onClick={() => setShowPassword({...showPassword, [u.id]: !showPassword[u.id]})}
+                        style={{backgroundColor: '#17a2b8', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px'}}
+                      >
+                        {showPassword[u.id] ? 'Masquer' : 'Voir'}
+                      </button>
                       <button onClick={() => handleChangePassword(u.id)} style={{backgroundColor: '#10a0dc', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '4px', cursor: 'pointer'}}>Valider</button>
                       <button onClick={() => {setEditingUserId(null); setNewPassword('');}} style={{backgroundColor: '#ccc', border: 'none', padding: '10px 15px', borderRadius: '4px', cursor: 'pointer'}}>Annuler</button>
                     </div>
