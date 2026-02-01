@@ -160,7 +160,7 @@ app.post('/api/auth/login', async (req, res) => {
 // ===================== PROSPECTS =====================
 app.get('/api/prospects', auth, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM prospects WHERE user_id = $1 ORDER BY created_at DESC', [req.userId]);
+    const result = await pool.query('SELECT * FROM prospects ORDER BY created_at DESC');
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
