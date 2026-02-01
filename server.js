@@ -415,8 +415,8 @@ app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
   try {
     // Récupérer le NOM du fichier
     const result = await pool.query(
-      `SELECT pdf_url FROM prospects WHERE id = $1 AND user_id = $2`,
-      [req.params.id, req.userId]
+      `SELECT pdf_url FROM prospects WHERE id = $1`,
+      [req.params.id]
     );
 
     if (!result.rows[0]?.pdf_url) {
