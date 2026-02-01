@@ -933,8 +933,8 @@
         totalValue: prospects.reduce((sum, p) => sum + (p.monthly_amount * 12 + p.annual_amount), 0)
       };
 
-      // Prospects hors Signé et Perdu
-      const prospectsPipeline = prospects.filter(p => p.status !== 'Signé' && p.status !== 'Perdu');
+      // Prospects en Devis ou Négociation seulement
+      const prospectsPipeline = prospects.filter(p => p.status === 'Devis' || p.status === 'Négociation');
       const monthlyAbonnement = prospectsPipeline.reduce((sum, p) => sum + (p.monthly_amount || 0), 0);
       const setupAmount = prospectsPipeline.reduce((sum, p) => sum + (p.setup_amount || 0), 0);
       const formationAmount = prospectsPipeline.reduce((sum, p) => sum + (p.training_amount || 0), 0);
@@ -1067,7 +1067,7 @@
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px'}}>
               {commercials.map(commercial => {
                 const commercialProspects = prospects.filter(p => p.assigned_to === commercial);
-                const commercialPipeline = commercialProspects.filter(p => p.status !== 'Signé' && p.status !== 'Perdu');
+                const commercialPipeline = commercialProspects.filter(p => p.status === 'Devis' || p.status === 'Négociation');
                 const signed = commercialProspects.filter(p => p.status === 'Signé').length;
                 const monthlyValue = commercialPipeline.reduce((sum, p) => sum + (p.monthly_amount || 0), 0);
                 return (
