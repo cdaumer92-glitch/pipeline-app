@@ -1218,6 +1218,10 @@
             onActionDateChange={onActionDateChange}
             newActionActor={newActionActor}
             onActionActorChange={onActionActorChange}
+            newActionComment={newActionComment}
+            onActionCommentChange={setNewActionComment}
+            user={user}
+            API_URL={API_URL}
           />
         </div>
       );
@@ -1421,7 +1425,7 @@
       );
     }
 
-    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange }) {
+    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionComment, onActionCommentChange, user, API_URL }) {
       const [actionNotes, setActionNotes] = React.useState({});
       return (
         <div style={styles.activitiesSection}>
@@ -1542,7 +1546,7 @@
             <textarea
               placeholder="Commentaire (optionnel)..."
               value={newActionComment}
-              onChange={(e) => setNewActionComment(e.target.value)}
+              onChange={(e) => onActionCommentChange(e.target.value)}
               style={{padding: '11px 12px', border: '1px solid #d0d0d0', borderRadius: '6px', minHeight: '50px', fontFamily: 'inherit', fontSize: '13px', lineHeight: '1.5', marginTop: '8px', width: '100%', boxSizing: 'border-box', resize: 'none'}}
             />
             <div style={{display: 'flex', gap: '10px', marginTop: '10px'}}>
@@ -1552,7 +1556,7 @@
                   return;
                 }
                 onAddNextAction();
-                setNewActionComment('');
+                onActionCommentChange('');
               }} style={{...styles.activityBtn, width: '100%'}}>Ajouter</button>
             </div>
           </div>
