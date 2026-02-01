@@ -1175,28 +1175,31 @@
               </div>
             </div>
 
-            <div style={styles.summaryBox}>
-              <div>Total: <strong>{formatCurrency(total)}</strong></div>
-              <div>Chance: <strong>{selectedProspect.chance_percent}%</strong></div>
-              <div>Valeur attendue: <strong>{formatCurrency(expectedValue)}</strong></div>
-            </div>
+
 
             <div style={styles.otherDetails}>
               <div><strong>Commercial:</strong> {selectedProspect.assigned_to}</div>
               <div>
                 <strong>Prochaine action:</strong> {
-                  nextActions.length === 0 ? 'Aucune' :
-                  nextActions.length === 1 ? nextActions[0].action_type :
-                  nextActions.length + ' actions'
+                  (() => {
+                    const uncompletedActions = nextActions.filter(a => !a.completed);
+                    if (uncompletedActions.length === 0) return 'Aucune';
+                    const nextAction = uncompletedActions.sort((a, b) => new Date(a.planned_date) - new Date(b.planned_date))[0];
+                    return nextAction.action_type;
+                  })()
                 }
               </div>
               <div>
                 <strong>Date:</strong> {
-                  nextActions.length === 0 ? '-' :
-                  new Date(nextActions.sort((a, b) => new Date(a.planned_date) - new Date(b.planned_date))[0].planned_date).toLocaleDateString()
+                  (() => {
+                    const uncompletedActions = nextActions.filter(a => !a.completed);
+                    if (uncompletedActions.length === 0) return '-';
+                    const nextAction = uncompletedActions.sort((a, b) => new Date(a.planned_date) - new Date(b.planned_date))[0];
+                    return new Date(nextAction.planned_date).toLocaleDateString();
+                  })()
                 }
               </div>
-              <div><strong>Notes:</strong> {selectedProspect.notes}</div>
+              <div><strong>Notes sur le Devis:</strong> {selectedProspect.notes}</div>
             </div>
           </div>
 
@@ -1450,8 +1453,13 @@
                       <input 
                         type="checkbox" 
                         checked={action.completed}
-                        onChange={() => onToggleNextAction(action.id, action.completed, actionNotes[action.id] || '')}
-                        style={{cursor: 'pointer', marginTop: '2px', flexShrink: 0}}
+                        onChange={() => {
+                          if (!action.completed) {
+                            onToggleNextAction(action.id, action.completed, actionNotes[action.id] || '');
+                          }
+                        }}
+                        disabled={action.completed}
+                        style={{cursor: action.completed ? 'not-allowed' : 'pointer', marginTop: '2px', flexShrink: 0, opacity: action.completed ? 0.5 : 1}}
                       />
                       <span style={{textDecoration: action.completed ? 'line-through' : 'none'}}>
                         <strong>{action.action_type}</strong> | {new Date(action.planned_date).toLocaleDateString()} | {action.actor}
@@ -1503,14 +1511,27 @@
                 style={{...styles.activitySelect, flex: 1}}
               />
               <select value={newActionActor} onChange={(e) => onActionActorChange(e.target.value)} style={{...styles.activitySelect, flex: 1}}>
+                <option value="">-- Acteur ? --</option>
                 <option>Roger</option>
                 <option>Christian</option>
                 <option>Frédéric</option>
                 <option>Claude</option>
               </select>
             </div>
+            <textarea
+              placeholder="Commentaire (optionnel)..."
+              id="newActionComment"
+              style={{padding: '11px 12px', border: '1px solid #d0d0d0', borderRadius: '6px', minHeight: '50px', fontFamily: 'inherit', fontSize: '13px', lineHeight: '1.5', marginTop: '8px', width: '100%', boxSizing: 'border-box', resize: 'none'}}
+            />
             <div style={{display: 'flex', gap: '10px', marginTop: '10px'}}>
-              <button onClick={onAddNextAction} style={{...styles.activityBtn, width: '100%'}}>Ajouter</button>
+              <button onClick={() => {
+                if (!newActionActor.trim()) {
+                  alert('Veuillez sélectionner un acteur');
+                  return;
+                }
+                onAddNextAction();
+                document.getElementById('newActionComment').value = '';
+              }} style={{...styles.activityBtn, width: '100%'}}>Ajouter</button>
             </div>
           </div>
         </div>
