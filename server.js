@@ -306,6 +306,25 @@ app.delete('/api/users/:id', auth, async (req, res) => {
   }
 });
 
+// ===================== CHANGE PASSWORD =====================
+app.put('/api/users/:id/password', auth, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ error: 'Mot de passe requis' });
+    }
+
+    const hashedPassword = await bcryptjs.hash(password, 10);
+    await pool.query(
+      'UPDATE users SET password = $1 WHERE id = $2',
+      [hashedPassword, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ===================== PDF UPLOAD =====================
 app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
   try {
