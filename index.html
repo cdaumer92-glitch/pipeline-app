@@ -935,11 +935,10 @@
 
       // Prospects en Devis ou Négociation seulement
       const prospectsPipeline = prospects.filter(p => p.status === 'Devis' || p.status === 'Négociation');
-      const monthlyAbonnement = prospectsPipeline.reduce((sum, p) => sum + (p.monthly_amount || 0), 0);
-      const setupAmount = prospectsPipeline.reduce((sum, p) => sum + (p.setup_amount || 0), 0);
-      const formationAmount = prospectsPipeline.reduce((sum, p) => sum + (p.training_amount || 0), 0);
-      console.log('📊 Montants détail:', prospectsPipeline.slice(0, 5).map(p => ({name: p.name, monthly: p.monthly_amount, setup: p.setup_amount, training: p.training_amount})));
-      console.log('📊 TOTAUX:', {monthlyAbonnement, setupAmount, formationAmount});
+      const monthlyAbonnement = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
+      const annualAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0), 0);
+      const setupAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.setup_amount) || 0), 0);
+      const formationAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.training_amount) || 0), 0);
 
       const commercials = ['Roger', 'Christian', 'Frédéric'];
 
@@ -1029,6 +1028,10 @@
                   <strong style={{color: '#10a0dc', fontSize: '16px'}}>{formatNumber(monthlyAbonnement)}</strong>
                 </div>
                 <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                  <span>📅 Abonnement annuel:</span>
+                  <strong style={{color: '#10a0dc', fontSize: '16px'}}>{formatNumber(annualAmount)}</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between'}}>
                   <span>🔧 Prestations initiales:</span>
                   <strong style={{color: '#10a0dc', fontSize: '16px'}}>{formatNumber(setupAmount)}</strong>
                 </div>
@@ -1071,13 +1074,15 @@
                 const commercialProspects = prospects.filter(p => p.assigned_to === commercial);
                 const commercialPipeline = commercialProspects.filter(p => p.status === 'Devis' || p.status === 'Négociation');
                 const signed = commercialProspects.filter(p => p.status === 'Signé').length;
-                const monthlyValue = commercialPipeline.reduce((sum, p) => sum + (p.monthly_amount || 0), 0);
+                const monthlyValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
+                const annualValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0), 0);
                 return (
                   <div key={commercial} style={{borderLeft: '4px solid #10a0dc', paddingLeft: '15px', cursor: 'pointer', padding: '15px', backgroundColor: selectedCommercial === commercial ? '#e8f4f8' : 'transparent', borderRadius: '6px', transition: 'background-color 0.2s'}} onClick={() => onSelectCommercial(selectedCommercial === commercial ? null : commercial)}>
                     <h4 style={{margin: '0 0 10px 0', color: selectedCommercial === commercial ? '#10a0dc' : '#333'}}>{commercial}</h4>
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Prospects: <strong>{commercialProspects.length}</strong></div>
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Signés: <strong style={{color: '#00cc00'}}>{signed}</strong></div>
-                    <div style={{fontSize: '13px', color: '#666'}}>Valeur abonnement mensuel: <strong style={{color: '#10a0dc'}}>{formatNumber(monthlyValue)}</strong></div>
+                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement mensuel: <strong style={{color: '#10a0dc'}}>{formatNumber(monthlyValue)}</strong></div>
+                    <div style={{fontSize: '13px', color: '#666'}}>Valeur abonnement annuel: <strong style={{color: '#10a0dc'}}>{formatNumber(annualValue)}</strong></div>
                     <div style={{fontSize: '12px', marginTop: '10px', color: '#999'}}>
                       {commercialProspects.filter(p => p.status === 'Prospection').length} prospection | {commercialProspects.filter(p => p.status === 'Devis').length} devis | {commercialProspects.filter(p => p.status === 'Négociation').length} négociation
                     </div>
