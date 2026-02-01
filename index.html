@@ -1448,11 +1448,7 @@
             <div style={styles.formSection}>
               <h3>Devis PDF</h3>
               
-              {!formData.id ? (
-                <div style={{backgroundColor: '#fff3cd', padding: '15px', borderRadius: '4px', marginBottom: '15px', color: '#856404'}}>
-                  📝 Créez le prospect d'abord pour ajouter un PDF
-                </div>
-              ) : formData.pdf_url ? (
+              {formData.pdf_url ? (
                 <div style={{backgroundColor: '#e8f4f8', padding: '15px', borderRadius: '4px', marginBottom: '15px'}}>
                   <div style={{marginBottom: '10px'}}>
                     ✅ <strong>PDF uploadé</strong>
@@ -1483,9 +1479,15 @@
                     style={{flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
                   />
                   <button
-                    onClick={handleUploadPdf}
-                    disabled={isUploading}
-                    style={{padding: '8px 15px', backgroundColor: '#10a0dc', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', opacity: isUploading ? 0.5 : 1}}
+                    onClick={() => {
+                      if (!formData.id) {
+                        alert('Créez le prospect d\'abord (Enregistrer / Activités)');
+                        return;
+                      }
+                      handleUploadPdf();
+                    }}
+                    disabled={isUploading || !pdfFile}
+                    style={{padding: '8px 15px', backgroundColor: '#10a0dc', color: 'white', border: 'none', borderRadius: '4px', cursor: pdfFile && formData.id ? 'pointer' : 'not-allowed', fontWeight: 'bold', opacity: (isUploading || !pdfFile) ? 0.5 : 1}}
                   >
                     {isUploading ? '⏳ Upload...' : '📤 Upload PDF'}
                   </button>
