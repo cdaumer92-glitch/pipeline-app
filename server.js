@@ -5,6 +5,8 @@ import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import fileUpload from 'express-fileupload';
+import { Storage } from '@google-cloud/storage';
 
 const { Pool } = pkg;
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -12,8 +14,15 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const JWT_SECRET = 'secret-key-2024';
 
+// ===================== Google Cloud Storage =====================
+const storage = new Storage({
+  projectId: process.env.GCP_PROJECT_ID || 'project-731c3f29-bb12-43c5-a4d'
+});
+const bucket = storage.bucket('pipeline-devis');
+
 app.use(cors());
 app.use(express.json());
+app.use(fileUpload());
 app.use(express.static(__dirname));
 
 // ===================== DATABASE =====================
@@ -59,6 +68,7 @@ async function initDB() {
       quote_date DATE,
       decision_maker TEXT,
       notes TEXT,
+      pdf_url TEXT,
       user_id INTEGER REFERENCES users(id),
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
@@ -286,6 +296,73 @@ app.delete('/api/users/:id', auth, async (req, res) => {
     await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== PDF UPLOAD =====================
+app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
+  try {
+    if (!req.files || !req.files.pdf) {
+      return res.status(400).json({ error: 'Pas de fichier PDF' });
+    }
+
+    const pdfFile = req.files.pdf;
+    
+    // Vérifier que c'est un PDF
+    if (pdfFile.mimetype !== 'application/pdf') {
+      return res.status(400).json({ error: 'Le fichier doit être un PDF' });
+    }
+
+    // Générer un nom de fichier unique
+    const fileName = `prospect-${req.params.id}-${Date.now()}.pdf`;
+    const blob = bucket.file(fileName);
+
+    // Uploader le fichier
+    await blob.save(pdfFile.data);
+
+    // Générer l'URL publique
+    const pdfUrl = `https://storage.googleapis.com/pipeline-devis/${fileName}`;
+
+    // Sauvegarder l'URL en base de données
+    await pool.query(
+      `UPDATE prospects SET pdf_url = $1 WHERE id = $2 AND user_id = $3`,
+      [pdfUrl, req.params.id, req.userId]
+    );
+
+    res.json({ pdf_url: pdfUrl, success: true });
+  } catch (err) {
+    console.error('PDF Upload Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== PDF DELETE =====================
+app.delete('/api/prospects/:id/pdf', auth, async (req, res) => {
+  try {
+    // Récupérer l'URL du PDF actuel
+    const result = await pool.query(
+      `SELECT pdf_url FROM prospects WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.userId]
+    );
+
+    if (result.rows[0]?.pdf_url) {
+      // Extraire le nom du fichier de l'URL
+      const fileName = result.rows[0].pdf_url.split('/').pop();
+      
+      // Supprimer le fichier de Google Cloud Storage
+      await bucket.file(fileName).delete();
+    }
+
+    // Effacer l'URL de la base de données
+    await pool.query(
+      `UPDATE prospects SET pdf_url = NULL WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.userId]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('PDF Delete Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
