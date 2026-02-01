@@ -1131,7 +1131,7 @@
       };
 
       if (showForm) {
-        return <ProspectForm formData={formData} onFormChange={onFormChange} onSave={onSave} onCancel={onCancel} selectedProspect={selectedProspect} />;
+        return <ProspectForm formData={formData} onFormChange={onFormChange} onSave={onSave} onCancel={onCancel} selectedProspect={selectedProspect} user={user} API_URL={API_URL} />;
       }
 
       if (!selectedProspect) {
@@ -1231,9 +1231,64 @@
       );
     }
 
-    function ProspectForm({ formData, onFormChange, onSave, onCancel, selectedProspect }) {
+    function ProspectForm({ formData, onFormChange, onSave, onCancel, selectedProspect, user, API_URL }) {
+      const [pdfFile, setPdfFile] = React.useState(null);
+      const [isUploading, setIsUploading] = React.useState(false);
+
       const handleChange = (field, value) => {
         onFormChange({ ...formData, [field]: value });
+      };
+
+      const handleUploadPdf = async () => {
+        if (!pdfFile) {
+          alert('Sélectionnez un fichier PDF');
+          return;
+        }
+
+        setIsUploading(true);
+        const data = new FormData();
+        data.append('pdf', pdfFile);
+
+        try {
+          const res = await fetch(`${API_URL}/prospects/${formData.id}/upload-pdf`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${user.token}` },
+            body: data
+          });
+
+          const result = await res.json();
+          if (res.ok) {
+            handleChange('pdf_url', result.pdf_url);
+            setPdfFile(null);
+            alert('✅ PDF uploadé !');
+          } else {
+            alert('Erreur: ' + result.error);
+          }
+        } catch (err) {
+          alert('Erreur upload: ' + err.message);
+        } finally {
+          setIsUploading(false);
+        }
+      };
+
+      const handleDeletePdf = async () => {
+        if (!window.confirm('Supprimer le PDF ?')) return;
+
+        try {
+          const res = await fetch(`${API_URL}/prospects/${formData.id}/pdf`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+
+          if (res.ok) {
+            handleChange('pdf_url', null);
+            alert('✅ PDF supprimé !');
+          } else {
+            alert('Erreur suppression');
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
       };
 
       const total = calculateTotal(formData);
@@ -1373,6 +1428,52 @@
                 <strong>Total: {formatCurrency(total)}</strong>
               </div>
             </div>
+
+            {formData.id && ['Devis', 'Démo', 'Négociation', 'Signé'].includes(formData.status) && (
+            <div style={styles.formSection}>
+              <h3>Devis PDF</h3>
+              
+              {formData.pdf_url ? (
+                <div style={{backgroundColor: '#e8f4f8', padding: '15px', borderRadius: '4px', marginBottom: '15px'}}>
+                  <div style={{marginBottom: '10px'}}>
+                    ✅ <strong>PDF uploadé</strong>
+                  </div>
+                  <div style={{display: 'flex', gap: '10px'}}>
+                    <a 
+                      href={formData.pdf_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      style={{padding: '8px 12px', backgroundColor: '#17a2b8', color: 'white', textDecoration: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
+                    >
+                      📥 Télécharger
+                    </a>
+                    <button
+                      onClick={handleDeletePdf}
+                      style={{padding: '8px 12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
+                    >
+                      🗑️ Supprimer
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px'}}>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={(e) => setPdfFile(e.target.files[0])}
+                    style={{flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
+                  />
+                  <button
+                    onClick={handleUploadPdf}
+                    disabled={isUploading}
+                    style={{padding: '8px 15px', backgroundColor: '#10a0dc', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', opacity: isUploading ? 0.5 : 1}}
+                  >
+                    {isUploading ? '⏳ Upload...' : '📤 Upload PDF'}
+                  </button>
+                </div>
+              )}
+            </div>
+            )}
             )}
 
             <div style={styles.formSection}>
