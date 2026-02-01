@@ -1222,6 +1222,30 @@
               </div>
               <div><strong>Notes sur le Devis:</strong> {selectedProspect.notes}</div>
             </div>
+
+            {selectedProspect.pdf_url && (
+            <div style={{backgroundColor: '#e8f4f8', padding: '15px', borderRadius: '4px', marginBottom: '15px', marginLeft: '20px', marginRight: '20px', border: '1px solid #b0dae6'}}>
+              <div style={{marginBottom: '10px'}}>
+                📄 <strong>Devis PDF</strong>
+              </div>
+              <div style={{display: 'flex', gap: '10px'}}>
+                <a 
+                  href={selectedProspect.pdf_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  style={{padding: '8px 12px', backgroundColor: '#17a2b8', color: 'white', textDecoration: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
+                >
+                  👁️ Visionner
+                </a>
+                <button
+                  onClick={() => onEdit(selectedProspect)}
+                  style={{padding: '8px 12px', backgroundColor: '#ffc107', color: '#333', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
+                >
+                  🗑️ Supprimer
+                </button>
+              </div>
+            </div>
+            )}
           </div>
 
           <ActivitiesSection
@@ -1460,7 +1484,7 @@
                       rel="noopener noreferrer"
                       style={{padding: '8px 12px', backgroundColor: '#17a2b8', color: 'white', textDecoration: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
                     >
-                      📥 Télécharger
+                      👁️ Visionner
                     </a>
                     <button
                       onClick={handleDeletePdf}
