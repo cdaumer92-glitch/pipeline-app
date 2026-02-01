@@ -327,19 +327,13 @@ app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
     // Uploader le fichier
     await blob.save(pdfFile.data);
 
-    // Rendre le fichier public
-    await blob.makePublic();
-
-    // L'URL publique
-    const pdfUrl = `https://storage.googleapis.com/pipeline-devis/${fileName}`;
-
-    // Sauvegarder l'URL en base de données
+    // Sauvegarder JUSTE LE NOM du fichier en base (pas l'URL)
     await pool.query(
       `UPDATE prospects SET pdf_url = $1 WHERE id = $2 AND user_id = $3`,
-      [pdfUrl, req.params.id, req.userId]
+      [fileName, req.params.id, req.userId]
     );
 
-    res.json({ pdf_url: pdfUrl, success: true });
+    res.json({ pdf_url: fileName, success: true });
   } catch (err) {
     console.error('PDF Upload Error:', err);
     res.status(500).json({ error: err.message });
@@ -349,15 +343,15 @@ app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
 // ===================== PDF DELETE =====================
 app.delete('/api/prospects/:id/pdf', auth, async (req, res) => {
   try {
-    // Récupérer l'URL du PDF actuel
+    // Récupérer le NOM du fichier
     const result = await pool.query(
       `SELECT pdf_url FROM prospects WHERE id = $1 AND user_id = $2`,
       [req.params.id, req.userId]
     );
 
     if (result.rows[0]?.pdf_url) {
-      // Extraire le nom du fichier de l'URL
-      const fileName = result.rows[0].pdf_url.split('/').pop();
+      // Le pdf_url contient maintenant juste le nom du fichier
+      const fileName = result.rows[0].pdf_url;
       
       // Supprimer le fichier de Google Cloud Storage
       await bucket.file(fileName).delete();
@@ -379,7 +373,7 @@ app.delete('/api/prospects/:id/pdf', auth, async (req, res) => {
 // ===================== PDF DOWNLOAD/VIEW =====================
 app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
   try {
-    // Récupérer l'URL du PDF
+    // Récupérer le NOM du fichier
     const result = await pool.query(
       `SELECT pdf_url FROM prospects WHERE id = $1 AND user_id = $2`,
       [req.params.id, req.userId]
@@ -389,8 +383,7 @@ app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
       return res.status(404).json({ error: 'Pas de PDF pour ce prospect' });
     }
 
-    const pdfUrl = result.rows[0].pdf_url;
-    const fileName = pdfUrl.split('/').pop();
+    const fileName = result.rows[0].pdf_url;
     const blob = bucket.file(fileName);
 
     // Vérifier que le fichier existe
