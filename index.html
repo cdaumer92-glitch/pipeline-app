@@ -935,6 +935,12 @@
 
       // Prospects en Devis ou Négociation seulement
       const prospectsPipeline = prospects.filter(p => p.status === 'Devis' || p.status === 'Négociation');
+      console.log('📊 Dashboard Debug:', {
+        totalProspects: prospects.length,
+        pipelineProspects: prospectsPipeline.length,
+        allStatuses: [...new Set(prospects.map(p => p.status))],
+        sampleProspects: prospects.slice(0, 3).map(p => ({name: p.name, status: p.status, monthly: p.monthly_amount}))
+      });
       const monthlyAbonnement = prospectsPipeline.reduce((sum, p) => sum + (p.monthly_amount || 0), 0);
       const setupAmount = prospectsPipeline.reduce((sum, p) => sum + (p.setup_amount || 0), 0);
       const formationAmount = prospectsPipeline.reduce((sum, p) => sum + (p.training_amount || 0), 0);
