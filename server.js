@@ -178,8 +178,16 @@ app.post('/api/auth/login', async (req, res) => {
     
     const token = jwt.sign({ id: user.id, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
     
-    // Enregistrer la session
+    // Désactiver les anciennes sessions puis créer la nouvelle
     try {
+      // D'abord, désactiver toutes les anciennes sessions de cet utilisateur
+      await pool.query(`
+        UPDATE user_sessions 
+        SET is_active = false 
+        WHERE user_id = $1 AND is_active = true
+      `, [user.id]);
+      
+      // Puis créer la nouvelle session
       await pool.query(`
         INSERT INTO user_sessions (user_id, user_email, user_name, ip_address)
         VALUES ($1, $2, $3, $4)
@@ -522,23 +530,9 @@ const requireAdmin = async (req, res, next) => {
   }
 };
 
-// Page HTML admin
+// Page HTML admin (l'auth se fait dans le JS de la page)
 app.get('/admin', (req, res) => {
   res.sendFile(join(__dirname, 'admin.html'));
-});
-
-// 🔥 ROUTE TEMPORAIRE : Se mettre admin (À SUPPRIMER APRÈS USAGE)
-app.get('/make-me-admin', auth, async (req, res) => {
-  try {
-    await pool.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', req.userId]);
-    res.json({ 
-      success: true, 
-      message: `✅ ${req.userName} est maintenant admin !`,
-      instructions: 'Vous pouvez maintenant aller sur /admin. N\'oubliez pas de SUPPRIMER cette route du code après !'
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 });
 
 // GET - Liste des utilisateurs connectés
