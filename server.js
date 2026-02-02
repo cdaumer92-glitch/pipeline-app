@@ -181,13 +181,14 @@ app.post('/api/prospects', auth, async (req, res) => {
   }
 });
 
+// 🔥 MODIFIÉ : Enlevé AND user_id pour permettre à tous de modifier
 app.put('/api/prospects/:id', auth, async (req, res) => {
   const { id } = req.params;
-  const { name, contact_name, email, phone, status, setup_amount, monthly_amount, annual_amount, training_amount, chance_percent, assigned_to, quote_date, decision_maker, notes } = req.body;
+  const { name, contact_name, email, phone, status, setup_amount, monthly_amount, annual_amount, training_amount, chance_percent, assigned_to, quote_date, decision_maker, notes, pdf_url } = req.body;
   try {
     await pool.query(
-      `UPDATE prospects SET name=$1, contact_name=$2, email=$3, phone=$4, status=$5, setup_amount=$6, monthly_amount=$7, annual_amount=$8, training_amount=$9, chance_percent=$10, assigned_to=$11, quote_date=$12, decision_maker=$13, notes=$14, updated_at=NOW() WHERE id=$15 AND user_id=$16`,
-      [name, contact_name, email || null, phone || null, status, setup_amount || 0, monthly_amount || 0, annual_amount || 0, training_amount || 0, chance_percent || 20, assigned_to, quote_date || null, decision_maker || null, notes || null, id, req.userId]
+      `UPDATE prospects SET name=$1, contact_name=$2, email=$3, phone=$4, status=$5, setup_amount=$6, monthly_amount=$7, annual_amount=$8, training_amount=$9, chance_percent=$10, assigned_to=$11, quote_date=$12, decision_maker=$13, notes=$14, pdf_url=$15, updated_at=NOW() WHERE id=$16`,
+      [name, contact_name, email || null, phone || null, status, setup_amount || 0, monthly_amount || 0, annual_amount || 0, training_amount || 0, chance_percent || 20, assigned_to, quote_date || null, decision_maker || null, notes || null, pdf_url || null, id]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -347,6 +348,7 @@ app.put('/api/users/:id/password', auth, async (req, res) => {
 });
 
 // ===================== PDF UPLOAD =====================
+// 🔥 MODIFIÉ : Enlevé AND user_id pour permettre à tous d'uploader des PDFs
 app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
   try {
     if (!req.files || !req.files.pdf) {
@@ -367,10 +369,10 @@ app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
     // Uploader le fichier
     await blob.save(pdfFile.data);
 
-    // Sauvegarder JUSTE LE NOM du fichier en base (pas l'URL)
+    // 🔥 CORRECTION : Enlevé "AND user_id = $3"
     await pool.query(
-      `UPDATE prospects SET pdf_url = $1 WHERE id = $2 AND user_id = $3`,
-      [fileName, req.params.id, req.userId]
+      `UPDATE prospects SET pdf_url = $1 WHERE id = $2`,
+      [fileName, req.params.id]
     );
 
     res.json({ pdf_url: fileName, success: true });
@@ -381,26 +383,26 @@ app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
 });
 
 // ===================== PDF DELETE =====================
+// 🔥 MODIFIÉ : Enlevé AND user_id pour permettre à tous de supprimer des PDFs
 app.delete('/api/prospects/:id/pdf', auth, async (req, res) => {
   try {
-    // Récupérer le NOM du fichier
+    // 🔥 CORRECTION : Enlevé "AND user_id = $2"
     const result = await pool.query(
-      `SELECT pdf_url FROM prospects WHERE id = $1 AND user_id = $2`,
-      [req.params.id, req.userId]
+      `SELECT pdf_url FROM prospects WHERE id = $1`,
+      [req.params.id]
     );
 
     if (result.rows[0]?.pdf_url) {
-      // Le pdf_url contient maintenant juste le nom du fichier
       const fileName = result.rows[0].pdf_url;
       
       // Supprimer le fichier de Google Cloud Storage
       await bucket.file(fileName).delete();
     }
 
-    // Effacer l'URL de la base de données
+    // 🔥 CORRECTION : Enlevé "AND user_id = $2"
     await pool.query(
-      `UPDATE prospects SET pdf_url = NULL WHERE id = $1 AND user_id = $2`,
-      [req.params.id, req.userId]
+      `UPDATE prospects SET pdf_url = NULL WHERE id = $1`,
+      [req.params.id]
     );
 
     res.json({ ok: true });
