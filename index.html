@@ -127,6 +127,20 @@
       const [searchTerm, setSearchTerm] = React.useState('');
       const [sortBy, setSortBy] = React.useState('name');
 
+      // 🔥 AJOUT : Charger le token depuis localStorage au démarrage
+      React.useEffect(() => {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const userData = JSON.parse(storedUser);
+            setUser(userData);
+          } catch (err) {
+            console.error('Erreur parse user:', err);
+            localStorage.removeItem('user');
+          }
+        }
+      }, []);
+
       React.useEffect(() => {
         if (user) {
           fetchProspects();
@@ -200,7 +214,10 @@
           
           const data = await res.json();
           if (data.token) {
-            setUser({ ...data.user, token: data.token });
+            const userData = { ...data.user, token: data.token };
+            setUser(userData);
+            // 🔥 AJOUT : Sauvegarder dans localStorage
+            localStorage.setItem('user', JSON.stringify(userData));
           } else {
             alert('Erreur: ' + data.error);
           }
@@ -418,7 +435,7 @@
 
       return (
         <div style={styles.container}>
-          <Header user={user} onLogout={() => setUser(null)} onDashboard={() => setIsDashboard(!isDashboard)} isDashboard={isDashboard} onSettings={() => setShowSettings(true)} />
+          <Header user={user} onLogout={() => { localStorage.removeItem('user'); setUser(null); }} onDashboard={() => setIsDashboard(!isDashboard)} isDashboard={isDashboard} onSettings={() => setShowSettings(true)} />
           
           {showSettings && <Settings onClose={() => setShowSettings(false)} user={user} />}
           
@@ -1317,30 +1334,7 @@
           if (res.ok) {
             handleChange('pdf_url', result.pdf_url);
             setPdfFile(null);
-            
-            // 🔥 AUTO-SAVE : Sauvegarder automatiquement après l'upload
-            // Mettre à jour formData avec le nouveau pdf_url puis sauvegarder
-            const updatedFormData = { ...formData, pdf_url: result.pdf_url };
-            
-            try {
-              const saveRes = await fetch(`${API_URL}/prospects/${formData.id}`, {
-                method: 'PUT',
-                headers: { 
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${user.token}`
-                },
-                body: JSON.stringify(updatedFormData)
-              });
-
-              if (saveRes.ok) {
-                alert('✅ PDF uploadé et enregistré automatiquement !');
-              } else {
-                alert('⚠️ PDF uploadé mais erreur lors de l\'enregistrement. Cliquez sur Enregistrer.');
-              }
-            } catch (saveErr) {
-              console.error('Erreur auto-save:', saveErr);
-              alert('⚠️ PDF uploadé mais erreur lors de l\'enregistrement. Cliquez sur Enregistrer.');
-            }
+            alert('✅ PDF uploadé !');
           } else {
             alert('Erreur: ' + result.error);
           }
