@@ -1317,7 +1317,30 @@
           if (res.ok) {
             handleChange('pdf_url', result.pdf_url);
             setPdfFile(null);
-            alert('✅ PDF uploadé !');
+            
+            // 🔥 AUTO-SAVE : Sauvegarder automatiquement après l'upload
+            // Mettre à jour formData avec le nouveau pdf_url puis sauvegarder
+            const updatedFormData = { ...formData, pdf_url: result.pdf_url };
+            
+            try {
+              const saveRes = await fetch(`${API_URL}/prospects/${formData.id}`, {
+                method: 'PUT',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${user.token}`
+                },
+                body: JSON.stringify(updatedFormData)
+              });
+
+              if (saveRes.ok) {
+                alert('✅ PDF uploadé et enregistré automatiquement !');
+              } else {
+                alert('⚠️ PDF uploadé mais erreur lors de l\'enregistrement. Cliquez sur Enregistrer.');
+              }
+            } catch (saveErr) {
+              console.error('Erreur auto-save:', saveErr);
+              alert('⚠️ PDF uploadé mais erreur lors de l\'enregistrement. Cliquez sur Enregistrer.');
+            }
           } else {
             alert('Erreur: ' + result.error);
           }
