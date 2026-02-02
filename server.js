@@ -523,7 +523,7 @@ const requireAdmin = async (req, res, next) => {
 };
 
 // Page HTML admin
-app.get('/admin', requireAdmin, (req, res) => {
+app.get('/admin', (req, res) => {
   res.sendFile(join(__dirname, 'admin.html'));
 });
 
