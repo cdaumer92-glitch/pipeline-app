@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration - CRM</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        
+        .refresh-btn {
+            padding: 12px 24px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 20px;
+            transition: background 0.3s;
+        }
+        
+        .refresh-btn:hover {
+            background: #2980b9;
+        }
+        
+        .refresh-btn:active {
+            transform: scale(0.98);
+        }
+        
+        .user-count {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        
+        .users-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        
+        .users-table th,
+        .users-table td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        .users-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .users-table td {
+            color: #34495e;
+        }
+        
+        .users-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .no-users {
+            text-align: center;
+            padding: 60px 20px;
+            color: #95a5a6;
+            font-style: italic;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #3498db;
+        }
+        
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            padding: 15px;
+            border-radius: 6px;
+            color: #c33;
+            margin-bottom: 20px;
+        }
+
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .info-box p {
+            color: #2c3e50;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Administration CRM</h1>
+        
+        <div class="info-box">
+            <p><strong>📌 Avant de faire une mise à jour :</strong></p>
+            <p>Vérifiez qui est connecté et prévenez les utilisateurs actifs avant de déployer.</p>
+        </div>
+        
+        <button class="refresh-btn" onclick="loadActiveUsers()">
+            🔄 Qui est connecté ?
+        </button>
+        
+        <div class="user-count" id="userCount"></div>
+        <div id="errorMessage"></div>
+        
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th>Utilisateur</th>
+                    <th>Email</th>
+                    <th>Connecté depuis</th>
+                    <th>Adresse IP</th>
+                </tr>
+            </thead>
+            <tbody id="usersTableBody">
+                <tr>
+                    <td colspan="4" class="no-users">
+                        Cliquez sur "Qui est connecté ?" pour voir les utilisateurs actifs
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <script>
+        async function loadActiveUsers() {
+            const tbody = document.getElementById('usersTableBody');
+            const userCount = document.getElementById('userCount');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // Afficher loading
+            tbody.innerHTML = '<tr><td colspan="4" class="loading">Chargement...</td></tr>';
+            errorMessage.innerHTML = '';
+            userCount.textContent = '';
+            
+            try {
+                const response = await fetch('/api/admin/active-users');
+                
+                if (!response.ok) {
+                    throw new Error('Erreur lors de la récupération des données');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.message || 'Erreur inconnue');
+                }
+                
+                if (data.users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="no-users">✅ Aucun utilisateur connecté - Vous pouvez faire votre mise à jour !</td></tr>';
+                    return;
+                }
+                
+                userCount.textContent = `👥 ${data.users.length} utilisateur(s) connecté(s)`;
+                
+                tbody.innerHTML = data.users.map(user => {
+                    const loginTime = new Date(user.login_time);
+                    const formattedTime = loginTime.toLocaleString('fr-FR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    return `
+                        <tr>
+                            <td><strong>${user.user_name || '-'}</strong></td>
+                            <td>${user.user_email}</td>
+                            <td>${formattedTime}</td>
+                            <td>${user.ip_address || '-'}</td>
+                        </tr>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('Erreur:', error);
+                errorMessage.innerHTML = '<div class="error">❌ Erreur lors du chargement des utilisateurs connectés: ' + error.message + '</div>';
+                tbody.innerHTML = '<tr><td colspan="4" class="no-users">Une erreur est survenue</td></tr>';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -4,7 +4,7 @@ import cors from 'cors';
 import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
 import fileUpload from 'express-fileupload';
 import { Storage } from '@google-cloud/storage';
 
@@ -104,8 +104,33 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT NOW()
     )`);
 
+    // ============ SYSTÈME ADMIN ============
+    // Ajouter le champ role si n'existe pas
+    await client.query(`
+      ALTER TABLE users 
+      ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'
+    `);
+
+    // Définir cdaumer92@gmail.com comme admin
+    await client.query(`
+      UPDATE users 
+      SET role = 'admin' 
+      WHERE email = 'cdaumer92@gmail.com' AND role IS NULL
+    `);
+
+    // Créer la table des sessions
+    await client.query(`CREATE TABLE IF NOT EXISTS user_sessions (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id),
+      user_email VARCHAR(255),
+      user_name VARCHAR(255),
+      login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ip_address VARCHAR(50),
+      is_active BOOLEAN DEFAULT true
+    )`);
+
     client.release();
-    console.log('✅ Tables créées');
+    console.log('✅ Tables créées + Système admin initialisé');
   } catch (err) {
     console.error('❌ Erreur BD:', err.message);
   }
@@ -150,9 +175,39 @@ app.post('/api/auth/login', async (req, res) => {
     if (!user) return res.status(400).json({ error: 'Identifiants invalides' });
     const valid = await bcryptjs.compare(password, user.password);
     if (!valid) return res.status(400).json({ error: 'Identifiants invalides' });
+    
     const token = jwt.sign({ id: user.id, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
+    
+    // Enregistrer la session
+    try {
+      await pool.query(`
+        INSERT INTO user_sessions (user_id, user_email, user_name, ip_address)
+        VALUES ($1, $2, $3, $4)
+      `, [user.id, user.email, user.name, req.ip || 'unknown']);
+    } catch (sessionErr) {
+      console.error('Erreur enregistrement session:', sessionErr);
+      // Ne pas bloquer le login si ça échoue
+    }
+    
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// LOGOUT
+app.post('/api/auth/logout', auth, async (req, res) => {
+  try {
+    // Marquer la session comme inactive
+    await pool.query(`
+      UPDATE user_sessions 
+      SET is_active = false 
+      WHERE user_id = $1 AND is_active = true
+    `, [req.userId]);
+    
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Erreur logout:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -442,6 +497,55 @@ app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
   } catch (err) {
     console.error('PDF Download Error:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== ADMIN ROUTES =====================
+// Middleware pour vérifier que l'utilisateur est admin
+const requireAdmin = async (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Non authentifié' });
+  
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const result = await pool.query('SELECT role FROM users WHERE id = $1', [decoded.id]);
+    
+    if (!result.rows[0] || result.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Accès refusé - Admin uniquement' });
+    }
+    
+    req.userId = decoded.id;
+    req.userName = decoded.name;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Token invalide' });
+  }
+};
+
+// Page HTML admin
+app.get('/admin', requireAdmin, (req, res) => {
+  res.sendFile(join(__dirname, 'admin.html'));
+});
+
+// GET - Liste des utilisateurs connectés
+app.get('/api/admin/active-users', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        id,
+        user_email,
+        user_name,
+        login_time,
+        ip_address
+      FROM user_sessions
+      WHERE is_active = true
+      ORDER BY login_time DESC
+    `);
+    
+    res.json({ success: true, users: result.rows });
+  } catch (err) {
+    console.error('Erreur récupération users actifs:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
