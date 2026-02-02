@@ -523,8 +523,22 @@ const requireAdmin = async (req, res, next) => {
 };
 
 // Page HTML admin
-app.get('/admin', (req, res) => {
+app.get('/admin', requireAdmin, (req, res) => {
   res.sendFile(join(__dirname, 'admin.html'));
+});
+
+// 🔥 ROUTE TEMPORAIRE : Se mettre admin (À SUPPRIMER APRÈS USAGE)
+app.get('/make-me-admin', auth, async (req, res) => {
+  try {
+    await pool.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', req.userId]);
+    res.json({ 
+      success: true, 
+      message: `✅ ${req.userName} est maintenant admin !`,
+      instructions: 'Vous pouvez maintenant aller sur /admin. N\'oubliez pas de SUPPRIMER cette route du code après !'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET - Liste des utilisateurs connectés
