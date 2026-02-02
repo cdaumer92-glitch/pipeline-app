@@ -161,6 +161,27 @@
     </div>
     
     <script>
+        // Récupérer le token JWT du localStorage
+        function getAuthToken() {
+            // Le token est stocké par votre application React
+            // Il faut vérifier comment votre app le stocke
+            const userStr = localStorage.getItem('user');
+            if (!userStr) {
+                // Pas de token, rediriger vers la page de login
+                window.location.href = '/';
+                return null;
+            }
+            
+            try {
+                const user = JSON.parse(userStr);
+                return user.token;
+            } catch (e) {
+                console.error('Erreur parse user:', e);
+                window.location.href = '/';
+                return null;
+            }
+        }
+
         async function loadActiveUsers() {
             const tbody = document.getElementById('usersTableBody');
             const userCount = document.getElementById('userCount');
@@ -171,10 +192,27 @@
             errorMessage.innerHTML = '';
             userCount.textContent = '';
             
+            const token = getAuthToken();
+            if (!token) return;
+            
             try {
-                const response = await fetch('/api/admin/active-users');
+                const response = await fetch('/api/admin/active-users', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
                 
                 if (!response.ok) {
+                    if (response.status === 401) {
+                        alert('Session expirée. Veuillez vous reconnecter.');
+                        window.location.href = '/';
+                        return;
+                    }
+                    if (response.status === 403) {
+                        alert('Accès refusé - Vous devez être administrateur.');
+                        window.location.href = '/';
+                        return;
+                    }
                     throw new Error('Erreur lors de la récupération des données');
                 }
                 
@@ -217,6 +255,15 @@
                 tbody.innerHTML = '<tr><td colspan="4" class="no-users">Une erreur est survenue</td></tr>';
             }
         }
+        
+        // Vérifier le token au chargement de la page
+        window.addEventListener('DOMContentLoaded', () => {
+            const token = getAuthToken();
+            if (!token) {
+                alert('Vous devez être connecté pour accéder à cette page.');
+                window.location.href = '/';
+            }
+        });
     </script>
 </body>
 </html>
