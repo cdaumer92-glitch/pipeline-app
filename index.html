@@ -1280,13 +1280,19 @@
               </div>
             </div>
 
-            <div style={styles.detailRowInline}>
+            <div style={{...styles.detailRowInline, fontSize: '17px'}}>
               <span><strong>Décideur:</strong> {selectedProspect.decision_maker}</span>
               <span><strong>Contact:</strong> {selectedProspect.contact_name}</span>
-              <span><strong>Statut:</strong> <span style={{ color: getStatusColor(selectedProspect.status) }}>{selectedProspect.status}</span> {selectedProspect.status_date && <span style={{fontSize: '12px', color: '#999'}}>depuis le {new Date(selectedProspect.status_date).toLocaleDateString()}</span>}</span>
+              <span>
+                <strong>Statut:</strong> <span style={{ color: getStatusColor(selectedProspect.status) }}>{selectedProspect.status}</span>
+                {selectedProspect.chance_percent && selectedProspect.chance_percent > 0 && (
+                  <span style={{fontSize: '17px', fontWeight: 'bold', color: '#10a0dc', marginLeft: '8px'}}>({selectedProspect.chance_percent}%)</span>
+                )}
+                {selectedProspect.status_date && <span style={{fontSize: '14px', color: '#999', marginLeft: '5px'}}>depuis le {new Date(selectedProspect.status_date).toLocaleDateString()}</span>}
+              </span>
             </div>
 
-            <div style={styles.detailRowInline}>
+            <div style={{...styles.detailRowInline, fontSize: '17px'}}>
               <span><strong>Email:</strong> {selectedProspect.email}</span>
               <span><strong>Tél:</strong> {selectedProspect.phone}</span>
             </div>
