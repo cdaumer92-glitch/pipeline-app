@@ -921,7 +921,12 @@
                 <div style={styles.prospectName}>{prospect.name}</div>
                 <div style={styles.prospectSubtitle}>{prospect.contact_name}</div>
                 <div style={styles.prospectStatusRow}>
-                  <span style={styles.prospectStatus}>{prospect.status}</span>
+                  <span style={styles.prospectStatus}>
+                    {prospect.status}
+                    {prospect.chance_percent && prospect.chance_percent > 0 && (
+                      <span style={{fontWeight: 'bold', color: '#10a0dc', marginLeft: '5px'}}>({prospect.chance_percent}%)</span>
+                    )}
+                  </span>
                   {prospect.quote_date && <span style={styles.prospectQuoteDate}>{new Date(prospect.quote_date).toLocaleDateString()}</span>}
                 </div>
                 <div style={{fontSize: '12px', marginTop: '6px', color: '#666'}}>
