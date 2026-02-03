@@ -147,6 +147,15 @@
         }
       }, [user]);
 
+      // Charger les actions de tous les prospects après le chargement
+      React.useEffect(() => {
+        if (prospects.length > 0 && user) {
+          prospects.forEach(prospect => {
+            fetchNextActions(prospect.id);
+          });
+        }
+      }, [prospects.length, user]);
+
       const fetchProspects = async () => {
         try {
           const res = await fetch(`${API_URL}/prospects`, {
