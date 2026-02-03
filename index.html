@@ -86,12 +86,12 @@
 
     function getStatusColor(status) {
       const colors = {
-        'Prospection': '#666',
-        'Devis': '#0066cc',
-        'Démo': '#9933cc',
-        'Négociation': '#ff9900',
-        'Signé': '#00cc00',
-        'Perdu': '#cc0000'
+        'Prospection': '#999',
+        'Devis': '#12a0dc',
+        'Démo': '#e72c7b',
+        'Négociation': '#d3a002',
+        'Signé': '#3cd6b9',
+        'Perdu': '#e23b63'
       };
       return colors[status] || '#666';
     }
@@ -1265,7 +1265,7 @@
                         <td style={{padding: '10px', textAlign: 'right'}}>{formatNumber(prospect.monthly_amount || 0)}</td>
                         <td style={{padding: '10px', textAlign: 'right'}}>{formatNumber(prospect.annual_amount || 0)}</td>
                         <td style={{padding: '10px', textAlign: 'right'}}>{formatNumber(prospect.training_amount || 0)}</td>
-                        <td style={{padding: '10px', textAlign: 'center'}}><span style={{backgroundColor: getStatusColor(prospect.status), color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold'}}>{prospect.status}</span></td>
+                        <td style={{padding: '10px', textAlign: 'center'}}><span style={{color: getStatusColor(prospect.status), fontSize: '13px', fontWeight: 'bold'}}>{prospect.status}</span></td>
                         <td style={{padding: '10px', textAlign: 'center'}} onClick={(e) => e.stopPropagation()}>
                           {prospect.pdf_url && (
                             <button
@@ -1286,13 +1286,12 @@
                                 }
                               }}
                               style={{
-                                backgroundColor: '#17a2b8',
-                                color: 'white',
+                                backgroundColor: 'transparent',
+                                color: '#12a0dc',
                                 border: 'none',
-                                borderRadius: '4px',
-                                padding: '4px 8px',
                                 cursor: 'pointer',
-                                fontSize: '16px'
+                                fontSize: '18px',
+                                padding: '0'
                               }}
                             >
                               📄
@@ -1303,22 +1302,16 @@
                           {prospectActionsInfo[prospect.id]?.hasAction ? (
                             prospectActionsInfo[prospect.id]?.isLate ? (
                               <span style={{
-                                backgroundColor: '#e23b63',
-                                color: 'white',
-                                padding: '4px 10px',
-                                borderRadius: '4px',
-                                fontSize: '11px',
+                                color: '#e23b63',
+                                fontSize: '13px',
                                 fontWeight: 'bold'
                               }}>
                                 ⚠️ Retard
                               </span>
                             ) : (
                               <span style={{
-                                backgroundColor: '#3cd6b9',
-                                color: 'white',
-                                padding: '4px 10px',
-                                borderRadius: '4px',
-                                fontSize: '11px',
+                                color: '#3cd6b9',
+                                fontSize: '13px',
                                 fontWeight: 'bold'
                               }}>
                                 ✓ Planifiée
@@ -1326,11 +1319,8 @@
                             )
                           ) : (
                             <span style={{
-                              backgroundColor: '#999',
-                              color: 'white',
-                              padding: '4px 10px',
-                              borderRadius: '4px',
-                              fontSize: '11px',
+                              color: '#999',
+                              fontSize: '13px',
                               fontWeight: 'bold'
                             }}>
                               - Aucune
