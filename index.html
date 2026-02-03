@@ -440,7 +440,7 @@
           {showSettings && <Settings onClose={() => setShowSettings(false)} user={user} />}
           
           {isDashboard ? (
-            <Dashboard prospects={prospects} selectedCommercial={selectedCommercial} onSelectCommercial={setSelectedCommercial} onSelectProspect={handleSelectProspect} onOpenDashboard={() => setIsDashboard(false)} user={user} API_URL={API_URL} />
+            <Dashboard prospects={prospects} selectedCommercial={selectedCommercial} onSelectCommercial={setSelectedCommercial} onSelectProspect={handleSelectProspect} onOpenDashboard={() => setIsDashboard(false)} user={user} API_URL={API_URL} prospectActionsInfo={prospectActionsInfo} />
           ) : (
           <div style={styles.content}>
             <LeftPanel
@@ -935,9 +935,10 @@
       );
     }
 
-    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL }) {
+    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo }) {
       const [sortBy, setSortBy] = React.useState('name');
       const [sortAsc, setSortAsc] = React.useState(true);
+      const [hoveredProspect, setHoveredProspect] = React.useState(null);
       
       const stats = {
         total: prospects.length,
@@ -1093,13 +1094,29 @@
                 const signed = commercialProspects.filter(p => p.status === 'Signé').length;
                 const monthlyValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
                 const annualValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0), 0);
+                
+                // Calculer les actions planifiées et en retard
+                let nbActionsPlannees = 0;
+                let nbActionsEnRetard = 0;
+                commercialProspects.forEach(prospect => {
+                  const actionInfo = prospectActionsInfo[prospect.id];
+                  if (actionInfo?.hasAction) {
+                    nbActionsPlannees++;
+                    if (actionInfo.isLate) {
+                      nbActionsEnRetard++;
+                    }
+                  }
+                });
+                
                 return (
                   <div key={commercial} style={{borderLeft: '4px solid #10a0dc', paddingLeft: '15px', cursor: 'pointer', padding: '15px', backgroundColor: selectedCommercial === commercial ? '#e8f4f8' : 'transparent', borderRadius: '6px', transition: 'background-color 0.2s'}} onClick={() => onSelectCommercial(selectedCommercial === commercial ? null : commercial)}>
                     <h4 style={{margin: '0 0 10px 0', color: selectedCommercial === commercial ? '#10a0dc' : '#333'}}>{commercial}</h4>
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Prospects: <strong>{commercialProspects.length}</strong></div>
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Signés: <strong style={{color: '#00cc00'}}>{signed}</strong></div>
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement mensuel: <strong style={{color: '#10a0dc'}}>{formatNumber(monthlyValue)}</strong></div>
-                    <div style={{fontSize: '13px', color: '#666'}}>Valeur abonnement annuel: <strong style={{color: '#10a0dc'}}>{formatNumber(annualValue)}</strong></div>
+                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement annuel: <strong style={{color: '#10a0dc'}}>{formatNumber(annualValue)}</strong></div>
+                    <div style={{fontSize: '13px', color: '#28a745', marginBottom: '5px'}}>Nb actions planifiées: <strong>{nbActionsPlannees}</strong></div>
+                    <div style={{fontSize: '13px', color: nbActionsEnRetard > 0 ? '#cc0000' : '#666', marginBottom: '5px'}}>Nb actions en retard: <strong>{nbActionsEnRetard}</strong></div>
                     <div style={{fontSize: '12px', marginTop: '10px', color: '#999'}}>
                       {commercialProspects.filter(p => p.status === 'Prospection').length} prospection | {commercialProspects.filter(p => p.status === 'Devis').length} devis | {commercialProspects.filter(p => p.status === 'Négociation').length} négociation
                     </div>
@@ -1113,7 +1130,7 @@
           {selectedCommercial && (
             <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginTop: '30px'}}>
               <h3 style={{marginTop: 0}}>Prospects - {selectedCommercial}</h3>
-              <div style={{overflowX: 'auto'}}>
+              <div style={{overflow: 'visible'}}>
                 <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '13px'}}>
                   <thead>
                     <tr style={{borderBottom: '2px solid #ddd', backgroundColor: '#f9f9f9'}}>
@@ -1135,7 +1152,47 @@
                         onOpenDashboard();
                       }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
                         <td style={{padding: '10px'}}><strong>{prospect.name}</strong></td>
-                        <td style={{padding: '10px'}}>{prospect.contact_name || '-'}</td>
+                        <td 
+                          style={{padding: '10px', position: 'relative'}}
+                          onMouseEnter={() => setHoveredProspect(prospect.id)}
+                          onMouseLeave={() => setHoveredProspect(null)}
+                        >
+                          {prospect.contact_name || '-'}
+                          {hoveredProspect === prospect.id && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '100%',
+                              left: '10px',
+                              backgroundColor: '#333',
+                              color: 'white',
+                              padding: '10px 15px',
+                              borderRadius: '6px',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                              zIndex: 1000,
+                              minWidth: '200px',
+                              fontSize: '13px',
+                              lineHeight: '1.6',
+                              marginTop: '5px'
+                            }}>
+                              <div style={{marginBottom: '5px'}}>
+                                <strong>Email:</strong> {prospect.email || 'Non renseigné'}
+                              </div>
+                              <div>
+                                <strong>Tél:</strong> {prospect.phone || 'Non renseigné'}
+                              </div>
+                              <div style={{
+                                position: 'absolute',
+                                top: '-6px',
+                                left: '20px',
+                                width: '0',
+                                height: '0',
+                                borderLeft: '6px solid transparent',
+                                borderRight: '6px solid transparent',
+                                borderBottom: '6px solid #333'
+                              }}></div>
+                            </div>
+                          )}
+                        </td>
                         <td style={{padding: '10px', textAlign: 'right'}}>{formatNumber(prospect.setup_amount || 0)}</td>
                         <td style={{padding: '10px', textAlign: 'right'}}>{formatNumber(prospect.monthly_amount || 0)}</td>
                         <td style={{padding: '10px', textAlign: 'right'}}>{formatNumber(prospect.annual_amount || 0)}</td>
