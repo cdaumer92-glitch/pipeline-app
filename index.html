@@ -1043,82 +1043,72 @@
         <div style={{padding: '30px', backgroundColor: '#f9f9f9', overflowY: 'auto', flex: 1}}>
           <h2 style={{marginBottom: '30px'}}>Dashboard Commerciaux</h2>
           
-          {/* 📊 Pipeline Global */}
-          <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '20px'}}>
-            <h3 style={{marginTop: 0, marginBottom: '20px', fontSize: '18px', color: '#333'}}>📊 Pipeline Global</h3>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px'}}>
-              <div style={{textAlign: 'center', padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '6px'}}>
-                <div style={{fontSize: '13px', color: '#666', marginBottom: '8px'}}>Total</div>
-                <div style={{fontSize: '28px', fontWeight: 'bold', color: '#333'}}>{stats.total}</div>
-                <div style={{fontSize: '12px', color: '#999', marginTop: '4px'}}>prospects</div>
+          {/* 📊 Pipeline Global - Carrés plus petits */}
+          <div style={{backgroundColor: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '20px'}}>
+            <h3 style={{marginTop: 0, marginBottom: '15px', fontSize: '16px', color: '#333'}}>📊 Pipeline Global</h3>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px'}}>
+              <div style={{textAlign: 'center', padding: '12px', backgroundColor: '#f9f9f9', borderRadius: '6px'}}>
+                <div style={{fontSize: '11px', color: '#666', marginBottom: '6px'}}>Total</div>
+                <div style={{fontSize: '24px', fontWeight: 'bold', color: '#333'}}>{stats.total}</div>
+                <div style={{fontSize: '10px', color: '#999', marginTop: '2px'}}>prospects</div>
               </div>
-              <div style={{textAlign: 'center', padding: '15px', backgroundColor: '#e8f4f8', borderRadius: '6px'}}>
-                <div style={{fontSize: '13px', color: '#666', marginBottom: '8px'}}>En Pipeline</div>
-                <div style={{fontSize: '28px', fontWeight: 'bold', color: '#10a0dc'}}>{prospectsPipeline.length}</div>
-                <div style={{fontSize: '12px', color: '#999', marginTop: '4px'}}>prospects</div>
+              <div style={{textAlign: 'center', padding: '12px', backgroundColor: '#e8f4f8', borderRadius: '6px'}}>
+                <div style={{fontSize: '11px', color: '#666', marginBottom: '6px'}}>En Pipeline</div>
+                <div style={{fontSize: '24px', fontWeight: 'bold', color: '#10a0dc'}}>{prospectsPipeline.length}</div>
+                <div style={{fontSize: '10px', color: '#999', marginTop: '2px'}}>prospects</div>
               </div>
-              <div style={{textAlign: 'center', padding: '15px', backgroundColor: '#e8f5e9', borderRadius: '6px'}}>
-                <div style={{fontSize: '13px', color: '#666', marginBottom: '8px'}}>Signés</div>
-                <div style={{fontSize: '28px', fontWeight: 'bold', color: '#00cc00'}}>{stats.signed}</div>
-                <div style={{fontSize: '12px', color: '#999', marginTop: '4px'}}>prospects</div>
+              <div style={{textAlign: 'center', padding: '12px', backgroundColor: '#e8f5e9', borderRadius: '6px'}}>
+                <div style={{fontSize: '11px', color: '#666', marginBottom: '6px'}}>Signés</div>
+                <div style={{fontSize: '24px', fontWeight: 'bold', color: '#00cc00'}}>{stats.signed}</div>
+                <div style={{fontSize: '10px', color: '#999', marginTop: '2px'}}>prospects</div>
               </div>
-              <div style={{textAlign: 'center', padding: '15px', backgroundColor: '#ffebee', borderRadius: '6px'}}>
-                <div style={{fontSize: '13px', color: '#666', marginBottom: '8px'}}>Perdus</div>
-                <div style={{fontSize: '28px', fontWeight: 'bold', color: '#cc0000'}}>{stats.lost}</div>
-                <div style={{fontSize: '12px', color: '#999', marginTop: '4px'}}>prospects</div>
+              <div style={{textAlign: 'center', padding: '12px', backgroundColor: '#ffebee', borderRadius: '6px'}}>
+                <div style={{fontSize: '11px', color: '#666', marginBottom: '6px'}}>Perdus</div>
+                <div style={{fontSize: '24px', fontWeight: 'bold', color: '#cc0000'}}>{stats.lost}</div>
+                <div style={{fontSize: '10px', color: '#999', marginTop: '2px'}}>prospects</div>
               </div>
             </div>
           </div>
 
-          {/* 💰 Valeurs Pipeline */}
+          {/* 💰 Valeurs Pipeline - Layout horizontal 4 colonnes */}
           <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '40px'}}>
-            <h3 style={{marginTop: 0, marginBottom: '20px', fontSize: '18px', color: '#333'}}>💰 Valeurs Pipeline (Devis + Négociation uniquement)</h3>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px'}}>
+            <h3 style={{marginTop: 0, marginBottom: '20px', fontSize: '16px', color: '#333'}}>💰 Valeurs Pipeline (Devis + Négociation uniquement)</h3>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px'}}>
               
-              {/* Colonne Brut */}
-              <div style={{padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '6px'}}>
-                <div style={{fontSize: '15px', fontWeight: 'bold', color: '#666', marginBottom: '15px', textAlign: 'center'}}>Valeur Brute</div>
-                <div style={{fontSize: '14px', lineHeight: '2'}}>
-                  <div style={{display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #e0e0e0'}}>
-                    <span>📅 Abonnement/mois:</span>
-                    <strong style={{color: '#333'}}>{formatNumber(monthlyAbonnement)}</strong>
-                  </div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', paddingTop: '8px', paddingBottom: '8px', borderBottom: '1px solid #e0e0e0'}}>
-                    <span>📅 Abonnement/an:</span>
-                    <strong style={{color: '#333'}}>{formatNumber(annualAmount)}</strong>
-                  </div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', paddingTop: '8px', paddingBottom: '8px', borderBottom: '1px solid #e0e0e0'}}>
-                    <span>🔧 Setup:</span>
-                    <strong style={{color: '#333'}}>{formatNumber(setupAmount)}</strong>
-                  </div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', paddingTop: '8px'}}>
-                    <span>📚 Formation:</span>
-                    <strong style={{color: '#333'}}>{formatNumber(formationAmount)}</strong>
-                  </div>
-                </div>
+              {/* Colonne 1: Brut */}
+              <div style={{textAlign: 'center', padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '6px', border: '2px solid #e0e0e0'}}>
+                <div style={{fontSize: '13px', fontWeight: 'bold', color: '#666', marginBottom: '12px'}}>Brut</div>
+                <div style={{fontSize: '18px', fontWeight: 'bold', color: '#333', marginBottom: '4px'}}>{formatCurrency(monthlyAbonnement)}</div>
+                <div style={{fontSize: '11px', color: '#999', marginBottom: '10px'}}>/mois</div>
+                <div style={{fontSize: '18px', fontWeight: 'bold', color: '#333', marginBottom: '4px'}}>{formatCurrency(annualAmount)}</div>
+                <div style={{fontSize: '11px', color: '#999'}}>/an</div>
               </div>
 
-              {/* Colonne Pondéré */}
-              <div style={{padding: '15px', backgroundColor: '#e8f4f8', borderRadius: '6px', border: '2px solid #10a0dc'}}>
-                <div style={{fontSize: '15px', fontWeight: 'bold', color: '#10a0dc', marginBottom: '15px', textAlign: 'center'}}>Valeur Pondérée (× Probabilité)</div>
-                <div style={{fontSize: '14px', lineHeight: '2'}}>
-                  <div style={{display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #b0dae6'}}>
-                    <span>📅 Abonnement/mois:</span>
-                    <strong style={{color: '#10a0dc', fontSize: '15px'}}>{formatNumber(monthlyPondere)}</strong>
-                  </div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', paddingTop: '8px', paddingBottom: '8px', borderBottom: '1px solid #b0dae6'}}>
-                    <span>📅 Abonnement/an:</span>
-                    <strong style={{color: '#10a0dc', fontSize: '15px'}}>{formatNumber(annualPondere)}</strong>
-                  </div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', paddingTop: '8px', paddingBottom: '8px', borderBottom: '1px solid #b0dae6'}}>
-                    <span>🔧 Setup:</span>
-                    <strong style={{color: '#10a0dc', fontSize: '15px'}}>{formatNumber(setupPondere)}</strong>
-                  </div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', paddingTop: '8px'}}>
-                    <span>📚 Formation:</span>
-                    <strong style={{color: '#10a0dc', fontSize: '15px'}}>{formatNumber(formationPondere)}</strong>
-                  </div>
-                </div>
+              {/* Colonne 2: Pondéré */}
+              <div style={{textAlign: 'center', padding: '15px', backgroundColor: '#e8f4f8', borderRadius: '6px', border: '2px solid #10a0dc'}}>
+                <div style={{fontSize: '13px', fontWeight: 'bold', color: '#10a0dc', marginBottom: '12px'}}>Pondéré</div>
+                <div style={{fontSize: '18px', fontWeight: 'bold', color: '#10a0dc', marginBottom: '4px'}}>{formatCurrency(monthlyPondere)}</div>
+                <div style={{fontSize: '11px', color: '#0088bb', marginBottom: '10px'}}>/mois</div>
+                <div style={{fontSize: '18px', fontWeight: 'bold', color: '#10a0dc', marginBottom: '4px'}}>{formatCurrency(annualPondere)}</div>
+                <div style={{fontSize: '11px', color: '#0088bb'}}>/an</div>
+              </div>
+
+              {/* Colonne 3: Setup */}
+              <div style={{textAlign: 'center', padding: '15px', backgroundColor: '#fff3e0', borderRadius: '6px', border: '2px solid #ff9800'}}>
+                <div style={{fontSize: '13px', fontWeight: 'bold', color: '#666', marginBottom: '12px'}}>Setup</div>
+                <div style={{fontSize: '20px', fontWeight: 'bold', color: '#ff9800', marginTop: '20px'}}>{formatCurrency(setupAmount)}</div>
+                <div style={{fontSize: '11px', color: '#999', marginTop: '4px'}}>brut</div>
+                <div style={{fontSize: '16px', fontWeight: 'bold', color: '#ff9800', marginTop: '8px'}}>{formatCurrency(setupPondere)}</div>
+                <div style={{fontSize: '11px', color: '#999', marginTop: '4px'}}>pondéré</div>
+              </div>
+
+              {/* Colonne 4: Formation */}
+              <div style={{textAlign: 'center', padding: '15px', backgroundColor: '#f3e5f5', borderRadius: '6px', border: '2px solid #9c27b0'}}>
+                <div style={{fontSize: '13px', fontWeight: 'bold', color: '#666', marginBottom: '12px'}}>Formation</div>
+                <div style={{fontSize: '20px', fontWeight: 'bold', color: '#9c27b0', marginTop: '20px'}}>{formatCurrency(formationAmount)}</div>
+                <div style={{fontSize: '11px', color: '#999', marginTop: '4px'}}>brut</div>
+                <div style={{fontSize: '16px', fontWeight: 'bold', color: '#9c27b0', marginTop: '8px'}}>{formatCurrency(formationPondere)}</div>
+                <div style={{fontSize: '11px', color: '#999', marginTop: '4px'}}>pondéré</div>
               </div>
             </div>
           </div>
