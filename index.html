@@ -425,6 +425,9 @@
           const dateA = new Date(dateStrA.includes('-') ? dateStrA : dateStrA.split('/').reverse().join('-')).getTime();
           const dateB = new Date(dateStrB.includes('-') ? dateStrB : dateStrB.split('/').reverse().join('-')).getTime();
           return dateA - dateB;  // Plus ancien d'abord
+        } else if (sortBy === 'probabilité') {
+          // Trier par probabilité décroissante (plus élevé en premier)
+          return (b.chance_percent || 0) - (a.chance_percent || 0);
         }
         return 0;
       });
@@ -845,7 +848,7 @@
 
           <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
             <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Trier par:</span>
-            {[{label: 'Nom', value: 'name'}, {label: 'Ancienneté', value: 'ancienneté'}].map(option => (
+            {[{label: 'Nom', value: 'name'}, {label: 'Ancienneté', value: 'ancienneté'}, {label: 'Probabilité', value: 'probabilité'}].map(option => (
               <button
                 key={option.value}
                 onClick={() => onSortChange(option.value)}
