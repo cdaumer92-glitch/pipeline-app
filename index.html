@@ -1192,9 +1192,11 @@
                   
                   return ageRanges.map((range, idx) => {
                     const prospectsInRange = devisOnly.filter(p => {
-                      if (!p.status_date) return false;
-                      const statusDate = new Date(p.status_date);
-                      const daysDiff = Math.floor((now - statusDate) / (1000 * 60 * 60 * 24));
+                      // Utiliser quote_date (date du devis) plutôt que status_date
+                      const dateToUse = p.quote_date || p.status_date;
+                      if (!dateToUse) return false;
+                      const quoteDate = new Date(dateToUse);
+                      const daysDiff = Math.floor((now - quoteDate) / (1000 * 60 * 60 * 24));
                       return (!range.minDays || daysDiff >= range.minDays) && daysDiff < range.maxDays;
                     });
                     const barWidth = devisOnly.length > 0 ? Math.max(20, (prospectsInRange.length / devisOnly.length) * 100) : 20;
@@ -1233,9 +1235,11 @@
                     <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px'}}>
                       {ageRanges.map(range => {
                         const prospectsInRange = prospectsPipeline.filter(p => {
-                          if (!p.status_date) return false;
-                          const statusDate = new Date(p.status_date);
-                          const daysDiff = Math.floor((now - statusDate) / (1000 * 60 * 60 * 24));
+                          // Utiliser quote_date (date du devis) plutôt que status_date
+                          const dateToUse = p.quote_date || p.status_date;
+                          if (!dateToUse) return false;
+                          const quoteDate = new Date(dateToUse);
+                          const daysDiff = Math.floor((now - quoteDate) / (1000 * 60 * 60 * 24));
                           return (!range.minDays || daysDiff >= range.minDays) && daysDiff < range.maxDays;
                         });
                         const barWidth = prospectsPipeline.length > 0 ? (prospectsInRange.length / prospectsPipeline.length) * 100 : 0;
