@@ -421,9 +421,17 @@
         if (sortBy === 'name') {
           return a.name.localeCompare(b.name);
         } else if (sortBy === 'ancienneté') {
-          // Les plus anciens d'abord - utiliser quote_date ou created_at
-          const dateStrA = a.quote_date || a.created_at;
-          const dateStrB = b.quote_date || b.created_at;
+          // Pour les devis, utiliser status_date (date du passage en statut Devis)
+          // Sinon utiliser created_at
+          const getRelevantDate = (prospect) => {
+            if (prospect.status === 'Devis' && prospect.status_date) {
+              return prospect.status_date;
+            }
+            return prospect.quote_date || prospect.created_at;
+          };
+          
+          const dateStrA = getRelevantDate(a);
+          const dateStrB = getRelevantDate(b);
           
           // Si pas de date, mettre à la fin
           if (!dateStrA && !dateStrB) return 0;
