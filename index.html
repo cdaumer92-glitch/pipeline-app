@@ -1047,16 +1047,16 @@
         <div style={{padding: '30px', backgroundColor: '#f9f9f9', overflowY: 'auto', flex: 1}}>
           <h2 style={{marginBottom: '30px'}}>Dashboard Commerciaux</h2>
           
-          {/* Vue d'ensemble - 4 carrés */}
-          <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '40px'}}>
+          {/* Vue d'ensemble - 5 carrés */}
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '20px', marginBottom: '40px'}}>
             
             {/* Carré 1: Compteurs prospects */}
             <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '16px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📊 Prospects</h3>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📊 Prospects ({stats.prospection + prospectsPipeline.length})</h3>
               <div style={{fontSize: '15px', lineHeight: '2'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
-                  <span style={{color: '#666'}}>Total Prospect:</span>
-                  <strong style={{color: '#333', fontSize: '16px'}}>{stats.total}</strong>
+                  <span style={{color: '#666'}}>Total Suspect:</span>
+                  <strong style={{color: '#999', fontSize: '16px'}}>{stats.prospection}</strong>
                 </div>
                 <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
                   <span style={{color: '#666'}}>En pipeline:</span>
@@ -1064,18 +1064,18 @@
                 </div>
                 <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
                   <span style={{color: '#666'}}>Signé:</span>
-                  <strong style={{color: '#00cc00', fontSize: '16px'}}>{stats.signed}</strong>
+                  <strong style={{color: '#3cd6b9', fontSize: '16px'}}>{stats.signed}</strong>
                 </div>
                 <div style={{display: 'flex', justifyContent: 'space-between'}}>
                   <span style={{color: '#666'}}>Perdu:</span>
-                  <strong style={{color: '#cc0000', fontSize: '16px'}}>{stats.lost}</strong>
+                  <strong style={{color: '#e23b63', fontSize: '16px'}}>{stats.lost}</strong>
                 </div>
               </div>
             </div>
 
             {/* Carré 2: Abonnements */}
             <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '16px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📅 Abonnements</h3>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📅 Abonnements</h3>
               <div style={{fontSize: '14px', lineHeight: '1.6'}}>
                 <div style={{marginBottom: '12px'}}>
                   <div style={{color: '#666', marginBottom: '6px', fontWeight: 'bold'}}>/mois:</div>
@@ -1104,7 +1104,7 @@
 
             {/* Carré 3: Setup + Formation */}
             <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '16px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>💰 Prestations</h3>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>💰 Prestations</h3>
               <div style={{fontSize: '14px', lineHeight: '1.6'}}>
                 <div style={{marginBottom: '12px'}}>
                   <div style={{color: '#666', marginBottom: '6px', fontWeight: 'bold'}}>Setup:</div>
@@ -1131,26 +1131,123 @@
               </div>
             </div>
 
-            {/* Carré 4: Par statut */}
+            {/* Carré 4: Répartition par probabilité */}
             <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '16px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📈 Par statut</h3>
-              <div style={{fontSize: '15px', lineHeight: '2'}}>
-                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
-                  <span style={{color: '#666'}}>Prospection:</span>
-                  <strong style={{color: '#666', fontSize: '16px'}}>{stats.prospection}</strong>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
-                  <span style={{color: '#666'}}>Devis:</span>
-                  <strong style={{color: '#0066cc', fontSize: '16px'}}>{stats.devis}</strong>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
-                  <span style={{color: '#666'}}>Démo:</span>
-                  <strong style={{color: '#9933cc', fontSize: '16px'}}>{stats.demo}</strong>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                  <span style={{color: '#666'}}>Négociation:</span>
-                  <strong style={{color: '#ff9900', fontSize: '16px'}}>{stats.negotiation}</strong>
-                </div>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📈 Par probabilité</h3>
+              <div style={{fontSize: '12px', lineHeight: '1.8'}}>
+                {(() => {
+                  const ranges = [
+                    {label: '80-100%', min: 80, max: 100, color: '#3cd6b9'},
+                    {label: '60-80%', min: 60, max: 79, color: '#12a0dc'},
+                    {label: '40-60%', min: 40, max: 59, color: '#d3a002'},
+                    {label: '20-40%', min: 20, max: 39, color: '#e72c7b'},
+                    {label: '0-20%', min: 0, max: 19, color: '#e23b63'}
+                  ];
+                  
+                  return ranges.map(range => {
+                    const prospectsInRange = prospectsPipeline.filter(p => 
+                      (p.chance_percent || 0) >= range.min && (p.chance_percent || 0) <= range.max
+                    );
+                    const monthlyValue = prospectsInRange.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
+                    const barWidth = prospectsPipeline.length > 0 ? (prospectsInRange.length / prospectsPipeline.length) * 100 : 0;
+                    
+                    return (
+                      <div key={range.label} style={{marginBottom: '8px'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '3px'}}>
+                          <span style={{fontSize: '11px', fontWeight: 'bold', color: range.color}}>{range.label}</span>
+                          <span style={{fontSize: '11px', color: '#666'}}>{prospectsInRange.length} • {formatCurrency(monthlyValue)}/m</span>
+                        </div>
+                        <div style={{width: '100%', height: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px', overflow: 'hidden'}}>
+                          <div style={{width: `${barWidth}%`, height: '100%', backgroundColor: range.color, transition: 'width 0.3s'}}></div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* Carré 5: Âge des devis */}
+            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>⏱️ Âge des devis</h3>
+              <div style={{fontSize: '11px', lineHeight: '1.8'}}>
+                {(() => {
+                  const now = new Date();
+                  const ageRanges = [
+                    {label: '< 1 mois', maxDays: 30, color: '#3cd6b9', status: 'Frais'},
+                    {label: '1-2 mois', minDays: 30, maxDays: 60, color: '#12a0dc', status: 'OK'},
+                    {label: '2-3 mois', minDays: 60, maxDays: 90, color: '#d3a002', status: '⚠️ Vieux'},
+                    {label: '> 3 mois', minDays: 90, maxDays: 9999, color: '#e23b63', status: '🚨 URGENT'}
+                  ];
+                  
+                  const devisOnly = prospectsPipeline.filter(p => p.status === 'Devis');
+                  
+                  return ageRanges.map((range, idx) => {
+                    const prospectsInRange = devisOnly.filter(p => {
+                      if (!p.status_date) return false;
+                      const statusDate = new Date(p.status_date);
+                      const daysDiff = Math.floor((now - statusDate) / (1000 * 60 * 60 * 24));
+                      return (!range.minDays || daysDiff >= range.minDays) && daysDiff < range.maxDays;
+                    });
+                    const barWidth = devisOnly.length > 0 ? Math.max(20, (prospectsInRange.length / devisOnly.length) * 100) : 20;
+                    
+                    return (
+                      <div key={idx} style={{marginBottom: '6px'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '2px'}}>
+                          <span style={{color: '#666', fontWeight: 'bold'}}>{range.label}</span>
+                          <span style={{color: '#999', fontSize: '10px'}}>({prospectsInRange.length})</span>
+                        </div>
+                        <div style={{height: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px', marginBottom: '2px'}}>
+                          <div style={{width: `${barWidth}%`, height: '100%', backgroundColor: range.color, borderRadius: '4px'}}></div>
+                        </div>
+                        <div style={{color: range.color, fontSize: '10px', fontWeight: 'bold'}}>{range.status}</div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </div>
+          <div style={{marginBottom: '40px'}}>
+            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>⏱️ Âge des devis en pipeline</h3>
+              <div style={{fontSize: '12px', lineHeight: '1.8'}}>
+                {(() => {
+                  const now = new Date();
+                  const ageRanges = [
+                    {label: '< 1 mois', maxDays: 30, color: '#3cd6b9', status: 'Frais'},
+                    {label: '1-2 mois', minDays: 30, maxDays: 60, color: '#12a0dc', status: 'OK'},
+                    {label: '2-3 mois', minDays: 60, maxDays: 90, color: '#d3a002', status: '⚠️ Vieillissants'},
+                    {label: '> 3 mois', minDays: 90, maxDays: 9999, color: '#e23b63', status: '🚨 URGENCE!'}
+                  ];
+                  
+                  return (
+                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px'}}>
+                      {ageRanges.map(range => {
+                        const prospectsInRange = prospectsPipeline.filter(p => {
+                          if (!p.status_date) return false;
+                          const statusDate = new Date(p.status_date);
+                          const daysDiff = Math.floor((now - statusDate) / (1000 * 60 * 60 * 24));
+                          return (!range.minDays || daysDiff >= range.minDays) && daysDiff < range.maxDays;
+                        });
+                        const barWidth = prospectsPipeline.length > 0 ? (prospectsInRange.length / prospectsPipeline.length) * 100 : 0;
+                        
+                        return (
+                          <div key={range.label}>
+                            <div style={{marginBottom: '6px'}}>
+                              <div style={{fontSize: '11px', fontWeight: 'bold', color: range.color, marginBottom: '3px'}}>{range.label}</div>
+                              <div style={{fontSize: '11px', color: '#666', marginBottom: '3px'}}>{prospectsInRange.length} devis</div>
+                              <div style={{fontSize: '11px', color: range.color, fontWeight: 'bold'}}>{range.status}</div>
+                            </div>
+                            <div style={{width: '100%', height: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px', overflow: 'hidden'}}>
+                              <div style={{width: `${barWidth}%`, height: '100%', backgroundColor: range.color, transition: 'width 0.3s'}}></div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
