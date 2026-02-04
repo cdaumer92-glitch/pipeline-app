@@ -66,6 +66,7 @@
         assigned_to: '',
         quote_date: '',
         decision_maker: '',
+        solutions_en_place: '',
         notes: '',
         pdf_url: null
       };
@@ -1481,6 +1482,15 @@
               <span><strong>Tél:</strong> {selectedProspect.phone}</span>
             </div>
 
+            {selectedProspect.solutions_en_place && (
+              <div style={{marginTop: '15px', marginBottom: '15px', padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '6px', borderLeft: '4px solid #10a0dc'}}>
+                <strong style={{fontSize: '15px', color: '#333', display: 'block', marginBottom: '8px'}}>Solutions en place:</strong>
+                <div style={{fontSize: '14px', color: '#666', whiteSpace: 'pre-line'}}>
+                  {selectedProspect.solutions_en_place}
+                </div>
+              </div>
+            )}
+
             <div style={styles.amountsGrid}>
               <div style={styles.amountItem}>
                 <label style={styles.amountLabelSetup}>Setup</label>
@@ -1700,6 +1710,12 @@
                   value={formData.decision_maker}
                   onChange={(e) => handleChange('decision_maker', e.target.value)}
                   style={styles.formInput}
+                />
+                <textarea
+                  placeholder="Solutions en place (une par ligne: FastMag, Shopify, Sage...)"
+                  value={formData.solutions_en_place}
+                  onChange={(e) => handleChange('solutions_en_place', e.target.value)}
+                  style={{...styles.formInput, minHeight: '80px', resize: 'vertical', fontFamily: 'inherit'}}
                 />
               </div>
             </div>
