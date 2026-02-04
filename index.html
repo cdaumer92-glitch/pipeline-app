@@ -1403,7 +1403,19 @@
                             </span>
                           )}
                         </td>
-                        <td style={{padding: '10px', textAlign: 'right', fontSize: '12px', color: '#666'}}>{prospect.status_date ? new Date(prospect.status_date).toLocaleDateString('fr-FR') : '-'}</td>
+                        <td style={{padding: '10px', textAlign: 'center', fontSize: '12px', color: '#666'}}>
+                          {(() => {
+                            let dateToDisplay = null;
+                            if (prospect.status === 'Devis' && prospect.quote_date) {
+                              dateToDisplay = prospect.quote_date;
+                            } else if (prospect.status === 'Prospection' && prospect.created_at) {
+                              dateToDisplay = prospect.created_at;
+                            } else if (prospect.status_date) {
+                              dateToDisplay = prospect.status_date;
+                            }
+                            return dateToDisplay ? new Date(dateToDisplay).toLocaleDateString('fr-FR') : '-';
+                          })()}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
