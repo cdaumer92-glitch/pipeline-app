@@ -55,6 +55,8 @@
         contact_name: '',
         email: '',
         phone: '',
+        adresse: '',
+        tel_standard: '',
         status: 'Prospection',
         status_date: '',
         setup_amount: 0,
@@ -123,6 +125,16 @@
       const [selectedProspect, setSelectedProspect] = React.useState(null);
       const [showForm, setShowForm] = React.useState(false);
       const [formData, setFormData] = React.useState(getEmptyProspect());
+      const [interlocuteurs, setInterlocuteurs] = React.useState([]);
+      const [showInterlocuteurForm, setShowInterlocuteurForm] = React.useState(false);
+      const [interlocuteurForm, setInterlocuteurForm] = React.useState({
+        id: null,
+        nom: '',
+        fonction: '',
+        email: '',
+        telephone: '',
+        principal: false
+      });
       const [filterStatus, setFilterStatus] = React.useState('Tous');
       const [filterCommercial, setFilterCommercial] = React.useState('Tous');
       const [searchTerm, setSearchTerm] = React.useState('');
@@ -206,6 +218,79 @@
           setStatusHistory(data || []);
         } catch (err) {
           console.error('Erreur:', err);
+        }
+      };
+
+      const fetchInterlocuteurs = async (prospectId) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/interlocuteurs`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          const data = await res.json();
+          setInterlocuteurs(data || []);
+        } catch (err) {
+          console.error('Erreur fetch interlocuteurs:', err);
+        }
+      };
+
+      const handleSaveInterlocuteur = async () => {
+        if (!interlocuteurForm.nom.trim()) {
+          alert('Le nom est obligatoire');
+          return;
+        }
+
+        try {
+          const method = interlocuteurForm.id ? 'PUT' : 'POST';
+          const url = interlocuteurForm.id
+            ? `${API_URL}/prospects/${selectedProspect.id}/interlocuteurs/${interlocuteurForm.id}`
+            : `${API_URL}/prospects/${selectedProspect.id}/interlocuteurs`;
+
+          const res = await fetch(url, {
+            method,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify(interlocuteurForm)
+          });
+
+          if (res.ok) {
+            await fetchInterlocuteurs(selectedProspect.id);
+            setShowInterlocuteurForm(false);
+            setInterlocuteurForm({
+              id: null,
+              nom: '',
+              fonction: '',
+              email: '',
+              telephone: '',
+              principal: false
+            });
+          } else {
+            alert('Erreur lors de la sauvegarde');
+          }
+        } catch (err) {
+          console.error('Erreur:', err);
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleDeleteInterlocuteur = async (interlocuteurId) => {
+        if (!confirm('Supprimer cet interlocuteur ?')) return;
+
+        try {
+          const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/interlocuteurs/${interlocuteurId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+
+          if (res.ok) {
+            await fetchInterlocuteurs(selectedProspect.id);
+          } else {
+            alert('Erreur lors de la suppression');
+          }
+        } catch (err) {
+          console.error('Erreur:', err);
+          alert('Erreur: ' + err.message);
         }
       };
 
@@ -408,6 +493,7 @@
         }
         fetchNextActions(prospect.id);
         fetchStatusHistory(prospect.id);
+        fetchInterlocuteurs(prospect.id);
         setNewActionDate(new Date().toISOString().split('T')[0]);
       };
 
@@ -1482,6 +1568,13 @@
               <span><strong>Tél:</strong> {selectedProspect.phone}</span>
             </div>
 
+            {(selectedProspect.adresse || selectedProspect.tel_standard) && (
+              <div style={{...styles.detailRowInline, fontSize: '15px', marginTop: '10px'}}>
+                {selectedProspect.adresse && <span><strong>Adresse:</strong> {selectedProspect.adresse}</span>}
+                {selectedProspect.tel_standard && <span><strong>Tél Standard:</strong> {selectedProspect.tel_standard}</span>}
+              </div>
+            )}
+
             {selectedProspect.solutions_en_place && (
               <div style={{marginTop: '15px', marginBottom: '15px', padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '6px', borderLeft: '4px solid #10a0dc'}}>
                 <strong style={{fontSize: '15px', color: '#333', display: 'block', marginBottom: '8px'}}>Solutions en place:</strong>
@@ -1490,6 +1583,218 @@
                 </div>
               </div>
             )}
+
+            {/* Section Interlocuteurs */}
+            <div style={{marginTop: '20px', marginBottom: '20px'}}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
+                <h3 style={{margin: 0, fontSize: '18px', color: '#333'}}>👥 Interlocuteurs</h3>
+                <button
+                  onClick={() => {
+                    setInterlocuteurForm({
+                      id: null,
+                      nom: '',
+                      fonction: '',
+                      email: '',
+                      telephone: '',
+                      principal: false
+                    });
+                    setShowInterlocuteurForm(true);
+                  }}
+                  style={{
+                    backgroundColor: '#10a0dc',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  + Ajouter un interlocuteur
+                </button>
+              </div>
+
+              {/* Formulaire d'ajout/édition d'interlocuteur */}
+              {showInterlocuteurForm && (
+                <div style={{
+                  padding: '20px',
+                  backgroundColor: '#f9f9f9',
+                  borderRadius: '8px',
+                  marginBottom: '15px',
+                  border: '2px solid #10a0dc'
+                }}>
+                  <h4 style={{marginTop: 0, color: '#10a0dc'}}>
+                    {interlocuteurForm.id ? 'Modifier l\'interlocuteur' : 'Nouvel interlocuteur'}
+                  </h4>
+                  <div style={{display: 'grid', gap: '12px'}}>
+                    <input
+                      type="text"
+                      placeholder="Nom *"
+                      value={interlocuteurForm.nom}
+                      onChange={(e) => setInterlocuteurForm({...interlocuteurForm, nom: e.target.value})}
+                      style={{...styles.formInput, fontSize: '14px'}}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Fonction"
+                      value={interlocuteurForm.fonction}
+                      onChange={(e) => setInterlocuteurForm({...interlocuteurForm, fonction: e.target.value})}
+                      style={{...styles.formInput, fontSize: '14px'}}
+                    />
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      value={interlocuteurForm.email}
+                      onChange={(e) => setInterlocuteurForm({...interlocuteurForm, email: e.target.value})}
+                      style={{...styles.formInput, fontSize: '14px'}}
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Téléphone"
+                      value={interlocuteurForm.telephone}
+                      onChange={(e) => setInterlocuteurForm({...interlocuteurForm, telephone: e.target.value})}
+                      style={{...styles.formInput, fontSize: '14px'}}
+                    />
+                    <label style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px'}}>
+                      <input
+                        type="checkbox"
+                        checked={interlocuteurForm.principal}
+                        onChange={(e) => setInterlocuteurForm({...interlocuteurForm, principal: e.target.checked})}
+                      />
+                      <strong>Contact principal</strong>
+                    </label>
+                  </div>
+                  <div style={{display: 'flex', gap: '10px', marginTop: '15px'}}>
+                    <button
+                      onClick={handleSaveInterlocuteur}
+                      style={{
+                        backgroundColor: '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        padding: '10px 20px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      {interlocuteurForm.id ? 'Modifier' : 'Ajouter'}
+                    </button>
+                    <button
+                      onClick={() => setShowInterlocuteurForm(false)}
+                      style={{
+                        backgroundColor: '#999',
+                        color: 'white',
+                        border: 'none',
+                        padding: '10px 20px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px'
+                      }}
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Liste des interlocuteurs */}
+              <div style={{display: 'grid', gap: '10px'}}>
+                {interlocuteurs.length === 0 ? (
+                  <div style={{padding: '20px', textAlign: 'center', color: '#999', fontSize: '14px', backgroundColor: '#f9f9f9', borderRadius: '6px'}}>
+                    Aucun interlocuteur enregistré
+                  </div>
+                ) : (
+                  interlocuteurs.map(interlocuteur => (
+                    <div
+                      key={interlocuteur.id}
+                      style={{
+                        padding: '15px',
+                        backgroundColor: interlocuteur.principal ? '#e8f4f8' : 'white',
+                        border: interlocuteur.principal ? '2px solid #10a0dc' : '1px solid #ddd',
+                        borderRadius: '8px',
+                        position: 'relative'
+                      }}
+                    >
+                      {interlocuteur.principal && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '10px',
+                          right: '10px',
+                          backgroundColor: '#10a0dc',
+                          color: 'white',
+                          padding: '4px 10px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: 'bold'
+                        }}>
+                          ⭐ PRINCIPAL
+                        </div>
+                      )}
+                      <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333', marginBottom: '8px'}}>
+                        {interlocuteur.nom}
+                      </div>
+                      {interlocuteur.fonction && (
+                        <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>
+                          <strong>Fonction:</strong> {interlocuteur.fonction}
+                        </div>
+                      )}
+                      {interlocuteur.email && (
+                        <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>
+                          <strong>Email:</strong> {interlocuteur.email}
+                        </div>
+                      )}
+                      {interlocuteur.telephone && (
+                        <div style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>
+                          <strong>Tél:</strong> {interlocuteur.telephone}
+                        </div>
+                      )}
+                      <div style={{display: 'flex', gap: '10px', marginTop: '10px'}}>
+                        <button
+                          onClick={() => {
+                            setInterlocuteurForm({
+                              id: interlocuteur.id,
+                              nom: interlocuteur.nom,
+                              fonction: interlocuteur.fonction || '',
+                              email: interlocuteur.email || '',
+                              telephone: interlocuteur.telephone || '',
+                              principal: interlocuteur.principal || false
+                            });
+                            setShowInterlocuteurForm(true);
+                          }}
+                          style={{
+                            backgroundColor: '#10a0dc',
+                            color: 'white',
+                            border: 'none',
+                            padding: '6px 12px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '13px'
+                          }}
+                        >
+                          ✏️ Modifier
+                        </button>
+                        <button
+                          onClick={() => handleDeleteInterlocuteur(interlocuteur.id)}
+                          style={{
+                            backgroundColor: '#e23b63',
+                            color: 'white',
+                            border: 'none',
+                            padding: '6px 12px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '13px'
+                          }}
+                        >
+                          🗑️ Supprimer
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
 
             <div style={styles.amountsGrid}>
               <div style={styles.amountItem}>
@@ -1692,6 +1997,20 @@
                   placeholder="Téléphone"
                   value={formData.phone}
                   onChange={(e) => handleChange('phone', e.target.value)}
+                  style={styles.formInput}
+                />
+                <input
+                  type="text"
+                  placeholder="Adresse de la société"
+                  value={formData.adresse}
+                  onChange={(e) => handleChange('adresse', e.target.value)}
+                  style={styles.formInput}
+                />
+                <input
+                  type="text"
+                  placeholder="Tél Standard"
+                  value={formData.tel_standard}
+                  onChange={(e) => handleChange('tel_standard', e.target.value)}
                   style={styles.formInput}
                 />
                 <select

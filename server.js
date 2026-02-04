@@ -180,21 +180,18 @@ app.post('/api/auth/login', async (req, res) => {
     
     // Désactiver les anciennes sessions puis créer la nouvelle
     try {
-      // D'abord, désactiver toutes les anciennes sessions de cet utilisateur
       await pool.query(`
         UPDATE user_sessions 
         SET is_active = false 
         WHERE user_id = $1 AND is_active = true
       `, [user.id]);
       
-      // Puis créer la nouvelle session
       await pool.query(`
         INSERT INTO user_sessions (user_id, user_email, user_name, ip_address)
         VALUES ($1, $2, $3, $4)
       `, [user.id, user.email, user.name, req.ip || 'unknown']);
     } catch (sessionErr) {
       console.error('Erreur enregistrement session:', sessionErr);
-      // Ne pas bloquer le login si ça échoue
     }
     
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
@@ -206,7 +203,6 @@ app.post('/api/auth/login', async (req, res) => {
 // LOGOUT
 app.post('/api/auth/logout', auth, async (req, res) => {
   try {
-    // Marquer la session comme inactive
     await pool.query(`
       UPDATE user_sessions 
       SET is_active = false 
@@ -231,12 +227,29 @@ app.get('/api/prospects', auth, async (req, res) => {
 });
 
 app.post('/api/prospects', auth, async (req, res) => {
-  const { name, contact_name, email, phone, status, setup_amount, monthly_amount, annual_amount, training_amount, chance_percent, assigned_to, quote_date, decision_maker, notes } = req.body;
+  const { 
+    name, contact_name, email, phone, adresse, tel_standard,
+    status, setup_amount, monthly_amount, annual_amount, 
+    training_amount, chance_percent, assigned_to, quote_date, 
+    decision_maker, solutions_en_place, notes 
+  } = req.body;
+  
   try {
     const result = await pool.query(
-      `INSERT INTO prospects (name, contact_name, email, phone, status, setup_amount, monthly_amount, annual_amount, training_amount, chance_percent, assigned_to, quote_date, decision_maker, notes, user_id, status_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_DATE) RETURNING id`,
-      [name, contact_name, email || null, phone || null, status || 'Prospection', setup_amount || 0, monthly_amount || 0, annual_amount || 0, training_amount || 0, chance_percent || 20, assigned_to, quote_date || null, decision_maker || null, notes || null, req.userId]
+      `INSERT INTO prospects (
+        name, contact_name, email, phone, adresse, tel_standard,
+        status, setup_amount, monthly_amount, annual_amount, 
+        training_amount, chance_percent, assigned_to, quote_date, 
+        decision_maker, solutions_en_place, notes, user_id, status_date
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, CURRENT_DATE) 
+      RETURNING id`,
+      [
+        name, contact_name, email || null, phone || null, adresse || null, tel_standard || null,
+        status || 'Prospection', setup_amount || 0, monthly_amount || 0, annual_amount || 0, 
+        training_amount || 0, chance_percent || 20, assigned_to, quote_date || null, 
+        decision_maker || null, solutions_en_place || null, notes || null, req.userId
+      ]
     );
     res.json({ id: result.rows[0].id });
   } catch (err) {
@@ -244,14 +257,31 @@ app.post('/api/prospects', auth, async (req, res) => {
   }
 });
 
-// 🔥 MODIFIÉ : Enlevé AND user_id pour permettre à tous de modifier
 app.put('/api/prospects/:id', auth, async (req, res) => {
   const { id } = req.params;
-  const { name, contact_name, email, phone, status, setup_amount, monthly_amount, annual_amount, training_amount, chance_percent, assigned_to, quote_date, decision_maker, notes, pdf_url } = req.body;
+  const { 
+    name, contact_name, email, phone, adresse, tel_standard,
+    status, setup_amount, monthly_amount, annual_amount, 
+    training_amount, chance_percent, assigned_to, quote_date, 
+    decision_maker, solutions_en_place, notes, pdf_url 
+  } = req.body;
+  
   try {
     await pool.query(
-      `UPDATE prospects SET name=$1, contact_name=$2, email=$3, phone=$4, status=$5, setup_amount=$6, monthly_amount=$7, annual_amount=$8, training_amount=$9, chance_percent=$10, assigned_to=$11, quote_date=$12, decision_maker=$13, notes=$14, pdf_url=$15, updated_at=NOW() WHERE id=$16`,
-      [name, contact_name, email || null, phone || null, status, setup_amount || 0, monthly_amount || 0, annual_amount || 0, training_amount || 0, chance_percent || 20, assigned_to, quote_date || null, decision_maker || null, notes || null, pdf_url || null, id]
+      `UPDATE prospects SET 
+        name=$1, contact_name=$2, email=$3, phone=$4, adresse=$5, tel_standard=$6,
+        status=$7, setup_amount=$8, monthly_amount=$9, annual_amount=$10, 
+        training_amount=$11, chance_percent=$12, assigned_to=$13, quote_date=$14, 
+        decision_maker=$15, solutions_en_place=$16, notes=$17, pdf_url=$18, 
+        updated_at=NOW() 
+      WHERE id=$19`,
+      [
+        name, contact_name, email || null, phone || null, adresse || null, tel_standard || null,
+        status, setup_amount || 0, monthly_amount || 0, annual_amount || 0, 
+        training_amount || 0, chance_percent || 20, assigned_to, quote_date || null, 
+        decision_maker || null, solutions_en_place || null, notes || null, pdf_url || null, 
+        id
+      ]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -295,13 +325,11 @@ app.put('/api/next_actions/:id', auth, async (req, res) => {
   const { completed, completed_notes, saveNotesOnly } = req.body;
   try {
     if (saveNotesOnly) {
-      // Sauvegarder juste les notes sans marquer comme complétée
       await pool.query(
         `UPDATE next_actions SET completed_note=$1 WHERE id=$2 AND user_id=$3`,
         [completed_notes || null, req.params.id, req.userId]
       );
     } else {
-      // Marquer comme complétée et sauvegarder les notes
       await pool.query(
         `UPDATE next_actions SET completed=$1, completed_date=$2, completed_note=$3 WHERE id=$4 AND user_id=$5`,
         [completed ? 1 : 0, completed ? new Date().toISOString().split('T')[0] : null, completed_notes || null, req.params.id, req.userId]
@@ -373,13 +401,9 @@ app.delete('/api/users/:id', auth, async (req, res) => {
 // ===================== GENERATE TEMP PASSWORD =====================
 app.post('/api/users/:id/temp-password', auth, async (req, res) => {
   try {
-    // Générer un mot de passe temporaire aléatoire
     const tempPassword = Math.random().toString(36).slice(-12).toUpperCase();
-    
-    // Le hasher et l'enregistrer
     const hashedPassword = await bcryptjs.hash(tempPassword, 10);
     
-    // Mettre à jour l'utilisateur avec le mot de passe hashé ET le temp_password en clair
     await pool.query(
       'UPDATE users SET password = $1, temp_password = $2 WHERE id = $3',
       [hashedPassword, tempPassword, req.params.id]
@@ -411,7 +435,6 @@ app.put('/api/users/:id/password', auth, async (req, res) => {
 });
 
 // ===================== PDF UPLOAD =====================
-// 🔥 MODIFIÉ : Enlevé AND user_id pour permettre à tous d'uploader des PDFs
 app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
   try {
     if (!req.files || !req.files.pdf) {
@@ -420,19 +443,15 @@ app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
 
     const pdfFile = req.files.pdf;
     
-    // Vérifier que c'est un PDF
     if (pdfFile.mimetype !== 'application/pdf') {
       return res.status(400).json({ error: 'Le fichier doit être un PDF' });
     }
 
-    // Générer un nom de fichier unique
     const fileName = `prospect-${req.params.id}-${Date.now()}.pdf`;
     const blob = bucket.file(fileName);
 
-    // Uploader le fichier
     await blob.save(pdfFile.data);
 
-    // 🔥 CORRECTION : Enlevé "AND user_id = $3"
     await pool.query(
       `UPDATE prospects SET pdf_url = $1 WHERE id = $2`,
       [fileName, req.params.id]
@@ -446,10 +465,8 @@ app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
 });
 
 // ===================== PDF DELETE =====================
-// 🔥 MODIFIÉ : Enlevé AND user_id pour permettre à tous de supprimer des PDFs
 app.delete('/api/prospects/:id/pdf', auth, async (req, res) => {
   try {
-    // 🔥 CORRECTION : Enlevé "AND user_id = $2"
     const result = await pool.query(
       `SELECT pdf_url FROM prospects WHERE id = $1`,
       [req.params.id]
@@ -457,12 +474,9 @@ app.delete('/api/prospects/:id/pdf', auth, async (req, res) => {
 
     if (result.rows[0]?.pdf_url) {
       const fileName = result.rows[0].pdf_url;
-      
-      // Supprimer le fichier de Google Cloud Storage
       await bucket.file(fileName).delete();
     }
 
-    // 🔥 CORRECTION : Enlevé "AND user_id = $2"
     await pool.query(
       `UPDATE prospects SET pdf_url = NULL WHERE id = $1`,
       [req.params.id]
@@ -478,7 +492,6 @@ app.delete('/api/prospects/:id/pdf', auth, async (req, res) => {
 // ===================== PDF DOWNLOAD/VIEW =====================
 app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
   try {
-    // Récupérer le NOM du fichier
     const result = await pool.query(
       `SELECT pdf_url FROM prospects WHERE id = $1`,
       [req.params.id]
@@ -491,13 +504,11 @@ app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
     const fileName = result.rows[0].pdf_url;
     const blob = bucket.file(fileName);
 
-    // Vérifier que le fichier existe
     const [exists] = await blob.exists();
     if (!exists) {
       return res.status(404).json({ error: 'Fichier PDF non trouvé' });
     }
 
-    // Récupérer le fichier et le servir
     const [fileContent] = await blob.download();
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
@@ -508,8 +519,102 @@ app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
   }
 });
 
+// ==========================================
+// ROUTES INTERLOCUTEURS
+// ==========================================
+
+app.get('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM interlocuteurs WHERE prospect_id = $1 ORDER BY principal DESC, nom ASC',
+      [id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur fetch interlocuteurs:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nom, fonction, email, telephone, principal } = req.body;
+
+    if (principal) {
+      await pool.query(
+        'UPDATE interlocuteurs SET principal = false WHERE prospect_id = $1',
+        [id]
+      );
+    }
+
+    const result = await pool.query(
+      `INSERT INTO interlocuteurs (prospect_id, nom, fonction, email, telephone, principal) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       RETURNING *`,
+      [id, nom, fonction, email, telephone, principal || false]
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Erreur create interlocuteur:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) => {
+  try {
+    const { prospectId, id } = req.params;
+    const { nom, fonction, email, telephone, principal } = req.body;
+
+    if (principal) {
+      await pool.query(
+        'UPDATE interlocuteurs SET principal = false WHERE prospect_id = $1 AND id != $2',
+        [prospectId, id]
+      );
+    }
+
+    const result = await pool.query(
+      `UPDATE interlocuteurs 
+       SET nom = $1, fonction = $2, email = $3, telephone = $4, principal = $5, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $6 AND prospect_id = $7 
+       RETURNING *`,
+      [nom, fonction, email, telephone, principal || false, id, prospectId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Interlocuteur non trouvé' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Erreur update interlocuteur:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) => {
+  try {
+    const { prospectId, id } = req.params;
+    
+    const result = await pool.query(
+      'DELETE FROM interlocuteurs WHERE id = $1 AND prospect_id = $2 RETURNING *',
+      [id, prospectId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Interlocuteur non trouvé' });
+    }
+
+    res.json({ message: 'Interlocuteur supprimé', deleted: result.rows[0] });
+  } catch (err) {
+    console.error('Erreur delete interlocuteur:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ===================== ADMIN ROUTES =====================
-// Middleware pour vérifier que l'utilisateur est admin
 const requireAdmin = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Non authentifié' });
@@ -530,12 +635,10 @@ const requireAdmin = async (req, res, next) => {
   }
 };
 
-// Page HTML admin (l'auth se fait dans le JS de la page)
 app.get('/admin', (req, res) => {
   res.sendFile(join(__dirname, 'admin.html'));
 });
 
-// GET - Liste des utilisateurs connectés
 app.get('/api/admin/active-users', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
