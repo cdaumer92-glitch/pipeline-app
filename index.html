@@ -601,6 +601,13 @@
               onActionCommentChange={setNewActionComment}
               user={user}
               API_URL={API_URL}
+              interlocuteurs={interlocuteurs}
+              showInterlocuteurForm={showInterlocuteurForm}
+              setShowInterlocuteurForm={setShowInterlocuteurForm}
+              interlocuteurForm={interlocuteurForm}
+              setInterlocuteurForm={setInterlocuteurForm}
+              handleSaveInterlocuteur={handleSaveInterlocuteur}
+              handleDeleteInterlocuteur={handleDeleteInterlocuteur}
             />
           </div>
           )}
@@ -1514,7 +1521,7 @@
       );
     }
 
-    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionComment, onActionCommentChange, user, API_URL }) {
+    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
