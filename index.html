@@ -2552,7 +2552,7 @@
 
     function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionComment, onActionCommentChange, user, API_URL }) {
       const [actionNotes, setActionNotes] = React.useState({});
-      const [showCompletedActions, setShowCompletedActions] = React.useState(true);
+      const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       
       // Initialiser les notes avec les completed_note existantes
       React.useEffect(() => {
