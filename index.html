@@ -1835,197 +1835,6 @@
               </div>
             </div>
 
-            {['Devis', 'Démo', 'Négociation', 'Signé', 'Perdu'].includes(formData.status) && (
-            <div style={styles.formSection}>
-              <h3>Montants et Probabilité</h3>
-              <div style={styles.montantsWithChanceContainer}>
-                <div style={styles.montantItem}>
-                  <label style={styles.labelSetup}>Setup</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={formData.setup_amount}
-                    onChange={(e) => handleChange('setup_amount', parseFloat(e.target.value) || 0)}
-                    style={styles.formInput}
-                  />
-                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.setup_amount) || 0)}</div>
-                </div>
-                <div style={styles.montantItem}>
-                  <label style={styles.labelAbonnement}>Abonnement (mensuel)</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={formData.monthly_amount}
-                    onChange={(e) => handleChange('monthly_amount', parseFloat(e.target.value) || 0)}
-                    style={styles.formInput}
-                  />
-                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.monthly_amount) || 0)}</div>
-                </div>
-                <div style={styles.montantItem}>
-                  <label style={styles.labelAnnual}>Abonnement (annuel)</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={formData.annual_amount}
-                    onChange={(e) => handleChange('annual_amount', parseFloat(e.target.value) || 0)}
-                    style={styles.formInput}
-                  />
-                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.annual_amount) || 0)}</div>
-                </div>
-                <div style={styles.montantItem}>
-                  <label style={styles.labelFormation}>Formation</label>
-                  <input
-                    type="text"
-                    placeholder="0"
-                    value={formatNumber(Number(formData.training_amount) || 0)}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\s/g, '');
-                      handleChange('training_amount', parseFloat(val) || 0);
-                    }}
-                    style={styles.formInput}
-                  />
-                </div>
-                <div style={styles.montantItem}>
-                  <label style={styles.labelMontant}>Probabilité</label>
-                  <select
-                    value={formData.chance_percent}
-                    onChange={(e) => handleChange('chance_percent', parseInt(e.target.value) || 0)}
-                    style={styles.formInput}
-                  >
-                    <option value="0">0%</option>
-                    <option value="20">20%</option>
-                    <option value="40">40%</option>
-                    <option value="60">60%</option>
-                    <option value="80">80%</option>
-                    <option value="100">100%</option>
-                  </select>
-                </div>
-                <div style={styles.montantItem}>
-                  <label style={styles.labelMontant}>Date du Devis</label>
-                  <input
-                    type="date"
-                    value={formData.quote_date}
-                    onChange={(e) => handleChange('quote_date', e.target.value)}
-                    style={styles.formInput}
-                  />
-                </div>
-              </div>
-              <div style={styles.totalCalc}>
-                <strong>Total: {formatCurrency(total)}</strong>
-              </div>
-            </div>
-            )}
-
-            {['Devis', 'Démo', 'Négociation', 'Signé'].includes(formData.status) && (
-            <div style={styles.formSection}>
-              <h3>Devis PDF</h3>
-              
-              {formData.pdf_url ? (
-                <div style={{backgroundColor: '#e8f4f8', padding: '15px', borderRadius: '4px', marginBottom: '15px'}}>
-                  <div style={{marginBottom: '10px'}}>
-                    ✅ <strong>PDF uploadé</strong>
-                  </div>
-                  <div style={{display: 'flex', gap: '10px'}}>
-                    <button
-                      onClick={async () => {
-                        try {
-                          const res = await fetch(`${API_URL}/prospects/${formData.id}/download-pdf`, {
-                            headers: { 'Authorization': `Bearer ${user.token}` }
-                          });
-                          if (res.ok) {
-                            const blob = await res.blob();
-                            const url = window.URL.createObjectURL(blob);
-                            window.open(url, '_blank');
-                          } else {
-                            alert('Erreur: ' + (await res.text()));
-                          }
-                        } catch (err) {
-                          alert('Erreur: ' + err.message);
-                        }
-                      }}
-                      style={{padding: '8px 12px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
-                    >
-                      👁️ Visionner
-                    </button>
-                    <button
-                      onClick={handleDeletePdf}
-                      style={{padding: '8px 12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
-                    >
-                      🗑️ Supprimer
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px'}}>
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    onChange={(e) => setPdfFile(e.target.files[0])}
-                    style={{flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
-                  />
-                  <button
-                    onClick={() => {
-                      if (!formData.id) {
-                        alert('Créez le prospect d\'abord (Enregistrer / Activités)');
-                        return;
-                      }
-                      handleUploadPdf();
-                    }}
-                    disabled={isUploading || !pdfFile}
-                    style={{padding: '8px 15px', backgroundColor: '#10a0dc', color: 'white', border: 'none', borderRadius: '4px', cursor: pdfFile && formData.id ? 'pointer' : 'not-allowed', fontWeight: 'bold', opacity: (isUploading || !pdfFile) ? 0.5 : 1}}
-                  >
-                    {isUploading ? '⏳ Upload...' : '📤 Upload PDF'}
-                  </button>
-                </div>
-              )}
-            </div>
-            )}
-
-            <div style={styles.formSection}>
-              <h3>Statut</h3>
-              
-              {selectedProspect && selectedProspect.id && (
-                <div style={styles.oldStatusBox}>
-                  <div style={styles.oldStatusLabel}>Ancien statut</div>
-                  <div style={styles.oldStatusValue}>{selectedProspect.status}</div>
-                  {selectedProspect.status_date && (
-                    <div style={{...styles.oldStatusLabel, marginTop: '5px', fontWeight: 'normal', color: '#999'}}>
-                      depuis le {new Date(selectedProspect.status_date).toLocaleDateString()}
-                    </div>
-                  )}
-                  {selectedProspect.notes && (
-                    <>
-                      <div style={{...styles.oldStatusLabel, marginTop: '10px'}}>Notes associées</div>
-                      <div style={styles.oldStatusNotes}>{selectedProspect.notes}</div>
-                    </>
-                  )}
-                </div>
-              )}
-              
-              <div style={styles.formGrid}>
-                <select
-                  value={formData.status}
-                  onChange={(e) => handleChange('status', e.target.value)}
-                  style={styles.formInput}
-                  key={formData.id || 'new'}
-                >
-                  <option>Prospection</option>
-                  <option>Devis</option>
-                  <option>Démo</option>
-                  <option>Négociation</option>
-                  <option>Signé</option>
-                  <option>Perdu</option>
-                </select>
-              </div>
-              
-              <textarea
-                placeholder="Notes"
-                value={formData.notes}
-                onChange={(e) => handleChange('notes', e.target.value)}
-                style={{padding: '10px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px', marginTop: '10px', width: 'calc(100% - 40px)', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: '14px'}}
-              />
-            </div>
-
             {/* Section Interlocuteurs - Uniquement en mode édition */}
             {selectedProspect && selectedProspect.id && (
               <div style={styles.formSection}>
@@ -2267,6 +2076,197 @@
                 </div>
               </div>
             )}
+
+            {['Devis', 'Démo', 'Négociation', 'Signé', 'Perdu'].includes(formData.status) && (
+            <div style={styles.formSection}>
+              <h3>Montants et Probabilité</h3>
+              <div style={styles.montantsWithChanceContainer}>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelSetup}>Setup</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={formData.setup_amount}
+                    onChange={(e) => handleChange('setup_amount', parseFloat(e.target.value) || 0)}
+                    style={styles.formInput}
+                  />
+                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.setup_amount) || 0)}</div>
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelAbonnement}>Abonnement (mensuel)</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={formData.monthly_amount}
+                    onChange={(e) => handleChange('monthly_amount', parseFloat(e.target.value) || 0)}
+                    style={styles.formInput}
+                  />
+                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.monthly_amount) || 0)}</div>
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelAnnual}>Abonnement (annuel)</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={formData.annual_amount}
+                    onChange={(e) => handleChange('annual_amount', parseFloat(e.target.value) || 0)}
+                    style={styles.formInput}
+                  />
+                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.annual_amount) || 0)}</div>
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelFormation}>Formation</label>
+                  <input
+                    type="text"
+                    placeholder="0"
+                    value={formatNumber(Number(formData.training_amount) || 0)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\s/g, '');
+                      handleChange('training_amount', parseFloat(val) || 0);
+                    }}
+                    style={styles.formInput}
+                  />
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelMontant}>Probabilité</label>
+                  <select
+                    value={formData.chance_percent}
+                    onChange={(e) => handleChange('chance_percent', parseInt(e.target.value) || 0)}
+                    style={styles.formInput}
+                  >
+                    <option value="0">0%</option>
+                    <option value="20">20%</option>
+                    <option value="40">40%</option>
+                    <option value="60">60%</option>
+                    <option value="80">80%</option>
+                    <option value="100">100%</option>
+                  </select>
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelMontant}>Date du Devis</label>
+                  <input
+                    type="date"
+                    value={formData.quote_date}
+                    onChange={(e) => handleChange('quote_date', e.target.value)}
+                    style={styles.formInput}
+                  />
+                </div>
+              </div>
+              <div style={styles.totalCalc}>
+                <strong>Total: {formatCurrency(total)}</strong>
+              </div>
+            </div>
+            )}
+
+            {['Devis', 'Démo', 'Négociation', 'Signé'].includes(formData.status) && (
+            <div style={styles.formSection}>
+              <h3>Devis PDF</h3>
+              
+              {formData.pdf_url ? (
+                <div style={{backgroundColor: '#e8f4f8', padding: '15px', borderRadius: '4px', marginBottom: '15px'}}>
+                  <div style={{marginBottom: '10px'}}>
+                    ✅ <strong>PDF uploadé</strong>
+                  </div>
+                  <div style={{display: 'flex', gap: '10px'}}>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${API_URL}/prospects/${formData.id}/download-pdf`, {
+                            headers: { 'Authorization': `Bearer ${user.token}` }
+                          });
+                          if (res.ok) {
+                            const blob = await res.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            window.open(url, '_blank');
+                          } else {
+                            alert('Erreur: ' + (await res.text()));
+                          }
+                        } catch (err) {
+                          alert('Erreur: ' + err.message);
+                        }
+                      }}
+                      style={{padding: '8px 12px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
+                    >
+                      👁️ Visionner
+                    </button>
+                    <button
+                      onClick={handleDeletePdf}
+                      style={{padding: '8px 12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
+                    >
+                      🗑️ Supprimer
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px'}}>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={(e) => setPdfFile(e.target.files[0])}
+                    style={{flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
+                  />
+                  <button
+                    onClick={() => {
+                      if (!formData.id) {
+                        alert('Créez le prospect d\'abord (Enregistrer / Activités)');
+                        return;
+                      }
+                      handleUploadPdf();
+                    }}
+                    disabled={isUploading || !pdfFile}
+                    style={{padding: '8px 15px', backgroundColor: '#10a0dc', color: 'white', border: 'none', borderRadius: '4px', cursor: pdfFile && formData.id ? 'pointer' : 'not-allowed', fontWeight: 'bold', opacity: (isUploading || !pdfFile) ? 0.5 : 1}}
+                  >
+                    {isUploading ? '⏳ Upload...' : '📤 Upload PDF'}
+                  </button>
+                </div>
+              )}
+            </div>
+            )}
+
+            <div style={styles.formSection}>
+              <h3>Statut</h3>
+              
+              {selectedProspect && selectedProspect.id && (
+                <div style={styles.oldStatusBox}>
+                  <div style={styles.oldStatusLabel}>Ancien statut</div>
+                  <div style={styles.oldStatusValue}>{selectedProspect.status}</div>
+                  {selectedProspect.status_date && (
+                    <div style={{...styles.oldStatusLabel, marginTop: '5px', fontWeight: 'normal', color: '#999'}}>
+                      depuis le {new Date(selectedProspect.status_date).toLocaleDateString()}
+                    </div>
+                  )}
+                  {selectedProspect.notes && (
+                    <>
+                      <div style={{...styles.oldStatusLabel, marginTop: '10px'}}>Notes associées</div>
+                      <div style={styles.oldStatusNotes}>{selectedProspect.notes}</div>
+                    </>
+                  )}
+                </div>
+              )}
+              
+              <div style={styles.formGrid}>
+                <select
+                  value={formData.status}
+                  onChange={(e) => handleChange('status', e.target.value)}
+                  style={styles.formInput}
+                  key={formData.id || 'new'}
+                >
+                  <option>Prospection</option>
+                  <option>Devis</option>
+                  <option>Démo</option>
+                  <option>Négociation</option>
+                  <option>Signé</option>
+                  <option>Perdu</option>
+                </select>
+              </div>
+              
+              <textarea
+                placeholder="Notes"
+                value={formData.notes}
+                onChange={(e) => handleChange('notes', e.target.value)}
+                style={{padding: '10px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px', marginTop: '10px', width: 'calc(100% - 40px)', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: '14px'}}
+              />
+            </div>
 
             <div style={styles.formActions}>
               <button onClick={onSave} style={styles.saveBtn}>Enregistrer / Activités</button>
