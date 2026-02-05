@@ -1098,6 +1098,10 @@
               compareA = a.name.toLowerCase();
               compareB = b.name.toLowerCase();
               return sortAsc ? compareA.localeCompare(compareB) : compareB.localeCompare(compareA);
+            case 'statutSociete':
+              compareA = a.statut_societe || 'Prospect';
+              compareB = b.statut_societe || 'Prospect';
+              return sortAsc ? compareA.localeCompare(compareB) : compareB.localeCompare(compareA);
             case 'setup':
               compareA = a.setup_amount || 0;
               compareB = b.setup_amount || 0;
@@ -1121,6 +1125,18 @@
             case 'statusDate':
               compareA = new Date(a.status_date || '').getTime() || 0;
               compareB = new Date(b.status_date || '').getTime() || 0;
+              return sortAsc ? compareA - compareB : compareB - compareA;
+            case 'nextActionDate':
+              // Tri par date de prochaine action
+              const getNextActionDate = (prospectId) => {
+                const actions = prospectActionsInfo[prospectId];
+                if (!actions || !actions.hasAction) return 0;
+                // Trouver la prochaine action non complétée
+                const nextAction = prospects.find(p => p.id === prospectId)?.nextActions?.filter(a => !a.completed).sort((x, y) => new Date(x.planned_date) - new Date(y.planned_date))[0];
+                return nextAction ? new Date(nextAction.planned_date).getTime() : 0;
+              };
+              compareA = getNextActionDate(a.id);
+              compareB = getNextActionDate(b.id);
               return sortAsc ? compareA - compareB : compareB - compareA;
             default:
               return 0;
@@ -1360,31 +1376,56 @@
           {/* Liste des prospects du commercial sélectionné */}
           {selectedCommercial && (
             <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginTop: '30px'}}>
-              <h3 style={{marginTop: 0}}>Prospects - {selectedCommercial}</h3>
+              <h3 style={{marginTop: 0}}>Sociétés gérées par {selectedCommercial}</h3>
               <div style={{overflow: 'visible'}}>
                 <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '13px'}}>
                   <thead>
                     <tr style={{borderBottom: '2px solid #ddd', backgroundColor: '#f9f9f9'}}>
-                      {renderHeader('Nom prospect', 'name')}
+                      {renderHeader('Nom société', 'name')}
+                      {renderHeader('Statut Société', 'statutSociete')}
                       <th style={{padding: '10px', textAlign: 'center', fontWeight: 'bold'}}>Contact</th>
                       {renderHeader('Setup', 'setup')}
                       {renderHeader('Abonnement mois', 'monthly')}
                       {renderHeader('Abonnement annuel', 'annual')}
                       {renderHeader('Formation', 'formation')}
                       {renderHeader('Statut', 'status')}
+                      {renderHeader('Date statut', 'statusDate')}
                       <th style={{padding: '10px', textAlign: 'center', fontWeight: 'bold'}}>%</th>
                       <th style={{padding: '10px', textAlign: 'center', fontWeight: 'bold'}}>Devis</th>
                       <th style={{padding: '10px', textAlign: 'center', fontWeight: 'bold'}}>Action</th>
-                      {renderHeader('Date statut', 'statusDate')}
+                      {renderHeader('Date action', 'nextActionDate')}
                     </tr>
                   </thead>
                   <tbody>
-                    {getSortedProspects(selectedCommercial).map(prospect => (
+                    {getSortedProspects(selectedCommercial).map(prospect => {
+                      // Récupérer la date de la prochaine action
+                      const nextActionDate = (() => {
+                        const actionInfo = prospectActionsInfo[prospect.id];
+                        if (!actionInfo || !actionInfo.hasAction) return null;
+                        // Cette logique devra être complétée avec les données réelles des actions
+                        return null; // À compléter avec les vraies données
+                      })();
+                      
+                      return (
                       <tr key={prospect.id} style={{borderBottom: '1px solid #eee', cursor: 'pointer'}} onClick={() => {
                         onSelectProspect(prospect);
                         onOpenDashboard();
                       }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
                         <td style={{padding: '10px'}}><strong>{prospect.name}</strong></td>
+                        <td style={{padding: '10px', textAlign: 'center'}}>
+                          <span style={{
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            color: (prospect.statut_societe === 'Client' ? '#12a0dc' : 
+                                   prospect.statut_societe === 'Prospect' ? '#ff9800' : '#999'),
+                            padding: '3px 8px',
+                            borderRadius: '3px',
+                            backgroundColor: (prospect.statut_societe === 'Client' ? '#e3f2fd' : 
+                                            prospect.statut_societe === 'Prospect' ? '#fff3e0' : '#f5f5f5')
+                          }}>
+                            {prospect.statut_societe || 'Prospect'}
+                          </span>
+                        </td>
                         <td 
                           style={{padding: '10px', position: 'relative'}}
                           onMouseEnter={() => setHoveredProspect(prospect.id)}
@@ -1431,6 +1472,19 @@
                         <td style={{padding: '10px', textAlign: 'center'}}>{formatNumber(prospect.annual_amount || 0)}</td>
                         <td style={{padding: '10px', textAlign: 'center'}}>{formatNumber(prospect.training_amount || 0)}</td>
                         <td style={{padding: '10px', textAlign: 'center'}}><span style={{color: getStatusColor(prospect.status), fontSize: '13px', fontWeight: 'bold'}}>{prospect.status}</span></td>
+                        <td style={{padding: '10px', textAlign: 'center', fontSize: '12px', color: '#666'}}>
+                          {(() => {
+                            let dateToDisplay = null;
+                            if (prospect.status === 'Devis' && prospect.quote_date) {
+                              dateToDisplay = prospect.quote_date;
+                            } else if (prospect.status === 'Prospection' && prospect.created_at) {
+                              dateToDisplay = prospect.created_at;
+                            } else if (prospect.status_date) {
+                              dateToDisplay = prospect.status_date;
+                            }
+                            return dateToDisplay ? new Date(dateToDisplay).toLocaleDateString('fr-FR') : '-';
+                          })()}
+                        </td>
                         <td style={{padding: '10px', textAlign: 'center'}}>
                           {prospect.chance_percent && prospect.chance_percent > 0 ? (
                             <span style={{color: '#10a0dc', fontSize: '13px', fontWeight: 'bold'}}>{prospect.chance_percent}%</span>
@@ -1500,20 +1554,11 @@
                           )}
                         </td>
                         <td style={{padding: '10px', textAlign: 'center', fontSize: '12px', color: '#666'}}>
-                          {(() => {
-                            let dateToDisplay = null;
-                            if (prospect.status === 'Devis' && prospect.quote_date) {
-                              dateToDisplay = prospect.quote_date;
-                            } else if (prospect.status === 'Prospection' && prospect.created_at) {
-                              dateToDisplay = prospect.created_at;
-                            } else if (prospect.status_date) {
-                              dateToDisplay = prospect.status_date;
-                            }
-                            return dateToDisplay ? new Date(dateToDisplay).toLocaleDateString('fr-FR') : '-';
-                          })()}
+                          {nextActionDate ? new Date(nextActionDate).toLocaleDateString('fr-FR') : '-'}
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                 </table>
               </div>
