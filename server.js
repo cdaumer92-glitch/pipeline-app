@@ -540,7 +540,7 @@ app.get('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
 app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { nom, fonction, email, telephone, principal } = req.body;
+    const { nom, fonction, email, telephone, principal, decideur } = req.body;
 
     if (principal) {
       await pool.query(
@@ -550,10 +550,10 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO interlocuteurs (prospect_id, nom, fonction, email, telephone, principal) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
+      `INSERT INTO interlocuteurs (prospect_id, nom, fonction, email, telephone, principal, decideur) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
        RETURNING *`,
-      [id, nom, fonction, email, telephone, principal || false]
+      [id, nom, fonction, email, telephone, principal || false, decideur || false]
     );
 
     res.json(result.rows[0]);
@@ -566,7 +566,7 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
 app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) => {
   try {
     const { prospectId, id } = req.params;
-    const { nom, fonction, email, telephone, principal } = req.body;
+    const { nom, fonction, email, telephone, principal, decideur } = req.body;
 
     if (principal) {
       await pool.query(
@@ -577,10 +577,10 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
 
     const result = await pool.query(
       `UPDATE interlocuteurs 
-       SET nom = $1, fonction = $2, email = $3, telephone = $4, principal = $5, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $6 AND prospect_id = $7 
+       SET nom = $1, fonction = $2, email = $3, telephone = $4, principal = $5, decideur = $6, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $7 AND prospect_id = $8 
        RETURNING *`,
-      [nom, fonction, email, telephone, principal || false, id, prospectId]
+      [nom, fonction, email, telephone, principal || false, decideur || false, id, prospectId]
     );
 
     if (result.rows.length === 0) {

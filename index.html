@@ -133,7 +133,8 @@
         fonction: '',
         email: '',
         telephone: '',
-        principal: false
+        principal: false,
+        decideur: false
       });
       const [filterStatus, setFilterStatus] = React.useState('Tous');
       const [filterCommercial, setFilterCommercial] = React.useState('Tous');
@@ -1537,7 +1538,7 @@
       };
 
       if (showForm) {
-        return <ProspectForm formData={formData} onFormChange={onFormChange} onSave={onSave} onCancel={onCancel} selectedProspect={selectedProspect} user={user} API_URL={API_URL} />;
+        return <ProspectForm formData={formData} onFormChange={onFormChange} onSave={onSave} onCancel={onCancel} selectedProspect={selectedProspect} user={user} API_URL={API_URL} interlocuteurs={interlocuteurs} showInterlocuteurForm={showInterlocuteurForm} setShowInterlocuteurForm={setShowInterlocuteurForm} interlocuteurForm={interlocuteurForm} setInterlocuteurForm={setInterlocuteurForm} handleSaveInterlocuteur={handleSaveInterlocuteur} handleDeleteInterlocuteur={handleDeleteInterlocuteur} />;
       }
 
       if (!selectedProspect) {
@@ -1553,7 +1554,7 @@
             <div style={styles.detailHeader}>
               <h2>{selectedProspect.name}</h2>
               <div style={styles.detailActions}>
-                <button onClick={() => onEdit(selectedProspect)} style={styles.editBtn}>✏️ Modifier</button>
+                <button onClick={() => onEdit(selectedProspect)} style={styles.editBtn}>🏢 Information Société</button>
                 <button onClick={() => onDelete(selectedProspect.id)} style={styles.deleteBtn}>🗑️ Supprimer</button>
               </div>
             </div>
@@ -1590,218 +1591,6 @@
                 </div>
               </div>
             )}
-
-            {/* Section Interlocuteurs */}
-            <div style={{marginTop: '20px', marginBottom: '20px'}}>
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
-                <h3 style={{margin: 0, fontSize: '18px', color: '#333'}}>👥 Interlocuteurs</h3>
-                <button
-                  onClick={() => {
-                    setInterlocuteurForm({
-                      id: null,
-                      nom: '',
-                      fonction: '',
-                      email: '',
-                      telephone: '',
-                      principal: false
-                    });
-                    setShowInterlocuteurForm(true);
-                  }}
-                  style={{
-                    backgroundColor: '#10a0dc',
-                    color: 'white',
-                    border: 'none',
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  + Ajouter un interlocuteur
-                </button>
-              </div>
-
-              {/* Formulaire d'ajout/édition d'interlocuteur */}
-              {showInterlocuteurForm && (
-                <div style={{
-                  padding: '20px',
-                  backgroundColor: '#f9f9f9',
-                  borderRadius: '8px',
-                  marginBottom: '15px',
-                  border: '2px solid #10a0dc'
-                }}>
-                  <h4 style={{marginTop: 0, color: '#10a0dc'}}>
-                    {interlocuteurForm.id ? 'Modifier l\'interlocuteur' : 'Nouvel interlocuteur'}
-                  </h4>
-                  <div style={{display: 'grid', gap: '12px'}}>
-                    <input
-                      type="text"
-                      placeholder="Nom *"
-                      value={interlocuteurForm.nom}
-                      onChange={(e) => setInterlocuteurForm({...interlocuteurForm, nom: e.target.value})}
-                      style={{...styles.formInput, fontSize: '14px'}}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Fonction"
-                      value={interlocuteurForm.fonction}
-                      onChange={(e) => setInterlocuteurForm({...interlocuteurForm, fonction: e.target.value})}
-                      style={{...styles.formInput, fontSize: '14px'}}
-                    />
-                    <input
-                      type="email"
-                      placeholder="Email"
-                      value={interlocuteurForm.email}
-                      onChange={(e) => setInterlocuteurForm({...interlocuteurForm, email: e.target.value})}
-                      style={{...styles.formInput, fontSize: '14px'}}
-                    />
-                    <input
-                      type="tel"
-                      placeholder="Téléphone"
-                      value={interlocuteurForm.telephone}
-                      onChange={(e) => setInterlocuteurForm({...interlocuteurForm, telephone: e.target.value})}
-                      style={{...styles.formInput, fontSize: '14px'}}
-                    />
-                    <label style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px'}}>
-                      <input
-                        type="checkbox"
-                        checked={interlocuteurForm.principal}
-                        onChange={(e) => setInterlocuteurForm({...interlocuteurForm, principal: e.target.checked})}
-                      />
-                      <strong>Contact principal</strong>
-                    </label>
-                  </div>
-                  <div style={{display: 'flex', gap: '10px', marginTop: '15px'}}>
-                    <button
-                      onClick={handleSaveInterlocuteur}
-                      style={{
-                        backgroundColor: '#28a745',
-                        color: 'white',
-                        border: 'none',
-                        padding: '10px 20px',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      {interlocuteurForm.id ? 'Modifier' : 'Ajouter'}
-                    </button>
-                    <button
-                      onClick={() => setShowInterlocuteurForm(false)}
-                      style={{
-                        backgroundColor: '#999',
-                        color: 'white',
-                        border: 'none',
-                        padding: '10px 20px',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '14px'
-                      }}
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Liste des interlocuteurs */}
-              <div style={{display: 'grid', gap: '10px'}}>
-                {interlocuteurs.length === 0 ? (
-                  <div style={{padding: '20px', textAlign: 'center', color: '#999', fontSize: '14px', backgroundColor: '#f9f9f9', borderRadius: '6px'}}>
-                    Aucun interlocuteur enregistré
-                  </div>
-                ) : (
-                  interlocuteurs.map(interlocuteur => (
-                    <div
-                      key={interlocuteur.id}
-                      style={{
-                        padding: '15px',
-                        backgroundColor: interlocuteur.principal ? '#e8f4f8' : 'white',
-                        border: interlocuteur.principal ? '2px solid #10a0dc' : '1px solid #ddd',
-                        borderRadius: '8px',
-                        position: 'relative'
-                      }}
-                    >
-                      {interlocuteur.principal && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '10px',
-                          right: '10px',
-                          backgroundColor: '#10a0dc',
-                          color: 'white',
-                          padding: '4px 10px',
-                          borderRadius: '4px',
-                          fontSize: '11px',
-                          fontWeight: 'bold'
-                        }}>
-                          ⭐ PRINCIPAL
-                        </div>
-                      )}
-                      <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333', marginBottom: '8px'}}>
-                        {interlocuteur.nom}
-                      </div>
-                      {interlocuteur.fonction && (
-                        <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>
-                          <strong>Fonction:</strong> {interlocuteur.fonction}
-                        </div>
-                      )}
-                      {interlocuteur.email && (
-                        <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>
-                          <strong>Email:</strong> {interlocuteur.email}
-                        </div>
-                      )}
-                      {interlocuteur.telephone && (
-                        <div style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>
-                          <strong>Tél:</strong> {interlocuteur.telephone}
-                        </div>
-                      )}
-                      <div style={{display: 'flex', gap: '10px', marginTop: '10px'}}>
-                        <button
-                          onClick={() => {
-                            setInterlocuteurForm({
-                              id: interlocuteur.id,
-                              nom: interlocuteur.nom,
-                              fonction: interlocuteur.fonction || '',
-                              email: interlocuteur.email || '',
-                              telephone: interlocuteur.telephone || '',
-                              principal: interlocuteur.principal || false
-                            });
-                            setShowInterlocuteurForm(true);
-                          }}
-                          style={{
-                            backgroundColor: '#10a0dc',
-                            color: 'white',
-                            border: 'none',
-                            padding: '6px 12px',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '13px'
-                          }}
-                        >
-                          ✏️ Modifier
-                        </button>
-                        <button
-                          onClick={() => handleDeleteInterlocuteur(interlocuteur.id)}
-                          style={{
-                            backgroundColor: '#e23b63',
-                            color: 'white',
-                            border: 'none',
-                            padding: '6px 12px',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '13px'
-                          }}
-                        >
-                          🗑️ Supprimer
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
 
             <div style={styles.amountsGrid}>
               <div style={styles.amountItem}>
@@ -1908,7 +1697,7 @@
       );
     }
 
-    function ProspectForm({ formData, onFormChange, onSave, onCancel, selectedProspect, user, API_URL }) {
+    function ProspectForm({ formData, onFormChange, onSave, onCancel, selectedProspect, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur }) {
       const [pdfFile, setPdfFile] = React.useState(null);
       const [isUploading, setIsUploading] = React.useState(false);
 
@@ -2236,6 +2025,248 @@
                 style={{padding: '10px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px', marginTop: '10px', width: 'calc(100% - 40px)', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: '14px'}}
               />
             </div>
+
+            {/* Section Interlocuteurs - Uniquement en mode édition */}
+            {selectedProspect && selectedProspect.id && (
+              <div style={styles.formSection}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
+                  <h3>👥 Interlocuteurs</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInterlocuteurForm({
+                        id: null,
+                        nom: '',
+                        fonction: '',
+                        email: '',
+                        telephone: '',
+                        principal: false,
+                        decideur: false
+                      });
+                      setShowInterlocuteurForm(true);
+                    }}
+                    style={{
+                      backgroundColor: '#10a0dc',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    + Ajouter un interlocuteur
+                  </button>
+                </div>
+
+                {/* Formulaire d'ajout/édition d'interlocuteur */}
+                {showInterlocuteurForm && (
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f9f9f9',
+                    borderRadius: '8px',
+                    marginBottom: '15px',
+                    border: '2px solid #10a0dc'
+                  }}>
+                    <h4 style={{marginTop: 0, color: '#10a0dc'}}>
+                      {interlocuteurForm.id ? 'Modifier l\'interlocuteur' : 'Nouvel interlocuteur'}
+                    </h4>
+                    <div style={{display: 'grid', gap: '12px'}}>
+                      <input
+                        type="text"
+                        placeholder="Nom *"
+                        value={interlocuteurForm.nom}
+                        onChange={(e) => setInterlocuteurForm({...interlocuteurForm, nom: e.target.value})}
+                        style={{...styles.formInput, fontSize: '14px'}}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Fonction"
+                        value={interlocuteurForm.fonction}
+                        onChange={(e) => setInterlocuteurForm({...interlocuteurForm, fonction: e.target.value})}
+                        style={{...styles.formInput, fontSize: '14px'}}
+                      />
+                      <input
+                        type="email"
+                        placeholder="Email"
+                        value={interlocuteurForm.email}
+                        onChange={(e) => setInterlocuteurForm({...interlocuteurForm, email: e.target.value})}
+                        style={{...styles.formInput, fontSize: '14px'}}
+                      />
+                      <input
+                        type="tel"
+                        placeholder="Téléphone"
+                        value={interlocuteurForm.telephone}
+                        onChange={(e) => setInterlocuteurForm({...interlocuteurForm, telephone: e.target.value})}
+                        style={{...styles.formInput, fontSize: '14px'}}
+                      />
+                      <div style={{display: 'flex', gap: '20px'}}>
+                        <label style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px'}}>
+                          <input
+                            type="checkbox"
+                            checked={interlocuteurForm.principal}
+                            onChange={(e) => setInterlocuteurForm({...interlocuteurForm, principal: e.target.checked})}
+                          />
+                          <strong>Contact principal</strong>
+                        </label>
+                        <label style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px'}}>
+                          <input
+                            type="checkbox"
+                            checked={interlocuteurForm.decideur}
+                            onChange={(e) => setInterlocuteurForm({...interlocuteurForm, decideur: e.target.checked})}
+                          />
+                          <strong>Décideur</strong>
+                        </label>
+                      </div>
+                    </div>
+                    <div style={{display: 'flex', gap: '10px', marginTop: '15px'}}>
+                      <button
+                        type="button"
+                        onClick={handleSaveInterlocuteur}
+                        style={{
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          padding: '10px 20px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        {interlocuteurForm.id ? 'Modifier' : 'Ajouter'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowInterlocuteurForm(false)}
+                        style={{
+                          backgroundColor: '#999',
+                          color: 'white',
+                          border: 'none',
+                          padding: '10px 20px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Liste des interlocuteurs */}
+                <div style={{display: 'grid', gap: '10px'}}>
+                  {interlocuteurs.length === 0 ? (
+                    <div style={{padding: '20px', textAlign: 'center', color: '#999', fontSize: '14px', backgroundColor: '#f9f9f9', borderRadius: '6px'}}>
+                      Aucun interlocuteur enregistré
+                    </div>
+                  ) : (
+                    interlocuteurs.map(interlocuteur => (
+                      <div
+                        key={interlocuteur.id}
+                        style={{
+                          padding: '15px',
+                          backgroundColor: interlocuteur.principal ? '#e8f4f8' : 'white',
+                          border: interlocuteur.principal ? '2px solid #10a0dc' : '1px solid #ddd',
+                          borderRadius: '8px',
+                          position: 'relative'
+                        }}
+                      >
+                        <div style={{display: 'flex', gap: '6px', position: 'absolute', top: '10px', right: '10px'}}>
+                          {interlocuteur.principal && (
+                            <div style={{
+                              backgroundColor: '#10a0dc',
+                              color: 'white',
+                              padding: '4px 10px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 'bold'
+                            }}>
+                              ⭐ PRINCIPAL
+                            </div>
+                          )}
+                          {interlocuteur.decideur && (
+                            <div style={{
+                              backgroundColor: '#d3a002',
+                              color: 'white',
+                              padding: '4px 10px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 'bold'
+                            }}>
+                              👔 DÉCIDEUR
+                            </div>
+                          )}
+                        </div>
+                        <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333', marginBottom: '8px', paddingRight: '140px'}}>
+                          {interlocuteur.nom}
+                        </div>
+                        {interlocuteur.fonction && (
+                          <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>
+                            <strong>Fonction:</strong> {interlocuteur.fonction}
+                          </div>
+                        )}
+                        {interlocuteur.email && (
+                          <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>
+                            <strong>Email:</strong> {interlocuteur.email}
+                          </div>
+                        )}
+                        {interlocuteur.telephone && (
+                          <div style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>
+                            <strong>Tél:</strong> {interlocuteur.telephone}
+                          </div>
+                        )}
+                        <div style={{display: 'flex', gap: '10px', marginTop: '10px'}}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setInterlocuteurForm({
+                                id: interlocuteur.id,
+                                nom: interlocuteur.nom,
+                                fonction: interlocuteur.fonction || '',
+                                email: interlocuteur.email || '',
+                                telephone: interlocuteur.telephone || '',
+                                principal: interlocuteur.principal || false,
+                                decideur: interlocuteur.decideur || false
+                              });
+                              setShowInterlocuteurForm(true);
+                            }}
+                            style={{
+                              backgroundColor: '#10a0dc',
+                              color: 'white',
+                              border: 'none',
+                              padding: '6px 12px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px'
+                            }}
+                          >
+                            ✏️ Modifier
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteInterlocuteur(interlocuteur.id)}
+                            style={{
+                              backgroundColor: '#e23b63',
+                              color: 'white',
+                              border: 'none',
+                              padding: '6px 12px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px'
+                            }}
+                          >
+                            🗑️ Supprimer
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
 
             <div style={styles.formActions}>
               <button onClick={onSave} style={styles.saveBtn}>Enregistrer / Activités</button>
