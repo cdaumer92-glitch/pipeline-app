@@ -1560,22 +1560,160 @@
               </div>
             </div>
 
-            <div style={{...styles.detailRowInline, fontSize: '17px'}}>
-              <span><strong>Décideur:</strong> {selectedProspect.decision_maker}</span>
-              <span><strong>Contact:</strong> {selectedProspect.contact_name}</span>
-              <span>
-                <strong>Statut:</strong> <span style={{ color: getStatusColor(selectedProspect.status) }}>{selectedProspect.status}</span>
-                {selectedProspect.chance_percent && selectedProspect.chance_percent > 0 && (
-                  <span style={{fontSize: '17px', fontWeight: 'bold', color: '#10a0dc', marginLeft: '8px'}}>({selectedProspect.chance_percent}%)</span>
-                )}
-                {selectedProspect.status_date && <span style={{fontSize: '14px', color: '#999', marginLeft: '5px'}}>depuis le {new Date(selectedProspect.status_date).toLocaleDateString()}</span>}
-              </span>
+            {/* 1er bandeau: Nom Société / Statut Société / Statut Prospect */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '15px',
+              backgroundColor: '#f0f7fb',
+              borderRadius: '8px',
+              marginBottom: '15px',
+              border: '1px solid #d0e7f2'
+            }}>
+              <div style={{flex: 1}}>
+                <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>Nom Société</div>
+                <div style={{fontSize: '18px', fontWeight: 'bold', color: '#333'}}>{selectedProspect.name}</div>
+              </div>
+              <div style={{flex: 1, textAlign: 'center'}}>
+                <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>Statut Société</div>
+                <div style={{fontSize: '18px', fontWeight: 'bold', color: '#10a0dc'}}>{selectedProspect.statut_societe || 'Prospect'}</div>
+              </div>
+              <div style={{flex: 1, textAlign: 'right'}}>
+                <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>Statut Prospect</div>
+                <div>
+                  <span style={{ fontSize: '18px', fontWeight: 'bold', color: getStatusColor(selectedProspect.status) }}>
+                    {selectedProspect.status}
+                  </span>
+                  {selectedProspect.status === 'Devis' && selectedProspect.chance_percent && selectedProspect.chance_percent > 0 && (
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc', marginLeft: '8px'}}>
+                      ({selectedProspect.chance_percent}%)
+                    </span>
+                  )}
+                  {selectedProspect.status === 'Devis' && selectedProspect.quote_date && (
+                    <div style={{fontSize: '13px', color: '#999', marginTop: '4px'}}>
+                      depuis le {new Date(selectedProspect.quote_date).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
-            <div style={{...styles.detailRowInline, fontSize: '17px'}}>
-              <span><strong>Email:</strong> {selectedProspect.email}</span>
-              <span><strong>Tél:</strong> {selectedProspect.phone}</span>
-            </div>
+            {/* 2e bandeau: Contact Principal */}
+            {(() => {
+              const contactPrincipal = interlocuteurs.find(i => i.principal);
+              return contactPrincipal ? (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '15px',
+                  backgroundColor: '#e8f4f8',
+                  borderRadius: '8px',
+                  marginBottom: '10px',
+                  border: '2px solid #10a0dc'
+                }}>
+                  <button style={{
+                    backgroundColor: '#10a0dc',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    marginRight: '20px',
+                    cursor: 'default'
+                  }}>
+                    ⭐ PRINCIPAL
+                  </button>
+                  <div style={{flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>
+                      {contactPrincipal.nom}
+                      {contactPrincipal.fonction && <span style={{fontSize: '14px', fontWeight: 'normal', color: '#666', marginLeft: '8px'}}>({contactPrincipal.fonction})</span>}
+                    </div>
+                    {contactPrincipal.telephone && (
+                      <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
+                        📞 {contactPrincipal.telephone}
+                      </div>
+                    )}
+                    {contactPrincipal.email && (
+                      <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
+                        ✉️ {contactPrincipal.email}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  padding: '15px',
+                  backgroundColor: '#f9f9f9',
+                  borderRadius: '8px',
+                  marginBottom: '10px',
+                  border: '1px dashed #ccc',
+                  textAlign: 'center',
+                  color: '#999'
+                }}>
+                  Aucun contact principal défini
+                </div>
+              );
+            })()}
+
+            {/* 3e bandeau: Décideur */}
+            {(() => {
+              const decideur = interlocuteurs.find(i => i.decideur);
+              return decideur ? (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '15px',
+                  backgroundColor: '#fef9e8',
+                  borderRadius: '8px',
+                  marginBottom: '15px',
+                  border: '2px solid #d3a002'
+                }}>
+                  <button style={{
+                    backgroundColor: '#d3a002',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    marginRight: '20px',
+                    cursor: 'default'
+                  }}>
+                    👔 DÉCIDEUR
+                  </button>
+                  <div style={{flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>
+                      {decideur.nom}
+                      {decideur.fonction && <span style={{fontSize: '14px', fontWeight: 'normal', color: '#666', marginLeft: '8px'}}>({decideur.fonction})</span>}
+                    </div>
+                    {decideur.telephone && (
+                      <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
+                        📞 {decideur.telephone}
+                      </div>
+                    )}
+                    {decideur.email && (
+                      <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
+                        ✉️ {decideur.email}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  padding: '15px',
+                  backgroundColor: '#f9f9f9',
+                  borderRadius: '8px',
+                  marginBottom: '15px',
+                  border: '1px dashed #ccc',
+                  textAlign: 'center',
+                  color: '#999'
+                }}>
+                  Aucun décideur défini
+                </div>
+              );
+            })()}
 
             {(selectedProspect.adresse || selectedProspect.tel_standard) && (
               <div style={{...styles.detailRowInline, fontSize: '15px', marginTop: '10px'}}>
@@ -1786,27 +1924,6 @@
                 </select>
                 <input
                   type="text"
-                  placeholder="Contact principal"
-                  value={formData.contact_name}
-                  onChange={(e) => handleChange('contact_name', e.target.value)}
-                  style={styles.formInput}
-                />
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={formData.email}
-                  onChange={(e) => handleChange('email', e.target.value)}
-                  style={styles.formInput}
-                />
-                <input
-                  type="tel"
-                  placeholder="Téléphone"
-                  value={formData.phone}
-                  onChange={(e) => handleChange('phone', e.target.value)}
-                  style={styles.formInput}
-                />
-                <input
-                  type="text"
                   placeholder="Adresse de la société"
                   value={formData.adresse}
                   onChange={(e) => handleChange('adresse', e.target.value)}
@@ -1829,13 +1946,6 @@
                   <option>Christian</option>
                   <option>Frédéric</option>
                 </select>
-                <input
-                  type="text"
-                  placeholder="Décideur"
-                  value={formData.decision_maker}
-                  onChange={(e) => handleChange('decision_maker', e.target.value)}
-                  style={styles.formInput}
-                />
                 <textarea
                   placeholder="Solutions en place (une par ligne: FastMag, Shopify, Sage...)"
                   value={formData.solutions_en_place}
