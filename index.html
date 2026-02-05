@@ -2552,6 +2552,7 @@
 
     function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionComment, onActionCommentChange, user, API_URL }) {
       const [actionNotes, setActionNotes] = React.useState({});
+      const [showCompletedActions, setShowCompletedActions] = React.useState(true);
       
       // Initialiser les notes avec les completed_note existantes
       React.useEffect(() => {
@@ -2591,8 +2592,27 @@
           {/* Next Actions complétées et en cours */}
           {nextActions.length > 0 && (
             <div style={styles.nextActionsListBox}>
-              <h4>Actions</h4>
-              {nextActions.map((action) => (
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
+                <h4 style={{margin: 0}}>Actions</h4>
+                {nextActions.some(a => a.completed) && (
+                  <button
+                    onClick={() => setShowCompletedActions(!showCompletedActions)}
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: '12px',
+                      backgroundColor: showCompletedActions ? '#6c757d' : '#10a0dc',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    {showCompletedActions ? '▼ Masquer actions cochées' : '▶ Afficher actions cochées'} ({nextActions.filter(a => a.completed).length})
+                  </button>
+                )}
+              </div>
+              {nextActions.filter(action => !action.completed || showCompletedActions).map((action) => (
                 <div key={action.id} style={{...styles.nextActionItem, opacity: action.completed ? 0.6 : 1}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px'}}>
                     <div style={{display: 'flex', gap: '10px', alignItems: 'flex-start', flex: 1}}>
