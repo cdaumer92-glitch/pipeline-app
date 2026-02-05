@@ -57,6 +57,7 @@
         phone: '',
         adresse: '',
         tel_standard: '',
+        statut_societe: 'Prospect',
         status: 'Prospection',
         status_date: '',
         setup_amount: 0,
@@ -1762,18 +1763,27 @@
       return (
         <div style={styles.rightPanel}>
           <div style={styles.formContainer}>
-            <h2>{formData.id ? 'Modifier' : 'Nouveau'} prospect</h2>
+            <h2>{formData.id ? 'Informations Société' : 'Nouvelle Société'}</h2>
             
             <div style={styles.formSection}>
               <h3>Informations générales</h3>
               <div style={styles.formGrid}>
                 <input
                   type="text"
-                  placeholder="Nom du prospect"
+                  placeholder="Nom de la société"
                   value={formData.name}
                   onChange={(e) => handleChange('name', e.target.value)}
                   style={styles.formInput}
                 />
+                <select
+                  value={formData.statut_societe || 'Prospect'}
+                  onChange={(e) => handleChange('statut_societe', e.target.value)}
+                  style={styles.formInput}
+                >
+                  <option value="Prospect">Prospect</option>
+                  <option value="Client">Client</option>
+                  <option value="Suspect">Suspect</option>
+                </select>
                 <input
                   type="text"
                   placeholder="Contact principal"

@@ -228,7 +228,7 @@ app.get('/api/prospects', auth, async (req, res) => {
 
 app.post('/api/prospects', auth, async (req, res) => {
   const { 
-    name, contact_name, email, phone, adresse, tel_standard,
+    name, contact_name, email, phone, adresse, tel_standard, statut_societe,
     status, setup_amount, monthly_amount, annual_amount, 
     training_amount, chance_percent, assigned_to, quote_date, 
     decision_maker, solutions_en_place, notes 
@@ -237,15 +237,15 @@ app.post('/api/prospects', auth, async (req, res) => {
   try {
     const result = await pool.query(
       `INSERT INTO prospects (
-        name, contact_name, email, phone, adresse, tel_standard,
+        name, contact_name, email, phone, adresse, tel_standard, statut_societe,
         status, setup_amount, monthly_amount, annual_amount, 
         training_amount, chance_percent, assigned_to, quote_date, 
         decision_maker, solutions_en_place, notes, user_id, status_date
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, CURRENT_DATE) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, CURRENT_DATE) 
       RETURNING id`,
       [
-        name, contact_name, email || null, phone || null, adresse || null, tel_standard || null,
+        name, contact_name, email || null, phone || null, adresse || null, tel_standard || null, statut_societe || 'Prospect',
         status || 'Prospection', setup_amount || 0, monthly_amount || 0, annual_amount || 0, 
         training_amount || 0, chance_percent || 20, assigned_to, quote_date || null, 
         decision_maker || null, solutions_en_place || null, notes || null, req.userId
@@ -260,7 +260,7 @@ app.post('/api/prospects', auth, async (req, res) => {
 app.put('/api/prospects/:id', auth, async (req, res) => {
   const { id } = req.params;
   const { 
-    name, contact_name, email, phone, adresse, tel_standard,
+    name, contact_name, email, phone, adresse, tel_standard, statut_societe,
     status, setup_amount, monthly_amount, annual_amount, 
     training_amount, chance_percent, assigned_to, quote_date, 
     decision_maker, solutions_en_place, notes, pdf_url 
@@ -269,14 +269,14 @@ app.put('/api/prospects/:id', auth, async (req, res) => {
   try {
     await pool.query(
       `UPDATE prospects SET 
-        name=$1, contact_name=$2, email=$3, phone=$4, adresse=$5, tel_standard=$6,
-        status=$7, setup_amount=$8, monthly_amount=$9, annual_amount=$10, 
-        training_amount=$11, chance_percent=$12, assigned_to=$13, quote_date=$14, 
-        decision_maker=$15, solutions_en_place=$16, notes=$17, pdf_url=$18, 
+        name=$1, contact_name=$2, email=$3, phone=$4, adresse=$5, tel_standard=$6, statut_societe=$7,
+        status=$8, setup_amount=$9, monthly_amount=$10, annual_amount=$11, 
+        training_amount=$12, chance_percent=$13, assigned_to=$14, quote_date=$15, 
+        decision_maker=$16, solutions_en_place=$17, notes=$18, pdf_url=$19, 
         updated_at=NOW() 
-      WHERE id=$19`,
+      WHERE id=$20`,
       [
-        name, contact_name, email || null, phone || null, adresse || null, tel_standard || null,
+        name, contact_name, email || null, phone || null, adresse || null, tel_standard || null, statut_societe || 'Prospect',
         status, setup_amount || 0, monthly_amount || 0, annual_amount || 0, 
         training_amount || 0, chance_percent || 20, assigned_to, quote_date || null, 
         decision_maker || null, solutions_en_place || null, notes || null, pdf_url || null, 
