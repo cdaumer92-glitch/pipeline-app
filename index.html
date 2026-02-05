@@ -1552,54 +1552,64 @@
       return (
         <div style={styles.rightPanel}>
           <div style={styles.prospectDetail}>
-            <div style={styles.detailHeader}>
-              <h2>{selectedProspect.name}</h2>
-              <div style={styles.detailActions}>
+            {/* Ligne principale: Nom + Statut Société + Statut Prospect + Boutons */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+              paddingBottom: '15px',
+              borderBottom: '2px solid #e0e0e0'
+            }}>
+              <div style={{flex: 1}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '8px'}}>
+                  <h2 style={{margin: 0, fontSize: '24px', fontWeight: 'bold'}}>{selectedProspect.name}</h2>
+                  <span style={{
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    color: selectedProspect.statut_societe === 'Client' ? '#12a0dc' : 
+                           selectedProspect.statut_societe === 'Prospect' ? '#ff9800' : '#999',
+                    padding: '4px 12px',
+                    borderRadius: '4px',
+                    backgroundColor: selectedProspect.statut_societe === 'Client' ? '#e3f2fd' : 
+                                    selectedProspect.statut_societe === 'Prospect' ? '#fff3e0' : '#f5f5f5'
+                  }}>
+                    {selectedProspect.statut_societe || 'Prospect'}
+                  </span>
+                  <span style={{fontSize: '15px', color: '#666'}}>
+                    Géré par <strong>{selectedProspect.assigned_to}</strong>
+                  </span>
+                </div>
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                  <span style={{fontSize: '15px', color: '#666'}}>Statut :</span>
+                  <span style={{
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    color: selectedProspect.status === 'Devis' ? '#12a0dc' : getStatusColor(selectedProspect.status)
+                  }}>
+                    {selectedProspect.status}
+                  </span>
+                  {selectedProspect.status === 'Devis' && selectedProspect.chance_percent && selectedProspect.chance_percent > 0 && (
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#12a0dc'}}>
+                      ({selectedProspect.chance_percent}%)
+                    </span>
+                  )}
+                  {selectedProspect.status === 'Devis' && selectedProspect.quote_date && (
+                    <span style={{fontSize: '13px', color: '#999'}}>
+                      depuis le {new Date(selectedProspect.quote_date).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{display: 'flex', gap: '10px'}}>
                 <button onClick={() => onEdit(selectedProspect)} style={styles.editBtn}>🏢 Information Société</button>
                 <button onClick={() => onDelete(selectedProspect.id)} style={styles.deleteBtn}>🗑️ Supprimer</button>
               </div>
             </div>
 
-            {/* 1er bandeau: Nom Société / Statut Société / Statut Prospect */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '15px',
-              backgroundColor: '#f0f7fb',
-              borderRadius: '8px',
-              marginBottom: '15px',
-              border: '1px solid #d0e7f2'
-            }}>
-              <div style={{flex: 1}}>
-                <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>Nom Société</div>
-                <div style={{fontSize: '18px', fontWeight: 'bold', color: '#333'}}>{selectedProspect.name}</div>
-              </div>
-              <div style={{flex: 1, textAlign: 'center'}}>
-                <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>Statut Société</div>
-                <div style={{fontSize: '18px', fontWeight: 'bold', color: '#10a0dc'}}>{selectedProspect.statut_societe || 'Prospect'}</div>
-              </div>
-              <div style={{flex: 1, textAlign: 'right'}}>
-                <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>Statut Prospect</div>
-                <div>
-                  <span style={{ fontSize: '18px', fontWeight: 'bold', color: getStatusColor(selectedProspect.status) }}>
-                    {selectedProspect.status}
-                  </span>
-                  {selectedProspect.status === 'Devis' && selectedProspect.chance_percent && selectedProspect.chance_percent > 0 && (
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc', marginLeft: '8px'}}>
-                      ({selectedProspect.chance_percent}%)
-                    </span>
-                  )}
-                  {selectedProspect.status === 'Devis' && selectedProspect.quote_date && (
-                    <div style={{fontSize: '13px', color: '#999', marginTop: '4px'}}>
-                      depuis le {new Date(selectedProspect.quote_date).toLocaleDateString()}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* 2e et 3e bandeaux: Contact Principal et Décideur */}
+            {/* Section Contacts */}
+            <div style={{marginBottom: '20px'}}>
+              <h3 style={{fontSize: '16px', color: '#666', marginBottom: '10px', fontWeight: 'bold'}}>Contacts :</h3>
             {(() => {
               const contactPrincipal = interlocuteurs.find(i => i.principal);
               const decideur = interlocuteurs.find(i => i.decideur);
@@ -1782,9 +1792,10 @@
                 </>
               );
             })()}
+            </div>
 
             {(selectedProspect.adresse || selectedProspect.tel_standard) && (
-              <div style={{...styles.detailRowInline, fontSize: '15px', marginTop: '10px'}}>
+              <div style={{...styles.detailRowInline, fontSize: '15px', marginTop: '10px', marginBottom: '15px'}}>
                 {selectedProspect.adresse && <span><strong>Adresse:</strong> {selectedProspect.adresse}</span>}
                 {selectedProspect.tel_standard && <span><strong>Tél Standard:</strong> {selectedProspect.tel_standard}</span>}
               </div>
