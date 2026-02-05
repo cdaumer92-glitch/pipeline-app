@@ -1407,10 +1407,10 @@
                       })();
                       
                       return (
-                      <tr key={prospect.id} style={{borderBottom: '1px solid #eee', cursor: 'pointer'}} onClick={() => {
-                        onSelectProspect(prospect);
-                        onOpenDashboard();
-                      }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                        <tr key={prospect.id} style={{borderBottom: '1px solid #eee', cursor: 'pointer'}} onClick={() => {
+                          onSelectProspect(prospect);
+                          onOpenDashboard();
+                        }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
                         <td style={{padding: '10px'}}><strong>{prospect.name}</strong></td>
                         <td style={{padding: '10px', textAlign: 'center'}}>
                           <span style={{
@@ -1557,7 +1557,7 @@
                           {nextActionDate ? new Date(nextActionDate).toLocaleDateString('fr-FR') : '-'}
                         </td>
                       </tr>
-                    );
+                      );
                     })}
                   </tbody>
                 </table>
