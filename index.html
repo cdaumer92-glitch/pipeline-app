@@ -2552,6 +2552,20 @@
 
     function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionComment, onActionCommentChange, user, API_URL }) {
       const [actionNotes, setActionNotes] = React.useState({});
+      
+      // Initialiser les notes avec les completed_note existantes
+      React.useEffect(() => {
+        const initialNotes = {};
+        nextActions.forEach(action => {
+          if (action.completed_note && !actionNotes[action.id]) {
+            initialNotes[action.id] = action.completed_note;
+          }
+        });
+        if (Object.keys(initialNotes).length > 0) {
+          setActionNotes(prev => ({...prev, ...initialNotes}));
+        }
+      }, [nextActions]);
+      
       return (
         <div style={styles.activitiesSection}>
           <h3>📋 Suivi des activités</h3>
@@ -2650,7 +2664,6 @@
             <div style={styles.activityRow}>
               <select value={newActionType} onChange={(e) => onActionTypeChange(e.target.value)} style={{...styles.activitySelect, flex: 1}}>
                 <option>Relance</option>
-                <option>Appel</option>
                 <option>Email</option>
                 <option>Point technique</option>
                 <option>Démo</option>
