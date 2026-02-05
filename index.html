@@ -2592,7 +2592,7 @@
           {/* Next Actions complétées et en cours */}
           {nextActions.length > 0 && (
             <div style={styles.nextActionsListBox}>
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
+              <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px'}}>
                 <h4 style={{margin: 0}}>Actions</h4>
                 {nextActions.some(a => a.completed) && (
                   <button
