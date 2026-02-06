@@ -56,6 +56,7 @@
         email: '',
         phone: '',
         adresse: '',
+        website: '',
         tel_standard: '',
         statut_societe: 'Prospect',
         status: 'Prospection',
@@ -118,7 +119,7 @@
       const [statusHistory, setStatusHistory] = React.useState([]);
       const [actionNotes, setActionNotes] = React.useState({});
       const [prospectActionsInfo, setProspectActionsInfo] = React.useState({});
-      const [newActionType, setNewActionType] = React.useState('Relance');
+      const [newActionType, setNewActionType] = React.useState('Appel');
       const [newActionDate, setNewActionDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActionComment, setNewActionComment] = React.useState('');
       const [newActionActor, setNewActionActor] = React.useState('');
@@ -423,7 +424,7 @@
           });
           if (res.ok) {
             fetchNextActions(selectedProspect.id);
-            setNewActionType('Relance');
+            setNewActionType('Appel');
             setNewActionDate(new Date().toISOString().split('T')[0]);
             setNewActionActor('');
             setNewActionComment('');
@@ -910,7 +911,7 @@
     function LeftPanel({ prospects, allProspects, selectedProspect, onSelect, filterStatus, onFilterChange, filterCommercial, onFilterCommercialChange, searchTerm, onSearchChange, sortBy, onSortChange, prospectActionsInfo, onNewProspect }) {
       return (
         <div style={styles.leftPanel}>
-          <button onClick={onNewProspect} style={styles.newBtn}>+ Nouveau prospect</button>
+          <button onClick={onNewProspect} style={styles.newBtn}>+ Nouvelle entreprise</button>
           
           <input
             type="text"
@@ -2084,6 +2085,13 @@
                 />
                 <input
                   type="text"
+                  placeholder="Site Web"
+                  value={formData.website || ''}
+                  onChange={(e) => handleChange('website', e.target.value)}
+                  style={styles.formInput}
+                />
+                <input
+                  type="text"
                   placeholder="Tél Standard"
                   value={formData.tel_standard}
                   onChange={(e) => handleChange('tel_standard', e.target.value)}
@@ -2346,6 +2354,27 @@
                       </div>
                     ))
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Section Interlocuteurs - Information en mode création */}
+            {(!selectedProspect || !selectedProspect.id) && (
+              <div style={styles.formSection}>
+                <h3>👥 Interlocuteurs</h3>
+                <div style={{
+                  padding: '20px',
+                  backgroundColor: '#fff3cd',
+                  borderRadius: '8px',
+                  border: '1px solid #ffc107',
+                  color: '#856404'
+                }}>
+                  <p style={{margin: 0, fontSize: '14px'}}>
+                    ℹ️ <strong>Les interlocuteurs pourront être ajoutés après la création de l'entreprise.</strong>
+                  </p>
+                  <p style={{margin: '8px 0 0 0', fontSize: '13px', color: '#666'}}>
+                    Cliquez sur "Enregistrer" puis sur "🏢 Information Société" pour ajouter des interlocuteurs.
+                  </p>
                 </div>
               </div>
             )}
@@ -2684,6 +2713,7 @@
             <h4>Ajouter une action</h4>
             <div style={styles.activityRow}>
               <select value={newActionType} onChange={(e) => onActionTypeChange(e.target.value)} style={{...styles.activitySelect, flex: 1}}>
+                <option>Appel</option>
                 <option>Relance</option>
                 <option>Email</option>
                 <option>Point technique</option>
