@@ -58,7 +58,7 @@
         adresse: '',
         website: '',
         tel_standard: '',
-        statut_societe: 'Prospect',
+        statut_societe: '',
         status: 'Prospection',
         status_date: '',
         setup_amount: 0,
@@ -326,7 +326,12 @@
 
       const handleSaveProspect = async () => {
         if (!formData.name) {
-          alert('Le nom du prospect est requis');
+          alert('Le nom de la société est requis');
+          return;
+        }
+
+        if (!formData.statut_societe) {
+          alert('Le type de société est requis (Suspect, Prospect ou Client)');
           return;
         }
 
@@ -361,7 +366,23 @@
           });
 
           if (res.ok) {
+            const data = await res.json();
             await fetchProspects();
+            
+            // Si c'est une création (pas d'ID avant), demander si on veut ajouter des interlocuteurs
+            if (!formData.id && data.id) {
+              const addInterlocuteurs = window.confirm('Entreprise créée avec succès ! Voulez-vous ajouter des interlocuteurs ?');
+              if (addInterlocuteurs) {
+                // Charger le prospect créé et ouvrir la page Information Société
+                const createdProspect = { ...formData, id: data.id };
+                setSelectedProspect(createdProspect);
+                setFormData(createdProspect);
+                await fetchInterlocuteurs(data.id);
+                setShowForm(true);
+                return;
+              }
+            }
+            
             // Mettre à jour selectedProspect et recharger les données
             if (formData.id) {
               setSelectedProspect(formData);
@@ -2068,13 +2089,14 @@
                   style={styles.formInput}
                 />
                 <select
-                  value={formData.statut_societe || 'Prospect'}
+                  value={formData.statut_societe || ''}
                   onChange={(e) => handleChange('statut_societe', e.target.value)}
                   style={styles.formInput}
                 >
+                  <option value="">-- Type Société --</option>
+                  <option value="Suspect">Suspect</option>
                   <option value="Prospect">Prospect</option>
                   <option value="Client">Client</option>
-                  <option value="Suspect">Suspect</option>
                 </select>
                 <input
                   type="text"
@@ -2525,6 +2547,8 @@
             </div>
             )}
 
+            {/* Section Statut et Notes - Uniquement en mode édition */}
+            {selectedProspect && selectedProspect.id && (
             <div style={styles.formSection}>
               <h3>Statut</h3>
               
@@ -2569,6 +2593,7 @@
                 style={{padding: '10px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px', marginTop: '10px', width: 'calc(100% - 40px)', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: '14px'}}
               />
             </div>
+            )}
 
             <div style={styles.formActions}>
               <button onClick={onSave} style={styles.saveBtn}>Enregistrer / Activités</button>
