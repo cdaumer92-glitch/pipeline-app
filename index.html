@@ -335,6 +335,11 @@
           return;
         }
 
+        if (!formData.assigned_to) {
+          alert('Le commercial est requis');
+          return;
+        }
+
         // Vérifier le format de la date de devis si elle existe
         if (formData.quote_date) {
           const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
