@@ -1396,12 +1396,34 @@
                 // Calculer les actions planifiées et en retard
                 let nbActionsPlannees = 0;
                 let nbActionsEnRetard = 0;
+                let thisWeek = 0;
+                let thisMonth = 0;
+                let beyondMonth = 0;
+                
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const endOfWeek = new Date(today);
+                endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
+                const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                
                 commercialProspects.forEach(prospect => {
                   const actionInfo = prospectActionsInfo[prospect.id];
                   if (actionInfo?.hasAction) {
                     nbActionsPlannees++;
                     if (actionInfo.isLate) {
                       nbActionsEnRetard++;
+                    }
+                    
+                    // Calculer cette semaine / ce mois / > 1 mois
+                    if (actionInfo.nextActionDate) {
+                      const actionDate = new Date(actionInfo.nextActionDate);
+                      if (actionDate <= endOfWeek) {
+                        thisWeek++;
+                      } else if (actionDate <= endOfMonth) {
+                        thisMonth++;
+                      } else {
+                        beyondMonth++;
+                      }
                     }
                   }
                 });
@@ -1413,7 +1435,14 @@
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Signés: <strong style={{color: '#00cc00'}}>{signed}</strong></div>
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement mensuel: <strong style={{color: '#10a0dc'}}>{formatNumber(monthlyValue)}</strong></div>
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement annuel: <strong style={{color: '#10a0dc'}}>{formatNumber(annualValue)}</strong></div>
-                    <div style={{fontSize: '13px', color: '#28a745', marginBottom: '5px'}}>Nb actions planifiées: <strong>{nbActionsPlannees}</strong></div>
+                    <div style={{fontSize: '13px', color: '#28a745', marginBottom: '5px'}}>
+                      Nb actions planifiées: <strong>{nbActionsPlannees}</strong>
+                      {nbActionsPlannees > 0 && (
+                        <span style={{fontSize: '11px', marginLeft: '8px', color: '#666'}}>
+                          Cette semaine: {thisWeek} • Ce mois: {thisMonth} • &gt; 1 mois: {beyondMonth}
+                        </span>
+                      )}
+                    </div>
                     <div style={{fontSize: '13px', color: nbActionsEnRetard > 0 ? '#cc0000' : '#666', marginBottom: '5px'}}>Nb actions en retard: <strong>{nbActionsEnRetard}</strong></div>
                     <div style={{fontSize: '12px', marginTop: '10px', color: '#999'}}>
                       {commercialProspects.filter(p => p.status === 'Prospection').length} prospection | {commercialProspects.filter(p => p.status === 'Devis').length} devis | {commercialProspects.filter(p => p.status === 'Négociation').length} négociation
@@ -1427,63 +1456,7 @@
           {/* Liste des prospects du commercial sélectionné */}
           {selectedCommercial && (
             <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginTop: '30px'}}>
-              <div style={{marginBottom: '15px'}}>
-                <h3 style={{marginTop: 0, marginBottom: '10px'}}>Sociétés gérées par {selectedCommercial}</h3>
-                {(() => {
-                  // Calculer les stats des actions pour ce commercial
-                  const commercialProspects = getSortedProspects(selectedCommercial);
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  
-                  // Fin de cette semaine (dimanche)
-                  const endOfWeek = new Date(today);
-                  endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
-                  
-                  // Fin du mois
-                  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                  
-                  let thisWeek = 0;
-                  let thisMonth = 0;
-                  let beyondMonth = 0;
-                  
-                  commercialProspects.forEach(prospect => {
-                    const actionInfo = prospectActionsInfo[prospect.id];
-                    if (actionInfo && actionInfo.nextActionDate) {
-                      const actionDate = new Date(actionInfo.nextActionDate);
-                      
-                      if (actionDate <= endOfWeek) {
-                        thisWeek++;
-                        thisMonth++;
-                      } else if (actionDate <= endOfMonth) {
-                        thisMonth++;
-                      } else {
-                        beyondMonth++;
-                      }
-                    }
-                  });
-                  
-                  const total = thisWeek + thisMonth + beyondMonth;
-                  
-                  return (
-                    <div style={{
-                      fontSize: '13px',
-                      color: '#666',
-                      padding: '8px 12px',
-                      backgroundColor: '#f0f8ff',
-                      borderRadius: '6px',
-                      border: '1px solid #12a0dc'
-                    }}>
-                      <span style={{fontWeight: 'bold', color: '#333'}}>📅 Actions planifiées : </span>
-                      <span style={{fontWeight: 'bold', color: '#12a0dc', marginRight: '15px'}}>{total} total</span>
-                      <span style={{marginRight: '10px'}}>Cette semaine: <strong>{thisWeek}</strong></span>
-                      <span style={{marginRight: '10px'}}>•</span>
-                      <span style={{marginRight: '10px'}}>Ce mois: <strong>{thisMonth}</strong></span>
-                      <span style={{marginRight: '10px'}}>•</span>
-                      <span>&gt; 1 mois: <strong>{beyondMonth}</strong></span>
-                    </div>
-                  );
-                })()}
-              </div>
+              <h3 style={{marginTop: 0, marginBottom: '15px'}}>Sociétés gérées par {selectedCommercial}</h3>
               <div style={{overflow: 'visible'}}>
                 <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '13px'}}>
                   <thead>
