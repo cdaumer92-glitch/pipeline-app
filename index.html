@@ -1438,11 +1438,9 @@
                   // Fin de cette semaine (dimanche)
                   const endOfWeek = new Date(today);
                   endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
-                  endOfWeek.setHours(23, 59, 59, 999);
                   
                   // Fin du mois
                   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                  endOfMonth.setHours(23, 59, 59, 999);
                   
                   let thisWeek = 0;
                   let thisMonth = 0;
@@ -1450,23 +1448,21 @@
                   
                   commercialProspects.forEach(prospect => {
                     const actionInfo = prospectActionsInfo[prospect.id];
-                    if (actionInfo?.nextActionDate) {
+                    if (actionInfo && actionInfo.nextActionDate) {
                       const actionDate = new Date(actionInfo.nextActionDate);
-                      actionDate.setHours(0, 0, 0, 0);
                       
                       if (actionDate <= endOfWeek) {
                         thisWeek++;
-                      }
-                      if (actionDate <= endOfMonth) {
                         thisMonth++;
-                      }
-                      if (actionDate > endOfMonth) {
+                      } else if (actionDate <= endOfMonth) {
+                        thisMonth++;
+                      } else {
                         beyondMonth++;
                       }
                     }
                   });
                   
-                  const total = thisWeek + beyondMonth + (thisMonth - thisWeek);
+                  const total = thisWeek + thisMonth + beyondMonth;
                   
                   return (
                     <div style={{
