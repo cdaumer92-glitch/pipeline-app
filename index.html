@@ -32,20 +32,30 @@
     // ================== UTILITAIRES (définis avant App) ==================
     
     function getActionStatus(actions) {
-      if (!actions || actions.length === 0) return { hasAction: false, isLate: false };
+      if (!actions || actions.length === 0) return { hasAction: false, isLate: false, nextActionDate: null };
       
       const incompletedActions = actions.filter(a => !a.completed);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
       let isLate = false;
-      incompletedActions.forEach(action => {
-        const actionDate = new Date(action.planned_date);
+      let nextActionDate = null;
+      
+      // Trouver la prochaine action non complétée (la plus proche dans le futur ou la plus récente si en retard)
+      if (incompletedActions.length > 0) {
+        const sortedActions = incompletedActions.sort((a, b) => {
+          const dateA = new Date(a.planned_date);
+          const dateB = new Date(b.planned_date);
+          return dateA - dateB;
+        });
+        nextActionDate = sortedActions[0].planned_date;
+        
+        const actionDate = new Date(nextActionDate);
         actionDate.setHours(0, 0, 0, 0);
         if (actionDate < today) isLate = true;
-      });
+      }
       
-      return { hasAction: actions.length > 0, isLate };
+      return { hasAction: actions.length > 0, isLate, nextActionDate };
     }
 
     function getEmptyProspect() {
@@ -138,7 +148,7 @@
         principal: false,
         decideur: false
       });
-      const [filterStatus, setFilterStatus] = React.useState('Tous');
+      const [filterStatus, setFilterStatus] = React.useState('Tous hors suspects');
       const [filterCommercial, setFilterCommercial] = React.useState('Tous');
       const [searchTerm, setSearchTerm] = React.useState('');
       const [sortBy, setSortBy] = React.useState('name');
@@ -527,7 +537,18 @@
       };
 
       const filteredProspects = prospects.filter(p => {
-        const matchStatus = filterStatus === 'Tous' || p.status === filterStatus;
+        let matchStatus;
+        if (filterStatus === 'Tous hors suspects') {
+          // Exclure les suspects
+          matchStatus = p.statut_societe !== 'Suspect';
+        } else if (filterStatus === 'Suspects') {
+          // Afficher uniquement les suspects
+          matchStatus = p.statut_societe === 'Suspect';
+        } else {
+          // Filtrer par statut normal
+          matchStatus = p.status === filterStatus;
+        }
+        
         const matchCommercial = filterCommercial === 'Tous' || p.assigned_to === filterCommercial;
         const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (p.contact_name && p.contact_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -948,7 +969,7 @@
           />
 
           <div style={styles.filterContainer}>
-            {['Tous', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Perdu'].map(status => (
+            {['Tous hors suspects', 'Suspects', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Perdu'].map(status => (
               <button
                 key={status}
                 onClick={() => onFilterChange(status)}
@@ -1007,9 +1028,12 @@
             let statusesToInclude = [];
             let filterLabel = filterStatus;
             
-            if (filterStatus === 'Tous') {
+            if (filterStatus === 'Tous hors suspects') {
               statusesToInclude = ['Devis', 'Démo', 'Négociation'];
-              filterLabel = 'Tous';
+              filterLabel = 'Tous hors suspects';
+            } else if (filterStatus === 'Suspects') {
+              statusesToInclude = []; // Les suspects n'ont pas de pipeline
+              filterLabel = 'Suspects';
             } else if (filterStatus === 'Prospection') {
               statusesToInclude = ['Négociation'];
               filterLabel = 'Prospection';
@@ -1426,12 +1450,8 @@
                   <tbody>
                     {getSortedProspects(selectedCommercial).map(prospect => {
                       // Récupérer la date de la prochaine action
-                      const nextActionDate = (() => {
-                        const actionInfo = prospectActionsInfo[prospect.id];
-                        if (!actionInfo || !actionInfo.hasAction) return null;
-                        // Cette logique devra être complétée avec les données réelles des actions
-                        return null; // À compléter avec les vraies données
-                      })();
+                      const actionInfo = prospectActionsInfo[prospect.id];
+                      const nextActionDate = actionInfo?.nextActionDate || null;
                       
                       return (
                         <tr key={prospect.id} style={{borderBottom: '1px solid #eee', cursor: 'pointer'}} onClick={() => {
