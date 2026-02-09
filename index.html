@@ -691,12 +691,24 @@
         return () => document.removeEventListener('mousedown', handleClickOutside);
       }, []);
       
-      const filteredProspects = globalSearch.length >= 2 
+      const filteredProspects = globalSearch.length >= 2 && prospects
         ? prospects.filter(p => 
             p.name.toLowerCase().includes(globalSearch.toLowerCase()) ||
             (p.contact_name && p.contact_name.toLowerCase().includes(globalSearch.toLowerCase()))
           ).slice(0, 10) // Limiter à 10 résultats
         : [];
+      
+      const getStatusColorLocal = (status) => {
+        const colors = {
+          'Prospection': '#999',
+          'Devis': '#12a0dc',
+          'Démo': '#e72c7b',
+          'Négociation': '#d3a002',
+          'Signé': '#3cd6b9',
+          'Perdu': '#e23b63'
+        };
+        return colors[status] || '#666';
+      };
       
       return (
         <div style={styles.header}>
@@ -772,7 +784,7 @@
                         {prospect.statut_societe || 'Prospect'}
                       </span>
                       {' • '}
-                      <span style={{color: getStatusColor(prospect.status)}}>
+                      <span style={{color: getStatusColorLocal(prospect.status)}}>
                         {prospect.status}
                       </span>
                     </div>
