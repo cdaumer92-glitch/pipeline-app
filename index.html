@@ -592,7 +592,15 @@
 
       return (
         <div style={styles.container}>
-          <Header user={user} onLogout={() => { localStorage.removeItem('user'); setUser(null); }} onDashboard={() => setIsDashboard(!isDashboard)} isDashboard={isDashboard} onSettings={() => setShowSettings(true)} />
+          <Header 
+            user={user} 
+            onLogout={() => { localStorage.removeItem('user'); setUser(null); }} 
+            onDashboard={() => setIsDashboard(!isDashboard)} 
+            isDashboard={isDashboard} 
+            onSettings={() => setShowSettings(true)}
+            prospects={prospects}
+            onSelectProspect={handleSelectProspect}
+          />
           
           {showSettings && <Settings onClose={() => setShowSettings(false)} user={user} />}
           
@@ -667,13 +675,133 @@
 
     // ================== COMPOSANTS ==================
 
-    function Header({ user, onLogout, onDashboard, isDashboard, onSettings }) {
+    function Header({ user, onLogout, onDashboard, isDashboard, onSettings, prospects, onSelectProspect }) {
+      const [globalSearch, setGlobalSearch] = React.useState('');
+      const [showResults, setShowResults] = React.useState(false);
+      const searchRef = React.useRef(null);
+      
+      // Fermer les résultats si on clique ailleurs
+      React.useEffect(() => {
+        const handleClickOutside = (event) => {
+          if (searchRef.current && !searchRef.current.contains(event.target)) {
+            setShowResults(false);
+          }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+      }, []);
+      
+      const filteredProspects = globalSearch.length >= 2 
+        ? prospects.filter(p => 
+            p.name.toLowerCase().includes(globalSearch.toLowerCase()) ||
+            (p.contact_name && p.contact_name.toLowerCase().includes(globalSearch.toLowerCase()))
+          ).slice(0, 10) // Limiter à 10 résultats
+        : [];
+      
       return (
         <div style={styles.header}>
           <div style={styles.headerLeft}>
             <img src="texaswin-logo.png" alt="TexasWin" style={{height: '40px', marginRight: '15px', verticalAlign: 'middle'}} />
             <h1 style={{display: 'inline-block', margin: 0}}>Pipeline TexasWin</h1>
           </div>
+          
+          {/* Champ de recherche global */}
+          <div ref={searchRef} style={{position: 'relative', flex: 1, maxWidth: '400px', margin: '0 20px'}}>
+            <input
+              type="text"
+              placeholder="🔍 Rechercher une société..."
+              value={globalSearch}
+              onChange={(e) => {
+                setGlobalSearch(e.target.value);
+                setShowResults(e.target.value.length >= 2);
+              }}
+              onFocus={() => globalSearch.length >= 2 && setShowResults(true)}
+              style={{
+                width: '100%',
+                padding: '10px 15px',
+                border: '1px solid #ccc',
+                borderRadius: '6px',
+                fontSize: '14px',
+                outline: 'none'
+              }}
+            />
+            
+            {/* Résultats de recherche */}
+            {showResults && filteredProspects.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                backgroundColor: 'white',
+                border: '1px solid #ccc',
+                borderRadius: '6px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                marginTop: '5px',
+                maxHeight: '400px',
+                overflowY: 'auto',
+                zIndex: 1000
+              }}>
+                {filteredProspects.map(prospect => (
+                  <div
+                    key={prospect.id}
+                    onClick={() => {
+                      onSelectProspect(prospect);
+                      setGlobalSearch('');
+                      setShowResults(false);
+                      if (isDashboard) onDashboard(); // Basculer vers le suivi si on est sur le dashboard
+                    }}
+                    style={{
+                      padding: '12px 15px',
+                      borderBottom: '1px solid #eee',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                  >
+                    <div style={{fontWeight: 'bold', color: '#333', marginBottom: '4px'}}>
+                      {prospect.name}
+                    </div>
+                    <div style={{fontSize: '12px', color: '#666'}}>
+                      {prospect.contact_name && `${prospect.contact_name} • `}
+                      <span style={{
+                        color: prospect.statut_societe === 'Client' ? '#12a0dc' : 
+                               prospect.statut_societe === 'Prospect' ? '#ff9800' : '#999'
+                      }}>
+                        {prospect.statut_societe || 'Prospect'}
+                      </span>
+                      {' • '}
+                      <span style={{color: getStatusColor(prospect.status)}}>
+                        {prospect.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {showResults && globalSearch.length >= 2 && filteredProspects.length === 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                backgroundColor: 'white',
+                border: '1px solid #ccc',
+                borderRadius: '6px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                marginTop: '5px',
+                padding: '20px',
+                textAlign: 'center',
+                color: '#999',
+                zIndex: 1000
+              }}>
+                Aucune société trouvée
+              </div>
+            )}
+          </div>
+          
           <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
             <button onClick={onDashboard} style={{...styles.dashboardBtn, ...(isDashboard ? {backgroundColor: '#10a0dc', color: 'white'} : {})}}>📊 Dashboard</button>
             {user.name === 'Christian' && (
