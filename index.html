@@ -803,22 +803,22 @@
           borderRadius: '6px',
           border: '1px solid #e0e0e0'
         }}>
-          <div style={{fontWeight: 'bold', marginBottom: '12px', color: '#666'}}>Modules retenus</div>
+          <div style={{fontWeight: 'bold', marginBottom: '12px', color: '#666', fontSize: '15px'}}>Modules retenus</div>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
-            gap: '10px'
+            gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
+            gap: '12px'
           }}>
             {modules.filter(m => m.nb_users > 0).map(module => (
               <div key={module.id} style={{textAlign: 'center'}}>
                 <div style={{
                   color: moduleColors[module.module_name] || '#666',
                   fontWeight: 'bold',
-                  fontSize: '13px'
+                  fontSize: '16px'
                 }}>
                   {module.module_name}
                 </div>
-                <div style={{fontSize: '12px', color: '#999'}}>
+                <div style={{fontSize: '14px', color: '#999'}}>
                   {module.module_name === 'ComptaSage' || module.module_name === 'FacturationElectronique' 
                     ? '✓' 
                     : `${module.nb_users} user${module.nb_users > 1 ? 's' : ''}`
