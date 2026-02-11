@@ -85,6 +85,7 @@
         pdf_url: null,
         // Modules
         module_biz: 0,
+        module_biz_avec_fab: 0,
         module_fab: 0,
         module_net: 0,
         module_kub: 0,
@@ -331,7 +332,8 @@
             const modules = await res.json();
             const modulesData = {};
             modules.forEach(m => {
-              if (m.module_name === 'FluxTiers') modulesData.module_flux_tiers = m.nb_users;
+              if (m.module_name === 'BizAvecFab') modulesData.module_biz_avec_fab = m.nb_users;
+              else if (m.module_name === 'FluxTiers') modulesData.module_flux_tiers = m.nb_users;
               else if (m.module_name === 'ComptaSage') modulesData.module_compta_sage = m.nb_users > 0;
               else if (m.module_name === 'FacturationElectronique') modulesData.module_facturation_electronique = m.nb_users > 0;
               else modulesData[`module_${m.module_name.toLowerCase()}`] = m.nb_users;
@@ -347,6 +349,7 @@
       const saveModules = async (prospectId, formData) => {
         const modules = [
           {module_name: 'Biz', nb_users: formData.module_biz || 0},
+          {module_name: 'BizAvecFab', nb_users: formData.module_biz_avec_fab || 0},
           {module_name: 'Fab', nb_users: formData.module_fab || 0},
           {module_name: 'Net', nb_users: formData.module_net || 0},
           {module_name: 'Kub', nb_users: formData.module_kub || 0},
@@ -791,8 +794,15 @@
       if (modules.length === 0) return null;
 
       const moduleColors = {
-        'Biz': '#17a2b8', 'Fab': '#17a2b8', 'Net': '#17a2b8', 'Kub': '#17a2b8',
+        'Biz': '#17a2b8', 'BizAvecFab': '#17a2b8', 'Fab': '#17a2b8', 'Net': '#17a2b8', 'Kub': '#17a2b8',
         'Mag': '#e91e63', 'VRP': '#9c27b0', 'Col': '#ff9800', 'Log': '#ffc107', 'Jet': '#4caf50'
+      };
+
+      const moduleLabels = {
+        'BizAvecFab': 'Biz avec FAB',
+        'FluxTiers': 'Flux Tiers',
+        'ComptaSage': 'Compta Sage',
+        'FacturationElectronique': 'Facturation Électronique'
       };
 
       return (
@@ -816,7 +826,7 @@
                   fontWeight: 'bold',
                   fontSize: '16px'
                 }}>
-                  {module.module_name}
+                  {moduleLabels[module.module_name] || module.module_name}
                 </div>
                 <div style={{fontSize: '14px', color: '#999'}}>
                   {module.module_name === 'ComptaSage' || module.module_name === 'FacturationElectronique' 
@@ -2858,6 +2868,7 @@
               }}>
                 {[
                   {name: 'Biz', color: '#17a2b8'},
+                  {name: 'Biz avec FAB', key: 'biz_avec_fab', color: '#17a2b8'},
                   {name: 'Fab', color: '#17a2b8'},
                   {name: 'Net', color: '#17a2b8'},
                   {name: 'Kub', color: '#17a2b8'},
@@ -2867,7 +2878,7 @@
                   {name: 'Log', color: '#ffc107'},
                   {name: 'Jet', color: '#4caf50'}
                 ].map(module => (
-                  <div key={module.name} style={{textAlign: 'center'}}>
+                  <div key={module.key || module.name} style={{textAlign: 'center'}}>
                     <div style={{
                       color: module.color,
                       fontWeight: 'bold',
@@ -2880,8 +2891,8 @@
                       type="number"
                       min="0"
                       placeholder="0"
-                      value={formData[`module_${module.name.toLowerCase()}`] || 0}
-                      onChange={(e) => handleChange(`module_${module.name.toLowerCase()}`, parseInt(e.target.value) || 0)}
+                      value={formData[`module_${module.key || module.name.toLowerCase()}`] || 0}
+                      onChange={(e) => handleChange(`module_${module.key || module.name.toLowerCase()}`, parseInt(e.target.value) || 0)}
                       style={{
                         width: '100%',
                         padding: '8px',
