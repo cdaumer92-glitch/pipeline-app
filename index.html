@@ -1,0 +1,3641 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipeline TexasWin</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+      background: #f5f5f5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    // ================== APP PRINCIPALE ==================
+    const API_URL = 'https://pipeline-app-702707858708.europe-west9.run.app/api';
+
+    // ================== UTILITAIRES (définis avant App) ==================
+    
+    function getActionStatus(actions) {
+      if (!actions || actions.length === 0) return { hasAction: false, isLate: false, nextActionDate: null };
+      
+      const incompletedActions = actions.filter(a => !a.completed);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      let isLate = false;
+      let nextActionDate = null;
+      
+      // Trouver la prochaine action non complétée (la plus proche dans le futur ou la plus récente si en retard)
+      if (incompletedActions.length > 0) {
+        const sortedActions = incompletedActions.sort((a, b) => {
+          const dateA = new Date(a.planned_date);
+          const dateB = new Date(b.planned_date);
+          return dateA - dateB;
+        });
+        nextActionDate = sortedActions[0].planned_date;
+        
+        const actionDate = new Date(nextActionDate);
+        actionDate.setHours(0, 0, 0, 0);
+        if (actionDate < today) isLate = true;
+      }
+      
+      return { hasAction: actions.length > 0, isLate, nextActionDate };
+    }
+
+    function getEmptyProspect() {
+      return {
+        id: null,
+        name: '',
+        contact_name: '',
+        email: '',
+        phone: '',
+        adresse: '',
+        website: '',
+        tel_standard: '',
+        statut_societe: '',
+        status: 'Prospection',
+        status_date: '',
+        setup_amount: 0,
+        monthly_amount: 0,
+        annual_amount: 0,
+        training_amount: 0,
+        material_amount: 0,
+        chance_percent: 20,
+        assigned_to: '',
+        quote_date: '',
+        decision_maker: '',
+        solutions_en_place: '',
+        notes: '',
+        pdf_url: null
+      };
+    }
+
+    function calculateTotal(prospect) {
+      const monthlyAnnual = prospect.monthly_amount * 12;
+      return (prospect.setup_amount || 0) + monthlyAnnual + (prospect.annual_amount || 0) + (prospect.training_amount || 0);
+    }
+
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
+    }
+
+    function formatNumber(num) {
+      return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(num) || 0) + ' € H.T.';
+    }
+
+    function getStatusColor(status) {
+      const colors = {
+        'Prospection': '#999',
+        'Devis': '#12a0dc',
+        'Démo': '#e72c7b',
+        'Négociation': '#d3a002',
+        'Signé': '#3cd6b9',
+        'Perdu': '#e23b63'
+      };
+      return colors[status] || '#666';
+    }
+
+    function getProspectCountByCommercial(prospects, commercial) {
+      if (commercial === 'Tous') {
+        return prospects.length;
+      }
+      return prospects.filter(p => p.assigned_to === commercial).length;
+    }
+
+    function App() {
+      const [user, setUser] = React.useState(null);
+      const [isDashboard, setIsDashboard] = React.useState(true);
+      const [selectedCommercial, setSelectedCommercial] = React.useState(null);
+      const [showSettings, setShowSettings] = React.useState(false);
+      const [prospects, setProspects] = React.useState([]);
+      const [activities, setActivities] = React.useState({});
+      const [nextActions, setNextActions] = React.useState([]);
+      const [statusHistory, setStatusHistory] = React.useState([]);
+      const [actionNotes, setActionNotes] = React.useState({});
+      const [prospectActionsInfo, setProspectActionsInfo] = React.useState({});
+      const [newActionType, setNewActionType] = React.useState('Appel');
+      const [newActionDate, setNewActionDate] = React.useState(new Date().toISOString().split('T')[0]);
+      const [newActionComment, setNewActionComment] = React.useState('');
+      const [newActionActor, setNewActionActor] = React.useState('');
+      const [newActionContact, setNewActionContact] = React.useState('');
+      const [tempActionComments, setTempActionComments] = React.useState({});
+      const [selectedProspect, setSelectedProspect] = React.useState(null);
+      const [showForm, setShowForm] = React.useState(false);
+      const [formData, setFormData] = React.useState(getEmptyProspect());
+      const [interlocuteurs, setInterlocuteurs] = React.useState([]);
+      const [showInterlocuteurForm, setShowInterlocuteurForm] = React.useState(false);
+      const [interlocuteurForm, setInterlocuteurForm] = React.useState({
+        id: null,
+        nom: '',
+        fonction: '',
+        email: '',
+        telephone: '',
+        principal: false,
+        decideur: false
+      });
+      const [filterStatus, setFilterStatus] = React.useState('Tous hors suspects');
+      const [filterCommercial, setFilterCommercial] = React.useState('Tous');
+      const [searchTerm, setSearchTerm] = React.useState('');
+      const [sortBy, setSortBy] = React.useState('name');
+
+      // 🔥 AJOUT : Charger le token depuis localStorage au démarrage
+      React.useEffect(() => {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const userData = JSON.parse(storedUser);
+            setUser(userData);
+          } catch (err) {
+            console.error('Erreur parse user:', err);
+            localStorage.removeItem('user');
+          }
+        }
+      }, []);
+
+      React.useEffect(() => {
+        if (user) {
+          fetchProspects();
+        }
+      }, [user]);
+
+      // Charger les actions de tous les prospects après le chargement
+      React.useEffect(() => {
+        if (prospects.length > 0 && user) {
+          prospects.forEach(prospect => {
+            fetchNextActions(prospect.id);
+          });
+        }
+      }, [prospects.length, user]);
+
+      const fetchProspects = async () => {
+        try {
+          const res = await fetch(`${API_URL}/prospects`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          const data = await res.json();
+          setProspects(data);
+        } catch (err) {
+          console.error('Erreur:', err);
+        }
+      };
+
+      const fetchActivities = async (prospectId) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/activities`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          const data = await res.json();
+          setActivities(prev => ({ ...prev, [prospectId]: data }));
+        } catch (err) {
+          console.error('Erreur:', err);
+        }
+      };
+
+      const fetchNextActions = async (prospectId) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/next_actions`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          const data = await res.json();
+          setNextActions(data || []);
+          
+          // Calculer l'état des actions
+          const actionInfo = getActionStatus(data || []);
+          setProspectActionsInfo(prev => ({...prev, [prospectId]: actionInfo}));
+        } catch (err) {
+          console.error('Erreur:', err);
+        }
+      };
+
+      const fetchStatusHistory = async (prospectId) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/status_history`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          const data = await res.json();
+          setStatusHistory(data || []);
+        } catch (err) {
+          console.error('Erreur:', err);
+        }
+      };
+
+      const fetchInterlocuteurs = async (prospectId) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/interlocuteurs`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          const data = await res.json();
+          setInterlocuteurs(data || []);
+        } catch (err) {
+          console.error('Erreur fetch interlocuteurs:', err);
+        }
+      };
+
+      const handleSaveInterlocuteur = async () => {
+        if (!interlocuteurForm.nom.trim()) {
+          alert('Le nom est obligatoire');
+          return;
+        }
+
+        try {
+          const method = interlocuteurForm.id ? 'PUT' : 'POST';
+          const url = interlocuteurForm.id
+            ? `${API_URL}/prospects/${selectedProspect.id}/interlocuteurs/${interlocuteurForm.id}`
+            : `${API_URL}/prospects/${selectedProspect.id}/interlocuteurs`;
+
+          const res = await fetch(url, {
+            method,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify(interlocuteurForm)
+          });
+
+          if (res.ok) {
+            await fetchInterlocuteurs(selectedProspect.id);
+            setShowInterlocuteurForm(false);
+            setInterlocuteurForm({
+              id: null,
+              nom: '',
+              fonction: '',
+              email: '',
+              telephone: '',
+              principal: false
+            });
+          } else {
+            alert('Erreur lors de la sauvegarde');
+          }
+        } catch (err) {
+          console.error('Erreur:', err);
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleDeleteInterlocuteur = async (interlocuteurId) => {
+        if (!confirm('Supprimer cet interlocuteur ?')) return;
+
+        try {
+          const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/interlocuteurs/${interlocuteurId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+
+          if (res.ok) {
+            await fetchInterlocuteurs(selectedProspect.id);
+          } else {
+            alert('Erreur lors de la suppression');
+          }
+        } catch (err) {
+          console.error('Erreur:', err);
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleLogin = async (email, password, name, isRegister) => {
+        try {
+          const endpoint = isRegister ? 'register' : 'login';
+          const payload = isRegister 
+            ? { email, password, name }
+            : { email, password };
+          
+          const res = await fetch(`${API_URL}/auth/${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          
+          const data = await res.json();
+          if (data.token) {
+            const userData = { ...data.user, token: data.token };
+            setUser(userData);
+            // 🔥 AJOUT : Sauvegarder dans localStorage
+            localStorage.setItem('user', JSON.stringify(userData));
+          } else {
+            alert('Erreur: ' + data.error);
+          }
+        } catch (err) {
+          alert('Erreur connexion: ' + err.message);
+        }
+      };
+
+      const handleSaveProspect = async () => {
+        if (!formData.name) {
+          alert('Le nom de la société est requis');
+          return;
+        }
+
+        if (!formData.statut_societe) {
+          alert('Le type de société est requis (Suspect, Prospect ou Client)');
+          return;
+        }
+
+        if (!formData.assigned_to) {
+          alert('Le commercial est requis');
+          return;
+        }
+
+        // Vérifier le format de la date de devis si elle existe
+        if (formData.quote_date) {
+          const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+          if (!dateRegex.test(formData.quote_date)) {
+            alert('Format de date invalide pour la date du devis. Utilisez le format YYYY-MM-DD');
+            return;
+          }
+        }
+
+        // Vérifier qu'il y a une date de devis si le statut est Devis, Démo, Négociation ou Signé
+        if (['Devis', 'Démo', 'Négociation', 'Signé'].includes(formData.status) && !formData.quote_date) {
+          alert('Une date de devis est requise pour le statut ' + formData.status);
+          return;
+        }
+
+        try {
+          const method = formData.id ? 'PUT' : 'POST';
+          const url = formData.id 
+            ? `${API_URL}/prospects/${formData.id}`
+            : `${API_URL}/prospects`;
+
+          const res = await fetch(url, {
+            method,
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify(formData)
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            await fetchProspects();
+            
+            // Si c'est une création (pas d'ID avant), demander si on veut ajouter des interlocuteurs
+            if (!formData.id && data.id) {
+              const addInterlocuteurs = window.confirm('Entreprise créée avec succès ! Voulez-vous ajouter des interlocuteurs ?');
+              if (addInterlocuteurs) {
+                // Charger le prospect créé et ouvrir la page Information Société
+                const createdProspect = { ...formData, id: data.id };
+                setSelectedProspect(createdProspect);
+                setFormData(createdProspect);
+                await fetchInterlocuteurs(data.id);
+                setShowForm(true);
+                return;
+              }
+            }
+            
+            // Mettre à jour selectedProspect et recharger les données
+            if (formData.id) {
+              setSelectedProspect(formData);
+              await fetchStatusHistory(formData.id);
+              await fetchNextActions(formData.id);
+            }
+            setShowForm(false);
+            setFormData(getEmptyProspect());
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleDeleteProspect = async (id) => {
+        if (window.confirm('Supprimer ce prospect ?')) {
+          try {
+            const res = await fetch(`${API_URL}/prospects/${id}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${user.token}` }
+            });
+            if (res.ok) {
+              fetchProspects();
+              setSelectedProspect(null);
+            }
+          } catch (err) {
+            alert('Erreur: ' + err.message);
+          }
+        }
+      };
+
+      const handleAddActivity = async (prospectId, activityType, description) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/activities`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ activity_type: activityType, description })
+          });
+          if (res.ok) {
+            fetchActivities(prospectId);
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleAddNextAction = async () => {
+        if (!selectedProspect) return;
+        try {
+          const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/next_actions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ 
+              action_type: newActionType, 
+              planned_date: newActionDate, 
+              actor: newActionActor,
+              contact: newActionContact,
+              completed_note: newActionComment 
+            })
+          });
+          if (res.ok) {
+            fetchNextActions(selectedProspect.id);
+            setNewActionType('Appel');
+            setNewActionDate(new Date().toISOString().split('T')[0]);
+            setNewActionActor('');
+            setNewActionContact('');
+            setNewActionComment('');
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleToggleNextAction = async (actionId, completed, notes = '') => {
+        try {
+          const res = await fetch(`${API_URL}/next_actions/${actionId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ completed: !completed, completed_notes: notes })
+          });
+          if (res.ok) {
+            fetchNextActions(selectedProspect.id);
+            setActionNotes({...actionNotes, [actionId]: ''});
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleDeleteNextAction = async (actionId) => {
+        if (window.confirm('Supprimer cette action ?')) {
+          try {
+            const res = await fetch(`${API_URL}/next_actions/${actionId}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${user.token}` }
+            });
+            if (res.ok) {
+              fetchNextActions(selectedProspect.id);
+            }
+          } catch (err) {
+            alert('Erreur: ' + err.message);
+          }
+        }
+      };
+
+      const formatDateForInput = (dateStr) => {
+        if (!dateStr) return '';
+        // Si format ISO (avec T), convertir en yyyy-MM-dd
+        if (dateStr.includes('T')) {
+          return dateStr.split('T')[0];
+        }
+        return dateStr;
+      };
+
+      const handleEditProspect = (prospect) => {
+        const formattedProspect = {
+          ...prospect,
+          quote_date: formatDateForInput(prospect.quote_date)
+        };
+        setFormData(formattedProspect);
+        setShowForm(true);
+      };
+
+      const handleSelectProspect = (prospect) => {
+        console.log('Clicking on prospect:', prospect.id, prospect.name);
+        setSelectedProspect(prospect);
+        setShowForm(false);  // Fermer le formulaire pour afficher les activités
+        if (!activities[prospect.id]) {
+          fetchActivities(prospect.id);
+        }
+        fetchNextActions(prospect.id);
+        fetchStatusHistory(prospect.id);
+        fetchInterlocuteurs(prospect.id);
+        setNewActionDate(new Date().toISOString().split('T')[0]);
+      };
+
+      const filteredProspects = prospects.filter(p => {
+        let matchStatus;
+        if (filterStatus === 'Tous hors suspects') {
+          // Exclure les suspects
+          matchStatus = p.statut_societe !== 'Suspect';
+        } else if (filterStatus === 'Suspects') {
+          // Afficher uniquement les suspects
+          matchStatus = p.statut_societe === 'Suspect';
+        } else {
+          // Filtrer par statut normal
+          matchStatus = p.status === filterStatus;
+        }
+        
+        const matchCommercial = filterCommercial === 'Tous' || p.assigned_to === filterCommercial;
+        const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (p.contact_name && p.contact_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                           (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase()));
+        return matchStatus && matchCommercial && matchSearch;
+      }).sort((a, b) => {
+        if (sortBy === 'name') {
+          return a.name.localeCompare(b.name);
+        } else if (sortBy === 'ancienneté') {
+          // Pour les devis, utiliser status_date (date du passage en statut Devis)
+          // Sinon utiliser created_at
+          const getRelevantDate = (prospect) => {
+            if (prospect.status === 'Devis' && prospect.status_date) {
+              return prospect.status_date;
+            }
+            return prospect.quote_date || prospect.created_at;
+          };
+          
+          const dateStrA = getRelevantDate(a);
+          const dateStrB = getRelevantDate(b);
+          
+          // Si pas de date, mettre à la fin
+          if (!dateStrA && !dateStrB) return 0;
+          if (!dateStrA) return 1;
+          if (!dateStrB) return -1;
+          
+          // Parser les dates correctement
+          const dateA = new Date(dateStrA.includes('-') ? dateStrA : dateStrA.split('/').reverse().join('-')).getTime();
+          const dateB = new Date(dateStrB.includes('-') ? dateStrB : dateStrB.split('/').reverse().join('-')).getTime();
+          return dateA - dateB;  // Plus ancien d'abord
+        } else if (sortBy === 'probabilité') {
+          // Trier par probabilité décroissante (plus élevé en premier)
+          return (b.chance_percent || 0) - (a.chance_percent || 0);
+        }
+        return 0;
+      });
+
+      if (!user) {
+        return <LoginForm onLogin={handleLogin} />;
+      }
+
+      return (
+        <div style={styles.container}>
+          <Header 
+            user={user} 
+            onLogout={() => { localStorage.removeItem('user'); setUser(null); }} 
+            onDashboard={() => setIsDashboard(!isDashboard)} 
+            isDashboard={isDashboard} 
+            onSettings={() => setShowSettings(true)}
+            prospects={prospects}
+            onSelectProspect={handleSelectProspect}
+          />
+          
+          {showSettings && <Settings onClose={() => setShowSettings(false)} user={user} />}
+          
+          {isDashboard ? (
+            <Dashboard prospects={prospects} selectedCommercial={selectedCommercial} onSelectCommercial={setSelectedCommercial} onSelectProspect={handleSelectProspect} onOpenDashboard={() => setIsDashboard(false)} user={user} API_URL={API_URL} prospectActionsInfo={prospectActionsInfo} />
+          ) : (
+          <div style={styles.content}>
+            <LeftPanel
+              prospects={filteredProspects}
+              allProspects={prospects}
+              selectedProspect={selectedProspect}
+              onSelect={handleSelectProspect}
+              filterStatus={filterStatus}
+              onFilterChange={setFilterStatus}
+              filterCommercial={filterCommercial}
+              onFilterCommercialChange={setFilterCommercial}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              prospectActionsInfo={prospectActionsInfo}
+              onNewProspect={() => {
+                setSelectedProspect(null);
+                setFormData(getEmptyProspect());
+                setShowForm(true);
+              }}
+            />
+
+            <RightPanel
+              key={selectedProspect?.id}
+              selectedProspect={selectedProspect}
+              activities={activities}
+              nextActions={nextActions}
+              statusHistory={statusHistory}
+              onEdit={handleEditProspect}
+              onDelete={handleDeleteProspect}
+              onAddActivity={handleAddActivity}
+              onAddNextAction={handleAddNextAction}
+              onToggleNextAction={handleToggleNextAction}
+              onDeleteNextAction={handleDeleteNextAction}
+              showForm={showForm}
+              formData={formData}
+              onFormChange={setFormData}
+              onSave={handleSaveProspect}
+              onCancel={() => {
+                setShowForm(false);
+                setFormData(getEmptyProspect());
+              }}
+              newActionType={newActionType}
+              onActionTypeChange={setNewActionType}
+              newActionDate={newActionDate}
+              onActionDateChange={setNewActionDate}
+              newActionActor={newActionActor}
+              onActionActorChange={setNewActionActor}
+              newActionContact={newActionContact}
+              onActionContactChange={setNewActionContact}
+              newActionComment={newActionComment}
+              onActionCommentChange={setNewActionComment}
+              user={user}
+              API_URL={API_URL}
+              interlocuteurs={interlocuteurs}
+              showInterlocuteurForm={showInterlocuteurForm}
+              setShowInterlocuteurForm={setShowInterlocuteurForm}
+              interlocuteurForm={interlocuteurForm}
+              setInterlocuteurForm={setInterlocuteurForm}
+              handleSaveInterlocuteur={handleSaveInterlocuteur}
+              handleDeleteInterlocuteur={handleDeleteInterlocuteur}
+            />
+          </div>
+          )}
+        </div>
+      );
+    }
+
+    // ================== COMPOSANTS ==================
+
+    function Header({ user, onLogout, onDashboard, isDashboard, onSettings, prospects, onSelectProspect }) {
+      const [globalSearch, setGlobalSearch] = React.useState('');
+      const [showResults, setShowResults] = React.useState(false);
+      const searchRef = React.useRef(null);
+      
+      // Fermer les résultats si on clique ailleurs
+      React.useEffect(() => {
+        const handleClickOutside = (event) => {
+          if (searchRef.current && !searchRef.current.contains(event.target)) {
+            setShowResults(false);
+          }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+      }, []);
+      
+      const filteredProspects = globalSearch.length >= 2 && prospects
+        ? prospects.filter(p => 
+            p.name.toLowerCase().includes(globalSearch.toLowerCase()) ||
+            (p.contact_name && p.contact_name.toLowerCase().includes(globalSearch.toLowerCase()))
+          ).slice(0, 10) // Limiter à 10 résultats
+        : [];
+      
+      const getStatusColorLocal = (status) => {
+        const colors = {
+          'Prospection': '#999',
+          'Devis': '#12a0dc',
+          'Démo': '#e72c7b',
+          'Négociation': '#d3a002',
+          'Signé': '#3cd6b9',
+          'Perdu': '#e23b63'
+        };
+        return colors[status] || '#666';
+      };
+      
+      return (
+        <div style={styles.header}>
+          <div style={styles.headerLeft}>
+            <img src="texaswin-logo.png" alt="TexasWin" style={{height: '40px', marginRight: '15px', verticalAlign: 'middle'}} />
+            <h1 style={{display: 'inline-block', margin: 0}}>Pipeline TexasWin</h1>
+          </div>
+          
+          {/* Champ de recherche global */}
+          <div ref={searchRef} style={{position: 'relative', flex: 1, maxWidth: '400px', margin: '0 20px'}}>
+            <input
+              type="text"
+              placeholder="🔍 Rechercher une société..."
+              value={globalSearch}
+              onChange={(e) => {
+                setGlobalSearch(e.target.value);
+                setShowResults(e.target.value.length >= 2);
+              }}
+              onFocus={() => globalSearch.length >= 2 && setShowResults(true)}
+              style={{
+                width: '100%',
+                padding: '10px 15px',
+                border: '1px solid #ccc',
+                borderRadius: '6px',
+                fontSize: '14px',
+                outline: 'none'
+              }}
+            />
+            
+            {/* Résultats de recherche */}
+            {showResults && filteredProspects.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                backgroundColor: 'white',
+                border: '1px solid #ccc',
+                borderRadius: '6px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                marginTop: '5px',
+                maxHeight: '400px',
+                overflowY: 'auto',
+                zIndex: 1000
+              }}>
+                {filteredProspects.map(prospect => (
+                  <div
+                    key={prospect.id}
+                    onClick={() => {
+                      onSelectProspect(prospect);
+                      setGlobalSearch('');
+                      setShowResults(false);
+                      if (isDashboard) onDashboard(); // Basculer vers le suivi si on est sur le dashboard
+                    }}
+                    style={{
+                      padding: '12px 15px',
+                      borderBottom: '1px solid #eee',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                  >
+                    <div style={{fontWeight: 'bold', color: '#333', marginBottom: '4px'}}>
+                      {prospect.name}
+                    </div>
+                    <div style={{fontSize: '12px', color: '#666'}}>
+                      {prospect.contact_name && `${prospect.contact_name} • `}
+                      <span style={{
+                        color: prospect.statut_societe === 'Client' ? '#12a0dc' : 
+                               prospect.statut_societe === 'Prospect' ? '#ff9800' : '#999'
+                      }}>
+                        {prospect.statut_societe || 'Prospect'}
+                      </span>
+                      {' • '}
+                      <span style={{color: getStatusColorLocal(prospect.status)}}>
+                        {prospect.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {showResults && globalSearch.length >= 2 && filteredProspects.length === 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                backgroundColor: 'white',
+                border: '1px solid #ccc',
+                borderRadius: '6px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                marginTop: '5px',
+                padding: '20px',
+                textAlign: 'center',
+                color: '#999',
+                zIndex: 1000
+              }}>
+                Aucune société trouvée
+              </div>
+            )}
+          </div>
+          
+          <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
+            <button onClick={onDashboard} style={{...styles.dashboardBtn, ...(isDashboard ? {backgroundColor: '#10a0dc', color: 'white'} : {})}}>📊 Dashboard</button>
+            {user.name === 'Christian' && (
+              <button onClick={onSettings} style={styles.settingsBtn}>⚙️ Paramètres</button>
+            )}
+            <div style={styles.userInfo}>
+              <span>{user.name}</span>
+              <button onClick={onLogout} style={styles.logoutBtn}>Déconnexion</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function Settings({ onClose, user }) {
+      const [users, setUsers] = React.useState([]);
+      const [newUserEmail, setNewUserEmail] = React.useState('');
+      const [newUserPassword, setNewUserPassword] = React.useState('');
+      const [newUserName, setNewUserName] = React.useState('');
+      const [editingUserId, setEditingUserId] = React.useState(null);
+      const [newPassword, setNewPassword] = React.useState('');
+      const [showNewPassword, setShowNewPassword] = React.useState(false);
+      const [showPassword, setShowPassword] = React.useState({});
+      const [showTempPassword, setShowTempPassword] = React.useState({});
+
+      React.useEffect(() => {
+        fetchUsers();
+      }, []);
+
+      const fetchUsers = async () => {
+        try {
+          const res = await fetch(`${API_URL}/users`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setUsers(data);
+          }
+        } catch (err) {
+          console.error('Erreur:', err);
+        }
+      };
+
+      const handleCreateUser = async () => {
+        if (!newUserEmail || !newUserPassword || !newUserName) {
+          alert('Remplissez tous les champs');
+          return;
+        }
+        try {
+          const res = await fetch(`${API_URL}/users`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ email: newUserEmail, password: newUserPassword, name: newUserName })
+          });
+          if (res.ok) {
+            setNewUserEmail('');
+            setNewUserPassword('');
+            setNewUserName('');
+            fetchUsers();
+          } else {
+            alert('Erreur: ' + (await res.text()));
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleChangePassword = async (userId) => {
+        if (!newPassword) {
+          alert('Entrez un nouveau mot de passe');
+          return;
+        }
+        try {
+          const res = await fetch(`${API_URL}/users/${userId}/password`, {
+            method: 'PUT',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ password: newPassword })
+          });
+          if (res.ok) {
+            setEditingUserId(null);
+            setNewPassword('');
+            fetchUsers();
+            alert('Mot de passe modifié');
+          } else {
+            alert('Erreur: ' + (await res.text()));
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleDeleteUser = async (userId, userName) => {
+        if (window.confirm(`Êtes-vous sûr de vouloir supprimer ${userName} ?`)) {
+          try {
+            const res = await fetch(`${API_URL}/users/${userId}`, {
+              method: 'DELETE',
+              headers: { 
+                'Authorization': `Bearer ${user.token}`
+              }
+            });
+            if (res.ok) {
+              fetchUsers();
+              alert('Utilisateur supprimé');
+            } else {
+              alert('Erreur: ' + (await res.text()));
+            }
+          } catch (err) {
+            alert('Erreur: ' + err.message);
+          }
+        }
+      };
+
+      return (
+        <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000}}>
+          <div style={{backgroundColor: 'white', borderRadius: '8px', padding: '30px', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+              <h2 style={{margin: 0}}>Gestion des comptes</h2>
+              <button onClick={onClose} style={{backgroundColor: '#ccc', border: 'none', borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '16px'}}>✕</button>
+            </div>
+
+            {/* Créer un nouvel utilisateur */}
+            <div style={{backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '20px'}}>
+              <h3>Créer un nouveau compte</h3>
+              <input
+                type="email"
+                placeholder="Email"
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+                style={{width: '100%', padding: '10px', marginBottom: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box'}}
+              />
+              <input
+                type="text"
+                placeholder="Nom complet"
+                value={newUserName}
+                onChange={(e) => setNewUserName(e.target.value)}
+                style={{width: '100%', padding: '10px', marginBottom: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box'}}
+              />
+              <div style={{display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px'}}>
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  placeholder="Mot de passe"
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  style={{flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box'}}
+                />
+                <input
+                  type="checkbox"
+                  checked={showNewPassword}
+                  onChange={(e) => setShowNewPassword(e.target.checked)}
+                  style={{cursor: 'pointer'}}
+                  title="Afficher le mot de passe"
+                />
+              </div>
+              <button onClick={handleCreateUser} style={{backgroundColor: '#10a0dc', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>Créer</button>
+            </div>
+
+            {/* Liste des utilisateurs */}
+            <div>
+              <h3>Utilisateurs existants</h3>
+              {users.map(u => (
+                <div key={u.id} style={{backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '10px'}}>
+                  <div style={{marginBottom: '10px'}}>
+                    <strong>{u.name}</strong> ({u.email})
+                  </div>
+                  {u.temp_password && (
+                    <div style={{backgroundColor: '#fff3cd', padding: '10px', borderRadius: '4px', marginBottom: '10px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                      <span>
+                        <strong>Mot de passe temporaire:</strong> {showTempPassword[u.id] ? u.temp_password : '••••••••••••'}
+                      </span>
+                      <button onClick={() => setShowTempPassword({...showTempPassword, [u.id]: !showTempPassword[u.id]})} style={{backgroundColor: '#ffc107', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold'}}>
+                        {showTempPassword[u.id] ? 'Masquer' : 'Voir'}
+                      </button>
+                    </div>
+                  )}
+                  {editingUserId === u.id ? (
+                    <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
+                      <input
+                        type={showPassword[u.id] ? "text" : "password"}
+                        placeholder="Nouveau mot de passe"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        style={{flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '4px'}}
+                      />
+                      <button
+                        onClick={() => setShowPassword({...showPassword, [u.id]: !showPassword[u.id]})}
+                        style={{backgroundColor: '#17a2b8', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px'}}
+                      >
+                        {showPassword[u.id] ? 'Masquer' : 'Voir'}
+                      </button>
+                      <button onClick={() => handleChangePassword(u.id)} style={{backgroundColor: '#10a0dc', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '4px', cursor: 'pointer'}}>Valider</button>
+                      <button onClick={() => {setEditingUserId(null); setNewPassword('');}} style={{backgroundColor: '#ccc', border: 'none', padding: '10px 15px', borderRadius: '4px', cursor: 'pointer'}}>Annuler</button>
+                    </div>
+                  ) : (
+                    <div style={{display: 'flex', gap: '10px'}}>
+                      <button onClick={() => setEditingUserId(u.id)} style={{backgroundColor: '#ffc107', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>Modifier mot de passe</button>
+                      {u.temp_password && (
+                        <button onClick={() => setShowTempPassword({...showTempPassword, [u.id]: !showTempPassword[u.id]})} style={{backgroundColor: '#17a2b8', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>
+                          {showTempPassword[u.id] ? 'Masquer mot de passe' : 'Voir mot de passe'}
+                        </button>
+                      )}
+                      {u.name !== 'Christian' && (
+                        <button onClick={() => handleDeleteUser(u.id, u.name)} style={{backgroundColor: '#dc3545', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>
+                          Supprimer
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function LoginForm({ onLogin }) {
+      const [email, setEmail] = React.useState('');
+      const [password, setPassword] = React.useState('');
+      const [name, setName] = React.useState('');
+      const [isRegister, setIsRegister] = React.useState(false);
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        onLogin(email, password, name, isRegister);
+      };
+
+      return (
+        <div style={styles.loginContainer}>
+          <div style={styles.loginBox}>
+            <h2>Pipeline TexasWin</h2>
+            <form onSubmit={handleSubmit} style={styles.form}>
+              {isRegister && (
+                <input
+                  type="text"
+                  placeholder="Nom complet"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={styles.input}
+                  required
+                />
+              )}
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={styles.input}
+                required
+              />
+              <input
+                type="password"
+                placeholder="Mot de passe"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={styles.input}
+                required
+              />
+              <button type="submit" style={styles.submitBtn}>
+                {isRegister ? 'S\'inscrire' : 'Se connecter'}
+              </button>
+            </form>
+            <p style={styles.toggleAuth}>
+              {isRegister ? 'Déjà inscrit?' : 'Pas encore inscrit?'}{' '}
+              <a href="#" onClick={(e) => {
+                e.preventDefault();
+                setIsRegister(!isRegister);
+              }} style={styles.link}>
+                {isRegister ? 'Se connecter' : 'S\'inscrire'}
+              </a>
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    function LeftPanel({ prospects, allProspects, selectedProspect, onSelect, filterStatus, onFilterChange, filterCommercial, onFilterCommercialChange, searchTerm, onSearchChange, sortBy, onSortChange, prospectActionsInfo, onNewProspect }) {
+      return (
+        <div style={styles.leftPanel}>
+          <button onClick={onNewProspect} style={styles.newBtn}>+ Nouvelle entreprise</button>
+          
+          <input
+            type="text"
+            placeholder="Chercher..."
+            value={searchTerm}
+            onChange={(e) => onSearchChange(e.target.value)}
+            style={styles.searchInput}
+          />
+
+          <div style={styles.filterContainer}>
+            {['Tous hors suspects', 'Suspects', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Perdu'].map(status => (
+              <button
+                key={status}
+                onClick={() => onFilterChange(status)}
+                style={{
+                  ...styles.filterBtn,
+                  ...(filterStatus === status ? styles.filterBtnActive : {})
+                }}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+
+          <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
+            <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Commercial:</span>
+            {['Tous', 'Roger', 'Christian', 'Frédéric'].map(commercial => {
+              const count = getProspectCountByCommercial(allProspects, commercial);
+              return (
+                <button
+                  key={commercial}
+                  onClick={() => onFilterCommercialChange(commercial)}
+                  style={{
+                    ...styles.filterBtn,
+                    ...(filterCommercial === commercial ? styles.filterBtnActive : {}),
+                    fontSize: '12px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <span>{commercial}</span>
+                  <span style={{fontSize: '11px', marginLeft: '8px', opacity: 0.7}}>({count})</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
+            <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Trier par:</span>
+            {[{label: 'Nom', value: 'name'}, {label: 'Ancienneté', value: 'ancienneté'}, {label: 'Probabilité', value: 'probabilité'}].map(option => (
+              <button
+                key={option.value}
+                onClick={() => onSortChange(option.value)}
+                style={{
+                  ...styles.filterBtn,
+                  ...(sortBy === option.value ? styles.filterBtnActive : {}),
+                  fontSize: '12px'
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {(() => {
+            let statusesToInclude = [];
+            let filterLabel = filterStatus;
+            
+            if (filterStatus === 'Tous hors suspects') {
+              statusesToInclude = ['Devis', 'Démo', 'Négociation'];
+              filterLabel = 'Tous hors suspects';
+            } else if (filterStatus === 'Suspects') {
+              statusesToInclude = []; // Les suspects n'ont pas de pipeline
+              filterLabel = 'Suspects';
+            } else if (filterStatus === 'Prospection') {
+              statusesToInclude = ['Négociation'];
+              filterLabel = 'Prospection';
+            } else if (filterStatus === 'Devis') {
+              statusesToInclude = ['Devis'];
+              filterLabel = 'Devis';
+            } else if (filterStatus === 'Démo') {
+              statusesToInclude = ['Démo'];
+              filterLabel = 'Démo';
+            } else if (filterStatus === 'Négociation') {
+              statusesToInclude = ['Négociation'];
+              filterLabel = 'Négociation';
+            } else if (filterStatus === 'Signé') {
+              statusesToInclude = ['Signé'];
+              filterLabel = 'Signé';
+            } else if (filterStatus === 'Perdu') {
+              statusesToInclude = ['Perdu'];
+              filterLabel = 'Perdu';
+            }
+            
+            const cumulMonthly = prospects
+              .filter(p => statusesToInclude.includes(p.status))
+              .reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
+            
+            const cumulAnnual = prospects
+              .filter(p => statusesToInclude.includes(p.status))
+              .reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0), 0);
+            
+            return (
+              <div style={{padding: '15px', backgroundColor: '#f0f0f0', borderRadius: '4px', margin: '0 15px', textAlign: 'center'}}>
+                <div style={{fontSize: '12px', color: '#666', marginBottom: '5px'}}>Cumul Abonnement {filterLabel}</div>
+                <div style={{fontSize: '14px', fontWeight: 'bold', color: '#0066cc'}}>{formatCurrency(cumulMonthly)}/mois</div>
+                {cumulAnnual > 0 && <div style={{fontSize: '14px', fontWeight: 'bold', color: '#28a745'}}>{formatCurrency(cumulAnnual)}/an</div>}
+              </div>
+            );
+          })()}
+
+          <div style={styles.prospectsList}>
+            {prospects.map(prospect => (
+              <div
+                key={prospect.id}
+                onClick={() => onSelect(prospect)}
+                style={{
+                  ...styles.prospectItem,
+                  ...(selectedProspect?.id === prospect.id ? styles.prospectItemActive : {}),
+                  ...(prospect.status === 'Perdu' ? { backgroundColor: '#ffe6e6', borderLeft: '4px solid #ff6666' } : {})
+                }}
+              >
+                <div style={styles.prospectName}>{prospect.name}</div>
+                <div style={styles.prospectSubtitle}>{prospect.contact_name}</div>
+                <div style={styles.prospectStatusRow}>
+                  <span style={styles.prospectStatus}>
+                    {prospect.status}
+                    {prospect.chance_percent && prospect.chance_percent > 0 && (
+                      <span style={{fontWeight: 'bold', color: '#10a0dc', marginLeft: '5px'}}>({prospect.chance_percent}%)</span>
+                    )}
+                  </span>
+                  {prospect.quote_date && <span style={styles.prospectQuoteDate}>{new Date(prospect.quote_date).toLocaleDateString()}</span>}
+                </div>
+                <div style={{fontSize: '12px', marginTop: '6px', color: '#666'}}>
+                  Action planifiée: <strong style={{color: prospectActionsInfo[prospect.id]?.hasAction ? '#28a745' : '#cc0000'}}>{prospectActionsInfo[prospect.id]?.hasAction ? 'Oui' : 'Non'}</strong>
+                  {prospectActionsInfo[prospect.id]?.isLate && <span style={{color: '#cc0000', fontWeight: 'bold'}}> - En retard</span>}
+                </div>
+                <div style={styles.prospectAmount}>
+                  {formatCurrency(prospect.monthly_amount)}/mois + {formatCurrency(prospect.annual_amount)}/an
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo }) {
+      const [sortBy, setSortBy] = React.useState('name');
+      const [sortAsc, setSortAsc] = React.useState(true);
+      const [hoveredProspect, setHoveredProspect] = React.useState(null);
+      
+      const stats = {
+        total: prospects.length,
+        prospection: prospects.filter(p => p.status === 'Prospection').length,
+        devis: prospects.filter(p => p.status === 'Devis').length,
+        demo: prospects.filter(p => p.status === 'Démo').length,
+        negotiation: prospects.filter(p => p.status === 'Négociation').length,
+        signed: prospects.filter(p => p.status === 'Signé').length,
+        lost: prospects.filter(p => p.status === 'Perdu').length,
+        totalValue: prospects.reduce((sum, p) => sum + (p.monthly_amount * 12 + p.annual_amount), 0)
+      };
+
+      // Prospects en Devis ou Négociation seulement
+      const prospectsPipeline = prospects.filter(p => p.status === 'Devis' || p.status === 'Négociation');
+      const monthlyAbonnement = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
+      const annualAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0), 0);
+      const setupAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.setup_amount) || 0), 0);
+      const formationAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.training_amount) || 0), 0);
+      
+      // Calcul des valeurs pondérées (montant × probabilité)
+      const monthlyPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0) * ((p.chance_percent || 0) / 100), 0);
+      const annualPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0) * ((p.chance_percent || 0) / 100), 0);
+      const setupPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.setup_amount) || 0) * ((p.chance_percent || 0) / 100), 0);
+      const formationPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.training_amount) || 0) * ((p.chance_percent || 0) / 100), 0);
+
+      const commercials = ['Roger', 'Christian', 'Frédéric'];
+
+      // Fonction pour trier la liste
+      const getSortedProspects = (commercialName) => {
+        const filtered = prospects.filter(p => p.assigned_to === commercialName);
+        return filtered.sort((a, b) => {
+          let compareA, compareB;
+          
+          switch(sortBy) {
+            case 'name':
+              compareA = a.name.toLowerCase();
+              compareB = b.name.toLowerCase();
+              return sortAsc ? compareA.localeCompare(compareB) : compareB.localeCompare(compareA);
+            case 'statutSociete':
+              compareA = a.statut_societe || 'Prospect';
+              compareB = b.statut_societe || 'Prospect';
+              return sortAsc ? compareA.localeCompare(compareB) : compareB.localeCompare(compareA);
+            case 'setup':
+              compareA = a.setup_amount || 0;
+              compareB = b.setup_amount || 0;
+              return sortAsc ? compareA - compareB : compareB - compareA;
+            case 'monthly':
+              compareA = a.monthly_amount || 0;
+              compareB = b.monthly_amount || 0;
+              return sortAsc ? compareA - compareB : compareB - compareA;
+            case 'annual':
+              compareA = a.annual_amount || 0;
+              compareB = b.annual_amount || 0;
+              return sortAsc ? compareA - compareB : compareB - compareA;
+            case 'formation':
+              compareA = a.training_amount || 0;
+              compareB = b.training_amount || 0;
+              return sortAsc ? compareA - compareB : compareB - compareA;
+            case 'status':
+              compareA = a.status;
+              compareB = b.status;
+              return sortAsc ? compareA.localeCompare(compareB) : compareB.localeCompare(compareA);
+            case 'statusDate':
+              compareA = new Date(a.status_date || '').getTime() || 0;
+              compareB = new Date(b.status_date || '').getTime() || 0;
+              return sortAsc ? compareA - compareB : compareB - compareA;
+            case 'nextActionDate':
+              // Tri par date de prochaine action
+              const getNextActionDate = (prospectId) => {
+                const actions = prospectActionsInfo[prospectId];
+                if (!actions || !actions.hasAction) return 0;
+                // Trouver la prochaine action non complétée
+                const nextAction = prospects.find(p => p.id === prospectId)?.nextActions?.filter(a => !a.completed).sort((x, y) => new Date(x.planned_date) - new Date(y.planned_date))[0];
+                return nextAction ? new Date(nextAction.planned_date).getTime() : 0;
+              };
+              compareA = getNextActionDate(a.id);
+              compareB = getNextActionDate(b.id);
+              return sortAsc ? compareA - compareB : compareB - compareA;
+            default:
+              return 0;
+          }
+        });
+      };
+
+      const handleSort = (field) => {
+        if (sortBy === field) {
+          setSortAsc(!sortAsc);
+        } else {
+          setSortBy(field);
+          setSortAsc(true);
+        }
+      };
+      
+      const renderHeader = (label, field) => {
+        let textAlign = 'center';
+        if (field === 'name') textAlign = 'left';
+        return (
+          <th style={{padding: '10px', textAlign: textAlign, fontWeight: 'bold', cursor: 'pointer', userSelect: 'none', backgroundColor: sortBy === field ? '#e0e0e0' : 'transparent'}} onClick={() => handleSort(field)}>
+            {label} {sortBy === field && (sortAsc ? '↑' : '↓')}
+          </th>
+        );
+      };
+      
+      return (
+        <div style={{padding: '30px', backgroundColor: '#f9f9f9', overflowY: 'auto', flex: 1}}>
+          <h2 style={{marginBottom: '30px'}}>Dashboard Commerciaux</h2>
+          
+          {/* Vue d'ensemble - 5 carrés */}
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '20px', marginBottom: '40px'}}>
+            
+            {/* Carré 1: Compteurs prospects */}
+            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📊 Prospects ({stats.prospection + prospectsPipeline.length})</h3>
+              <div style={{fontSize: '15px', lineHeight: '2'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                  <span style={{color: '#666'}}>Total Suspect:</span>
+                  <strong style={{color: '#999', fontSize: '16px'}}>{stats.prospection}</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                  <span style={{color: '#666'}}>En pipeline:</span>
+                  <strong style={{color: '#10a0dc', fontSize: '16px'}}>{prospectsPipeline.length}</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                  <span style={{color: '#666'}}>Signé:</span>
+                  <strong style={{color: '#3cd6b9', fontSize: '16px'}}>{stats.signed}</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                  <span style={{color: '#666'}}>Perdu:</span>
+                  <strong style={{color: '#e23b63', fontSize: '16px'}}>{stats.lost}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Carré 2: Abonnements */}
+            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📅 Abonnements</h3>
+              <div style={{fontSize: '14px', lineHeight: '1.6'}}>
+                <div style={{marginBottom: '12px'}}>
+                  <div style={{color: '#666', marginBottom: '6px', fontWeight: 'bold'}}>/mois:</div>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '2px'}}>
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>{formatCurrency(monthlyAbonnement)}</span>
+                    <span style={{fontSize: '12px', color: '#999'}}>Brut</span>
+                  </div>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc'}}>{formatCurrency(monthlyPondere)}</span>
+                    <span style={{fontSize: '12px', color: '#10a0dc'}}>Pondéré</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{color: '#666', marginBottom: '6px', fontWeight: 'bold'}}>/an:</div>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '2px'}}>
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>{formatCurrency(annualAmount)}</span>
+                    <span style={{fontSize: '12px', color: '#999'}}>Brut</span>
+                  </div>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc'}}>{formatCurrency(annualPondere)}</span>
+                    <span style={{fontSize: '12px', color: '#10a0dc'}}>Pondéré</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Carré 3: Setup + Formation */}
+            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>💰 Prestations</h3>
+              <div style={{fontSize: '14px', lineHeight: '1.6'}}>
+                <div style={{marginBottom: '12px'}}>
+                  <div style={{color: '#666', marginBottom: '6px', fontWeight: 'bold'}}>Setup:</div>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '2px'}}>
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>{formatCurrency(setupAmount)}</span>
+                    <span style={{fontSize: '12px', color: '#999'}}>Brut</span>
+                  </div>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc'}}>{formatCurrency(setupPondere)}</span>
+                    <span style={{fontSize: '12px', color: '#10a0dc'}}>Pondéré</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{color: '#666', marginBottom: '6px', fontWeight: 'bold'}}>Formation:</div>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '2px'}}>
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>{formatCurrency(formationAmount)}</span>
+                    <span style={{fontSize: '12px', color: '#999'}}>Brut</span>
+                  </div>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc'}}>{formatCurrency(formationPondere)}</span>
+                    <span style={{fontSize: '12px', color: '#10a0dc'}}>Pondéré</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Carré 4: Répartition par probabilité */}
+            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📈 Par probabilité</h3>
+              <div style={{fontSize: '12px', lineHeight: '1.8'}}>
+                {(() => {
+                  const ranges = [
+                    {label: '80-100%', min: 80, max: 100, color: '#3cd6b9'},
+                    {label: '60-80%', min: 60, max: 79, color: '#12a0dc'},
+                    {label: '40-60%', min: 40, max: 59, color: '#d3a002'},
+                    {label: '20-40%', min: 20, max: 39, color: '#e72c7b'},
+                    {label: '0-20%', min: 0, max: 19, color: '#e23b63'}
+                  ];
+                  
+                  return ranges.map(range => {
+                    const prospectsInRange = prospectsPipeline.filter(p => 
+                      (p.chance_percent || 0) >= range.min && (p.chance_percent || 0) <= range.max
+                    );
+                    const monthlyValue = prospectsInRange.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
+                    const barWidth = prospectsPipeline.length > 0 ? (prospectsInRange.length / prospectsPipeline.length) * 100 : 0;
+                    
+                    return (
+                      <div key={range.label} style={{marginBottom: '8px'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '3px'}}>
+                          <span style={{fontSize: '11px', fontWeight: 'bold', color: range.color}}>{range.label}</span>
+                          <span style={{fontSize: '11px', color: '#666'}}>{prospectsInRange.length} • {formatCurrency(monthlyValue)}/m</span>
+                        </div>
+                        <div style={{width: '100%', height: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px', overflow: 'hidden'}}>
+                          <div style={{width: `${barWidth}%`, height: '100%', backgroundColor: range.color, transition: 'width 0.3s'}}></div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* Carré 5: Âge des devis */}
+            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>⏱️ Ancienneté des devis</h3>
+              <div style={{fontSize: '11px', lineHeight: '1.8'}}>
+                {(() => {
+                  const now = new Date();
+                  const ageRanges = [
+                    {label: '< 1 mois', maxDays: 30, color: '#3cd6b9', status: 'Frais'},
+                    {label: '1-2 mois', minDays: 30, maxDays: 60, color: '#12a0dc', status: 'OK'},
+                    {label: '2-3 mois', minDays: 60, maxDays: 90, color: '#d3a002', status: '⚠️ Vieux'},
+                    {label: '> 3 mois', minDays: 90, maxDays: 9999, color: '#e23b63', status: '🚨 URGENT'}
+                  ];
+                  
+                  const devisOnly = prospectsPipeline.filter(p => p.status === 'Devis');
+                  
+                  return ageRanges.map((range, idx) => {
+                    const prospectsInRange = devisOnly.filter(p => {
+                      // Utiliser quote_date (date du devis) plutôt que status_date
+                      const dateToUse = p.quote_date || p.status_date;
+                      if (!dateToUse) return false;
+                      const quoteDate = new Date(dateToUse);
+                      const daysDiff = Math.floor((now - quoteDate) / (1000 * 60 * 60 * 24));
+                      return (!range.minDays || daysDiff >= range.minDays) && daysDiff < range.maxDays;
+                    });
+                    const barWidth = devisOnly.length > 0 ? Math.max(20, (prospectsInRange.length / devisOnly.length) * 100) : 20;
+                    
+                    return (
+                      <div key={idx} style={{marginBottom: '6px'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '2px'}}>
+                          <span style={{color: '#666', fontWeight: 'bold'}}>{range.label}</span>
+                          <span style={{color: '#999', fontSize: '10px'}}>({prospectsInRange.length})</span>
+                        </div>
+                        <div style={{height: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px', marginBottom: '2px'}}>
+                          <div style={{width: `${barWidth}%`, height: '100%', backgroundColor: range.color, borderRadius: '4px'}}></div>
+                        </div>
+                        <div style={{color: range.color, fontSize: '10px', fontWeight: 'bold'}}>{range.status}</div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </div>
+
+          {/* Par commercial */}
+          <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
+            <h3 style={{marginTop: 0}}>Par commercial</h3>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px'}}>
+              {commercials.map(commercial => {
+                const commercialProspects = prospects.filter(p => p.assigned_to === commercial);
+                const commercialPipeline = commercialProspects.filter(p => p.status === 'Devis' || p.status === 'Négociation');
+                const signed = commercialProspects.filter(p => p.status === 'Signé').length;
+                const monthlyValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
+                const annualValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0), 0);
+                
+                // Calculer les actions planifiées et en retard
+                let nbActionsPlannees = 0;
+                let nbActionsEnRetard = 0;
+                let thisWeek = 0;
+                let thisMonth = 0;
+                let beyondMonth = 0;
+                
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const endOfWeek = new Date(today);
+                endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
+                const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                
+                commercialProspects.forEach(prospect => {
+                  const actionInfo = prospectActionsInfo[prospect.id];
+                  if (actionInfo?.hasAction) {
+                    nbActionsPlannees++;
+                    if (actionInfo.isLate) {
+                      nbActionsEnRetard++;
+                    }
+                    
+                    // Calculer cette semaine / ce mois / > 1 mois
+                    if (actionInfo.nextActionDate) {
+                      const actionDate = new Date(actionInfo.nextActionDate);
+                      if (actionDate <= endOfWeek) {
+                        thisWeek++;
+                      } else if (actionDate <= endOfMonth) {
+                        thisMonth++;
+                      } else {
+                        beyondMonth++;
+                      }
+                    }
+                  }
+                });
+                
+                return (
+                  <div key={commercial} style={{borderLeft: '4px solid #10a0dc', paddingLeft: '15px', cursor: 'pointer', padding: '15px', backgroundColor: selectedCommercial === commercial ? '#e8f4f8' : 'transparent', borderRadius: '6px', transition: 'background-color 0.2s'}} onClick={() => onSelectCommercial(selectedCommercial === commercial ? null : commercial)}>
+                    <h4 style={{margin: '0 0 10px 0', color: selectedCommercial === commercial ? '#10a0dc' : '#333'}}>{commercial}</h4>
+                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Prospects: <strong>{commercialProspects.length}</strong></div>
+                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Signés: <strong style={{color: '#00cc00'}}>{signed}</strong></div>
+                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement mensuel: <strong style={{color: '#10a0dc'}}>{formatNumber(monthlyValue)}</strong></div>
+                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement annuel: <strong style={{color: '#10a0dc'}}>{formatNumber(annualValue)}</strong></div>
+                    <div style={{fontSize: '13px', color: '#28a745', marginBottom: '5px'}}>
+                      Nb actions planifiées: <strong>{nbActionsPlannees}</strong>
+                      {nbActionsPlannees > 0 && (
+                        <span style={{fontSize: '11px', marginLeft: '8px', color: '#666'}}>
+                          Cette semaine: {thisWeek} • Ce mois: {thisMonth} • &gt; 1 mois: {beyondMonth}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{fontSize: '13px', color: nbActionsEnRetard > 0 ? '#cc0000' : '#666', marginBottom: '5px'}}>Nb actions en retard: <strong>{nbActionsEnRetard}</strong></div>
+                    <div style={{fontSize: '12px', marginTop: '10px', color: '#999'}}>
+                      {commercialProspects.filter(p => p.status === 'Prospection').length} prospection | {commercialProspects.filter(p => p.status === 'Devis').length} devis | {commercialProspects.filter(p => p.status === 'Négociation').length} négociation
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Liste des prospects du commercial sélectionné */}
+          {selectedCommercial && (
+            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginTop: '30px'}}>
+              <h3 style={{marginTop: 0, marginBottom: '15px'}}>Sociétés gérées par {selectedCommercial}</h3>
+              <div style={{overflow: 'visible'}}>
+                <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '13px'}}>
+                  <thead>
+                    <tr style={{borderBottom: '2px solid #ddd', backgroundColor: '#f9f9f9'}}>
+                      {renderHeader('Nom société', 'name')}
+                      {renderHeader('Statut Société', 'statutSociete')}
+                      <th style={{padding: '10px', textAlign: 'center', fontWeight: 'bold'}}>Contact</th>
+                      {renderHeader('Setup', 'setup')}
+                      {renderHeader('Abonnement mois', 'monthly')}
+                      {renderHeader('Abonnement annuel', 'annual')}
+                      {renderHeader('Formation', 'formation')}
+                      {renderHeader('Statut', 'status')}
+                      {renderHeader('Date statut', 'statusDate')}
+                      <th style={{padding: '10px', textAlign: 'center', fontWeight: 'bold'}}>%</th>
+                      <th style={{padding: '10px', textAlign: 'center', fontWeight: 'bold'}}>Devis</th>
+                      <th style={{padding: '10px', textAlign: 'center', fontWeight: 'bold'}}>Action</th>
+                      {renderHeader('Date action', 'nextActionDate')}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getSortedProspects(selectedCommercial).map(prospect => {
+                      // Récupérer la date de la prochaine action
+                      const actionInfo = prospectActionsInfo[prospect.id];
+                      const nextActionDate = actionInfo?.nextActionDate || null;
+                      
+                      return (
+                        <tr key={prospect.id} style={{borderBottom: '1px solid #eee', cursor: 'pointer'}} onClick={() => {
+                          onSelectProspect(prospect);
+                          onOpenDashboard();
+                        }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                        <td style={{padding: '10px'}}><strong>{prospect.name}</strong></td>
+                        <td style={{padding: '10px', textAlign: 'center'}}>
+                          <span style={{
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            color: (prospect.statut_societe === 'Client' ? '#12a0dc' : 
+                                   prospect.statut_societe === 'Prospect' ? '#ff9800' : '#999'),
+                            padding: '3px 8px',
+                            borderRadius: '3px',
+                            backgroundColor: (prospect.statut_societe === 'Client' ? '#e3f2fd' : 
+                                            prospect.statut_societe === 'Prospect' ? '#fff3e0' : '#f5f5f5')
+                          }}>
+                            {prospect.statut_societe || 'Prospect'}
+                          </span>
+                        </td>
+                        <td 
+                          style={{padding: '10px', position: 'relative'}}
+                          onMouseEnter={() => setHoveredProspect(prospect.id)}
+                          onMouseLeave={() => setHoveredProspect(null)}
+                        >
+                          {prospect.contact_name || '-'}
+                          {hoveredProspect === prospect.id && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '100%',
+                              left: '10px',
+                              backgroundColor: '#333',
+                              color: 'white',
+                              padding: '10px 15px',
+                              borderRadius: '6px',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                              zIndex: 1000,
+                              minWidth: '200px',
+                              fontSize: '13px',
+                              lineHeight: '1.6',
+                              marginTop: '5px'
+                            }}>
+                              <div style={{marginBottom: '5px'}}>
+                                <strong>Email:</strong> {prospect.email || 'Non renseigné'}
+                              </div>
+                              <div>
+                                <strong>Tél:</strong> {prospect.phone || 'Non renseigné'}
+                              </div>
+                              <div style={{
+                                position: 'absolute',
+                                top: '-6px',
+                                left: '20px',
+                                width: '0',
+                                height: '0',
+                                borderLeft: '6px solid transparent',
+                                borderRight: '6px solid transparent',
+                                borderBottom: '6px solid #333'
+                              }}></div>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{padding: '10px', textAlign: 'center'}}>{formatNumber(prospect.setup_amount || 0)}</td>
+                        <td style={{padding: '10px', textAlign: 'center'}}>{formatNumber(prospect.monthly_amount || 0)}</td>
+                        <td style={{padding: '10px', textAlign: 'center'}}>{formatNumber(prospect.annual_amount || 0)}</td>
+                        <td style={{padding: '10px', textAlign: 'center'}}>{formatNumber(prospect.training_amount || 0)}</td>
+                        <td style={{padding: '10px', textAlign: 'center'}}><span style={{color: getStatusColor(prospect.status), fontSize: '13px', fontWeight: 'bold'}}>{prospect.status}</span></td>
+                        <td style={{padding: '10px', textAlign: 'center', fontSize: '12px', color: '#666'}}>
+                          {(() => {
+                            let dateToDisplay = null;
+                            if (prospect.status === 'Devis' && prospect.quote_date) {
+                              dateToDisplay = prospect.quote_date;
+                            } else if (prospect.status === 'Prospection' && prospect.created_at) {
+                              dateToDisplay = prospect.created_at;
+                            } else if (prospect.status_date) {
+                              dateToDisplay = prospect.status_date;
+                            }
+                            return dateToDisplay ? new Date(dateToDisplay).toLocaleDateString('fr-FR') : '-';
+                          })()}
+                        </td>
+                        <td style={{padding: '10px', textAlign: 'center'}}>
+                          {prospect.chance_percent && prospect.chance_percent > 0 ? (
+                            <span style={{color: '#10a0dc', fontSize: '13px', fontWeight: 'bold'}}>{prospect.chance_percent}%</span>
+                          ) : (
+                            <span style={{color: '#ccc'}}>-</span>
+                          )}
+                        </td>
+                        <td style={{padding: '10px', textAlign: 'center'}} onClick={(e) => e.stopPropagation()}>
+                          {prospect.pdf_url && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch(`${API_URL}/prospects/${prospect.id}/download-pdf`, {
+                                    headers: { 'Authorization': `Bearer ${user.token}` }
+                                  });
+                                  if (res.ok) {
+                                    const blob = await res.blob();
+                                    const url = window.URL.createObjectURL(blob);
+                                    window.open(url, '_blank');
+                                  } else {
+                                    alert('Erreur: ' + (await res.text()));
+                                  }
+                                } catch (err) {
+                                  alert('Erreur: ' + err.message);
+                                }
+                              }}
+                              style={{
+                                backgroundColor: 'transparent',
+                                color: '#12a0dc',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '18px',
+                                padding: '0'
+                              }}
+                            >
+                              📄
+                            </button>
+                          )}
+                        </td>
+                        <td style={{padding: '10px', textAlign: 'center'}}>
+                          {prospectActionsInfo[prospect.id]?.hasAction ? (
+                            prospectActionsInfo[prospect.id]?.isLate ? (
+                              <span style={{
+                                color: '#e23b63',
+                                fontSize: '13px',
+                                fontWeight: 'bold'
+                              }}>
+                                ⚠️ Retard
+                              </span>
+                            ) : (
+                              <span style={{
+                                color: '#3cd6b9',
+                                fontSize: '13px',
+                                fontWeight: 'bold'
+                              }}>
+                                ✓ Planifiée
+                              </span>
+                            )
+                          ) : (
+                            <span style={{
+                              color: '#999',
+                              fontSize: '13px',
+                              fontWeight: 'bold'
+                            }}>
+                              - Aucune
+                            </span>
+                          )}
+                        </td>
+                        <td style={{padding: '10px', textAlign: 'center', fontSize: '12px', color: '#666'}}>
+                          {nextActionDate ? new Date(nextActionDate).toLocaleDateString('fr-FR') : '-'}
+                        </td>
+                      </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur }) {
+      const [newActivityType, setNewActivityType] = React.useState('Appel');
+      const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
+      const [newActivityDesc, setNewActivityDesc] = React.useState('');
+      const [newNextActionType, setNewNextActionType] = React.useState('');
+      const [newNextActionDate, setNewNextActionDate] = React.useState('');
+      const [newActivityActor, setNewActivityActor] = React.useState('');
+
+      const handleAddActivity = () => {
+        if (newActivityDesc.trim()) {
+          onAddActivity(selectedProspect.id, newActivityType, newActivityDesc);
+          setNewActivityDesc('');
+        }
+      };
+
+      if (showForm) {
+        return <ProspectForm formData={formData} onFormChange={onFormChange} onSave={onSave} onCancel={onCancel} selectedProspect={selectedProspect} user={user} API_URL={API_URL} interlocuteurs={interlocuteurs} showInterlocuteurForm={showInterlocuteurForm} setShowInterlocuteurForm={setShowInterlocuteurForm} interlocuteurForm={interlocuteurForm} setInterlocuteurForm={setInterlocuteurForm} handleSaveInterlocuteur={handleSaveInterlocuteur} handleDeleteInterlocuteur={handleDeleteInterlocuteur} />;
+      }
+
+      if (!selectedProspect) {
+        return <div style={styles.rightPanel}><p style={styles.emptyState}>Sélectionnez un prospect</p></div>;
+      }
+
+      const total = calculateTotal(selectedProspect);
+      const expectedValue = total * (selectedProspect.chance_percent / 100);
+
+      return (
+        <div style={styles.rightPanel}>
+          <div style={styles.prospectDetail}>
+            {/* Ligne principale: Nom + Statut Société + Statut Prospect + Boutons */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+              paddingBottom: '15px',
+              borderBottom: '2px solid #e0e0e0'
+            }}>
+              <div style={{flex: 1}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '8px'}}>
+                  <h2 style={{margin: 0, fontSize: '24px', fontWeight: 'bold'}}>{selectedProspect.name}</h2>
+                  <span style={{
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    color: selectedProspect.statut_societe === 'Client' ? '#12a0dc' : 
+                           selectedProspect.statut_societe === 'Prospect' ? '#ff9800' : '#999',
+                    padding: '4px 12px',
+                    borderRadius: '4px',
+                    backgroundColor: selectedProspect.statut_societe === 'Client' ? '#e3f2fd' : 
+                                    selectedProspect.statut_societe === 'Prospect' ? '#fff3e0' : '#f5f5f5'
+                  }}>
+                    {selectedProspect.statut_societe || 'Prospect'}
+                  </span>
+                  <span style={{fontSize: '15px', color: '#666'}}>
+                    Géré par <strong>{selectedProspect.assigned_to}</strong>
+                  </span>
+                </div>
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                  <span style={{fontSize: '15px', color: '#666'}}>Statut :</span>
+                  <span style={{
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    color: selectedProspect.status === 'Devis' ? '#12a0dc' : getStatusColor(selectedProspect.status)
+                  }}>
+                    {selectedProspect.status}
+                  </span>
+                  {selectedProspect.status === 'Devis' && selectedProspect.chance_percent && selectedProspect.chance_percent > 0 && (
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#12a0dc'}}>
+                      ({selectedProspect.chance_percent}%)
+                    </span>
+                  )}
+                  {selectedProspect.status === 'Devis' && selectedProspect.quote_date && (
+                    <span style={{fontSize: '13px', color: '#999'}}>
+                      depuis le {new Date(selectedProspect.quote_date).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{display: 'flex', gap: '10px'}}>
+                <button onClick={() => onEdit(selectedProspect)} style={styles.editBtn}>🏢 Information Société</button>
+                <button onClick={() => onDelete(selectedProspect.id)} style={styles.deleteBtn}>🗑️ Supprimer</button>
+              </div>
+            </div>
+
+            {/* Section Contacts */}
+            <div style={{marginBottom: '20px'}}>
+              <h3 style={{fontSize: '16px', color: '#666', marginBottom: '10px', fontWeight: 'bold'}}>Contacts :</h3>
+            {(() => {
+              const contactPrincipal = interlocuteurs.find(i => i.principal);
+              const decideur = interlocuteurs.find(i => i.decideur);
+              const isSamePerson = contactPrincipal && decideur && contactPrincipal.id === decideur.id;
+              
+              // Si c'est la même personne, afficher un seul bandeau avec les deux boutons
+              if (isSamePerson) {
+                return (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '15px',
+                    backgroundColor: '#e8f4f8',
+                    borderRadius: '8px',
+                    marginBottom: '15px',
+                    border: '2px solid #10a0dc'
+                  }}>
+                    <div style={{display: 'flex', gap: '8px', marginRight: '15px'}}>
+                      <button style={{
+                        backgroundColor: '#10a0dc',
+                        color: 'white',
+                        border: 'none',
+                        padding: '5px 10px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        cursor: 'default',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        ⭐ PRINCIPAL
+                      </button>
+                      <button style={{
+                        backgroundColor: '#d3a002',
+                        color: 'white',
+                        border: 'none',
+                        padding: '5px 10px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        cursor: 'default',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        👔 DÉCIDEUR
+                      </button>
+                    </div>
+                    <div style={{flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                      <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>
+                        {contactPrincipal.nom}
+                        {contactPrincipal.fonction && <span style={{fontSize: '14px', fontWeight: 'normal', color: '#666', marginLeft: '8px'}}>({contactPrincipal.fonction})</span>}
+                      </div>
+                      {contactPrincipal.telephone && (
+                        <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
+                          📞 {contactPrincipal.telephone}
+                        </div>
+                      )}
+                      {contactPrincipal.email && (
+                        <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
+                          ✉️ {contactPrincipal.email}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+              
+              // Sinon, afficher deux bandeaux séparés
+              return (
+                <>
+                  {/* Contact Principal */}
+                  {contactPrincipal ? (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '15px',
+                      backgroundColor: '#e8f4f8',
+                      borderRadius: '8px',
+                      marginBottom: '10px',
+                      border: '2px solid #10a0dc'
+                    }}>
+                      <button style={{
+                        backgroundColor: '#10a0dc',
+                        color: 'white',
+                        border: 'none',
+                        padding: '5px 10px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        marginRight: '15px',
+                        cursor: 'default',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        ⭐ PRINCIPAL
+                      </button>
+                      <div style={{flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>
+                          {contactPrincipal.nom}
+                          {contactPrincipal.fonction && <span style={{fontSize: '14px', fontWeight: 'normal', color: '#666', marginLeft: '8px'}}>({contactPrincipal.fonction})</span>}
+                        </div>
+                        {contactPrincipal.telephone && (
+                          <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
+                            📞 {contactPrincipal.telephone}
+                          </div>
+                        )}
+                        {contactPrincipal.email && (
+                          <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
+                            ✉️ {contactPrincipal.email}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: '15px',
+                      backgroundColor: '#f9f9f9',
+                      borderRadius: '8px',
+                      marginBottom: '10px',
+                      border: '1px dashed #ccc',
+                      textAlign: 'center',
+                      color: '#999'
+                    }}>
+                      Aucun contact principal défini
+                    </div>
+                  )}
+
+                  {/* Décideur */}
+                  {decideur ? (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '15px',
+                      backgroundColor: '#fef9e8',
+                      borderRadius: '8px',
+                      marginBottom: '15px',
+                      border: '2px solid #d3a002'
+                    }}>
+                      <button style={{
+                        backgroundColor: '#d3a002',
+                        color: 'white',
+                        border: 'none',
+                        padding: '5px 10px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        marginRight: '15px',
+                        cursor: 'default',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        👔 DÉCIDEUR
+                      </button>
+                      <div style={{flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>
+                          {decideur.nom}
+                          {decideur.fonction && <span style={{fontSize: '14px', fontWeight: 'normal', color: '#666', marginLeft: '8px'}}>({decideur.fonction})</span>}
+                        </div>
+                        {decideur.telephone && (
+                          <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
+                            📞 {decideur.telephone}
+                          </div>
+                        )}
+                        {decideur.email && (
+                          <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
+                            ✉️ {decideur.email}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: '15px',
+                      backgroundColor: '#f9f9f9',
+                      borderRadius: '8px',
+                      marginBottom: '15px',
+                      border: '1px dashed #ccc',
+                      textAlign: 'center',
+                      color: '#999'
+                    }}>
+                      Aucun décideur défini
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+            </div>
+
+            {(selectedProspect.adresse || selectedProspect.tel_standard) && (
+              <div style={{...styles.detailRowInline, fontSize: '15px', marginTop: '10px', marginBottom: '15px'}}>
+                {selectedProspect.adresse && <span><strong>Adresse:</strong> {selectedProspect.adresse}</span>}
+                {selectedProspect.tel_standard && <span><strong>Tél Standard:</strong> {selectedProspect.tel_standard}</span>}
+              </div>
+            )}
+
+            {selectedProspect.solutions_en_place && (
+              <div style={{marginTop: '15px', marginBottom: '15px', padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '6px', borderLeft: '4px solid #10a0dc'}}>
+                <strong style={{fontSize: '15px', color: '#333', display: 'block', marginBottom: '8px'}}>Solutions en place:</strong>
+                <div style={{fontSize: '14px', color: '#666', whiteSpace: 'pre-line'}}>
+                  {selectedProspect.solutions_en_place}
+                </div>
+              </div>
+            )}
+
+            <div style={styles.amountsGrid}>
+              <div style={styles.amountItem}>
+                <label style={styles.amountLabelSetup}>Setup</label>
+                <div style={styles.amountValue}>{formatCurrency(selectedProspect.setup_amount)}</div>
+              </div>
+              <div style={styles.amountItem}>
+                <label style={styles.amountLabelAbonnement}>Abonnement (mois)</label>
+                <div style={styles.amountValue}>{formatCurrency(selectedProspect.monthly_amount)}</div>
+              </div>
+              <div style={styles.amountItem}>
+                <label style={styles.amountLabelAnnual}>Abonnement (an)</label>
+                <div style={styles.amountValue}>{formatCurrency(selectedProspect.annual_amount)}</div>
+              </div>
+              <div style={styles.amountItem}>
+                <label style={styles.amountLabelFormation}>Formation</label>
+                <div style={styles.amountValue}>{formatCurrency(selectedProspect.training_amount)}</div>
+              </div>
+            </div>
+
+
+
+            <div style={{
+              padding: '15px 20px',
+              backgroundColor: '#f9f9f9',
+              borderRadius: '6px',
+              marginBottom: '15px',
+              marginLeft: '20px',
+              marginRight: '20px',
+              border: '1px solid #e0e0e0'
+            }}>
+              <div style={{fontSize: '18px', fontWeight: 'bold', color: '#333'}}>
+                <strong>Prochaine action:</strong> {
+                  (() => {
+                    const uncompletedActions = nextActions.filter(a => !a.completed);
+                    if (uncompletedActions.length === 0) return 'Aucune';
+                    const nextAction = uncompletedActions.sort((a, b) => new Date(a.planned_date) - new Date(b.planned_date))[0];
+                    return nextAction.action_type;
+                  })()
+                } - <strong>Date:</strong> {
+                  (() => {
+                    const uncompletedActions = nextActions.filter(a => !a.completed);
+                    if (uncompletedActions.length === 0) return '-';
+                    const nextAction = uncompletedActions.sort((a, b) => new Date(a.planned_date) - new Date(b.planned_date))[0];
+                    return new Date(nextAction.planned_date).toLocaleDateString();
+                  })()
+                }
+              </div>
+            </div>
+
+            {selectedProspect.pdf_url && (
+            <div style={{
+              backgroundColor: '#e8f4f8',
+              padding: '15px',
+              borderRadius: '4px',
+              marginBottom: '15px',
+              marginLeft: '20px',
+              marginRight: '20px',
+              border: '1px solid #b0dae6'
+            }}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+                <div style={{flex: 1}}>
+                  <div style={{marginBottom: '10px'}}>
+                    📄 <strong>Devis PDF</strong>
+                  </div>
+                  {selectedProspect.notes && (
+                    <div style={{
+                      marginTop: '10px',
+                      padding: '10px',
+                      backgroundColor: '#fff',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      color: '#666',
+                      whiteSpace: 'pre-line'
+                    }}>
+                      <strong style={{color: '#333'}}>Notes sur le Devis:</strong>
+                      <div style={{marginTop: '5px'}}>{selectedProspect.notes}</div>
+                    </div>
+                  )}
+                </div>
+                <div style={{display: 'flex', gap: '10px', marginLeft: '15px'}}>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/download-pdf`, {
+                          headers: { 'Authorization': `Bearer ${user.token}` }
+                        });
+                        if (res.ok) {
+                          const blob = await res.blob();
+                          const url = window.URL.createObjectURL(blob);
+                          window.open(url, '_blank');
+                        } else {
+                          alert('Erreur: ' + (await res.text()));
+                        }
+                      } catch (err) {
+                        alert('Erreur: ' + err.message);
+                      }
+                    }}
+                    style={{padding: '8px 12px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap'}}
+                  >
+                    👁️ Visionner
+                  </button>
+                  <button
+                    onClick={() => onEdit(selectedProspect)}
+                    style={{padding: '8px 12px', backgroundColor: '#ffc107', color: '#333', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap'}}
+                  >
+                    🗑️ Supprimer
+                  </button>
+                </div>
+              </div>
+            </div>
+            )}
+          </div>
+
+          <ActivitiesSection
+            nextActions={nextActions}
+            statusHistory={statusHistory}
+            onAddNextAction={onAddNextAction}
+            onToggleNextAction={onToggleNextAction}
+            onDeleteNextAction={onDeleteNextAction}
+            newActionType={newActionType}
+            onActionTypeChange={onActionTypeChange}
+            newActionDate={newActionDate}
+            onActionDateChange={onActionDateChange}
+            newActionActor={newActionActor}
+            onActionActorChange={onActionActorChange}
+            newActionContact={newActionContact}
+            onActionContactChange={onActionContactChange}
+            newActionComment={newActionComment}
+            onActionCommentChange={onActionCommentChange}
+            user={user}
+            API_URL={API_URL}
+            interlocuteurs={interlocuteurs}
+          />
+        </div>
+      );
+    }
+
+    function ProspectForm({ formData, onFormChange, onSave, onCancel, selectedProspect, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur }) {
+      const [pdfFile, setPdfFile] = React.useState(null);
+      const [isUploading, setIsUploading] = React.useState(false);
+
+      const handleChange = (field, value) => {
+        onFormChange({ ...formData, [field]: value });
+      };
+
+      const handleUploadPdf = async () => {
+        if (!pdfFile) {
+          alert('Sélectionnez un fichier PDF');
+          return;
+        }
+
+        setIsUploading(true);
+        const data = new FormData();
+        data.append('pdf', pdfFile);
+
+        try {
+          const res = await fetch(`${API_URL}/prospects/${formData.id}/upload-pdf`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${user.token}` },
+            body: data
+          });
+
+          const result = await res.json();
+          if (res.ok) {
+            handleChange('pdf_url', result.pdf_url);
+            setPdfFile(null);
+            alert('✅ PDF uploadé !');
+          } else {
+            alert('Erreur: ' + result.error);
+          }
+        } catch (err) {
+          alert('Erreur upload: ' + err.message);
+        } finally {
+          setIsUploading(false);
+        }
+      };
+
+      const handleDeletePdf = async () => {
+        if (!window.confirm('Supprimer le PDF ?')) return;
+
+        try {
+          const res = await fetch(`${API_URL}/prospects/${formData.id}/pdf`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+
+          if (res.ok) {
+            handleChange('pdf_url', null);
+            alert('✅ PDF supprimé !');
+          } else {
+            alert('Erreur suppression');
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const total = calculateTotal(formData);
+
+      return (
+        <div style={styles.rightPanel}>
+          <div style={styles.formContainer}>
+            <h2>{formData.id ? 'Informations Société' : 'Nouvelle Société'}</h2>
+            
+            <div style={styles.formSection}>
+              <h3>Informations générales</h3>
+              <div style={styles.formGrid}>
+                <input
+                  type="text"
+                  placeholder="Nom de la société"
+                  value={formData.name}
+                  onChange={(e) => handleChange('name', e.target.value)}
+                  style={styles.formInput}
+                />
+                <select
+                  value={formData.statut_societe || ''}
+                  onChange={(e) => handleChange('statut_societe', e.target.value)}
+                  style={styles.formInput}
+                >
+                  <option value="">-- Type Société --</option>
+                  <option value="Suspect">Suspect</option>
+                  <option value="Prospect">Prospect</option>
+                  <option value="Client">Client</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Adresse de la société"
+                  value={formData.adresse}
+                  onChange={(e) => handleChange('adresse', e.target.value)}
+                  style={styles.formInput}
+                />
+                <input
+                  type="text"
+                  placeholder="Site Web"
+                  value={formData.website || ''}
+                  onChange={(e) => handleChange('website', e.target.value)}
+                  style={styles.formInput}
+                />
+                <input
+                  type="text"
+                  placeholder="Tél Standard"
+                  value={formData.tel_standard}
+                  onChange={(e) => handleChange('tel_standard', e.target.value)}
+                  style={styles.formInput}
+                />
+                <select
+                  value={formData.assigned_to}
+                  onChange={(e) => handleChange('assigned_to', e.target.value)}
+                  style={styles.formInput}
+                >
+                  <option value="">-- Sélectionne un commercial --</option>
+                  <option>Roger</option>
+                  <option>Christian</option>
+                  <option>Frédéric</option>
+                </select>
+                <textarea
+                  placeholder="Solutions en place (une par ligne: FastMag, Shopify, Sage...)"
+                  value={formData.solutions_en_place}
+                  onChange={(e) => handleChange('solutions_en_place', e.target.value)}
+                  style={{...styles.formInput, minHeight: '80px', resize: 'vertical', fontFamily: 'inherit'}}
+                />
+              </div>
+            </div>
+
+            {/* Section Interlocuteurs - Uniquement en mode édition */}
+            {selectedProspect && selectedProspect.id && (
+              <div style={styles.formSection}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
+                  <h3>👥 Interlocuteurs</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInterlocuteurForm({
+                        id: null,
+                        nom: '',
+                        fonction: '',
+                        email: '',
+                        telephone: '',
+                        principal: false,
+                        decideur: false
+                      });
+                      setShowInterlocuteurForm(true);
+                    }}
+                    style={{
+                      backgroundColor: '#10a0dc',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    + Ajouter un interlocuteur
+                  </button>
+                </div>
+
+                {/* Formulaire d'ajout/édition d'interlocuteur */}
+                {showInterlocuteurForm && (
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f9f9f9',
+                    borderRadius: '8px',
+                    marginBottom: '15px',
+                    border: '2px solid #10a0dc'
+                  }}>
+                    <h4 style={{marginTop: 0, color: '#10a0dc'}}>
+                      {interlocuteurForm.id ? 'Modifier l\'interlocuteur' : 'Nouvel interlocuteur'}
+                    </h4>
+                    <div style={{display: 'grid', gap: '12px'}}>
+                      <input
+                        type="text"
+                        placeholder="Nom *"
+                        value={interlocuteurForm.nom}
+                        onChange={(e) => setInterlocuteurForm({...interlocuteurForm, nom: e.target.value})}
+                        style={{...styles.formInput, fontSize: '14px'}}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Fonction"
+                        value={interlocuteurForm.fonction}
+                        onChange={(e) => setInterlocuteurForm({...interlocuteurForm, fonction: e.target.value})}
+                        style={{...styles.formInput, fontSize: '14px'}}
+                      />
+                      <input
+                        type="email"
+                        placeholder="Email"
+                        value={interlocuteurForm.email}
+                        onChange={(e) => setInterlocuteurForm({...interlocuteurForm, email: e.target.value})}
+                        style={{...styles.formInput, fontSize: '14px'}}
+                      />
+                      <input
+                        type="tel"
+                        placeholder="Téléphone"
+                        value={interlocuteurForm.telephone}
+                        onChange={(e) => setInterlocuteurForm({...interlocuteurForm, telephone: e.target.value})}
+                        style={{...styles.formInput, fontSize: '14px'}}
+                      />
+                      <div style={{display: 'flex', gap: '20px'}}>
+                        <label style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px'}}>
+                          <input
+                            type="checkbox"
+                            checked={interlocuteurForm.principal}
+                            onChange={(e) => setInterlocuteurForm({...interlocuteurForm, principal: e.target.checked})}
+                          />
+                          <strong>Contact principal</strong>
+                        </label>
+                        <label style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px'}}>
+                          <input
+                            type="checkbox"
+                            checked={interlocuteurForm.decideur}
+                            onChange={(e) => setInterlocuteurForm({...interlocuteurForm, decideur: e.target.checked})}
+                          />
+                          <strong>Décideur</strong>
+                        </label>
+                      </div>
+                    </div>
+                    <div style={{display: 'flex', gap: '10px', marginTop: '15px'}}>
+                      <button
+                        type="button"
+                        onClick={handleSaveInterlocuteur}
+                        style={{
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          padding: '10px 20px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        {interlocuteurForm.id ? 'Modifier' : 'Ajouter'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowInterlocuteurForm(false)}
+                        style={{
+                          backgroundColor: '#999',
+                          color: 'white',
+                          border: 'none',
+                          padding: '10px 20px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Liste des interlocuteurs */}
+                <div style={{display: 'grid', gap: '10px'}}>
+                  {interlocuteurs.length === 0 ? (
+                    <div style={{padding: '20px', textAlign: 'center', color: '#999', fontSize: '14px', backgroundColor: '#f9f9f9', borderRadius: '6px'}}>
+                      Aucun interlocuteur enregistré
+                    </div>
+                  ) : (
+                    interlocuteurs.map(interlocuteur => (
+                      <div
+                        key={interlocuteur.id}
+                        style={{
+                          padding: '15px',
+                          backgroundColor: interlocuteur.principal ? '#e8f4f8' : 'white',
+                          border: interlocuteur.principal ? '2px solid #10a0dc' : '1px solid #ddd',
+                          borderRadius: '8px',
+                          position: 'relative'
+                        }}
+                      >
+                        <div style={{display: 'flex', gap: '6px', position: 'absolute', top: '10px', right: '10px'}}>
+                          {interlocuteur.principal && (
+                            <div style={{
+                              backgroundColor: '#10a0dc',
+                              color: 'white',
+                              padding: '4px 10px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 'bold'
+                            }}>
+                              ⭐ PRINCIPAL
+                            </div>
+                          )}
+                          {interlocuteur.decideur && (
+                            <div style={{
+                              backgroundColor: '#d3a002',
+                              color: 'white',
+                              padding: '4px 10px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 'bold'
+                            }}>
+                              👔 DÉCIDEUR
+                            </div>
+                          )}
+                        </div>
+                        <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333', marginBottom: '8px', paddingRight: '140px'}}>
+                          {interlocuteur.nom}
+                        </div>
+                        {interlocuteur.fonction && (
+                          <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>
+                            <strong>Fonction:</strong> {interlocuteur.fonction}
+                          </div>
+                        )}
+                        {interlocuteur.email && (
+                          <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>
+                            <strong>Email:</strong> {interlocuteur.email}
+                          </div>
+                        )}
+                        {interlocuteur.telephone && (
+                          <div style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>
+                            <strong>Tél:</strong> {interlocuteur.telephone}
+                          </div>
+                        )}
+                        <div style={{display: 'flex', gap: '10px', marginTop: '10px'}}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setInterlocuteurForm({
+                                id: interlocuteur.id,
+                                nom: interlocuteur.nom,
+                                fonction: interlocuteur.fonction || '',
+                                email: interlocuteur.email || '',
+                                telephone: interlocuteur.telephone || '',
+                                principal: interlocuteur.principal || false,
+                                decideur: interlocuteur.decideur || false
+                              });
+                              setShowInterlocuteurForm(true);
+                            }}
+                            style={{
+                              backgroundColor: '#10a0dc',
+                              color: 'white',
+                              border: 'none',
+                              padding: '6px 12px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px'
+                            }}
+                          >
+                            ✏️ Modifier
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteInterlocuteur(interlocuteur.id)}
+                            style={{
+                              backgroundColor: '#e23b63',
+                              color: 'white',
+                              border: 'none',
+                              padding: '6px 12px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px'
+                            }}
+                          >
+                            🗑️ Supprimer
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Section Interlocuteurs - Information en mode création */}
+            {(!selectedProspect || !selectedProspect.id) && (
+              <div style={styles.formSection}>
+                <h3>👥 Interlocuteurs</h3>
+                <div style={{
+                  padding: '20px',
+                  backgroundColor: '#fff3cd',
+                  borderRadius: '8px',
+                  border: '1px solid #ffc107',
+                  color: '#856404'
+                }}>
+                  <p style={{margin: 0, fontSize: '14px'}}>
+                    ℹ️ <strong>Les interlocuteurs pourront être ajoutés après la création de l'entreprise.</strong>
+                  </p>
+                  <p style={{margin: '8px 0 0 0', fontSize: '13px', color: '#666'}}>
+                    Cliquez sur "Enregistrer" puis sur "🏢 Information Société" pour ajouter des interlocuteurs.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {['Devis', 'Démo', 'Négociation', 'Signé', 'Perdu'].includes(formData.status) && (
+            <div style={styles.formSection}>
+              <h3>Montants et Probabilité</h3>
+              <div style={styles.montantsWithChanceContainer}>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelSetup}>Setup</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={formData.setup_amount}
+                    onChange={(e) => handleChange('setup_amount', parseFloat(e.target.value) || 0)}
+                    style={styles.formInput}
+                  />
+                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.setup_amount) || 0)}</div>
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelAbonnement}>Abonnement (mensuel)</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={formData.monthly_amount}
+                    onChange={(e) => handleChange('monthly_amount', parseFloat(e.target.value) || 0)}
+                    style={styles.formInput}
+                  />
+                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.monthly_amount) || 0)}</div>
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelAnnual}>Abonnement (annuel)</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={formData.annual_amount}
+                    onChange={(e) => handleChange('annual_amount', parseFloat(e.target.value) || 0)}
+                    style={styles.formInput}
+                  />
+                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.annual_amount) || 0)}</div>
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelFormation}>Formation</label>
+                  <input
+                    type="text"
+                    placeholder="0"
+                    value={formatNumber(Number(formData.training_amount) || 0)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\s/g, '');
+                      handleChange('training_amount', parseFloat(val) || 0);
+                    }}
+                    style={styles.formInput}
+                  />
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelMontant}>Probabilité</label>
+                  <select
+                    value={formData.chance_percent}
+                    onChange={(e) => handleChange('chance_percent', parseInt(e.target.value) || 0)}
+                    style={styles.formInput}
+                  >
+                    <option value="0">0%</option>
+                    <option value="20">20%</option>
+                    <option value="40">40%</option>
+                    <option value="60">60%</option>
+                    <option value="80">80%</option>
+                    <option value="100">100%</option>
+                  </select>
+                </div>
+                <div style={styles.montantItem}>
+                  <label style={styles.labelMontant}>Date du Devis</label>
+                  <input
+                    type="date"
+                    value={formData.quote_date}
+                    onChange={(e) => handleChange('quote_date', e.target.value)}
+                    style={styles.formInput}
+                  />
+                </div>
+              </div>
+              <div style={styles.totalCalc}>
+                <strong>Total: {formatCurrency(total)}</strong>
+              </div>
+            </div>
+            )}
+
+            {['Devis', 'Démo', 'Négociation', 'Signé'].includes(formData.status) && (
+            <div style={styles.formSection}>
+              <h3>Devis PDF</h3>
+              
+              {formData.pdf_url ? (
+                <div style={{backgroundColor: '#e8f4f8', padding: '15px', borderRadius: '4px', marginBottom: '15px'}}>
+                  <div style={{marginBottom: '10px'}}>
+                    ✅ <strong>PDF uploadé</strong>
+                  </div>
+                  <div style={{display: 'flex', gap: '10px'}}>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${API_URL}/prospects/${formData.id}/download-pdf`, {
+                            headers: { 'Authorization': `Bearer ${user.token}` }
+                          });
+                          if (res.ok) {
+                            const blob = await res.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            window.open(url, '_blank');
+                          } else {
+                            alert('Erreur: ' + (await res.text()));
+                          }
+                        } catch (err) {
+                          alert('Erreur: ' + err.message);
+                        }
+                      }}
+                      style={{padding: '8px 12px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
+                    >
+                      👁️ Visionner
+                    </button>
+                    <button
+                      onClick={handleDeletePdf}
+                      style={{padding: '8px 12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
+                    >
+                      🗑️ Supprimer
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px'}}>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={(e) => setPdfFile(e.target.files[0])}
+                    style={{flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
+                  />
+                  <button
+                    onClick={() => {
+                      if (!formData.id) {
+                        alert('Créez le prospect d\'abord (Enregistrer / Activités)');
+                        return;
+                      }
+                      handleUploadPdf();
+                    }}
+                    disabled={isUploading || !pdfFile}
+                    style={{padding: '8px 15px', backgroundColor: '#10a0dc', color: 'white', border: 'none', borderRadius: '4px', cursor: pdfFile && formData.id ? 'pointer' : 'not-allowed', fontWeight: 'bold', opacity: (isUploading || !pdfFile) ? 0.5 : 1}}
+                  >
+                    {isUploading ? '⏳ Upload...' : '📤 Upload PDF'}
+                  </button>
+                </div>
+              )}
+            </div>
+            )}
+
+            {/* Section Statut et Notes - Uniquement en mode édition */}
+            {selectedProspect && selectedProspect.id && (
+            <div style={styles.formSection}>
+              <h3>Statut</h3>
+              
+              {selectedProspect && selectedProspect.id && (
+                <div style={styles.oldStatusBox}>
+                  <div style={styles.oldStatusLabel}>Ancien statut</div>
+                  <div style={styles.oldStatusValue}>{selectedProspect.status}</div>
+                  {selectedProspect.status_date && (
+                    <div style={{...styles.oldStatusLabel, marginTop: '5px', fontWeight: 'normal', color: '#999'}}>
+                      depuis le {new Date(selectedProspect.status_date).toLocaleDateString()}
+                    </div>
+                  )}
+                  {selectedProspect.notes && (
+                    <>
+                      <div style={{...styles.oldStatusLabel, marginTop: '10px'}}>Notes associées</div>
+                      <div style={styles.oldStatusNotes}>{selectedProspect.notes}</div>
+                    </>
+                  )}
+                </div>
+              )}
+              
+              <div style={styles.formGrid}>
+                <select
+                  value={formData.status}
+                  onChange={(e) => handleChange('status', e.target.value)}
+                  style={styles.formInput}
+                  key={formData.id || 'new'}
+                >
+                  <option>Prospection</option>
+                  <option>Devis</option>
+                  <option>Démo</option>
+                  <option>Négociation</option>
+                  <option>Signé</option>
+                  <option>Perdu</option>
+                </select>
+              </div>
+              
+              <textarea
+                placeholder="Notes"
+                value={formData.notes}
+                onChange={(e) => handleChange('notes', e.target.value)}
+                style={{padding: '10px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px', marginTop: '10px', width: 'calc(100% - 40px)', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: '14px'}}
+              />
+            </div>
+            )}
+
+            <div style={styles.formActions}>
+              <button onClick={onSave} style={styles.saveBtn}>Enregistrer / Activités</button>
+              <button onClick={onCancel} style={styles.cancelBtn}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs }) {
+      const [actionNotes, setActionNotes] = React.useState({});
+      const [showCompletedActions, setShowCompletedActions] = React.useState(false);
+      
+      // Initialiser les notes avec les completed_note existantes
+      React.useEffect(() => {
+        const initialNotes = {};
+        nextActions.forEach(action => {
+          if (action.completed_note && !actionNotes[action.id]) {
+            initialNotes[action.id] = action.completed_note;
+          }
+        });
+        if (Object.keys(initialNotes).length > 0) {
+          setActionNotes(prev => ({...prev, ...initialNotes}));
+        }
+      }, [nextActions]);
+      
+      return (
+        <div style={styles.activitiesSection}>
+          <h3>📋 Suivi des activités</h3>
+          
+          {/* Historique des statuts */}
+          {statusHistory.length > 0 && (
+            <div style={styles.statusHistoryBox}>
+              <h4 style={{marginTop: 0}}>Historique des statuts</h4>
+              {statusHistory.map((history, idx) => (
+                <div key={idx} style={styles.historyItem}>
+                  <span style={{fontWeight: 'bold', color: '#333'}}>{history.old_status}</span>
+                  <span style={{margin: '0 8px', color: '#999'}}>→</span>
+                  <span style={{fontWeight: 'bold', color: '#0066cc'}}>{history.new_status}</span>
+                  <span style={{fontSize: '12px', color: '#999', marginLeft: '10px'}}>
+                    {new Date(history.status_date).toLocaleDateString()}
+                  </span>
+                  {history.notes && <div style={{fontSize: '12px', color: '#666', marginTop: '5px'}}>📝 {history.notes}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Next Actions complétées et en cours */}
+          {nextActions.length > 0 && (
+            <div style={styles.nextActionsListBox}>
+              <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px'}}>
+                <h4 style={{margin: 0}}>Actions</h4>
+                {nextActions.some(a => a.completed) && (
+                  <button
+                    onClick={() => setShowCompletedActions(!showCompletedActions)}
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: '11px',
+                      backgroundColor: showCompletedActions ? '#6c757d' : '#10a0dc',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {showCompletedActions ? '▼ Masquer cochées' : '▶ Afficher cochées'} ({nextActions.filter(a => a.completed).length})
+                  </button>
+                )}
+              </div>
+              {nextActions.filter(action => !action.completed || showCompletedActions).map((action) => (
+                <div key={action.id} style={{...styles.nextActionItem, opacity: action.completed ? 0.6 : 1}}>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px'}}>
+                    <div style={{display: 'flex', gap: '10px', alignItems: 'flex-start', flex: 1}}>
+                      <input 
+                        type="checkbox" 
+                        checked={action.completed}
+                        onChange={() => {
+                          if (!action.completed) {
+                            onToggleNextAction(action.id, action.completed, actionNotes[action.id] || '');
+                          }
+                        }}
+                        disabled={action.completed}
+                        style={{cursor: action.completed ? 'not-allowed' : 'pointer', marginTop: '2px', flexShrink: 0, opacity: action.completed ? 0.5 : 1}}
+                      />
+                      <span style={{textDecoration: action.completed ? 'line-through' : 'none'}}>
+                        <strong>{action.action_type}</strong> | {new Date(action.planned_date).toLocaleDateString()} | {action.actor}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        // Sauvegarder juste le commentaire sans marquer comme complétée
+                        fetch(`${API_URL}/next_actions/${action.id}`, {
+                          method: 'PUT',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${user.token}`
+                          },
+                          body: JSON.stringify({ saveNotesOnly: true, completed_notes: actionNotes[action.id] || '' })
+                        }).then(() => {
+                          alert('✅ Commentaire sauvegardé!');
+                        });
+                      }}
+                      style={{padding: '4px 8px', fontSize: '12px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, display: action.completed ? 'none' : 'block', marginLeft: '10px'}}
+                    >
+                      💾 Sauvegarder
+                    </button>
+                    <button 
+                      onClick={() => onDeleteNextAction(action.id)}
+                      style={{padding: '4px 8px', fontSize: '12px', backgroundColor: '#ff6666', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', flexShrink: 0}}
+                    >
+                      ✕ Supprimer
+                    </button>
+                  </div>
+                  
+                  <textarea
+                    placeholder="Commentaire (optionnel)..."
+                    value={actionNotes[action.id] || ''}
+                    onChange={(e) => setActionNotes({...actionNotes, [action.id]: e.target.value})}
+                    style={{display: action.completed ? 'none' : 'block', padding: '11px 12px', border: '1px solid #d0d0d0', borderRadius: '6px', minHeight: '60px', fontFamily: 'inherit', fontSize: '13px', lineHeight: '1.5', marginLeft: '24px', marginTop: '8px', marginBottom: '8px', width: 'calc(100% - 48px)', boxSizing: 'border-box', resize: 'none', outline: 'none'}}
+                  />
+                  
+                  <div style={{fontSize: '12px', color: '#28a745', marginLeft: '24px', marginTop: '8px', display: action.completed && action.completed_date ? 'block' : 'none'}}>
+                    ✓ Fait le {action.completed_date && new Date(action.completed_date).toLocaleDateString()}
+                  </div>
+                  
+                  {action.completed_note && (
+                    <div style={{fontSize: '14px', color: '#1a3a52', marginLeft: '24px', marginTop: '8px', backgroundColor: '#d4e6f1', padding: '10px 12px', borderRadius: '6px', borderLeft: '4px solid #0088cc'}}>
+                      💬 {action.completed_note}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Formulaire pour ajouter une nouvelle action */}
+          <div style={styles.activityForm}>
+            <h4>Ajouter une action</h4>
+            <div style={styles.activityRow}>
+              <select value={newActionType} onChange={(e) => onActionTypeChange(e.target.value)} style={{...styles.activitySelect, flex: 1}}>
+                <option>Appel</option>
+                <option>Relance</option>
+                <option>Email</option>
+                <option>Point technique</option>
+                <option>Démo</option>
+                <option>Négociation</option>
+                <option>Signature</option>
+              </select>
+              <input
+                type="date"
+                value={newActionDate}
+                onChange={(e) => onActionDateChange(e.target.value)}
+                style={{...styles.activitySelect, flex: 1}}
+              />
+              <select value={newActionActor} onChange={(e) => onActionActorChange(e.target.value)} style={{...styles.activitySelect, flex: 1}}>
+                <option value="">-- De (Acteur) --</option>
+                <option>Roger</option>
+                <option>Christian</option>
+                <option>Frédéric</option>
+                <option>Claude</option>
+              </select>
+              <select value={newActionContact} onChange={(e) => onActionContactChange(e.target.value)} style={{...styles.activitySelect, flex: 1}}>
+                <option value="">-- À (Contact) --</option>
+                {interlocuteurs && interlocuteurs.length > 0 ? (
+                  interlocuteurs.map(interlocuteur => (
+                    <option key={interlocuteur.id} value={interlocuteur.nom}>
+                      {interlocuteur.nom} {interlocuteur.fonction && `(${interlocuteur.fonction})`}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>Aucun contact disponible</option>
+                )}
+              </select>
+            </div>
+            <textarea
+              placeholder="Commentaire (optionnel)..."
+              value={newActionComment}
+              onChange={(e) => onActionCommentChange(e.target.value)}
+              style={{padding: '11px 12px', border: '1px solid #d0d0d0', borderRadius: '6px', minHeight: '50px', fontFamily: 'inherit', fontSize: '13px', lineHeight: '1.5', marginTop: '8px', width: '100%', boxSizing: 'border-box', resize: 'none'}}
+            />
+            <div style={{display: 'flex', gap: '10px', marginTop: '10px'}}>
+              <button onClick={() => {
+                if (!newActionActor.trim()) {
+                  alert('Veuillez sélectionner un acteur (De)');
+                  return;
+                }
+                if (!newActionContact.trim()) {
+                  alert('Veuillez sélectionner un contact (À)');
+                  return;
+                }
+                onAddNextAction();
+                onActionCommentChange('');
+              }} style={{...styles.activityBtn, width: '100%'}}>Ajouter</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    
+    // ================== STYLES ==================
+
+    const styles = {
+      container: {
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        backgroundColor: '#f5f5f5'
+      },
+      header: {
+        backgroundColor: '#002147',
+        color: 'white',
+        padding: '20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+      },
+      headerLeft: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '30px'
+      },
+      cumulBox: {
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        padding: '12px 20px',
+        borderRadius: '8px',
+        borderLeft: '4px solid #00d4ff'
+      },
+      cumulLabel: {
+        fontSize: '12px',
+        color: '#b0d4ff',
+        fontWeight: '500',
+        marginBottom: '5px'
+      },
+      cumulAmount: {
+        fontSize: '24px',
+        fontWeight: 'bold',
+        color: '#00ff88'
+      },
+      headerSubtitle: {
+        fontSize: '13px',
+        color: '#b0d4ff',
+        marginTop: '5px',
+        fontWeight: '500'
+      },
+      userInfo: {
+        display: 'flex',
+        gap: '15px',
+        alignItems: 'center'
+      },
+      logoutBtn: {
+        padding: '8px 15px',
+        backgroundColor: '#d9534f',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontSize: '14px'
+      },
+      dashboardBtn: {
+        padding: '8px 15px',
+        backgroundColor: '#f0f0f0',
+        color: '#333',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontSize: '14px',
+        fontWeight: 'bold'
+      },
+      settingsBtn: {
+        padding: '8px 15px',
+        backgroundColor: '#fff3cd',
+        color: '#333',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontSize: '14px',
+        fontWeight: 'bold'
+      },
+      content: {
+        display: 'flex',
+        flex: 1,
+        gap: '0',
+        overflow: 'hidden'
+      },
+      leftPanel: {
+        width: '350px',
+        backgroundColor: 'white',
+        borderRight: '1px solid #ddd',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      },
+      rightPanel: {
+        flex: 1,
+        backgroundColor: '#f9f9f9',
+        overflowY: 'auto'
+      },
+      newBtn: {
+        margin: '15px',
+        padding: '12px 15px',
+        backgroundColor: '#10a0dc',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        fontSize: '14px'
+      },
+      searchInput: {
+        margin: '0 15px 15px 15px',
+        padding: '10px',
+        border: '1px solid #ddd',
+        borderRadius: '4px',
+        width: 'calc(100% - 30px)',
+        boxSizing: 'border-box'
+      },
+      filterContainer: {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '5px',
+        padding: '0 15px 15px 15px',
+        borderBottom: '1px solid #eee'
+      },
+      filterBtn: {
+        padding: '6px 12px',
+        backgroundColor: '#f0f0f0',
+        border: '1px solid #ddd',
+        borderRadius: '20px',
+        cursor: 'pointer',
+        fontSize: '12px',
+        transition: 'all 0.2s'
+      },
+      filterBtnActive: {
+        backgroundColor: '#002147',
+        color: 'white',
+        borderColor: '#002147'
+      },
+      prospectsList: {
+        flex: 1,
+        overflowY: 'auto',
+        paddingBottom: '15px'
+      },
+      prospectItem: {
+        padding: '15px',
+        borderBottom: '1px solid #eee',
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+        borderLeft: '3px solid transparent'
+      },
+      prospectItemActive: {
+        backgroundColor: '#e8f4f8',
+        borderLeftColor: '#002147'
+      },
+      prospectName: {
+        fontWeight: 'bold',
+        fontSize: '15px',
+        marginBottom: '4px'
+      },
+      prospectSubtitle: {
+        fontSize: '12px',
+        color: '#666',
+        marginBottom: '4px'
+      },
+      prospectStatus: {
+        fontSize: '11px',
+        fontWeight: 'bold',
+        color: '#0066cc',
+        marginBottom: '4px'
+      },
+      prospectStatusRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '4px'
+      },
+      prospectQuoteDate: {
+        fontSize: '10px',
+        color: '#666',
+        fontStyle: 'italic'
+      },
+      prospectAmount: {
+        fontSize: '13px',
+        fontWeight: 'bold',
+        color: '#002147'
+      },
+      prospectDetail: {
+        padding: '20px'
+      },
+      detailHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '20px',
+        borderBottom: '2px solid #ddd',
+        paddingBottom: '15px'
+      },
+      detailActions: {
+        display: 'flex',
+        gap: '10px'
+      },
+      editBtn: {
+        padding: '8px 12px',
+        backgroundColor: '#17a2b8',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontSize: '13px'
+      },
+      deleteBtn: {
+        padding: '8px 12px',
+        backgroundColor: '#dc3545',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontSize: '13px'
+      },
+      detailRow: {
+        display: 'flex',
+        gap: '20px',
+        marginBottom: '15px'
+      },
+      detailRowInline: {
+        display: 'flex',
+        gap: '80px',
+        marginBottom: '15px',
+        fontSize: '15px',
+        flexWrap: 'nowrap'
+      },
+      detailItemHalf: {
+        flex: 1
+      },
+      detailItemThird: {
+        flex: 1
+      },
+      detailGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: '15px',
+        marginBottom: '20px'
+      },
+      detailItem: {
+        backgroundColor: 'white',
+        padding: '12px',
+        borderRadius: '4px',
+        borderLeft: '3px solid #002147'
+      },
+      amountsGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: '12px',
+        marginBottom: '20px'
+      },
+      amountItem: {
+        backgroundColor: 'white',
+        padding: '12px',
+        borderRadius: '4px',
+        textAlign: 'center',
+        borderTop: '3px solid #28a745'
+      },
+      amountLabelSetup: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '14px',
+        color: '#000000'
+      },
+      amountLabelAbonnement: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '14px',
+        color: '#10a0dc'
+      },
+      amountLabelFormation: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '14px',
+        color: '#ff9500'
+      },
+      amountLabelAnnual: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '14px',
+        color: '#28a745'
+      },
+      amountValue: {
+        fontSize: '16px',
+        fontWeight: 'bold',
+        color: '#002147'
+      },
+      summaryBox: {
+        backgroundColor: '#e8f4f8',
+        padding: '15px',
+        borderRadius: '4px',
+        marginBottom: '20px',
+        display: 'flex',
+        gap: '20px',
+        borderLeft: '4px solid #002147'
+      },
+      otherDetails: {
+        backgroundColor: 'white',
+        padding: '15px',
+        borderRadius: '4px',
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gap: '10px',
+        fontSize: '13px',
+        marginBottom: '20px'
+      },
+      activitiesSection: {
+        padding: '20px',
+        backgroundColor: 'white',
+        borderTop: '1px solid #ddd'
+      },
+      statusHistoryBox: {
+        backgroundColor: '#f9f9f9',
+        padding: '12px',
+        borderRadius: '6px',
+        marginBottom: '15px',
+        border: '1px solid #eee'
+      },
+      nextActionsListBox: {
+        backgroundColor: '#f9f9f9',
+        padding: '12px',
+        borderRadius: '6px',
+        marginBottom: '15px',
+        border: '1px solid #eee'
+      },
+      nextActionItem: {
+        padding: '10px',
+        marginBottom: '8px',
+        backgroundColor: 'white',
+        borderRadius: '4px',
+        border: '1px solid #ddd'
+      },
+      historyItem: {
+        padding: '8px',
+        marginBottom: '8px',
+        backgroundColor: 'white',
+        borderRadius: '4px',
+        fontSize: '13px',
+        border: '1px solid #ddd'
+      },
+      activityForm: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+        marginBottom: '20px'
+      },
+      activityRow: {
+        display: 'flex',
+        gap: '10px'
+      },
+      activitySelect: {
+        padding: '10px 12px',
+        border: '1px solid #d0d0d0',
+        borderRadius: '6px',
+        fontSize: '13px',
+        fontFamily: 'inherit',
+        backgroundColor: 'white',
+        cursor: 'pointer',
+        transition: 'border-color 0.2s',
+        maxWidth: '200px',
+        flex: '1'
+      },
+      activityInput: {
+        padding: '11px 12px',
+        border: '1px solid #d0d0d0',
+        borderRadius: '6px',
+        minHeight: '80px',
+        fontFamily: 'inherit',
+        fontSize: '13px',
+        lineHeight: '1.5',
+        resize: 'none',
+        transition: 'border-color 0.2s',
+        maxWidth: '600px'
+      },
+      activityBtn: {
+        padding: '11px 16px',
+        backgroundColor: '#10a0dc',
+        color: 'white',
+        border: 'none',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '13px',
+        transition: 'background-color 0.2s, box-shadow 0.2s',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+      },
+      activitiesList: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px'
+      },
+      activityItem: {
+        backgroundColor: '#f5f5f5',
+        padding: '12px',
+        borderRadius: '4px',
+        borderLeft: '3px solid #0066cc'
+      },
+      activityHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        marginBottom: '5px',
+        fontSize: '12px'
+      },
+      activityType: {
+        fontWeight: 'bold',
+        color: '#0066cc'
+      },
+      activityDate: {
+        color: '#999',
+        fontSize: '11px'
+      },
+      activityDesc: {
+        fontSize: '13px',
+        marginBottom: '5px',
+        lineHeight: '1.4'
+      },
+      activityBy: {
+        fontSize: '11px',
+        color: '#999',
+        fontStyle: 'italic'
+      },
+      formContainer: {
+        padding: '20px',
+        margin: '0 auto'
+      },
+      oldStatusBox: {
+        backgroundColor: '#f5f5f5',
+        padding: '12px',
+        borderRadius: '6px',
+        marginBottom: '15px',
+        border: '1px solid #ddd'
+      },
+      oldStatusLabel: {
+        fontSize: '12px',
+        fontWeight: 'bold',
+        color: '#666',
+        marginBottom: '5px'
+      },
+      oldStatusValue: {
+        fontSize: '14px',
+        color: '#333',
+        fontWeight: 'bold'
+      },
+      oldStatusNotes: {
+        fontSize: '13px',
+        color: '#555',
+        lineHeight: '1.5',
+        padding: '8px',
+        backgroundColor: 'white',
+        borderRadius: '4px',
+        borderLeft: '3px solid #ddd'
+      },
+      formSection: {
+        marginBottom: '25px'
+      },
+      labelMontant: {
+        display: 'block',
+        fontWeight: '600',
+        marginBottom: '8px',
+        fontSize: '13px',
+        color: '#2c3e50',
+        letterSpacing: '0.3px'
+      },
+      labelSetup: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '13px',
+        color: '#000000',
+        letterSpacing: '0.3px'
+      },
+      labelAbonnement: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '13px',
+        color: '#10a0dc',
+        letterSpacing: '0.3px'
+      },
+      labelFormation: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '13px',
+        color: '#ff9500',
+        letterSpacing: '0.3px'
+      },
+      labelAnnual: {
+        display: 'block',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+        fontSize: '13px',
+        color: '#28a745',
+        letterSpacing: '0.3px'
+      },
+      montantsContainer: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '12px',
+        marginBottom: '15px',
+        maxWidth: '600px'
+      },
+      montantsWithChanceContainer: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(5, 1fr)',
+        gap: '12px',
+        marginBottom: '15px',
+        maxWidth: '1100px'
+      },
+      montantItem: {
+        display: 'flex',
+        flexDirection: 'column'
+      },
+      formGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: '12px',
+        marginTop: '10px'
+      },
+      formInput: {
+        padding: '11px 12px',
+        border: '1px solid #d0d0d0',
+        borderRadius: '6px',
+        fontSize: '14px',
+        fontFamily: 'inherit',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        maxWidth: '280px'
+      },
+      totalCalc: {
+        marginTop: '15px',
+        padding: '10px',
+        backgroundColor: '#e8f4f8',
+        borderLeft: '4px solid #002147',
+        fontSize: '14px'
+      },
+      formActions: {
+        display: 'flex',
+        gap: '10px',
+        marginTop: '20px'
+      },
+      saveBtn: {
+        flex: 1,
+        padding: '12px',
+        backgroundColor: '#10a0dc',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        fontSize: '14px'
+      },
+      cancelBtn: {
+        flex: 1,
+        padding: '12px',
+        backgroundColor: '#6c757d',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        fontSize: '14px'
+      },
+      loginContainer: {
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        backgroundColor: '#f5f5f5'
+      },
+      loginBox: {
+        backgroundColor: 'white',
+        padding: '40px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        width: '100%',
+        maxWidth: '400px'
+      },
+      form: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        marginTop: '20px'
+      },
+      input: {
+        padding: '10px',
+        border: '1px solid #ddd',
+        borderRadius: '4px',
+        fontSize: '14px'
+      },
+      submitBtn: {
+        padding: '12px',
+        backgroundColor: '#002147',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        fontSize: '14px'
+      },
+      toggleAuth: {
+        marginTop: '15px',
+        textAlign: 'center',
+        fontSize: '13px',
+        color: '#666'
+      },
+      link: {
+        color: '#0066cc',
+        cursor: 'pointer',
+        textDecoration: 'none'
+      },
+      emptyState: {
+        textAlign: 'center',
+        color: '#999',
+        padding: '40px',
+        fontSize: '14px'
+      }
+    };
+
+    // ================== LANCEMENT ==================
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
