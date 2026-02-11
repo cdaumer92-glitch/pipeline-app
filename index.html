@@ -321,6 +321,59 @@
         }
       };
 
+      // ============ MODULES ============
+      const fetchModules = async (prospectId) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/modules`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          if (res.ok) {
+            const modules = await res.json();
+            const modulesData = {};
+            modules.forEach(m => {
+              if (m.module_name === 'FluxTiers') modulesData.module_flux_tiers = m.nb_users;
+              else if (m.module_name === 'ComptaSage') modulesData.module_compta_sage = m.nb_users > 0;
+              else if (m.module_name === 'FacturationElectronique') modulesData.module_facturation_electronique = m.nb_users > 0;
+              else modulesData[`module_${m.module_name.toLowerCase()}`] = m.nb_users;
+            });
+            return modulesData;
+          }
+        } catch (err) {
+          console.error('Erreur fetch modules:', err);
+        }
+        return {};
+      };
+
+      const saveModules = async (prospectId, formData) => {
+        const modules = [
+          {module_name: 'Biz', nb_users: formData.module_biz || 0},
+          {module_name: 'Fab', nb_users: formData.module_fab || 0},
+          {module_name: 'Net', nb_users: formData.module_net || 0},
+          {module_name: 'Kub', nb_users: formData.module_kub || 0},
+          {module_name: 'Mag', nb_users: formData.module_mag || 0},
+          {module_name: 'VRP', nb_users: formData.module_vrp || 0},
+          {module_name: 'Col', nb_users: formData.module_col || 0},
+          {module_name: 'Log', nb_users: formData.module_log || 0},
+          {module_name: 'Jet', nb_users: formData.module_jet || 0},
+          {module_name: 'FluxTiers', nb_users: formData.module_flux_tiers || 0},
+          {module_name: 'ComptaSage', nb_users: formData.module_compta_sage ? 1 : 0},
+          {module_name: 'FacturationElectronique', nb_users: formData.module_facturation_electronique ? 1 : 0}
+        ];
+
+        try {
+          await fetch(`${API_URL}/prospects/${prospectId}/modules`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ modules })
+          });
+        } catch (err) {
+          console.error('Erreur sauvegarde modules:', err);
+        }
+      };
+
       const handleLogin = async (email, password, name, isRegister) => {
         try {
           const endpoint = isRegister ? 'register' : 'login';
@@ -396,6 +449,13 @@
 
           if (res.ok) {
             const data = await res.json();
+            
+            // Sauvegarder les modules si le statut est Devis/Démo/Négociation/Signé
+            const prospectId = data.id || formData.id;
+            if (['Devis', 'Démo', 'Négociation', 'Signé'].includes(formData.status)) {
+              await saveModules(prospectId, formData);
+            }
+            
             await fetchProspects();
             
             // Si c'est une création (pas d'ID avant), demander si on veut ajouter des interlocuteurs
@@ -535,11 +595,18 @@
         return dateStr;
       };
 
-      const handleEditProspect = (prospect) => {
+      const handleEditProspect = async (prospect) => {
         const formattedProspect = {
           ...prospect,
           quote_date: formatDateForInput(prospect.quote_date)
         };
+        
+        // Charger les modules si le prospect a un devis
+        if (['Devis', 'Démo', 'Négociation', 'Signé'].includes(prospect.status)) {
+          const modulesData = await fetchModules(prospect.id);
+          Object.assign(formattedProspect, modulesData);
+        }
+        
         setFormData(formattedProspect);
         setShowForm(true);
       };
@@ -697,6 +764,72 @@
     }
 
     // ================== COMPOSANTS ==================
+
+    function ModulesDisplay({ prospectId, user, API_URL }) {
+      const [modules, setModules] = React.useState([]);
+      const [loading, setLoading] = React.useState(true);
+
+      React.useEffect(() => {
+        const loadModules = async () => {
+          try {
+            const res = await fetch(`${API_URL}/prospects/${prospectId}/modules`, {
+              headers: { 'Authorization': `Bearer ${user.token}` }
+            });
+            if (res.ok) {
+              const data = await res.json();
+              setModules(data);
+            }
+          } catch (err) {
+            console.error('Erreur chargement modules:', err);
+          }
+          setLoading(false);
+        };
+        loadModules();
+      }, [prospectId]);
+
+      if (loading) return null;
+      if (modules.length === 0) return null;
+
+      const moduleColors = {
+        'Biz': '#17a2b8', 'Fab': '#17a2b8', 'Net': '#17a2b8', 'Kub': '#17a2b8',
+        'Mag': '#e91e63', 'VRP': '#9c27b0', 'Col': '#ff9800', 'Log': '#ffc107', 'Jet': '#4caf50'
+      };
+
+      return (
+        <div style={{
+          marginTop: '15px',
+          padding: '15px',
+          backgroundColor: '#f9f9f9',
+          borderRadius: '6px',
+          border: '1px solid #e0e0e0'
+        }}>
+          <div style={{fontWeight: 'bold', marginBottom: '12px', color: '#666'}}>Modules retenus</div>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
+            gap: '10px'
+          }}>
+            {modules.filter(m => m.nb_users > 0).map(module => (
+              <div key={module.id} style={{textAlign: 'center'}}>
+                <div style={{
+                  color: moduleColors[module.module_name] || '#666',
+                  fontWeight: 'bold',
+                  fontSize: '13px'
+                }}>
+                  {module.module_name}
+                </div>
+                <div style={{fontSize: '12px', color: '#999'}}>
+                  {module.module_name === 'ComptaSage' || module.module_name === 'FacturationElectronique' 
+                    ? '✓' 
+                    : `${module.nb_users} user${module.nb_users > 1 ? 's' : ''}`
+                  }
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
 
     function Header({ user, onLogout, onDashboard, isDashboard, onSettings, prospects, onSelectProspect }) {
       const [globalSearch, setGlobalSearch] = React.useState('');
@@ -2119,19 +2252,8 @@
                   </div>
                 </div>
                 
-                {/* Modules retenus - Placeholder */}
-                <div style={{
-                  marginTop: '15px',
-                  padding: '15px',
-                  backgroundColor: '#f9f9f9',
-                  borderRadius: '6px',
-                  border: '1px solid #e0e0e0'
-                }}>
-                  <div style={{fontWeight: 'bold', marginBottom: '10px', color: '#666'}}>Modules retenus</div>
-                  <div style={{fontSize: '12px', color: '#999'}}>
-                    📦 Fonctionnalité en cours de développement
-                  </div>
-                </div>
+                {/* Modules retenus */}
+                <ModulesDisplay prospectId={selectedProspect.id} user={user} API_URL={API_URL} />
               </>
             )}
 
