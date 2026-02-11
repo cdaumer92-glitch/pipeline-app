@@ -116,6 +116,15 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT NOW()
     )`);
 
+    await client.query(`CREATE TABLE IF NOT EXISTS prospect_modules (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      module_name TEXT NOT NULL,
+      nb_users INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(prospect_id, module_name)
+    )`);
+
     // ============ SYSTÈME ADMIN ============
     // Ajouter le champ role si n'existe pas
     await client.query(`
@@ -356,6 +365,39 @@ app.put('/api/next_actions/:id', auth, async (req, res) => {
 app.delete('/api/next_actions/:id', auth, async (req, res) => {
   try {
     await pool.query('DELETE FROM next_actions WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== MODULES =====================
+// GET - Récupérer les modules d'un prospect
+app.get('/api/prospects/:id/modules', auth, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM prospect_modules WHERE prospect_id = $1', [req.params.id]);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST - Sauvegarder les modules d'un prospect
+app.post('/api/prospects/:id/modules', auth, async (req, res) => {
+  const { modules } = req.body; // modules = [{module_name: 'Biz', nb_users: 5}, ...]
+  try {
+    // Supprimer les anciens modules
+    await pool.query('DELETE FROM prospect_modules WHERE prospect_id = $1', [req.params.id]);
+    
+    // Insérer les nouveaux modules (seulement ceux avec nb_users > 0)
+    for (const module of modules) {
+      if (module.nb_users > 0) {
+        await pool.query(
+          'INSERT INTO prospect_modules (prospect_id, module_name, nb_users) VALUES ($1, $2, $3)',
+          [req.params.id, module.module_name, module.nb_users]
+        );
+      }
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

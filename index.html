@@ -82,7 +82,20 @@
         decision_maker: '',
         solutions_en_place: '',
         notes: '',
-        pdf_url: null
+        pdf_url: null,
+        // Modules
+        module_biz: 0,
+        module_fab: 0,
+        module_net: 0,
+        module_kub: 0,
+        module_mag: 0,
+        module_vrp: 0,
+        module_col: 0,
+        module_log: 0,
+        module_jet: 0,
+        module_flux_tiers: 0,
+        module_compta_sage: false,
+        module_facturation_electronique: false
       };
     }
 
@@ -2086,24 +2099,40 @@
               selectedProspect.monthly_amount > 0 || 
               selectedProspect.annual_amount > 0 || 
               selectedProspect.training_amount > 0) && (
-              <div style={styles.amountsGrid}>
-                <div style={styles.amountItem}>
-                  <label style={styles.amountLabelSetup}>Setup</label>
-                  <div style={styles.amountValue}>{formatCurrency(selectedProspect.setup_amount)}</div>
+              <>
+                <div style={styles.amountsGrid}>
+                  <div style={styles.amountItem}>
+                    <label style={styles.amountLabelSetup}>Setup</label>
+                    <div style={styles.amountValue}>{formatCurrency(selectedProspect.setup_amount)}</div>
+                  </div>
+                  <div style={styles.amountItem}>
+                    <label style={styles.amountLabelAbonnement}>Abonnement (mois)</label>
+                    <div style={styles.amountValue}>{formatCurrency(selectedProspect.monthly_amount)}</div>
+                  </div>
+                  <div style={styles.amountItem}>
+                    <label style={styles.amountLabelAnnual}>Abonnement (an)</label>
+                    <div style={styles.amountValue}>{formatCurrency(selectedProspect.annual_amount)}</div>
+                  </div>
+                  <div style={styles.amountItem}>
+                    <label style={styles.amountLabelFormation}>Formation</label>
+                    <div style={styles.amountValue}>{formatCurrency(selectedProspect.training_amount)}</div>
+                  </div>
                 </div>
-                <div style={styles.amountItem}>
-                  <label style={styles.amountLabelAbonnement}>Abonnement (mois)</label>
-                  <div style={styles.amountValue}>{formatCurrency(selectedProspect.monthly_amount)}</div>
+                
+                {/* Modules retenus - Placeholder */}
+                <div style={{
+                  marginTop: '15px',
+                  padding: '15px',
+                  backgroundColor: '#f9f9f9',
+                  borderRadius: '6px',
+                  border: '1px solid #e0e0e0'
+                }}>
+                  <div style={{fontWeight: 'bold', marginBottom: '10px', color: '#666'}}>Modules retenus</div>
+                  <div style={{fontSize: '12px', color: '#999'}}>
+                    📦 Fonctionnalité en cours de développement
+                  </div>
                 </div>
-                <div style={styles.amountItem}>
-                  <label style={styles.amountLabelAnnual}>Abonnement (an)</label>
-                  <div style={styles.amountValue}>{formatCurrency(selectedProspect.annual_amount)}</div>
-                </div>
-                <div style={styles.amountItem}>
-                  <label style={styles.amountLabelFormation}>Formation</label>
-                  <div style={styles.amountValue}>{formatCurrency(selectedProspect.training_amount)}</div>
-                </div>
-              </div>
+              </>
             )}
 
 
@@ -2691,6 +2720,108 @@
               </div>
               <div style={styles.totalCalc}>
                 <strong>Total: {formatCurrency(total)}</strong>
+              </div>
+            </div>
+            )}
+
+            {/* Section Modules - Visible pour Devis/Démo/Négociation/Signé */}
+            {['Devis', 'Démo', 'Négociation', 'Signé'].includes(formData.status) && (
+            <div style={styles.formSection}>
+              <h3>Modules retenus</h3>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+                gap: '15px',
+                marginBottom: '10px'
+              }}>
+                {[
+                  {name: 'Biz', color: '#17a2b8'},
+                  {name: 'Fab', color: '#17a2b8'},
+                  {name: 'Net', color: '#17a2b8'},
+                  {name: 'Kub', color: '#17a2b8'},
+                  {name: 'Mag', color: '#e91e63'},
+                  {name: 'VRP', color: '#9c27b0'},
+                  {name: 'Col', color: '#ff9800'},
+                  {name: 'Log', color: '#ffc107'},
+                  {name: 'Jet', color: '#4caf50'}
+                ].map(module => (
+                  <div key={module.name} style={{textAlign: 'center'}}>
+                    <div style={{
+                      color: module.color,
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      marginBottom: '5px'
+                    }}>
+                      {module.name}
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={formData[`module_${module.name.toLowerCase()}`] || 0}
+                      onChange={(e) => handleChange(`module_${module.name.toLowerCase()}`, parseInt(e.target.value) || 0)}
+                      style={{
+                        width: '100%',
+                        padding: '8px',
+                        border: '1px solid #d0d0d0',
+                        borderRadius: '4px',
+                        textAlign: 'center',
+                        fontSize: '13px'
+                      }}
+                    />
+                  </div>
+                ))}
+                <div style={{textAlign: 'center'}}>
+                  <div style={{
+                    color: '#666',
+                    fontWeight: 'bold',
+                    fontSize: '14px',
+                    marginBottom: '5px'
+                  }}>
+                    Flux Tiers
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={formData.module_flux_tiers || 0}
+                    onChange={(e) => handleChange('module_flux_tiers', parseInt(e.target.value) || 0)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #d0d0d0',
+                      borderRadius: '4px',
+                      textAlign: 'center',
+                      fontSize: '13px'
+                    }}
+                  />
+                </div>
+                <div style={{textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                  <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer'}}>
+                    <input
+                      type="checkbox"
+                      checked={formData.module_compta_sage || false}
+                      onChange={(e) => handleChange('module_compta_sage', e.target.checked)}
+                      style={{width: '18px', height: '18px'}}
+                    />
+                    <span style={{color: '#3cd6b9', fontWeight: 'bold', fontSize: '14px'}}>
+                      Compta Sage
+                    </span>
+                  </label>
+                </div>
+                <div style={{textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                  <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer'}}>
+                    <input
+                      type="checkbox"
+                      checked={formData.module_facturation_electronique || false}
+                      onChange={(e) => handleChange('module_facturation_electronique', e.target.checked)}
+                      style={{width: '18px', height: '18px'}}
+                    />
+                    <span style={{color: '#666', fontWeight: 'bold', fontSize: '14px'}}>
+                      Facturation Électronique
+                    </span>
+                  </label>
+                </div>
               </div>
             </div>
             )}
