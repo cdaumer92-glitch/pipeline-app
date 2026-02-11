@@ -2081,24 +2081,30 @@
               </div>
             )}
 
-            <div style={styles.amountsGrid}>
-              <div style={styles.amountItem}>
-                <label style={styles.amountLabelSetup}>Setup</label>
-                <div style={styles.amountValue}>{formatCurrency(selectedProspect.setup_amount)}</div>
+            {/* Montants - Afficher seulement si au moins un montant > 0 */}
+            {(selectedProspect.setup_amount > 0 || 
+              selectedProspect.monthly_amount > 0 || 
+              selectedProspect.annual_amount > 0 || 
+              selectedProspect.training_amount > 0) && (
+              <div style={styles.amountsGrid}>
+                <div style={styles.amountItem}>
+                  <label style={styles.amountLabelSetup}>Setup</label>
+                  <div style={styles.amountValue}>{formatCurrency(selectedProspect.setup_amount)}</div>
+                </div>
+                <div style={styles.amountItem}>
+                  <label style={styles.amountLabelAbonnement}>Abonnement (mois)</label>
+                  <div style={styles.amountValue}>{formatCurrency(selectedProspect.monthly_amount)}</div>
+                </div>
+                <div style={styles.amountItem}>
+                  <label style={styles.amountLabelAnnual}>Abonnement (an)</label>
+                  <div style={styles.amountValue}>{formatCurrency(selectedProspect.annual_amount)}</div>
+                </div>
+                <div style={styles.amountItem}>
+                  <label style={styles.amountLabelFormation}>Formation</label>
+                  <div style={styles.amountValue}>{formatCurrency(selectedProspect.training_amount)}</div>
+                </div>
               </div>
-              <div style={styles.amountItem}>
-                <label style={styles.amountLabelAbonnement}>Abonnement (mois)</label>
-                <div style={styles.amountValue}>{formatCurrency(selectedProspect.monthly_amount)}</div>
-              </div>
-              <div style={styles.amountItem}>
-                <label style={styles.amountLabelAnnual}>Abonnement (an)</label>
-                <div style={styles.amountValue}>{formatCurrency(selectedProspect.annual_amount)}</div>
-              </div>
-              <div style={styles.amountItem}>
-                <label style={styles.amountLabelFormation}>Formation</label>
-                <div style={styles.amountValue}>{formatCurrency(selectedProspect.training_amount)}</div>
-              </div>
-            </div>
+            )}
 
 
 
