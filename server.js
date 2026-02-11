@@ -86,6 +86,12 @@ async function initDB() {
       ADD COLUMN IF NOT EXISTS website TEXT
     `);
 
+    // Migration: Ajouter contact dans next_actions si elle n'existe pas
+    await client.query(`
+      ALTER TABLE next_actions 
+      ADD COLUMN IF NOT EXISTS contact TEXT
+    `);
+
     await client.query(`CREATE TABLE IF NOT EXISTS next_actions (
       id SERIAL PRIMARY KEY,
       prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
@@ -315,11 +321,11 @@ app.get('/api/prospects/:id/next_actions', auth, async (req, res) => {
 });
 
 app.post('/api/prospects/:id/next_actions', auth, async (req, res) => {
-  const { action_type, planned_date, actor, completed_note } = req.body;
+  const { action_type, planned_date, actor, contact, completed_note } = req.body;
   try {
     const result = await pool.query(
-      'INSERT INTO next_actions (prospect_id, action_type, planned_date, actor, completed_note, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-      [req.params.id, action_type, planned_date || null, actor, completed_note || null, req.userId]
+      'INSERT INTO next_actions (prospect_id, action_type, planned_date, actor, contact, completed_note, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+      [req.params.id, action_type, planned_date || null, actor, contact || null, completed_note || null, req.userId]
     );
     res.json({ id: result.rows[0].id });
   } catch (err) {
