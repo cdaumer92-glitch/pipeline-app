@@ -137,6 +137,9 @@
       const [isDashboard, setIsDashboard] = React.useState(true);
       const [selectedCommercial, setSelectedCommercial] = React.useState(null);
       const [showSettings, setShowSettings] = React.useState(false);
+      const [showRecap, setShowRecap] = React.useState(false);
+      const [recapCommercial, setRecapCommercial] = React.useState(null);
+      const [recapDate, setRecapDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [prospects, setProspects] = React.useState([]);
       const [activities, setActivities] = React.useState({});
       const [nextActions, setNextActions] = React.useState([]);
@@ -695,6 +698,20 @@
           
           {showSettings && <Settings onClose={() => setShowSettings(false)} user={user} />}
           
+          {showRecap && recapCommercial && (
+            <RecapModal 
+              commercial={recapCommercial}
+              date={recapDate}
+              prospects={prospects}
+              onClose={() => {
+                setShowRecap(false);
+                setRecapCommercial(null);
+              }}
+              user={user}
+              API_URL={API_URL}
+            />
+          )}
+          
           {isDashboard ? (
             <Dashboard prospects={prospects} selectedCommercial={selectedCommercial} onSelectCommercial={setSelectedCommercial} onSelectProspect={handleSelectProspect} onOpenDashboard={() => setIsDashboard(false)} user={user} API_URL={API_URL} prospectActionsInfo={prospectActionsInfo} />
           ) : (
@@ -762,6 +779,274 @@
             />
           </div>
           )}
+        </div>
+      );
+    }
+
+    // ================== RECAP MODAL ==================
+    function RecapModal({ commercial, date, prospects, onClose, user, API_URL }) {
+      const [recapData, setRecapData] = React.useState(null);
+      const [loading, setLoading] = React.useState(true);
+
+      React.useEffect(() => {
+        const fetchRecap = async () => {
+          try {
+            // Prospects créés ce jour
+            const prospectsCreated = prospects.filter(p => {
+              if (p.assigned_to !== commercial) return false;
+              const createdDate = new Date(p.created_at).toISOString().split('T')[0];
+              return createdDate === date;
+            });
+
+            const suspects = prospectsCreated.filter(p => p.statut_societe === 'Suspect').length;
+            const prospectsCount = prospectsCreated.filter(p => p.statut_societe === 'Prospect').length;
+            const clients = prospectsCreated.filter(p => p.statut_societe === 'Client').length;
+
+            // Devis créés (statut changé vers Devis ce jour)
+            const devisCreated = prospects.filter(p => {
+              if (p.assigned_to !== commercial) return false;
+              if (p.status !== 'Devis') return false;
+              const statusDate = p.status_date ? new Date(p.status_date).toISOString().split('T')[0] : null;
+              return statusDate === date;
+            });
+
+            // Charger toutes les actions du commercial
+            const allActions = [];
+            for (const prospect of prospects.filter(p => p.assigned_to === commercial)) {
+              try {
+                const res = await fetch(`${API_URL}/prospects/${prospect.id}/next_actions`, {
+                  headers: { 'Authorization': `Bearer ${user.token}` }
+                });
+                if (res.ok) {
+                  const actions = await res.json();
+                  actions.forEach(action => {
+                    allActions.push({
+                      ...action,
+                      prospect_name: prospect.name
+                    });
+                  });
+                }
+              } catch (err) {
+                console.error('Erreur chargement actions:', err);
+              }
+            }
+
+            // Actions créées ce jour
+            const actionsCreated = allActions.filter(a => {
+              const createdDate = new Date(a.created_at).toISOString().split('T')[0];
+              return createdDate === date;
+            });
+
+            // Actions non réalisées (completed = 0 et date <= aujourd'hui)
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
+            const actionsNotDone = allActions.filter(a => {
+              if (a.completed) return false;
+              const actionDate = new Date(a.planned_date);
+              return actionDate <= today;
+            });
+
+            setRecapData({
+              prospectsCreated,
+              suspects,
+              prospectsCount,
+              clients,
+              devisCreated,
+              actionsCreated,
+              actionsNotDone
+            });
+          } catch (err) {
+            console.error('Erreur récap:', err);
+          }
+          setLoading(false);
+        };
+
+        fetchRecap();
+      }, [commercial, date, prospects]);
+
+      if (loading) {
+        return (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              padding: '40px',
+              borderRadius: '8px',
+              fontSize: '16px'
+            }}>
+              Chargement du récapitulatif...
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 2000,
+          overflow: 'auto',
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            maxWidth: '900px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '20px 30px',
+              borderBottom: '2px solid #10a0dc',
+              backgroundColor: '#f9f9f9',
+              position: 'sticky',
+              top: 0,
+              zIndex: 1
+            }}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <h2 style={{margin: 0, color: '#002147'}}>
+                  📋 Récapitulatif - {commercial}
+                </h2>
+                <button onClick={onClose} style={{
+                  fontSize: '24px',
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  color: '#666'
+                }}>
+                  ×
+                </button>
+              </div>
+              <div style={{fontSize: '14px', color: '#666', marginTop: '8px'}}>
+                {new Date(date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </div>
+            </div>
+
+            {/* Content */}
+            <div style={{padding: '30px'}}>
+              {/* Entreprises créées */}
+              <div style={{marginBottom: '30px'}}>
+                <h3 style={{color: '#002147', marginBottom: '15px'}}>
+                  🏢 Entreprises créées : {recapData.prospectsCreated.length}
+                </h3>
+                {recapData.prospectsCreated.length > 0 ? (
+                  <>
+                    <div style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>
+                      {recapData.suspects > 0 && `${recapData.suspects} Suspect(s) • `}
+                      {recapData.prospectsCount > 0 && `${recapData.prospectsCount} Prospect(s) • `}
+                      {recapData.clients > 0 && `${recapData.clients} Client(s)`}
+                    </div>
+                    <ul style={{marginTop: '10px'}}>
+                      {recapData.prospectsCreated.map(p => (
+                        <li key={p.id} style={{marginBottom: '8px', fontSize: '14px'}}>
+                          <strong>{p.name}</strong> - 
+                          <span style={{
+                            marginLeft: '8px',
+                            color: p.statut_societe === 'Suspect' ? '#999' : 
+                                   p.statut_societe === 'Prospect' ? '#ff9800' : '#12a0dc',
+                            fontWeight: 'bold'
+                          }}>
+                            {p.statut_societe}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <div style={{color: '#999', fontSize: '14px'}}>Aucune entreprise créée ce jour</div>
+                )}
+              </div>
+
+              {/* Devis créés */}
+              <div style={{marginBottom: '30px'}}>
+                <h3 style={{color: '#002147', marginBottom: '15px'}}>
+                  📄 Devis créés : {recapData.devisCreated.length}
+                </h3>
+                {recapData.devisCreated.length > 0 ? (
+                  <ul>
+                    {recapData.devisCreated.map(p => (
+                      <li key={p.id} style={{marginBottom: '8px', fontSize: '14px'}}>
+                        <strong>{p.name}</strong> - 
+                        <span style={{marginLeft: '8px', color: '#666'}}>
+                          {formatCurrency((p.setup_amount || 0) + (p.monthly_amount || 0) * 12 + (p.annual_amount || 0) + (p.training_amount || 0))}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div style={{color: '#999', fontSize: '14px'}}>Aucun devis créé ce jour</div>
+                )}
+              </div>
+
+              {/* Actions créées */}
+              <div style={{marginBottom: '30px'}}>
+                <h3 style={{color: '#002147', marginBottom: '15px'}}>
+                  ✅ Nouvelles actions : {recapData.actionsCreated.length}
+                </h3>
+                {recapData.actionsCreated.length > 0 ? (
+                  <ul>
+                    {recapData.actionsCreated.map(action => (
+                      <li key={action.id} style={{marginBottom: '12px', fontSize: '14px'}}>
+                        <strong>{action.action_type}</strong> - {action.prospect_name}
+                        {action.contact && ` (${action.contact})`}
+                        <div style={{fontSize: '12px', color: '#666', marginTop: '4px'}}>
+                          Prévu le {new Date(action.planned_date).toLocaleDateString('fr-FR')}
+                          {action.completed_note && ` - ${action.completed_note}`}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div style={{color: '#999', fontSize: '14px'}}>Aucune action créée ce jour</div>
+                )}
+              </div>
+
+              {/* Actions non réalisées */}
+              <div>
+                <h3 style={{color: '#e23b63', marginBottom: '15px'}}>
+                  ⚠️ Actions non encore réalisées : {recapData.actionsNotDone.length}
+                </h3>
+                {recapData.actionsNotDone.length > 0 ? (
+                  <ul>
+                    {recapData.actionsNotDone.map(action => (
+                      <li key={action.id} style={{marginBottom: '12px', fontSize: '14px'}}>
+                        <strong>{action.action_type}</strong> - {action.prospect_name}
+                        {action.contact && ` (${action.contact})`}
+                        <div style={{fontSize: '12px', color: '#666', marginTop: '4px'}}>
+                          Prévu le {new Date(action.planned_date).toLocaleDateString('fr-FR')}
+                          {new Date(action.planned_date) < new Date() && 
+                            <span style={{color: '#e23b63', marginLeft: '8px', fontWeight: 'bold'}}>EN RETARD</span>
+                          }
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div style={{color: '#3cd6b9', fontSize: '14px'}}>✓ Toutes les actions sont à jour !</div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       );
     }
@@ -1753,6 +2038,29 @@
                     <div style={{fontSize: '12px', marginTop: '10px', color: '#999'}}>
                       {commercialProspects.filter(p => p.status === 'Prospection').length} prospection | {commercialProspects.filter(p => p.status === 'Devis').length} devis | {commercialProspects.filter(p => p.status === 'Négociation').length} négociation
                     </div>
+                    
+                    {/* Bouton Récap du jour */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRecapCommercial(commercial);
+                        setShowRecap(true);
+                      }}
+                      style={{
+                        marginTop: '12px',
+                        padding: '8px 12px',
+                        backgroundColor: '#10a0dc',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        width: '100%'
+                      }}
+                    >
+                      📋 Récap du jour
+                    </button>
                   </div>
                 );
               })}
