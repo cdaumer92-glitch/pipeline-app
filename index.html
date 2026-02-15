@@ -713,7 +713,20 @@
           )}
           
           {isDashboard ? (
-            <Dashboard prospects={prospects} selectedCommercial={selectedCommercial} onSelectCommercial={setSelectedCommercial} onSelectProspect={handleSelectProspect} onOpenDashboard={() => setIsDashboard(false)} user={user} API_URL={API_URL} prospectActionsInfo={prospectActionsInfo} />
+            <Dashboard 
+              prospects={prospects} 
+              selectedCommercial={selectedCommercial} 
+              onSelectCommercial={setSelectedCommercial} 
+              onSelectProspect={handleSelectProspect} 
+              onOpenDashboard={() => setIsDashboard(false)} 
+              user={user} 
+              API_URL={API_URL} 
+              prospectActionsInfo={prospectActionsInfo}
+              onShowRecap={(commercial) => {
+                setRecapCommercial(commercial);
+                setShowRecap(true);
+              }}
+            />
           ) : (
           <div style={styles.content}>
             <LeftPanel
@@ -1698,7 +1711,7 @@
       );
     }
 
-    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo }) {
+    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo, onShowRecap }) {
       const [sortBy, setSortBy] = React.useState('name');
       const [sortAsc, setSortAsc] = React.useState(true);
       const [hoveredProspect, setHoveredProspect] = React.useState(null);
@@ -2043,8 +2056,7 @@
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setRecapCommercial(commercial);
-                        setShowRecap(true);
+                        onShowRecap(commercial);
                       }}
                       style={{
                         marginTop: '12px',
