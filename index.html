@@ -852,30 +852,35 @@
               return statusDate >= startDate && statusDate <= endDate;
             });
 
-            // Charger toutes les actions du commercial
-            const allActions = [];
-            for (const prospect of prospects.filter(p => p.assigned_to === commercial)) {
+            // Charger toutes les actions du commercial (en parallèle pour optimiser)
+            const commercialProspects = prospects.filter(p => p.assigned_to === commercial);
+            const actionsPromises = commercialProspects.map(async (prospect) => {
               try {
                 const res = await fetch(`${API_URL}/prospects/${prospect.id}/next_actions`, {
                   headers: { 'Authorization': `Bearer ${user.token}` }
                 });
                 if (res.ok) {
                   const actions = await res.json();
-                  actions.forEach(action => {
-                    allActions.push({
-                      ...action,
-                      prospect_name: prospect.name
-                    });
-                  });
+                  return actions.map(action => ({
+                    ...action,
+                    prospect_name: prospect.name
+                  }));
                 }
               } catch (err) {
                 console.error('Erreur chargement actions:', err);
               }
-            }
+              return [];
+            });
+
+            const actionsArrays = await Promise.all(actionsPromises);
+            const allActions = actionsArrays.flat();
+
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
 
             // Actions créées dans la période (non cochées uniquement)
             const actionsCreated = allActions.filter(a => {
-              if (a.completed) return false; // Uniquement les actions non cochées
+              if (a.completed) return false;
               const createdDate = new Date(a.created_at);
               return createdDate >= startDate && createdDate <= endDate;
             });
@@ -885,6 +890,13 @@
               if (a.completed) return false;
               const actionDate = new Date(a.planned_date);
               return actionDate >= startDate && actionDate <= endDate;
+            });
+
+            // Actions en retard (non cochées et date < aujourd'hui)
+            const actionsLate = allActions.filter(a => {
+              if (a.completed) return false;
+              const actionDate = new Date(a.planned_date);
+              return actionDate < today;
             });
 
             setRecapData({
@@ -898,7 +910,8 @@
               clients,
               devisCreated,
               actionsCreated,
-              actionsPlanned
+              actionsPlanned,
+              actionsLate
             });
           } catch (err) {
             console.error('Erreur récap:', err);
@@ -1068,7 +1081,30 @@
                 )}
               </div>
 
-              {/* Actions non réalisées */}
+              {/* Actions en retard */}
+              <div style={{marginBottom: '30px'}}>
+                <h3 style={{color: '#e23b63', marginBottom: '15px'}}>
+                  ⚠️ Actions en retard : {recapData.actionsLate.length}
+                </h3>
+                {recapData.actionsLate.length > 0 ? (
+                  <ul>
+                    {recapData.actionsLate.map(action => (
+                      <li key={action.id} style={{marginBottom: '12px', fontSize: '14px'}}>
+                        <strong>{action.action_type}</strong> - {action.prospect_name}
+                        {action.contact && ` (${action.contact})`}
+                        <div style={{fontSize: '12px', color: '#666', marginTop: '4px'}}>
+                          Prévu le {new Date(action.planned_date).toLocaleDateString('fr-FR')}
+                          <span style={{color: '#e23b63', marginLeft: '8px', fontWeight: 'bold'}}>EN RETARD</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div style={{color: '#3cd6b9', fontSize: '14px'}}>✓ Aucune action en retard !</div>
+                )}
+              </div>
+
+              {/* Actions planifiées */}
               <div>
                 <h3 style={{color: '#10a0dc', marginBottom: '15px'}}>
                   📅 Actions planifiées {recapData.periodLabel} : {recapData.actionsPlanned.length}
@@ -1081,9 +1117,6 @@
                         {action.contact && ` (${action.contact})`}
                         <div style={{fontSize: '12px', color: '#666', marginTop: '4px'}}>
                           Prévu le {new Date(action.planned_date).toLocaleDateString('fr-FR')}
-                          {new Date(action.planned_date) < new Date() && 
-                            <span style={{color: '#e23b63', marginLeft: '8px', fontWeight: 'bold'}}>EN RETARD</span>
-                          }
                         </div>
                       </li>
                     ))}
@@ -2105,7 +2138,7 @@
                           flex: 1
                         }}
                       >
-                        Jour
+                        Actions Jour
                       </button>
                       <button
                         onClick={(e) => {
@@ -2124,7 +2157,7 @@
                           flex: 1
                         }}
                       >
-                        Semaine
+                        Actions Semaine
                       </button>
                       <button
                         onClick={(e) => {
@@ -2143,7 +2176,7 @@
                           flex: 1
                         }}
                       >
-                        Mois
+                        Actions Mois
                       </button>
                     </div>
                   </div>
