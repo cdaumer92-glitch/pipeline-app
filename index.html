@@ -169,7 +169,7 @@
         decideur: false
       });
       const [filterSocietyType, setFilterSocietyType] = React.useState('Tous');
-      const [filterStatus, setFilterStatus] = React.useState('Tous hors suspects');
+      const [filterStatus, setFilterStatus] = React.useState('Tous');
       const [filterCommercial, setFilterCommercial] = React.useState('Tous');
       const [searchTerm, setSearchTerm] = React.useState('');
       const [sortBy, setSortBy] = React.useState('name');
@@ -642,15 +642,11 @@
           matchSocietyType = p.statut_societe === filterSocietyType;
         }
         
+        // Filtre par statut (Prospection, Devis, Démo, etc.)
         let matchStatus;
-        if (filterStatus === 'Tous hors suspects') {
-          // Exclure les suspects
-          matchStatus = p.statut_societe !== 'Suspect';
-        } else if (filterStatus === 'Suspects') {
-          // Afficher uniquement les suspects
-          matchStatus = p.statut_societe === 'Suspect';
+        if (filterStatus === 'Tous') {
+          matchStatus = true;
         } else {
-          // Filtrer par statut normal
           matchStatus = p.status === filterStatus;
         }
         
@@ -1669,7 +1665,7 @@
           {/* Statut */}
           <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
             <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Statut:</span>
-            {['Tous hors suspects', 'Suspects', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Ajourné N+1', 'Perdu'].map(status => (
+            {['Tous', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Ajourné N+1', 'Perdu'].map(status => (
               <button
                 key={status}
                 onClick={() => onFilterChange(status)}
