@@ -839,7 +839,8 @@
             } else { // mois
               startDate = new Date(today.getFullYear(), today.getMonth(), 1);
               startDate.setHours(0, 0, 0, 0);
-              endDate = new Date();
+              // endDate = dernier jour du mois
+              endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
               endDate.setHours(23, 59, 59, 999);
             }
 
@@ -1015,62 +1016,129 @@
 
             {/* Content */}
             <div style={{padding: '30px'}}>
-              {/* Entreprises créées */}
-              <div style={{marginBottom: '30px'}}>
-                <h3 style={{color: '#002147', marginBottom: '15px'}}>
-                  🏢 Entreprises créées : {recapData.prospectsCreated.length}
-                </h3>
-                {recapData.prospectsCreated.length > 0 ? (
-                  <>
-                    <div style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>
-                      {recapData.suspects > 0 && `${recapData.suspects} Suspect(s) • `}
-                      {recapData.prospectsCount > 0 && `${recapData.prospectsCount} Prospect(s) • `}
-                      {recapData.clients > 0 && `${recapData.clients} Client(s)`}
-                    </div>
-                    <ul style={{marginTop: '10px'}}>
-                      {recapData.prospectsCreated.map(p => (
+              {/* PREMIER TABLEAU: Entreprises et Devis */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '30px',
+                marginBottom: '30px',
+                padding: '20px',
+                backgroundColor: '#f9f9f9',
+                borderRadius: '8px'
+              }}>
+                {/* Entreprises créées */}
+                <div>
+                  <h3 style={{color: '#002147', marginBottom: '15px'}}>
+                    🏢 Entreprises créées : {recapData.prospectsCreated.length}
+                  </h3>
+                  {recapData.prospectsCreated.length > 0 ? (
+                    <>
+                      <div style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>
+                        {recapData.suspects > 0 && `${recapData.suspects} Suspect(s) • `}
+                        {recapData.prospectsCount > 0 && `${recapData.prospectsCount} Prospect(s) • `}
+                        {recapData.clients > 0 && `${recapData.clients} Client(s)`}
+                      </div>
+                      <ul style={{marginTop: '10px'}}>
+                        {recapData.prospectsCreated.map(p => (
+                          <li key={p.id} style={{marginBottom: '8px', fontSize: '14px'}}>
+                            <strong>{p.name}</strong> - 
+                            <span style={{
+                              marginLeft: '8px',
+                              color: p.statut_societe === 'Suspect' ? '#999' : 
+                                     p.statut_societe === 'Prospect' ? '#ff9800' : '#12a0dc',
+                              fontWeight: 'bold'
+                            }}>
+                              {p.statut_societe}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <div style={{color: '#999', fontSize: '14px'}}>Aucune entreprise créée</div>
+                  )}
+                </div>
+
+                {/* Devis créés */}
+                <div>
+                  <h3 style={{color: '#002147', marginBottom: '15px'}}>
+                    📄 Devis créés : {recapData.devisCreated.length}
+                  </h3>
+                  {recapData.devisCreated.length > 0 ? (
+                    <ul>
+                      {recapData.devisCreated.map(p => (
                         <li key={p.id} style={{marginBottom: '8px', fontSize: '14px'}}>
                           <strong>{p.name}</strong> - 
-                          <span style={{
-                            marginLeft: '8px',
-                            color: p.statut_societe === 'Suspect' ? '#999' : 
-                                   p.statut_societe === 'Prospect' ? '#ff9800' : '#12a0dc',
-                            fontWeight: 'bold'
-                          }}>
-                            {p.statut_societe}
+                          <span style={{marginLeft: '8px', color: '#666'}}>
+                            {formatCurrency((p.setup_amount || 0) + (p.monthly_amount || 0) * 12 + (p.annual_amount || 0) + (p.training_amount || 0))}
                           </span>
                         </li>
                       ))}
                     </ul>
-                  </>
-                ) : (
-                  <div style={{color: '#999', fontSize: '14px'}}>Aucune entreprise créée ce jour</div>
-                )}
+                  ) : (
+                    <div style={{color: '#999', fontSize: '14px'}}>Aucun devis créé</div>
+                  )}
+                </div>
               </div>
 
-              {/* Devis créés */}
-              <div style={{marginBottom: '30px'}}>
-                <h3 style={{color: '#002147', marginBottom: '15px'}}>
-                  📄 Devis créés : {recapData.devisCreated.length}
-                </h3>
-                {recapData.devisCreated.length > 0 ? (
-                  <ul>
-                    {recapData.devisCreated.map(p => (
-                      <li key={p.id} style={{marginBottom: '8px', fontSize: '14px'}}>
-                        <strong>{p.name}</strong> - 
-                        <span style={{marginLeft: '8px', color: '#666'}}>
-                          {formatCurrency((p.setup_amount || 0) + (p.monthly_amount || 0) * 12 + (p.annual_amount || 0) + (p.training_amount || 0))}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div style={{color: '#999', fontSize: '14px'}}>Aucun devis créé ce jour</div>
-                )}
+              {/* DEUXIÈME TABLEAU: Actions planifiées et Actions en retard */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '30px',
+                marginBottom: '30px',
+                padding: '20px',
+                backgroundColor: '#f9f9f9',
+                borderRadius: '8px'
+              }}>
+                {/* Actions planifiées */}
+                <div>
+                  <h3 style={{color: '#10a0dc', marginBottom: '15px'}}>
+                    📅 Actions planifiées {recapData.periodLabel} : {recapData.actionsPlanned.length}
+                  </h3>
+                  {recapData.actionsPlanned.length > 0 ? (
+                    <ul>
+                      {recapData.actionsPlanned.map(action => (
+                        <li key={action.id} style={{marginBottom: '12px', fontSize: '14px'}}>
+                          <strong>{action.action_type}</strong> - {action.prospect_name}
+                          {action.contact && ` (${action.contact})`}
+                          <div style={{fontSize: '12px', color: '#666', marginTop: '4px'}}>
+                            Prévu le {new Date(action.planned_date).toLocaleDateString('fr-FR')}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div style={{color: '#999', fontSize: '14px'}}>Aucune action planifiée</div>
+                  )}
+                </div>
+
+                {/* Actions en retard */}
+                <div>
+                  <h3 style={{color: '#e23b63', marginBottom: '15px'}}>
+                    ⚠️ Actions en retard : {recapData.actionsLate.length}
+                  </h3>
+                  {recapData.actionsLate.length > 0 ? (
+                    <ul>
+                      {recapData.actionsLate.map(action => (
+                        <li key={action.id} style={{marginBottom: '12px', fontSize: '14px'}}>
+                          <strong>{action.action_type}</strong> - {action.prospect_name}
+                          {action.contact && ` (${action.contact})`}
+                          <div style={{fontSize: '12px', color: '#666', marginTop: '4px'}}>
+                            Prévu le {new Date(action.planned_date).toLocaleDateString('fr-FR')}
+                            <span style={{color: '#e23b63', marginLeft: '8px', fontWeight: 'bold'}}>EN RETARD</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div style={{color: '#3cd6b9', fontSize: '14px'}}>✓ Aucune action en retard !</div>
+                  )}
+                </div>
               </div>
 
-              {/* Actions créées */}
-              <div style={{marginBottom: '30px'}}>
+              {/* Nouvelles actions (après les 2 tableaux) */}
+              <div style={{marginBottom: '30px'}}>>
                 <h3 style={{color: '#002147', marginBottom: '15px'}}>
                   ✅ Nouvelles actions : {recapData.actionsCreated.length}
                 </h3>
@@ -1088,54 +1156,10 @@
                     ))}
                   </ul>
                 ) : (
-                  <div style={{color: '#999', fontSize: '14px'}}>Aucune action créée ce jour</div>
+                  <div style={{color: '#999', fontSize: '14px'}}>Aucune action créée</div>
                 )}
               </div>
-
-              {/* Actions en retard */}
-              <div style={{marginBottom: '30px'}}>
-                <h3 style={{color: '#e23b63', marginBottom: '15px'}}>
-                  ⚠️ Actions en retard : {recapData.actionsLate.length}
-                </h3>
-                {recapData.actionsLate.length > 0 ? (
-                  <ul>
-                    {recapData.actionsLate.map(action => (
-                      <li key={action.id} style={{marginBottom: '12px', fontSize: '14px'}}>
-                        <strong>{action.action_type}</strong> - {action.prospect_name}
-                        {action.contact && ` (${action.contact})`}
-                        <div style={{fontSize: '12px', color: '#666', marginTop: '4px'}}>
-                          Prévu le {new Date(action.planned_date).toLocaleDateString('fr-FR')}
-                          <span style={{color: '#e23b63', marginLeft: '8px', fontWeight: 'bold'}}>EN RETARD</span>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div style={{color: '#3cd6b9', fontSize: '14px'}}>✓ Aucune action en retard !</div>
-                )}
-              </div>
-
-              {/* Actions planifiées */}
-              <div>
-                <h3 style={{color: '#10a0dc', marginBottom: '15px'}}>
-                  📅 Actions planifiées {recapData.periodLabel} : {recapData.actionsPlanned.length}
-                </h3>
-                {recapData.actionsPlanned.length > 0 ? (
-                  <ul>
-                    {recapData.actionsPlanned.map(action => (
-                      <li key={action.id} style={{marginBottom: '12px', fontSize: '14px'}}>
-                        <strong>{action.action_type}</strong> - {action.prospect_name}
-                        {action.contact && ` (${action.contact})`}
-                        <div style={{fontSize: '12px', color: '#666', marginTop: '4px'}}>
-                          Prévu le {new Date(action.planned_date).toLocaleDateString('fr-FR')}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div style={{color: '#999', fontSize: '14px'}}>Aucune action planifiée pour cette période</div>
-                )}
-              </div>
+            </div>
             </div>
           </div>
         </div>
