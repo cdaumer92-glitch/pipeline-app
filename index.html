@@ -139,6 +139,7 @@
       const [showSettings, setShowSettings] = React.useState(false);
       const [showRecap, setShowRecap] = React.useState(false);
       const [recapCommercial, setRecapCommercial] = React.useState(null);
+      const [recapPeriod, setRecapPeriod] = React.useState('jour'); // 'jour', 'semaine', 'mois'
       const [recapDate, setRecapDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [prospects, setProspects] = React.useState([]);
       const [activities, setActivities] = React.useState({});
@@ -701,7 +702,7 @@
           {showRecap && recapCommercial && (
             <RecapModal 
               commercial={recapCommercial}
-              date={recapDate}
+              period={recapPeriod}
               prospects={prospects}
               onClose={() => {
                 setShowRecap(false);
@@ -722,8 +723,9 @@
               user={user} 
               API_URL={API_URL} 
               prospectActionsInfo={prospectActionsInfo}
-              onShowRecap={(commercial) => {
+              onShowRecap={(commercial, period) => {
                 setRecapCommercial(commercial);
+                setRecapPeriod(period);
                 setShowRecap(true);
               }}
             />
@@ -797,30 +799,57 @@
     }
 
     // ================== RECAP MODAL ==================
-    function RecapModal({ commercial, date, prospects, onClose, user, API_URL }) {
+    function RecapModal({ commercial, period, prospects, onClose, user, API_URL }) {
       const [recapData, setRecapData] = React.useState(null);
       const [loading, setLoading] = React.useState(true);
 
       React.useEffect(() => {
         const fetchRecap = async () => {
           try {
-            // Prospects créés ce jour
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
+            
+            // Calculer les dates de début et fin selon la période
+            let startDate, endDate;
+            
+            if (period === 'jour') {
+              startDate = new Date();
+              startDate.setHours(0, 0, 0, 0);
+              endDate = new Date();
+              endDate.setHours(23, 59, 59, 999);
+            } else if (period === 'semaine') {
+              startDate = new Date();
+              const day = startDate.getDay();
+              const diff = startDate.getDate() - day + (day === 0 ? -6 : 1); // Lundi
+              startDate.setDate(diff);
+              startDate.setHours(0, 0, 0, 0);
+              endDate = new Date();
+              endDate.setHours(23, 59, 59, 999);
+            } else { // mois
+              startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+              startDate.setHours(0, 0, 0, 0);
+              endDate = new Date();
+              endDate.setHours(23, 59, 59, 999);
+            }
+
+            // Prospects créés dans la période
             const prospectsCreated = prospects.filter(p => {
               if (p.assigned_to !== commercial) return false;
-              const createdDate = new Date(p.created_at).toISOString().split('T')[0];
-              return createdDate === date;
+              const createdDate = new Date(p.created_at);
+              return createdDate >= startDate && createdDate <= endDate;
             });
 
             const suspects = prospectsCreated.filter(p => p.statut_societe === 'Suspect').length;
             const prospectsCount = prospectsCreated.filter(p => p.statut_societe === 'Prospect').length;
             const clients = prospectsCreated.filter(p => p.statut_societe === 'Client').length;
 
-            // Devis créés (statut changé vers Devis ce jour)
+            // Devis créés dans la période
             const devisCreated = prospects.filter(p => {
               if (p.assigned_to !== commercial) return false;
               if (p.status !== 'Devis') return false;
-              const statusDate = p.status_date ? new Date(p.status_date).toISOString().split('T')[0] : null;
-              return statusDate === date;
+              if (!p.status_date) return false;
+              const statusDate = new Date(p.status_date);
+              return statusDate >= startDate && statusDate <= endDate;
             });
 
             // Charger toutes les actions du commercial
@@ -844,29 +873,31 @@
               }
             }
 
-            // Actions créées ce jour
+            // Actions créées dans la période
             const actionsCreated = allActions.filter(a => {
-              const createdDate = new Date(a.created_at).toISOString().split('T')[0];
-              return createdDate === date;
+              const createdDate = new Date(a.created_at);
+              return createdDate >= startDate && createdDate <= endDate;
             });
 
-            // Actions non réalisées (completed = 0 et date <= aujourd'hui)
-            const today = new Date();
-            today.setHours(23, 59, 59, 999);
-            const actionsNotDone = allActions.filter(a => {
+            // Actions planifiées dans la période (non encore réalisées)
+            const actionsPlanned = allActions.filter(a => {
               if (a.completed) return false;
               const actionDate = new Date(a.planned_date);
-              return actionDate <= today;
+              return actionDate >= startDate && actionDate <= endDate;
             });
 
             setRecapData({
+              period,
+              periodLabel: period === 'jour' ? 'du jour' : period === 'semaine' ? 'de la semaine' : 'du mois',
+              startDate,
+              endDate,
               prospectsCreated,
               suspects,
               prospectsCount,
               clients,
               devisCreated,
               actionsCreated,
-              actionsNotDone
+              actionsPlanned
             });
           } catch (err) {
             console.error('Erreur récap:', err);
@@ -875,7 +906,7 @@
         };
 
         fetchRecap();
-      }, [commercial, date, prospects]);
+      }, [commercial, period, prospects]);
 
       if (loading) {
         return (
@@ -938,7 +969,7 @@
             }}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                 <h2 style={{margin: 0, color: '#002147'}}>
-                  📋 Récapitulatif - {commercial}
+                  📋 Récapitulatif {recapData.periodLabel} - {commercial}
                 </h2>
                 <button onClick={onClose} style={{
                   fontSize: '24px',
@@ -951,7 +982,9 @@
                 </button>
               </div>
               <div style={{fontSize: '14px', color: '#666', marginTop: '8px'}}>
-                {new Date(date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                {period === 'jour' && new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                {period === 'semaine' && `Du ${recapData.startDate.toLocaleDateString('fr-FR')} au ${recapData.endDate.toLocaleDateString('fr-FR')}`}
+                {period === 'mois' && new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
               </div>
             </div>
 
@@ -1036,12 +1069,12 @@
 
               {/* Actions non réalisées */}
               <div>
-                <h3 style={{color: '#e23b63', marginBottom: '15px'}}>
-                  ⚠️ Actions non encore réalisées : {recapData.actionsNotDone.length}
+                <h3 style={{color: '#10a0dc', marginBottom: '15px'}}>
+                  📅 Actions planifiées {recapData.periodLabel} : {recapData.actionsPlanned.length}
                 </h3>
-                {recapData.actionsNotDone.length > 0 ? (
+                {recapData.actionsPlanned.length > 0 ? (
                   <ul>
-                    {recapData.actionsNotDone.map(action => (
+                    {recapData.actionsPlanned.map(action => (
                       <li key={action.id} style={{marginBottom: '12px', fontSize: '14px'}}>
                         <strong>{action.action_type}</strong> - {action.prospect_name}
                         {action.contact && ` (${action.contact})`}
@@ -1055,7 +1088,7 @@
                     ))}
                   </ul>
                 ) : (
-                  <div style={{color: '#3cd6b9', fontSize: '14px'}}>✓ Toutes les actions sont à jour !</div>
+                  <div style={{color: '#999', fontSize: '14px'}}>Aucune action planifiée pour cette période</div>
                 )}
               </div>
             </div>
@@ -2052,27 +2085,66 @@
                       {commercialProspects.filter(p => p.status === 'Prospection').length} prospection | {commercialProspects.filter(p => p.status === 'Devis').length} devis | {commercialProspects.filter(p => p.status === 'Négociation').length} négociation
                     </div>
                     
-                    {/* Bouton Récap du jour */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onShowRecap(commercial);
-                      }}
-                      style={{
-                        marginTop: '12px',
-                        padding: '8px 12px',
-                        backgroundColor: '#10a0dc',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        cursor: 'pointer',
-                        width: '100%'
-                      }}
-                    >
-                      📋 Récap du jour
-                    </button>
+                    {/* Boutons Récap */}
+                    <div style={{marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px'}}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onShowRecap(commercial, 'jour');
+                        }}
+                        style={{
+                          padding: '6px 10px',
+                          backgroundColor: '#10a0dc',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          width: '100%'
+                        }}
+                      >
+                        📋 Récap du jour
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onShowRecap(commercial, 'semaine');
+                        }}
+                        style={{
+                          padding: '6px 10px',
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          width: '100%'
+                        }}
+                      >
+                        📅 Actions de la semaine
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onShowRecap(commercial, 'mois');
+                        }}
+                        style={{
+                          padding: '6px 10px',
+                          backgroundColor: '#ff9800',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          width: '100%'
+                        }}
+                      >
+                        📆 Actions du mois
+                      </button>
+                    </div>
                   </div>
                 );
               })}
