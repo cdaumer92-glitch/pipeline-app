@@ -873,8 +873,9 @@
               }
             }
 
-            // Actions créées dans la période
+            // Actions créées dans la période (non cochées uniquement)
             const actionsCreated = allActions.filter(a => {
+              if (a.completed) return false; // Uniquement les actions non cochées
               const createdDate = new Date(a.created_at);
               return createdDate >= startDate && createdDate <= endDate;
             });
@@ -2086,25 +2087,25 @@
                     </div>
                     
                     {/* Boutons Récap */}
-                    <div style={{marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px'}}>
+                    <div style={{marginTop: '12px', display: 'flex', flexDirection: 'row', gap: '6px'}}>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           onShowRecap(commercial, 'jour');
                         }}
                         style={{
-                          padding: '6px 10px',
+                          padding: '6px 8px',
                           backgroundColor: '#10a0dc',
                           color: 'white',
                           border: 'none',
                           borderRadius: '4px',
-                          fontSize: '11px',
+                          fontSize: '10px',
                           fontWeight: 'bold',
                           cursor: 'pointer',
-                          width: '100%'
+                          flex: 1
                         }}
                       >
-                        📋 Récap du jour
+                        Jour
                       </button>
                       <button
                         onClick={(e) => {
@@ -2112,18 +2113,18 @@
                           onShowRecap(commercial, 'semaine');
                         }}
                         style={{
-                          padding: '6px 10px',
+                          padding: '6px 8px',
                           backgroundColor: '#28a745',
                           color: 'white',
                           border: 'none',
                           borderRadius: '4px',
-                          fontSize: '11px',
+                          fontSize: '10px',
                           fontWeight: 'bold',
                           cursor: 'pointer',
-                          width: '100%'
+                          flex: 1
                         }}
                       >
-                        📅 Actions de la semaine
+                        Semaine
                       </button>
                       <button
                         onClick={(e) => {
@@ -2131,18 +2132,18 @@
                           onShowRecap(commercial, 'mois');
                         }}
                         style={{
-                          padding: '6px 10px',
+                          padding: '6px 8px',
                           backgroundColor: '#ff9800',
                           color: 'white',
                           border: 'none',
                           borderRadius: '4px',
-                          fontSize: '11px',
+                          fontSize: '10px',
                           fontWeight: 'bold',
                           cursor: 'pointer',
-                          width: '100%'
+                          flex: 1
                         }}
                       >
-                        📆 Actions du mois
+                        Mois
                       </button>
                     </div>
                   </div>
