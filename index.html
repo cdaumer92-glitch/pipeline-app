@@ -886,11 +886,14 @@
             const actionsArrays = await Promise.all(actionsPromises);
             const allActions = actionsArrays.flat();
 
-            // Actions créées dans la période (non cochées uniquement)
+            // Actions créées dans la période ET prévues dans la période (non cochées uniquement)
             const actionsCreated = allActions.filter(a => {
               if (a.completed) return false;
               const createdDate = new Date(a.created_at);
-              return createdDate >= startDate && createdDate <= endDate;
+              const plannedDate = new Date(a.planned_date);
+              // L'action doit être créée dans la période ET prévue dans la période
+              return (createdDate >= startDate && createdDate <= endDate) &&
+                     (plannedDate >= startDate && plannedDate <= endDate);
             });
 
             // Actions planifiées dans la période (non encore réalisées)
