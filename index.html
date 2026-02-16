@@ -168,6 +168,7 @@
         principal: false,
         decideur: false
       });
+      const [filterSocietyType, setFilterSocietyType] = React.useState('Tous');
       const [filterStatus, setFilterStatus] = React.useState('Tous hors suspects');
       const [filterCommercial, setFilterCommercial] = React.useState('Tous');
       const [searchTerm, setSearchTerm] = React.useState('');
@@ -633,6 +634,14 @@
       };
 
       const filteredProspects = prospects.filter(p => {
+        // Filtre par type de société (Suspect/Prospect/Client)
+        let matchSocietyType;
+        if (filterSocietyType === 'Tous') {
+          matchSocietyType = true;
+        } else {
+          matchSocietyType = p.statut_societe === filterSocietyType;
+        }
+        
         let matchStatus;
         if (filterStatus === 'Tous hors suspects') {
           // Exclure les suspects
@@ -649,7 +658,7 @@
         const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (p.contact_name && p.contact_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
                            (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase()));
-        return matchStatus && matchCommercial && matchSearch;
+        return matchSocietyType && matchStatus && matchCommercial && matchSearch;
       }).sort((a, b) => {
         if (sortBy === 'name') {
           return a.name.localeCompare(b.name);
@@ -737,6 +746,8 @@
               allProspects={prospects}
               selectedProspect={selectedProspect}
               onSelect={handleSelectProspect}
+              filterSocietyType={filterSocietyType}
+              onFilterSocietyTypeChange={setFilterSocietyType}
               filterStatus={filterStatus}
               onFilterChange={setFilterStatus}
               filterCommercial={filterCommercial}
@@ -1624,20 +1635,40 @@
       );
     }
 
-    function LeftPanel({ prospects, allProspects, selectedProspect, onSelect, filterStatus, onFilterChange, filterCommercial, onFilterCommercialChange, searchTerm, onSearchChange, sortBy, onSortChange, prospectActionsInfo, onNewProspect }) {
+    function LeftPanel({ prospects, allProspects, selectedProspect, onSelect, filterSocietyType, onFilterSocietyTypeChange, filterStatus, onFilterChange, filterCommercial, onFilterCommercialChange, searchTerm, onSearchChange, sortBy, onSortChange, prospectActionsInfo, onNewProspect }) {
       return (
         <div style={styles.leftPanel}>
           <button onClick={onNewProspect} style={styles.newBtn}>+ Nouvelle entreprise</button>
           
-          <input
-            type="text"
-            placeholder="Chercher..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            style={styles.searchInput}
-          />
+          {/* Type de société : Suspects / Prospects / Clients */}
+          <div style={{...styles.filterContainer, marginTop: '15px'}}>
+            {['Tous', 'Suspect', 'Prospect', 'Client'].map(type => {
+              const count = type === 'Tous' 
+                ? allProspects.length 
+                : allProspects.filter(p => p.statut_societe === type).length;
+              return (
+                <button
+                  key={type}
+                  onClick={() => onFilterSocietyTypeChange(type)}
+                  style={{
+                    ...styles.filterBtn,
+                    ...(filterSocietyType === type ? styles.filterBtnActive : {}),
+                    fontSize: '12px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <span>{type}{type === 'Suspect' ? 's' : type === 'Prospect' ? 's' : type === 'Client' ? 's' : ''}</span>
+                  <span style={{fontSize: '11px', marginLeft: '8px', opacity: 0.7}}>({count})</span>
+                </button>
+              );
+            })}
+          </div>
 
-          <div style={styles.filterContainer}>
+          {/* Statut */}
+          <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
+            <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Statut:</span>
             {['Tous hors suspects', 'Suspects', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Ajourné N+1', 'Perdu'].map(status => (
               <button
                 key={status}
@@ -1652,6 +1683,7 @@
             ))}
           </div>
 
+          {/* Commercial */}
           <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
             <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Commercial:</span>
             {['Tous', 'Roger', 'Christian', 'Frédéric'].map(commercial => {
@@ -1676,6 +1708,7 @@
             })}
           </div>
 
+          {/* Trier par */}
           <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
             <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Trier par:</span>
             {[{label: 'Nom', value: 'name'}, {label: 'Ancienneté', value: 'ancienneté'}, {label: 'Probabilité', value: 'probabilité'}].map(option => (
