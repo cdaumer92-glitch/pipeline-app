@@ -120,6 +120,7 @@
         'Démo': '#e72c7b',
         'Négociation': '#d3a002',
         'Signé': '#3cd6b9',
+        'Ajourné N+1': '#ff9800',
         'Perdu': '#e23b63'
       };
       return colors[status] || '#666';
@@ -1637,7 +1638,7 @@
           />
 
           <div style={styles.filterContainer}>
-            {['Tous hors suspects', 'Suspects', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Perdu'].map(status => (
+            {['Tous hors suspects', 'Suspects', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Ajourné N+1', 'Perdu'].map(status => (
               <button
                 key={status}
                 onClick={() => onFilterChange(status)}
@@ -3482,6 +3483,7 @@
                   <option>Démo</option>
                   <option>Négociation</option>
                   <option>Signé</option>
+                  <option>Ajourné N+1</option>
                   <option>Perdu</option>
                 </select>
               </div>
@@ -3641,6 +3643,7 @@
                 <option>Appel</option>
                 <option>Relance</option>
                 <option>Email</option>
+                <option>A faire</option>
                 <option>Point technique</option>
                 <option>Démo</option>
                 <option>Négociation</option>
