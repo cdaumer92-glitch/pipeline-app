@@ -1748,7 +1748,8 @@
                 style={{
                   ...styles.prospectItem,
                   ...(selectedProspect?.id === prospect.id ? styles.prospectItemActive : {}),
-                  ...(prospect.status === 'Perdu' ? { backgroundColor: '#ffe6e6', borderLeft: '4px solid #ff6666' } : {})
+                  ...(prospect.status === 'Perdu' ? { backgroundColor: '#ffe6e6', borderLeft: '4px solid #ff6666' } : {}),
+                  ...(prospect.status === 'Ajourné N+1' ? { backgroundColor: '#fff3e0', borderLeft: '4px solid #ff9800' } : {})
                 }}
               >
                 <div style={styles.prospectName}>{prospect.name}</div>
