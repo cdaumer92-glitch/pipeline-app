@@ -3665,6 +3665,7 @@
               </select>
               <select value={newActionContact} onChange={(e) => onActionContactChange(e.target.value)} style={{...styles.activitySelect, flex: 1}}>
                 <option value="">-- À (Contact) --</option>
+                <option value="Interne">Interne</option>
                 {interlocuteurs && interlocuteurs.length > 0 ? (
                   interlocuteurs.map(interlocuteur => (
                     <option key={interlocuteur.id} value={interlocuteur.nom}>
