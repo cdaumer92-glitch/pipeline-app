@@ -2751,52 +2751,48 @@
             })()}
 
             {/* Autres contacts dépliables */}
-            {(() => {
-              const autresContacts = interlocuteurs.filter(i => !i.principal && !i.decideur);
-              if (autresContacts.length === 0) return null;
-              return (
-                <div style={{marginTop: '10px'}}>
-                  <button
-                    onClick={() => setShowAutresContacts(!showAutresContacts)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      color: '#10a0dc', fontSize: '13px', fontWeight: 'bold', padding: '4px 0'
-                    }}
-                  >
-                    <span style={{
-                      display: 'inline-block',
-                      transform: showAutresContacts ? 'rotate(90deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.2s',
-                      fontSize: '11px'
-                    }}>▶</span>
-                    Autres contacts ({autresContacts.length})
-                  </button>
-                  {showAutresContacts && (
-                    <div style={{marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px'}}>
-                      {autresContacts.map(c => (
-                        <div key={c.id} style={{
-                          display: 'flex', alignItems: 'center', gap: '12px',
-                          padding: '10px 14px', backgroundColor: '#f9f9f9',
-                          borderRadius: '6px', border: '1px solid #e0e0e0'
-                        }}>
-                          <div style={{flex: 1}}>
-                            <span style={{fontWeight: 'bold', fontSize: '14px'}}>{c.nom}</span>
-                            {c.fonction && <span style={{color: '#666', fontSize: '13px', marginLeft: '8px'}}>({c.fonction})</span>}
-                          </div>
-                          {c.telephone && (
-                            <span style={{fontSize: '13px', color: '#555'}}>📞 {c.telephone}</span>
-                          )}
-                          {c.email && (
-                            <a href={`mailto:${c.email}`} style={{fontSize: '13px', color: '#10a0dc'}}>✉ {c.email}</a>
-                          )}
+            {interlocuteurs.filter(i => !i.principal && !i.decideur).length > 0 && (
+              <div style={{marginTop: '10px'}}>
+                <button
+                  onClick={() => setShowAutresContacts(!showAutresContacts)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#10a0dc', fontSize: '13px', fontWeight: 'bold', padding: '4px 0'
+                  }}
+                >
+                  <span style={{
+                    display: 'inline-block',
+                    transform: showAutresContacts ? 'rotate(90deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s',
+                    fontSize: '11px'
+                  }}>▶</span>
+                  Autres contacts ({interlocuteurs.filter(i => !i.principal && !i.decideur).length})
+                </button>
+                {showAutresContacts && (
+                  <div style={{marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                    {interlocuteurs.filter(i => !i.principal && !i.decideur).map(c => (
+                      <div key={c.id} style={{
+                        display: 'flex', alignItems: 'center', gap: '12px',
+                        padding: '10px 14px', backgroundColor: '#f9f9f9',
+                        borderRadius: '6px', border: '1px solid #e0e0e0'
+                      }}>
+                        <div style={{flex: 1}}>
+                          <span style={{fontWeight: 'bold', fontSize: '14px'}}>{c.nom}</span>
+                          {c.fonction && <span style={{color: '#666', fontSize: '13px', marginLeft: '8px'}}>({c.fonction})</span>}
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+                        {c.telephone && (
+                          <span style={{fontSize: '13px', color: '#555'}}>📞 {c.telephone}</span>
+                        )}
+                        {c.email && (
+                          <a href={`mailto:${c.email}`} style={{fontSize: '13px', color: '#10a0dc'}}>✉ {c.email}</a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             </div>
 
             {(selectedProspect.adresse || selectedProspect.tel_standard) && (
