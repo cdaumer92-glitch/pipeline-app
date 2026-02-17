@@ -2565,190 +2565,49 @@
             </div>
 
             {/* Section Contacts */}
-            <div style={{marginBottom: '20px'}}>
-              <h3 style={{fontSize: '16px', color: '#666', marginBottom: '10px', fontWeight: 'bold'}}>Contacts :</h3>
-            {(() => {
-              const contactPrincipal = interlocuteurs.find(i => i.principal);
-              const decideur = interlocuteurs.find(i => i.decideur);
-              const isSamePerson = contactPrincipal && decideur && contactPrincipal.id === decideur.id;
-              
-              // Si c'est la même personne, afficher un seul bandeau avec les deux boutons
-              if (isSamePerson) {
-                return (
+            <div style={{marginBottom: '15px'}}>
+              <h3 style={{fontSize: '16px', color: '#666', marginBottom: '8px', fontWeight: 'bold'}}>Contacts :</h3>
+              {(() => {
+                const contactPrincipal = interlocuteurs.find(i => i.principal);
+                const decideur = interlocuteurs.find(i => i.decideur);
+                const isSamePerson = contactPrincipal && decideur && contactPrincipal.id === decideur.id;
+
+                const ContactLine = ({ personne, badges }) => (
                   <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '15px',
-                    backgroundColor: '#e8f4f8',
-                    borderRadius: '8px',
-                    marginBottom: '15px',
-                    border: '2px solid #10a0dc'
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '6px 10px', marginBottom: '5px',
+                    backgroundColor: '#f9f9f9', borderRadius: '6px',
+                    fontSize: '14px'
                   }}>
-                    <div style={{display: 'flex', gap: '8px', marginRight: '15px'}}>
-                      <button style={{
-                        backgroundColor: '#10a0dc',
-                        color: 'white',
-                        border: 'none',
-                        padding: '5px 10px',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                        cursor: 'default',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        ⭐ PRINCIPAL
-                      </button>
-                      <button style={{
-                        backgroundColor: '#d3a002',
-                        color: 'white',
-                        border: 'none',
-                        padding: '5px 10px',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                        cursor: 'default',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        👔 DÉCIDEUR
-                      </button>
-                    </div>
-                    <div style={{flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                      <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>
-                        {contactPrincipal.nom}
-                        {contactPrincipal.fonction && <span style={{fontSize: '14px', fontWeight: 'normal', color: '#666', marginLeft: '8px'}}>({contactPrincipal.fonction})</span>}
-                      </div>
-                      {contactPrincipal.telephone && (
-                        <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
-                          📞 {contactPrincipal.telephone}
-                        </div>
-                      )}
-                      {contactPrincipal.email && (
-                        <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
-                          ✉️ {contactPrincipal.email}
-                        </div>
-                      )}
-                    </div>
+                    {badges}
+                    <span style={{fontWeight: 'bold', color: '#333'}}>{personne.nom}</span>
+                    {personne.fonction && <span style={{color: '#888', fontSize: '13px'}}>({personne.fonction})</span>}
+                    <span style={{flex: 1}} />
+                    {personne.telephone && <span style={{color: '#555'}}>📞 {personne.telephone}</span>}
+                    {personne.email && <span style={{color: '#555'}}>✉️ {personne.email}</span>}
                   </div>
                 );
-              }
-              
-              // Sinon, afficher deux bandeaux séparés
-              return (
-                <>
-                  {/* Contact Principal */}
-                  {contactPrincipal ? (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: '15px',
-                      backgroundColor: '#e8f4f8',
-                      borderRadius: '8px',
-                      marginBottom: '10px',
-                      border: '2px solid #10a0dc'
-                    }}>
-                      <button style={{
-                        backgroundColor: '#10a0dc',
-                        color: 'white',
-                        border: 'none',
-                        padding: '5px 10px',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                        marginRight: '15px',
-                        cursor: 'default',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        ⭐ PRINCIPAL
-                      </button>
-                      <div style={{flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                        <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>
-                          {contactPrincipal.nom}
-                          {contactPrincipal.fonction && <span style={{fontSize: '14px', fontWeight: 'normal', color: '#666', marginLeft: '8px'}}>({contactPrincipal.fonction})</span>}
-                        </div>
-                        {contactPrincipal.telephone && (
-                          <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
-                            📞 {contactPrincipal.telephone}
-                          </div>
-                        )}
-                        {contactPrincipal.email && (
-                          <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
-                            ✉️ {contactPrincipal.email}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{
-                      padding: '15px',
-                      backgroundColor: '#f9f9f9',
-                      borderRadius: '8px',
-                      marginBottom: '10px',
-                      border: '1px dashed #ccc',
-                      textAlign: 'center',
-                      color: '#999'
-                    }}>
-                      Aucun contact principal défini
-                    </div>
-                  )}
 
-                  {/* Décideur */}
-                  {decideur ? (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: '15px',
-                      backgroundColor: '#fef9e8',
-                      borderRadius: '8px',
-                      marginBottom: '15px',
-                      border: '2px solid #d3a002'
-                    }}>
-                      <button style={{
-                        backgroundColor: '#d3a002',
-                        color: 'white',
-                        border: 'none',
-                        padding: '5px 10px',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                        marginRight: '15px',
-                        cursor: 'default',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        👔 DÉCIDEUR
-                      </button>
-                      <div style={{flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                        <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>
-                          {decideur.nom}
-                          {decideur.fonction && <span style={{fontSize: '14px', fontWeight: 'normal', color: '#666', marginLeft: '8px'}}>({decideur.fonction})</span>}
-                        </div>
-                        {decideur.telephone && (
-                          <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
-                            📞 {decideur.telephone}
-                          </div>
-                        )}
-                        {decideur.email && (
-                          <div style={{fontSize: '15px', color: '#333', marginLeft: '20px'}}>
-                            ✉️ {decideur.email}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{
-                      padding: '15px',
-                      backgroundColor: '#f9f9f9',
-                      borderRadius: '8px',
-                      marginBottom: '15px',
-                      border: '1px dashed #ccc',
-                      textAlign: 'center',
-                      color: '#999'
-                    }}>
-                      Aucun décideur défini
-                    </div>
-                  )}
-                </>
-              );
-            })()}
+                const badgePrincipal = <span style={{backgroundColor: '#10a0dc', color: 'white', fontSize: '10px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '3px', whiteSpace: 'nowrap'}}>⭐ PRINCIPAL</span>;
+                const badgeDecideur = <span style={{backgroundColor: '#d3a002', color: 'white', fontSize: '10px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '3px', whiteSpace: 'nowrap'}}>👔 DÉCIDEUR</span>;
+
+                return (
+                  <>
+                    {isSamePerson && contactPrincipal && (
+                      <ContactLine personne={contactPrincipal} badges={<>{badgePrincipal}{badgeDecideur}</>} />
+                    )}
+                    {!isSamePerson && contactPrincipal && (
+                      <ContactLine personne={contactPrincipal} badges={badgePrincipal} />
+                    )}
+                    {!isSamePerson && decideur && (
+                      <ContactLine personne={decideur} badges={badgeDecideur} />
+                    )}
+                    {!contactPrincipal && !decideur && (
+                      <span style={{color: '#999', fontSize: '13px'}}>Aucun contact principal ou décideur défini</span>
+                    )}
+                  </>
+                );
+              })()}
 
             {/* Autres contacts dépliables */}
             {interlocuteurs.filter(i => !i.principal && !i.decideur).length > 0 && (
