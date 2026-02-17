@@ -2572,11 +2572,11 @@
                 const decideur = interlocuteurs.find(i => i.decideur);
                 const isSamePerson = contactPrincipal && decideur && contactPrincipal.id === decideur.id;
 
-                const ContactLine = ({ personne, badges }) => (
+                const ContactLine = ({ personne, badges, bgColor }) => (
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: '8px',
-                    padding: '6px 10px', marginBottom: '5px',
-                    backgroundColor: '#f9f9f9', borderRadius: '6px',
+                    padding: '8px 12px', marginBottom: '5px',
+                    backgroundColor: bgColor || '#f9f9f9', borderRadius: '6px',
                     fontSize: '14px'
                   }}>
                     {badges}
@@ -2594,13 +2594,13 @@
                 return (
                   <>
                     {isSamePerson && contactPrincipal && (
-                      <ContactLine personne={contactPrincipal} badges={<>{badgePrincipal}{badgeDecideur}</>} />
+                      <ContactLine personne={contactPrincipal} badges={<>{badgePrincipal}{badgeDecideur}</>} bgColor="#e8f4f8" />
                     )}
                     {!isSamePerson && contactPrincipal && (
-                      <ContactLine personne={contactPrincipal} badges={badgePrincipal} />
+                      <ContactLine personne={contactPrincipal} badges={badgePrincipal} bgColor="#e8f4f8" />
                     )}
                     {!isSamePerson && decideur && (
-                      <ContactLine personne={decideur} badges={badgeDecideur} />
+                      <ContactLine personne={decideur} badges={badgeDecideur} bgColor="#fef9e8" />
                     )}
                     {!contactPrincipal && !decideur && (
                       <span style={{color: '#999', fontSize: '13px'}}>Aucun contact principal ou décideur défini</span>
