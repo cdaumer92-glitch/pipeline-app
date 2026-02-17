@@ -156,7 +156,6 @@
       const [tempActionComments, setTempActionComments] = React.useState({});
       const [selectedProspect, setSelectedProspect] = React.useState(null);
       const [showForm, setShowForm] = React.useState(false);
-      const [showAutresContacts, setShowAutresContacts] = React.useState(false);
       const [formData, setFormData] = React.useState(getEmptyProspect());
       const [interlocuteurs, setInterlocuteurs] = React.useState([]);
       const [showInterlocuteurForm, setShowInterlocuteurForm] = React.useState(false);
@@ -2487,6 +2486,7 @@
       const [newNextActionType, setNewNextActionType] = React.useState('');
       const [newNextActionDate, setNewNextActionDate] = React.useState('');
       const [newActivityActor, setNewActivityActor] = React.useState('');
+      const [showAutresContacts, setShowAutresContacts] = React.useState(false);
 
       const handleAddActivity = () => {
         if (newActivityDesc.trim()) {
