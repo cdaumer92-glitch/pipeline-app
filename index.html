@@ -915,10 +915,13 @@
             });
 
             // Actions en retard (non cochées et date < aujourd'hui)
+            // Actions en retard = date strictement AVANT aujourd'hui (pas aujourd'hui)
+            const startOfToday = new Date();
+            startOfToday.setHours(0, 0, 0, 0);
             const actionsLate = allActions.filter(a => {
               if (a.completed) return false;
               const actionDate = new Date(a.planned_date);
-              return actionDate < today;
+              return actionDate < startOfToday;
             });
 
             setRecapData({
