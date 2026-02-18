@@ -3137,21 +3137,18 @@
                         <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333', marginBottom: '8px', paddingRight: '140px'}}>
                           {interlocuteur.nom}
                         </div>
-                        {interlocuteur.fonction && (
-                          <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>
-                            <strong>Fonction:</strong> {interlocuteur.fonction}
-                          </div>
-                        )}
-                        {interlocuteur.email && (
-                          <div style={{fontSize: '14px', color: '#666', marginBottom: '4px'}}>
-                            <strong>Email:</strong> {interlocuteur.email}
-                          </div>
-                        )}
-                        {interlocuteur.telephone && (
-                          <div style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>
-                            <strong>Tél:</strong> {interlocuteur.telephone}
-                          </div>
-                        )}
+                        {/* Fonction, Email, Tél sur une seule ligne */}
+                        <div style={{display: 'flex', gap: '20px', fontSize: '14px', color: '#666', marginBottom: '10px', flexWrap: 'wrap'}}>
+                          {interlocuteur.fonction && (
+                            <span><strong>Fonction:</strong> {interlocuteur.fonction}</span>
+                          )}
+                          {interlocuteur.email && (
+                            <span><strong>Email:</strong> {interlocuteur.email}</span>
+                          )}
+                          {interlocuteur.telephone && (
+                            <span><strong>Tél:</strong> {interlocuteur.telephone}</span>
+                          )}
+                        </div>
                         <div style={{display: 'flex', gap: '10px', marginTop: '10px'}}>
                           <button
                             type="button"
