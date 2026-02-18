@@ -3305,6 +3305,77 @@
                     <option value="100">100%</option>
                   </select>
                 </div>
+                
+                {/* PDF Upload/Affichage */}
+                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
+                  <label style={{...styles.labelMontant, display: 'block', marginBottom: '5px'}}>Devis PDF</label>
+                  {formData.pdf_url ? (
+                    <div style={{display: 'flex', gap: '5px'}}>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${API_URL}/prospects/${formData.id}/download-pdf`, {
+                              headers: { 'Authorization': `Bearer ${user.token}` }
+                            });
+                            if (res.ok) {
+                              const blob = await res.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              window.open(url, '_blank');
+                            } else {
+                              alert('Erreur: ' + (await res.text()));
+                            }
+                          } catch (err) {
+                            alert('Erreur: ' + err.message);
+                          }
+                        }}
+                        style={{flex: 1, padding: '8px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}
+                      >
+                        👁️ Voir
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDeletePdf}
+                        style={{padding: '8px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{display: 'flex', gap: '5px'}}>
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        onChange={(e) => setPdfFile(e.target.files[0])}
+                        style={{display: 'none'}}
+                        id="pdf-upload"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => document.getElementById('pdf-upload').click()}
+                        style={{flex: 1, padding: '8px', backgroundColor: '#10a0dc', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}
+                      >
+                        📎 {pdfFile ? '✓' : 'Choisir'}
+                      </button>
+                      {pdfFile && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!formData.id) {
+                              alert('Créez le prospect d\'abord (Enregistrer / Activités)');
+                              return;
+                            }
+                            handleUploadPdf();
+                          }}
+                          disabled={isUploading}
+                          style={{padding: '8px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: isUploading ? 'not-allowed' : 'pointer', fontSize: '12px', opacity: isUploading ? 0.5 : 1}}
+                        >
+                          {isUploading ? '⏳' : '📤'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <div style={styles.totalCalc}>
                 <strong>Total: {formatCurrency(total)}</strong>
@@ -3412,71 +3483,6 @@
                   </label>
                 </div>
               </div>
-            </div>
-            )}
-
-            {['Devis', 'Démo', 'Négociation', 'Signé'].includes(formData.status) && (
-            <div style={styles.formSection}>
-              <h3>Devis PDF</h3>
-              
-              {formData.pdf_url ? (
-                <div style={{backgroundColor: '#e8f4f8', padding: '15px', borderRadius: '4px', marginBottom: '15px'}}>
-                  <div style={{marginBottom: '10px'}}>
-                    ✅ <strong>PDF uploadé</strong>
-                  </div>
-                  <div style={{display: 'flex', gap: '10px'}}>
-                    <button
-                      onClick={async () => {
-                        try {
-                          const res = await fetch(`${API_URL}/prospects/${formData.id}/download-pdf`, {
-                            headers: { 'Authorization': `Bearer ${user.token}` }
-                          });
-                          if (res.ok) {
-                            const blob = await res.blob();
-                            const url = window.URL.createObjectURL(blob);
-                            window.open(url, '_blank');
-                          } else {
-                            alert('Erreur: ' + (await res.text()));
-                          }
-                        } catch (err) {
-                          alert('Erreur: ' + err.message);
-                        }
-                      }}
-                      style={{padding: '8px 12px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
-                    >
-                      👁️ Visionner
-                    </button>
-                    <button
-                      onClick={handleDeletePdf}
-                      style={{padding: '8px 12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}
-                    >
-                      🗑️ Supprimer
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px'}}>
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    onChange={(e) => setPdfFile(e.target.files[0])}
-                    style={{flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
-                  />
-                  <button
-                    onClick={() => {
-                      if (!formData.id) {
-                        alert('Créez le prospect d\'abord (Enregistrer / Activités)');
-                        return;
-                      }
-                      handleUploadPdf();
-                    }}
-                    disabled={isUploading || !pdfFile}
-                    style={{padding: '8px 15px', backgroundColor: '#10a0dc', color: 'white', border: 'none', borderRadius: '4px', cursor: pdfFile && formData.id ? 'pointer' : 'not-allowed', fontWeight: 'bold', opacity: (isUploading || !pdfFile) ? 0.5 : 1}}
-                  >
-                    {isUploading ? '⏳ Upload...' : '📤 Upload PDF'}
-                  </button>
-                </div>
-              )}
             </div>
             )}
 
