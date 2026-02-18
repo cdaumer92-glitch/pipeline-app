@@ -169,6 +169,21 @@
         principal: false,
         decideur: false
       });
+      // États pour les devis
+      const [devisList, setDevisList] = React.useState([]);
+      const [showDevisForm, setShowDevisForm] = React.useState(false);
+      const [editingDevisId, setEditingDevisId] = React.useState(null);
+      const [devisFormData, setDevisFormData] = React.useState({
+        quote_date: '',
+        setup_amount: 0,
+        monthly_amount: 0,
+        annual_amount: 0,
+        training_amount: 0,
+        chance_percent: 0,
+        modules: {}
+      });
+      const [devisPdfFile, setDevisPdfFile] = React.useState(null);
+      const [isUploadingDevisPdf, setIsUploadingDevisPdf] = React.useState(false);
       const [filterSocietyType, setFilterSocietyType] = React.useState('Tous');
       const [filterStatus, setFilterStatus] = React.useState('Tous');
       const [filterCommercial, setFilterCommercial] = React.useState('Tous');
@@ -325,6 +340,170 @@
           }
         } catch (err) {
           console.error('Erreur:', err);
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      // ============ DEVIS ============
+      const fetchDevis = async (prospectId) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/devis`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          if (res.ok) {
+            const devis = await res.json();
+            setDevisList(devis);
+          }
+        } catch (err) {
+          console.error('Erreur fetchDevis:', err);
+        }
+      };
+
+      const handleAddDevis = () => {
+        setDevisFormData({
+          quote_date: new Date().toISOString().split('T')[0],
+          setup_amount: 0,
+          monthly_amount: 0,
+          annual_amount: 0,
+          training_amount: 0,
+          chance_percent: 0,
+          modules: {}
+        });
+        setEditingDevisId(null);
+        setDevisPdfFile(null);
+        setShowDevisForm(true);
+      };
+
+      const handleEditDevis = (devis) => {
+        setDevisFormData({
+          quote_date: devis.quote_date || '',
+          setup_amount: devis.setup_amount || 0,
+          monthly_amount: devis.monthly_amount || 0,
+          annual_amount: devis.annual_amount || 0,
+          training_amount: devis.training_amount || 0,
+          chance_percent: devis.chance_percent || 0,
+          modules: typeof devis.modules === 'string' ? JSON.parse(devis.modules) : (devis.modules || {})
+        });
+        setEditingDevisId(devis.id);
+        setDevisPdfFile(null);
+        setShowDevisForm(true);
+      };
+
+      const handleSaveDevis = async () => {
+        try {
+          if (!selectedProspect?.id) {
+            alert('Veuillez d\'abord créer la société');
+            return;
+          }
+
+          const url = editingDevisId 
+            ? `${API_URL}/devis/${editingDevisId}`
+            : `${API_URL}/prospects/${selectedProspect.id}/devis`;
+          
+          const method = editingDevisId ? 'PUT' : 'POST';
+
+          const res = await fetch(url, {
+            method,
+            headers: {
+              'Authorization': `Bearer ${user.token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(devisFormData)
+          });
+
+          if (res.ok) {
+            const savedDevis = await res.json();
+            
+            // Upload PDF si présent
+            if (devisPdfFile) {
+              await handleUploadDevisPdf(savedDevis.id);
+            }
+
+            await fetchDevis(selectedProspect.id);
+            setShowDevisForm(false);
+            setEditingDevisId(null);
+            setDevisFormData({
+              quote_date: '',
+              setup_amount: 0,
+              monthly_amount: 0,
+              annual_amount: 0,
+              training_amount: 0,
+              chance_percent: 0,
+              modules: {}
+            });
+            setDevisPdfFile(null);
+          } else {
+            alert('Erreur lors de la sauvegarde du devis');
+          }
+        } catch (err) {
+          console.error('Erreur handleSaveDevis:', err);
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleDeleteDevis = async (devisId) => {
+        if (!window.confirm('Supprimer ce devis ?')) return;
+
+        try {
+          const res = await fetch(`${API_URL}/devis/${devisId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+
+          if (res.ok) {
+            await fetchDevis(selectedProspect.id);
+          } else {
+            alert('Erreur lors de la suppression');
+          }
+        } catch (err) {
+          console.error('Erreur handleDeleteDevis:', err);
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleUploadDevisPdf = async (devisId) => {
+        if (!devisPdfFile) return;
+
+        try {
+          setIsUploadingDevisPdf(true);
+          const formData = new FormData();
+          formData.append('pdf', devisPdfFile);
+
+          const res = await fetch(`${API_URL}/devis/${devisId}/upload-pdf`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${user.token}` },
+            body: formData
+          });
+
+          if (res.ok) {
+            await fetchDevis(selectedProspect.id);
+          } else {
+            alert('Erreur lors de l\'upload du PDF');
+          }
+        } catch (err) {
+          console.error('Erreur handleUploadDevisPdf:', err);
+          alert('Erreur: ' + err.message);
+        } finally {
+          setIsUploadingDevisPdf(false);
+        }
+      };
+
+      const handleDeleteDevisPdf = async (devisId) => {
+        if (!window.confirm('Supprimer le PDF de ce devis ?')) return;
+
+        try {
+          const res = await fetch(`${API_URL}/devis/${devisId}/pdf`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+
+          if (res.ok) {
+            await fetchDevis(selectedProspect.id);
+          } else {
+            alert('Erreur lors de la suppression du PDF');
+          }
+        } catch (err) {
+          console.error('Erreur handleDeleteDevisPdf:', err);
           alert('Erreur: ' + err.message);
         }
       };
@@ -631,6 +810,7 @@
         fetchNextActions(prospect.id);
         fetchStatusHistory(prospect.id);
         fetchInterlocuteurs(prospect.id);
+        fetchDevis(prospect.id);
         setNewActionDate(new Date().toISOString().split('T')[0]);
       };
 
@@ -3230,163 +3410,341 @@
               </div>
             )}
 
-            {['Devis', 'Démo', 'Négociation', 'Signé', 'Perdu'].includes(formData.status) && (
+            {/* Section Devis - Visible pour Devis/Démo/Négociation/Signé/Perdu */}
+            {['Devis', 'Démo', 'Négociation', 'Signé', 'Perdu'].includes(formData.status) && selectedProspect && selectedProspect.id && (
             <div style={styles.formSection}>
-              <h3>Montants et Probabilité</h3>
-              <div style={{display: 'flex', gap: '15px', alignItems: 'flex-start', flexWrap: 'wrap'}}>
-                {/* Date du Devis */}
-                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
-                  <label style={{...styles.labelMontant, display: 'block', marginBottom: '5px'}}>Date</label>
-                  <input
-                    type="date"
-                    value={formData.quote_date}
-                    onChange={(e) => handleChange('quote_date', e.target.value)}
-                    style={styles.formInput}
-                  />
-                </div>
-                
-                {/* Setup */}
-                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
-                  <label style={{...styles.labelSetup, display: 'block', marginBottom: '5px'}}>Setup</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={formData.setup_amount}
-                    onChange={(e) => handleChange('setup_amount', parseFloat(e.target.value) || 0)}
-                    style={styles.formInput}
-                  />
-                  <div style={{fontSize: '11px', color: '#666', marginTop: '3px'}}>{formatNumber(Number(formData.setup_amount) || 0)}</div>
-                </div>
-                
-                {/* Abonnement mensuel */}
-                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
-                  <label style={{...styles.labelAbonnement, display: 'block', marginBottom: '5px'}}>Abo. (mensuel)</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={formData.monthly_amount}
-                    onChange={(e) => handleChange('monthly_amount', parseFloat(e.target.value) || 0)}
-                    style={styles.formInput}
-                  />
-                  <div style={{fontSize: '11px', color: '#666', marginTop: '3px'}}>{formatNumber(Number(formData.monthly_amount) || 0)}</div>
-                </div>
-                
-                {/* Abonnement annuel */}
-                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
-                  <label style={{...styles.labelAnnual, display: 'block', marginBottom: '5px'}}>Abo. (annuel)</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={formData.annual_amount}
-                    onChange={(e) => handleChange('annual_amount', parseFloat(e.target.value) || 0)}
-                    style={styles.formInput}
-                  />
-                  <div style={{fontSize: '11px', color: '#666', marginTop: '3px'}}>{formatNumber(Number(formData.annual_amount) || 0)}</div>
-                </div>
-                
-                {/* Formation */}
-                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
-                  <label style={{...styles.labelFormation, display: 'block', marginBottom: '5px'}}>Formation</label>
-                  <input
-                    type="text"
-                    placeholder="0"
-                    value={formatNumber(Number(formData.training_amount) || 0)}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\s/g, '');
-                      handleChange('training_amount', parseFloat(val) || 0);
-                    }}
-                    style={styles.formInput}
-                  />
-                </div>
-                
-                {/* Probabilité */}
-                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
-                  <label style={{...styles.labelMontant, display: 'block', marginBottom: '5px'}}>Probabilité</label>
-                  <select
-                    value={formData.chance_percent}
-                    onChange={(e) => handleChange('chance_percent', parseInt(e.target.value) || 0)}
-                    style={styles.formInput}
-                  >
-                    <option value="0">0%</option>
-                    <option value="20">20%</option>
-                    <option value="40">40%</option>
-                    <option value="60">60%</option>
-                    <option value="80">80%</option>
-                    <option value="100">100%</option>
-                  </select>
-                </div>
-                
-                {/* PDF Upload/Affichage */}
-                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
-                  <label style={{...styles.labelMontant, display: 'block', marginBottom: '5px'}}>Devis PDF</label>
-                  {formData.pdf_url ? (
-                    <div style={{display: 'flex', gap: '5px'}}>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            const res = await fetch(`${API_URL}/prospects/${formData.id}/download-pdf`, {
-                              headers: { 'Authorization': `Bearer ${user.token}` }
-                            });
-                            if (res.ok) {
-                              const blob = await res.blob();
-                              const url = window.URL.createObjectURL(blob);
-                              window.open(url, '_blank');
-                            } else {
-                              alert('Erreur: ' + (await res.text()));
-                            }
-                          } catch (err) {
-                            alert('Erreur: ' + err.message);
-                          }
-                        }}
-                        style={{flex: 1, padding: '8px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}
-                      >
-                        👁️ Voir
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleDeletePdf}
-                        style={{padding: '8px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{display: 'flex', gap: '5px'}}>
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        onChange={(e) => setPdfFile(e.target.files[0])}
-                        style={{display: 'none'}}
-                        id="pdf-upload"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => document.getElementById('pdf-upload').click()}
-                        style={{flex: 1, padding: '8px', backgroundColor: '#10a0dc', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}
-                      >
-                        📎 {pdfFile ? '✓' : 'Choisir'}
-                      </button>
-                      {pdfFile && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!formData.id) {
-                              alert('Créez le prospect d\'abord (Enregistrer / Activités)');
-                              return;
-                            }
-                            handleUploadPdf();
-                          }}
-                          disabled={isUploading}
-                          style={{padding: '8px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: isUploading ? 'not-allowed' : 'pointer', fontSize: '12px', opacity: isUploading ? 0.5 : 1}}
-                        >
-                          {isUploading ? '⏳' : '📤'}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
+                <h3>📋 Devis ({devisList.length})</h3>
+                <button
+                  type="button"
+                  onClick={handleAddDevis}
+                  style={{
+                    backgroundColor: '#10a0dc',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  + Ajouter un devis
+                </button>
               </div>
+
+              {/* Formulaire d'ajout/édition de devis */}
+              {showDevisForm && (
+                <div style={{
+                  padding: '20px',
+                  backgroundColor: '#f9f9f9',
+                  borderRadius: '8px',
+                  marginBottom: '20px',
+                  border: '2px solid #10a0dc'
+                }}>
+                  <h4 style={{marginTop: 0, color: '#10a0dc'}}>
+                    {editingDevisId ? 'Modifier le devis' : 'Nouveau devis'}
+                  </h4>
+                  
+                  {/* Ligne 1 : Date, montants, probabilité */}
+                  <div style={{display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap'}}>
+                    <div style={{flex: '1 1 140px'}}>
+                      <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Date</label>
+                      <input
+                        type="date"
+                        value={devisFormData.quote_date}
+                        onChange={(e) => setDevisFormData({...devisFormData, quote_date: e.target.value})}
+                        style={{...styles.formInput, padding: '6px'}}
+                      />
+                    </div>
+                    <div style={{flex: '1 1 120px'}}>
+                      <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Setup</label>
+                      <input
+                        type="number"
+                        value={devisFormData.setup_amount}
+                        onChange={(e) => setDevisFormData({...devisFormData, setup_amount: parseFloat(e.target.value) || 0})}
+                        style={{...styles.formInput, padding: '6px'}}
+                      />
+                    </div>
+                    <div style={{flex: '1 1 120px'}}>
+                      <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Abo. (M)</label>
+                      <input
+                        type="number"
+                        value={devisFormData.monthly_amount}
+                        onChange={(e) => setDevisFormData({...devisFormData, monthly_amount: parseFloat(e.target.value) || 0})}
+                        style={{...styles.formInput, padding: '6px'}}
+                      />
+                    </div>
+                    <div style={{flex: '1 1 120px'}}>
+                      <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Abo. (A)</label>
+                      <input
+                        type="number"
+                        value={devisFormData.annual_amount}
+                        onChange={(e) => setDevisFormData({...devisFormData, annual_amount: parseFloat(e.target.value) || 0})}
+                        style={{...styles.formInput, padding: '6px'}}
+                      />
+                    </div>
+                    <div style={{flex: '1 1 120px'}}>
+                      <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Formation</label>
+                      <input
+                        type="number"
+                        value={devisFormData.training_amount}
+                        onChange={(e) => setDevisFormData({...devisFormData, training_amount: parseFloat(e.target.value) || 0})}
+                        style={{...styles.formInput, padding: '6px'}}
+                      />
+                    </div>
+                    <div style={{flex: '1 1 100px'}}>
+                      <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Proba.</label>
+                      <select
+                        value={devisFormData.chance_percent}
+                        onChange={(e) => setDevisFormData({...devisFormData, chance_percent: parseInt(e.target.value) || 0})}
+                        style={{...styles.formInput, padding: '6px'}}
+                      >
+                        <option value="0">0%</option>
+                        <option value="20">20%</option>
+                        <option value="40">40%</option>
+                        <option value="60">60%</option>
+                        <option value="80">80%</option>
+                        <option value="100">100%</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Ligne 2 : PDF */}
+                  <div style={{marginBottom: '15px'}}>
+                    <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>PDF du devis</label>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      onChange={(e) => setDevisPdfFile(e.target.files[0])}
+                      style={{...styles.formInput, padding: '6px'}}
+                    />
+                    {devisPdfFile && <div style={{fontSize: '12px', color: '#666', marginTop: '5px'}}>✓ {devisPdfFile.name}</div>}
+                  </div>
+
+                  {/* Ligne 3 : Modules */}
+                  <div style={{marginBottom: '15px'}}>
+                    <label style={{display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold'}}>Modules</label>
+                    <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px 15px'}}>
+                      {[
+                        {name: 'Biz', key: 'biz', color: '#17a2b8'},
+                        {name: 'Biz + Fab', key: 'biz_avec_fab', color: '#17a2b8'},
+                        {name: 'Fab', key: 'fab', color: '#17a2b8'},
+                        {name: 'Net', key: 'net', color: '#17a2b8'},
+                        {name: 'Kub', key: 'kub', color: '#17a2b8'},
+                        {name: 'Mag', key: 'mag', color: '#e91e63'},
+                        {name: 'VRP', key: 'vrp', color: '#9c27b0'},
+                        {name: 'Col', key: 'col', color: '#ff9800'},
+                        {name: 'Log', key: 'log', color: '#ffc107'},
+                        {name: 'Jet', key: 'jet', color: '#4caf50'},
+                        {name: 'Flux Tiers', key: 'flux_tiers', color: '#666'}
+                      ].map(module => (
+                        <div key={module.key} style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                          <span style={{color: module.color, fontWeight: 'bold', fontSize: '13px'}}>{module.name}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="999"
+                            value={devisFormData.modules[module.key] || 0}
+                            onChange={(e) => setDevisFormData({
+                              ...devisFormData,
+                              modules: {...devisFormData.modules, [module.key]: parseInt(e.target.value) || 0}
+                            })}
+                            style={{width: '50px', padding: '4px', border: '1px solid #ddd', borderRadius: '4px', textAlign: 'center', fontSize: '13px'}}
+                          />
+                        </div>
+                      ))}
+                      <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                        <label style={{display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}>
+                          <input
+                            type="checkbox"
+                            checked={devisFormData.modules.compta_sage || false}
+                            onChange={(e) => setDevisFormData({
+                              ...devisFormData,
+                              modules: {...devisFormData.modules, compta_sage: e.target.checked}
+                            })}
+                            style={{width: '16px', height: '16px'}}
+                          />
+                          <span style={{color: '#3cd6b9', fontWeight: 'bold', fontSize: '13px'}}>Compta Sage</span>
+                        </label>
+                      </div>
+                      <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                        <label style={{display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}>
+                          <input
+                            type="checkbox"
+                            checked={devisFormData.modules.facturation_electronique || false}
+                            onChange={(e) => setDevisFormData({
+                              ...devisFormData,
+                              modules: {...devisFormData.modules, facturation_electronique: e.target.checked}
+                            })}
+                            style={{width: '16px', height: '16px'}}
+                          />
+                          <span style={{color: '#666', fontWeight: 'bold', fontSize: '13px'}}>Facturation Électronique</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Boutons */}
+                  <div style={{display: 'flex', gap: '10px'}}>
+                    <button
+                      type="button"
+                      onClick={handleSaveDevis}
+                      disabled={isUploadingDevisPdf}
+                      style={{
+                        backgroundColor: '#10a0dc',
+                        color: 'white',
+                        border: 'none',
+                        padding: '10px 20px',
+                        borderRadius: '6px',
+                        cursor: isUploadingDevisPdf ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        opacity: isUploadingDevisPdf ? 0.5 : 1
+                      }}
+                    >
+                      {isUploadingDevisPdf ? '⏳ Enregistrement...' : '💾 Enregistrer'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowDevisForm(false);
+                        setEditingDevisId(null);
+                        setDevisPdfFile(null);
+                      }}
+                      style={{
+                        backgroundColor: '#999',
+                        color: 'white',
+                        border: 'none',
+                        padding: '10px 20px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px'
+                      }}
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Liste des devis */}
+              {devisList.length === 0 ? (
+                <div style={{padding: '20px', textAlign: 'center', color: '#999', backgroundColor: '#f9f9f9', borderRadius: '6px'}}>
+                  Aucun devis enregistré
+                </div>
+              ) : (
+                <div style={{display: 'grid', gap: '10px'}}>
+                  {devisList.map((devis, index) => {
+                    const modules = typeof devis.modules === 'string' ? JSON.parse(devis.modules) : (devis.modules || {});
+                    const modulesCount = Object.values(modules).filter(v => v > 0 || v === true).length;
+                    
+                    return (
+                      <div
+                        key={devis.id}
+                        style={{
+                          padding: '15px',
+                          backgroundColor: 'white',
+                          border: '1px solid #ddd',
+                          borderRadius: '8px'
+                        }}
+                      >
+                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+                          <div style={{flex: 1}}>
+                            <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333', marginBottom: '8px'}}>
+                              Devis #{index + 1} 
+                              {devis.quote_date && <span style={{color: '#666', fontWeight: 'normal', fontSize: '14px'}}> - {new Date(devis.quote_date).toLocaleDateString('fr-FR')}</span>}
+                              <span style={{
+                                marginLeft: '10px',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                backgroundColor: devis.chance_percent >= 80 ? '#d4edda' : devis.chance_percent >= 40 ? '#fff3cd' : '#f8d7da',
+                                color: devis.chance_percent >= 80 ? '#155724' : devis.chance_percent >= 40 ? '#856404' : '#721c24'
+                              }}>
+                                {devis.chance_percent}%
+                              </span>
+                            </div>
+                            <div style={{fontSize: '14px', color: '#666', marginBottom: '5px'}}>
+                              <strong>Setup:</strong> {formatNumber(devis.setup_amount || 0)} | 
+                              <strong> Abo (M):</strong> {formatNumber(devis.monthly_amount || 0)} | 
+                              <strong> Abo (A):</strong> {formatNumber(devis.annual_amount || 0)} | 
+                              <strong> Formation:</strong> {formatNumber(devis.training_amount || 0)}
+                            </div>
+                            <div style={{fontSize: '13px', color: '#888'}}>
+                              {modulesCount > 0 ? `${modulesCount} module(s)` : 'Aucun module'}
+                              {devis.pdf_url && ' | 📄 PDF'}
+                            </div>
+                          </div>
+                          <div style={{display: 'flex', gap: '5px', flexShrink: 0}}>
+                            {devis.pdf_url && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    const res = await fetch(`${API_URL}/devis/${devis.id}/download-pdf`, {
+                                      headers: { 'Authorization': `Bearer ${user.token}` }
+                                    });
+                                    if (res.ok) {
+                                      const blob = await res.blob();
+                                      const url = window.URL.createObjectURL(blob);
+                                      window.open(url, '_blank');
+                                    }
+                                  } catch (err) {
+                                    alert('Erreur: ' + err.message);
+                                  }
+                                }}
+                                style={{
+                                  padding: '6px 10px',
+                                  backgroundColor: '#17a2b8',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                👁️
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleEditDevis(devis)}
+                              style={{
+                                padding: '6px 10px',
+                                backgroundColor: '#10a0dc',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '12px'
+                              }}
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteDevis(devis.id)}
+                              style={{
+                                padding: '6px 10px',
+                                backgroundColor: '#e23b63',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '12px'
+                              }}
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             )}
 
