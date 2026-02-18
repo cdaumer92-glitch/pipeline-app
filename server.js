@@ -574,6 +574,281 @@ app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
 });
 
 // ==========================================
+// ROUTES DEVIS
+// ==========================================
+
+// GET /api/prospects/:id/devis - Liste des devis d'un prospect
+app.get('/api/prospects/:id/devis', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      `SELECT * FROM devis 
+       WHERE prospect_id = $1 
+       ORDER BY quote_date DESC, created_at DESC`,
+      [id]
+    );
+    
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur GET /api/prospects/:id/devis:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/prospects/:id/devis - Créer un nouveau devis
+app.post('/api/prospects/:id/devis', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      quote_date,
+      setup_amount,
+      monthly_amount,
+      annual_amount,
+      training_amount,
+      chance_percent,
+      modules
+    } = req.body;
+    
+    const result = await pool.query(
+      `INSERT INTO devis (
+        prospect_id,
+        quote_date,
+        setup_amount,
+        monthly_amount,
+        annual_amount,
+        training_amount,
+        chance_percent,
+        modules
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *`,
+      [
+        id,
+        quote_date || null,
+        setup_amount || 0,
+        monthly_amount || 0,
+        annual_amount || 0,
+        training_amount || 0,
+        chance_percent || 0,
+        JSON.stringify(modules || {})
+      ]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Erreur POST /api/prospects/:id/devis:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/devis/:id - Modifier un devis
+app.put('/api/devis/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      quote_date,
+      setup_amount,
+      monthly_amount,
+      annual_amount,
+      training_amount,
+      chance_percent,
+      modules
+    } = req.body;
+    
+    const result = await pool.query(
+      `UPDATE devis SET
+        quote_date = $1,
+        setup_amount = $2,
+        monthly_amount = $3,
+        annual_amount = $4,
+        training_amount = $5,
+        chance_percent = $6,
+        modules = $7,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $8
+      RETURNING *`,
+      [
+        quote_date || null,
+        setup_amount || 0,
+        monthly_amount || 0,
+        annual_amount || 0,
+        training_amount || 0,
+        chance_percent || 0,
+        JSON.stringify(modules || {}),
+        id
+      ]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Devis non trouvé' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Erreur PUT /api/devis/:id:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/devis/:id - Supprimer un devis
+app.delete('/api/devis/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Récupérer le devis pour supprimer son PDF du storage si nécessaire
+    const devisResult = await pool.query('SELECT pdf_url FROM devis WHERE id = $1', [id]);
+    
+    if (devisResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Devis non trouvé' });
+    }
+    
+    const devis = devisResult.rows[0];
+    
+    // Supprimer le PDF du Google Cloud Storage si présent
+    if (devis.pdf_url) {
+      try {
+        const fileName = devis.pdf_url;
+        const file = bucket.file(fileName);
+        await file.delete();
+      } catch (storageErr) {
+        console.error('Erreur suppression PDF du storage:', storageErr);
+      }
+    }
+    
+    // Supprimer le devis
+    await pool.query('DELETE FROM devis WHERE id = $1', [id]);
+    
+    res.json({ message: 'Devis supprimé' });
+  } catch (err) {
+    console.error('Erreur DELETE /api/devis/:id:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/devis/:id/upload-pdf - Upload PDF pour un devis
+app.post('/api/devis/:id/upload-pdf', auth, upload.single('pdf'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucun fichier fourni' });
+    }
+    
+    // Vérifier que le devis existe
+    const devisCheck = await pool.query('SELECT pdf_url FROM devis WHERE id = $1', [id]);
+    if (devisCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Devis non trouvé' });
+    }
+    
+    const oldPdfUrl = devisCheck.rows[0].pdf_url;
+    
+    // Générer un nom unique pour le fichier
+    const timestamp = Date.now();
+    const fileName = `devis-pdfs/devis-${id}-${timestamp}.pdf`;
+    const blob = bucket.file(fileName);
+    
+    // Upload vers Google Cloud Storage
+    await blob.save(req.file.buffer, {
+      metadata: { contentType: 'application/pdf' }
+    });
+    
+    // Mettre à jour l'URL dans la base de données
+    await pool.query(
+      'UPDATE devis SET pdf_url = $1 WHERE id = $2',
+      [fileName, id]
+    );
+    
+    // Supprimer l'ancien PDF si présent
+    if (oldPdfUrl) {
+      try {
+        const oldFile = bucket.file(oldPdfUrl);
+        await oldFile.delete();
+      } catch (err) {
+        console.error('Erreur suppression ancien PDF:', err);
+      }
+    }
+    
+    res.json({ 
+      message: 'PDF uploadé avec succès',
+      pdf_url: fileName
+    });
+  } catch (err) {
+    console.error('Erreur POST /api/devis/:id/upload-pdf:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/devis/:id/pdf - Supprimer le PDF d'un devis
+app.delete('/api/devis/:id/pdf', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Récupérer l'URL du PDF
+    const result = await pool.query('SELECT pdf_url FROM devis WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Devis non trouvé' });
+    }
+    
+    const pdfUrl = result.rows[0].pdf_url;
+    
+    if (!pdfUrl) {
+      return res.status(404).json({ error: 'Aucun PDF à supprimer' });
+    }
+    
+    // Supprimer du Google Cloud Storage
+    try {
+      const file = bucket.file(pdfUrl);
+      await file.delete();
+    } catch (storageErr) {
+      console.error('Erreur suppression PDF du storage:', storageErr);
+    }
+    
+    // Mettre à jour la base de données
+    await pool.query('UPDATE devis SET pdf_url = NULL WHERE id = $1', [id]);
+    
+    res.json({ message: 'PDF supprimé' });
+  } catch (err) {
+    console.error('Erreur DELETE /api/devis/:id/pdf:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/devis/:id/download-pdf - Télécharger le PDF d'un devis
+app.get('/api/devis/:id/download-pdf', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query('SELECT pdf_url FROM devis WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Devis non trouvé' });
+    }
+    
+    const pdfUrl = result.rows[0].pdf_url;
+    
+    if (!pdfUrl) {
+      return res.status(404).json({ error: 'Aucun PDF disponible' });
+    }
+    
+    const blob = bucket.file(pdfUrl);
+    
+    const [exists] = await blob.exists();
+    if (!exists) {
+      return res.status(404).json({ error: 'Fichier PDF non trouvé' });
+    }
+    
+    const [fileContent] = await blob.download();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${pdfUrl}"`);
+    res.send(fileContent);
+  } catch (err) {
+    console.error('Erreur GET /api/devis/:id/download-pdf:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
 // ROUTES INTERLOCUTEURS
 // ==========================================
 
