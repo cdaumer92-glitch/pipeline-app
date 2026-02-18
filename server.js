@@ -726,12 +726,18 @@ app.delete('/api/devis/:id', auth, async (req, res) => {
 });
 
 // POST /api/devis/:id/upload-pdf - Upload PDF pour un devis
-app.post('/api/devis/:id/upload-pdf', auth, upload.single('pdf'), async (req, res) => {
+app.post('/api/devis/:id/upload-pdf', auth, async (req, res) => {
   try {
     const { id } = req.params;
     
-    if (!req.file) {
+    if (!req.files || !req.files.pdf) {
       return res.status(400).json({ error: 'Aucun fichier fourni' });
+    }
+    
+    const pdfFile = req.files.pdf;
+    
+    if (pdfFile.mimetype !== 'application/pdf') {
+      return res.status(400).json({ error: 'Le fichier doit être un PDF' });
     }
     
     // Vérifier que le devis existe
@@ -748,7 +754,7 @@ app.post('/api/devis/:id/upload-pdf', auth, upload.single('pdf'), async (req, re
     const blob = bucket.file(fileName);
     
     // Upload vers Google Cloud Storage
-    await blob.save(req.file.buffer, {
+    await blob.save(pdfFile.data, {
       metadata: { contentType: 'application/pdf' }
     });
     
