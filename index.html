@@ -2934,7 +2934,7 @@
                 </select>
               </div>
               
-              {/* Ligne 2 : Adresse | Tél Standard */}
+              {/* Ligne 2 : Adresse | Tél Standard | Site Web */}
               <div style={{display: 'flex', gap: '15px', marginBottom: '15px'}}>
                 <input
                   type="text"
@@ -2950,22 +2950,22 @@
                   onChange={(e) => handleChange('tel_standard', e.target.value)}
                   style={{...styles.formInput, flex: 1}}
                 />
-              </div>
-              
-              {/* Ligne 3 : Solutions en place | Site Web */}
-              <div style={{display: 'flex', gap: '15px'}}>
-                <textarea
-                  placeholder="Solutions en place (une par ligne: FastMag, Shopify, Sage...)"
-                  value={formData.solutions_en_place}
-                  onChange={(e) => handleChange('solutions_en_place', e.target.value)}
-                  style={{...styles.formInput, minHeight: '80px', resize: 'vertical', fontFamily: 'inherit', flex: 2}}
-                />
                 <input
                   type="text"
                   placeholder="Site Web"
                   value={formData.website || ''}
                   onChange={(e) => handleChange('website', e.target.value)}
                   style={{...styles.formInput, flex: 1}}
+                />
+              </div>
+              
+              {/* Ligne 3 : Solutions en place */}
+              <div>
+                <textarea
+                  placeholder="Solutions en place (une par ligne: FastMag, Shopify, Sage...)"
+                  value={formData.solutions_en_place}
+                  onChange={(e) => handleChange('solutions_en_place', e.target.value)}
+                  style={{...styles.formInput, minHeight: '80px', resize: 'vertical', fontFamily: 'inherit', width: '100%'}}
                 />
               </div>
             </div>
