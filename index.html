@@ -3223,9 +3223,21 @@
             {['Devis', 'Démo', 'Négociation', 'Signé', 'Perdu'].includes(formData.status) && (
             <div style={styles.formSection}>
               <h3>Montants et Probabilité</h3>
-              <div style={styles.montantsWithChanceContainer}>
-                <div style={styles.montantItem}>
-                  <label style={styles.labelSetup}>Setup</label>
+              <div style={{display: 'flex', gap: '15px', alignItems: 'flex-start', flexWrap: 'wrap'}}>
+                {/* Date du Devis */}
+                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
+                  <label style={{...styles.labelMontant, display: 'block', marginBottom: '5px'}}>Date</label>
+                  <input
+                    type="date"
+                    value={formData.quote_date}
+                    onChange={(e) => handleChange('quote_date', e.target.value)}
+                    style={styles.formInput}
+                  />
+                </div>
+                
+                {/* Setup */}
+                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
+                  <label style={{...styles.labelSetup, display: 'block', marginBottom: '5px'}}>Setup</label>
                   <input
                     type="number"
                     placeholder="0"
@@ -3233,10 +3245,12 @@
                     onChange={(e) => handleChange('setup_amount', parseFloat(e.target.value) || 0)}
                     style={styles.formInput}
                   />
-                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.setup_amount) || 0)}</div>
+                  <div style={{fontSize: '11px', color: '#666', marginTop: '3px'}}>{formatNumber(Number(formData.setup_amount) || 0)}</div>
                 </div>
-                <div style={styles.montantItem}>
-                  <label style={styles.labelAbonnement}>Abonnement (mensuel)</label>
+                
+                {/* Abonnement mensuel */}
+                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
+                  <label style={{...styles.labelAbonnement, display: 'block', marginBottom: '5px'}}>Abo. (mensuel)</label>
                   <input
                     type="number"
                     placeholder="0"
@@ -3244,10 +3258,12 @@
                     onChange={(e) => handleChange('monthly_amount', parseFloat(e.target.value) || 0)}
                     style={styles.formInput}
                   />
-                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.monthly_amount) || 0)}</div>
+                  <div style={{fontSize: '11px', color: '#666', marginTop: '3px'}}>{formatNumber(Number(formData.monthly_amount) || 0)}</div>
                 </div>
-                <div style={styles.montantItem}>
-                  <label style={styles.labelAnnual}>Abonnement (annuel)</label>
+                
+                {/* Abonnement annuel */}
+                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
+                  <label style={{...styles.labelAnnual, display: 'block', marginBottom: '5px'}}>Abo. (annuel)</label>
                   <input
                     type="number"
                     placeholder="0"
@@ -3255,10 +3271,12 @@
                     onChange={(e) => handleChange('annual_amount', parseFloat(e.target.value) || 0)}
                     style={styles.formInput}
                   />
-                  <div style={{fontSize: '13px', color: '#666', marginTop: '6px', fontWeight: '500'}}>{formatNumber(Number(formData.annual_amount) || 0)}</div>
+                  <div style={{fontSize: '11px', color: '#666', marginTop: '3px'}}>{formatNumber(Number(formData.annual_amount) || 0)}</div>
                 </div>
-                <div style={styles.montantItem}>
-                  <label style={styles.labelFormation}>Formation</label>
+                
+                {/* Formation */}
+                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
+                  <label style={{...styles.labelFormation, display: 'block', marginBottom: '5px'}}>Formation</label>
                   <input
                     type="text"
                     placeholder="0"
@@ -3270,8 +3288,10 @@
                     style={styles.formInput}
                   />
                 </div>
-                <div style={styles.montantItem}>
-                  <label style={styles.labelMontant}>Probabilité</label>
+                
+                {/* Probabilité */}
+                <div style={{flex: '1 1 150px', minWidth: '120px'}}>
+                  <label style={{...styles.labelMontant, display: 'block', marginBottom: '5px'}}>Probabilité</label>
                   <select
                     value={formData.chance_percent}
                     onChange={(e) => handleChange('chance_percent', parseInt(e.target.value) || 0)}
@@ -3284,15 +3304,6 @@
                     <option value="80">80%</option>
                     <option value="100">100%</option>
                   </select>
-                </div>
-                <div style={styles.montantItem}>
-                  <label style={styles.labelMontant}>Date du Devis</label>
-                  <input
-                    type="date"
-                    value={formData.quote_date}
-                    onChange={(e) => handleChange('quote_date', e.target.value)}
-                    style={styles.formInput}
-                  />
                 </div>
               </div>
               <div style={styles.totalCalc}>
