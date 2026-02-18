@@ -3385,14 +3385,14 @@
             <div style={styles.formSection}>
               <h3>Modules retenus</h3>
               <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-                gap: '12px 20px',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '8px 15px',
                 marginBottom: '10px'
               }}>
                 {[
                   {name: 'Biz', color: '#17a2b8'},
-                  {name: 'Biz avec FAB', key: 'biz_avec_fab', color: '#17a2b8'},
+                  {name: 'Biz + Fab', key: 'biz_avec_fab', color: '#17a2b8'},
                   {name: 'Fab', color: '#17a2b8'},
                   {name: 'Net', color: '#17a2b8'},
                   {name: 'Kub', color: '#17a2b8'},
@@ -3402,11 +3402,11 @@
                   {name: 'Log', color: '#ffc107'},
                   {name: 'Jet', color: '#4caf50'}
                 ].map(module => (
-                  <div key={module.key || module.name} style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <div key={module.key || module.name} style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
                     <span style={{
                       color: module.color,
                       fontWeight: 'bold',
-                      fontSize: '14px',
+                      fontSize: '13px',
                       whiteSpace: 'nowrap'
                     }}>
                       {module.name}
@@ -3429,11 +3429,11 @@
                     />
                   </div>
                 ))}
-                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
                   <span style={{
                     color: '#666',
                     fontWeight: 'bold',
-                    fontSize: '14px',
+                    fontSize: '13px',
                     whiteSpace: 'nowrap'
                   }}>
                     Flux Tiers
@@ -3455,28 +3455,28 @@
                     }}
                   />
                 </div>
-                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                  <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer'}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                  <label style={{display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}>
                     <input
                       type="checkbox"
                       checked={formData.module_compta_sage || false}
                       onChange={(e) => handleChange('module_compta_sage', e.target.checked)}
                       style={{width: '16px', height: '16px'}}
                     />
-                    <span style={{color: '#3cd6b9', fontWeight: 'bold', fontSize: '14px', whiteSpace: 'nowrap'}}>
+                    <span style={{color: '#3cd6b9', fontWeight: 'bold', fontSize: '13px', whiteSpace: 'nowrap'}}>
                       Compta Sage
                     </span>
                   </label>
                 </div>
-                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                  <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer'}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                  <label style={{display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}>
                     <input
                       type="checkbox"
                       checked={formData.module_facturation_electronique || false}
                       onChange={(e) => handleChange('module_facturation_electronique', e.target.checked)}
                       style={{width: '16px', height: '16px'}}
                     />
-                    <span style={{color: '#666', fontWeight: 'bold', fontSize: '14px', whiteSpace: 'nowrap'}}>
+                    <span style={{color: '#666', fontWeight: 'bold', fontSize: '13px', whiteSpace: 'nowrap'}}>
                       Facturation Électronique
                     </span>
                   </label>
