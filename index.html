@@ -2540,7 +2540,8 @@
                     Géré par <strong>{selectedProspect.assigned_to}</strong>
                   </span>
                 </div>
-                <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                {/* Ligne 1 : Statut */}
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px'}}>
                   <span style={{fontSize: '15px', color: '#666'}}>Statut :</span>
                   <span style={{
                     fontSize: '16px',
@@ -2559,24 +2560,27 @@
                       depuis le {new Date(selectedProspect.quote_date).toLocaleDateString()}
                     </span>
                   )}
-                  {/* Adresse et Tél sur la même ligne */}
-                  <span style={{flex: 1}} />
-                  {selectedProspect.adresse && (
-                    <span style={{fontSize: '14px', color: '#666'}}>
-                      <strong>Adresse:</strong> {selectedProspect.adresse}
-                    </span>
-                  )}
-                  {selectedProspect.tel_standard && (
-                    <span style={{fontSize: '14px', color: '#666', marginLeft: selectedProspect.adresse ? '15px' : '0'}}>
-                      <strong>Tél Standard:</strong> {selectedProspect.tel_standard}
-                    </span>
-                  )}
                 </div>
-              </div>
-              <div style={{display: 'flex', gap: '10px'}}>
-                <button onClick={() => onEdit(selectedProspect)} style={styles.editBtn}>🏢 Information Société</button>
-                <button onClick={() => onDelete(selectedProspect.id)} style={styles.deleteBtn}>🗑️ Supprimer</button>
-              </div>
+                
+                {/* Ligne 2 : Adresse + Tél + Boutons */}
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between'}}>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '15px', flex: 1}}>
+                    {selectedProspect.adresse && (
+                      <span style={{fontSize: '14px', color: '#666'}}>
+                        <strong>Adresse:</strong> {selectedProspect.adresse}
+                      </span>
+                    )}
+                    {selectedProspect.tel_standard && (
+                      <span style={{fontSize: '14px', color: '#666'}}>
+                        <strong>Tél Standard:</strong> {selectedProspect.tel_standard}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{display: 'flex', gap: '10px'}}>
+                    <button onClick={() => onEdit(selectedProspect)} style={styles.editBtn}>🏢 Information Société</button>
+                    <button onClick={() => onDelete(selectedProspect.id)} style={styles.deleteBtn}>🗑️ Supprimer</button>
+                  </div>
+                </div>
             </div>
 
             {/* Section Contacts */}
