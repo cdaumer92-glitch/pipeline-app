@@ -3389,8 +3389,8 @@
               <h3>Modules retenus</h3>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
-                gap: '15px',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                gap: '12px 20px',
                 marginBottom: '10px'
               }}>
                 {[
@@ -3405,24 +3405,25 @@
                   {name: 'Log', color: '#ffc107'},
                   {name: 'Jet', color: '#4caf50'}
                 ].map(module => (
-                  <div key={module.key || module.name} style={{textAlign: 'center'}}>
-                    <div style={{
+                  <div key={module.key || module.name} style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                    <span style={{
                       color: module.color,
                       fontWeight: 'bold',
                       fontSize: '14px',
-                      marginBottom: '5px'
+                      whiteSpace: 'nowrap'
                     }}>
                       {module.name}
-                    </div>
+                    </span>
                     <input
                       type="number"
                       min="0"
+                      max="999"
                       placeholder="0"
                       value={formData[`module_${module.key || module.name.toLowerCase()}`] || 0}
                       onChange={(e) => handleChange(`module_${module.key || module.name.toLowerCase()}`, parseInt(e.target.value) || 0)}
                       style={{
-                        width: '100%',
-                        padding: '8px',
+                        width: '50px',
+                        padding: '4px 6px',
                         border: '1px solid #d0d0d0',
                         borderRadius: '4px',
                         textAlign: 'center',
@@ -3431,24 +3432,25 @@
                     />
                   </div>
                 ))}
-                <div style={{textAlign: 'center'}}>
-                  <div style={{
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <span style={{
                     color: '#666',
                     fontWeight: 'bold',
                     fontSize: '14px',
-                    marginBottom: '5px'
+                    whiteSpace: 'nowrap'
                   }}>
                     Flux Tiers
-                  </div>
+                  </span>
                   <input
                     type="number"
                     min="0"
+                    max="999"
                     placeholder="0"
                     value={formData.module_flux_tiers || 0}
                     onChange={(e) => handleChange('module_flux_tiers', parseInt(e.target.value) || 0)}
                     style={{
-                      width: '100%',
-                      padding: '8px',
+                      width: '50px',
+                      padding: '4px 6px',
                       border: '1px solid #d0d0d0',
                       borderRadius: '4px',
                       textAlign: 'center',
@@ -3456,28 +3458,28 @@
                     }}
                   />
                 </div>
-                <div style={{textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                   <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer'}}>
                     <input
                       type="checkbox"
                       checked={formData.module_compta_sage || false}
                       onChange={(e) => handleChange('module_compta_sage', e.target.checked)}
-                      style={{width: '18px', height: '18px'}}
+                      style={{width: '16px', height: '16px'}}
                     />
-                    <span style={{color: '#3cd6b9', fontWeight: 'bold', fontSize: '14px'}}>
+                    <span style={{color: '#3cd6b9', fontWeight: 'bold', fontSize: '14px', whiteSpace: 'nowrap'}}>
                       Compta Sage
                     </span>
                   </label>
                 </div>
-                <div style={{textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                   <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer'}}>
                     <input
                       type="checkbox"
                       checked={formData.module_facturation_electronique || false}
                       onChange={(e) => handleChange('module_facturation_electronique', e.target.checked)}
-                      style={{width: '18px', height: '18px'}}
+                      style={{width: '16px', height: '16px'}}
                     />
-                    <span style={{color: '#666', fontWeight: 'bold', fontSize: '14px'}}>
+                    <span style={{color: '#666', fontWeight: 'bold', fontSize: '14px', whiteSpace: 'nowrap'}}>
                       Facturation Électronique
                     </span>
                   </label>
