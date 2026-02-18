@@ -989,6 +989,22 @@
               setInterlocuteurForm={setInterlocuteurForm}
               handleSaveInterlocuteur={handleSaveInterlocuteur}
               handleDeleteInterlocuteur={handleDeleteInterlocuteur}
+              devisList={devisList}
+              showDevisForm={showDevisForm}
+              setShowDevisForm={setShowDevisForm}
+              editingDevisId={editingDevisId}
+              setEditingDevisId={setEditingDevisId}
+              devisFormData={devisFormData}
+              setDevisFormData={setDevisFormData}
+              devisPdfFile={devisPdfFile}
+              setDevisPdfFile={setDevisPdfFile}
+              isUploadingDevisPdf={isUploadingDevisPdf}
+              handleAddDevis={handleAddDevis}
+              handleEditDevis={handleEditDevis}
+              handleSaveDevis={handleSaveDevis}
+              handleDeleteDevis={handleDeleteDevis}
+              handleUploadDevisPdf={handleUploadDevisPdf}
+              handleDeleteDevisPdf={handleDeleteDevisPdf}
             />
           </div>
           )}
@@ -2664,7 +2680,7 @@
       );
     }
 
-    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur }) {
+    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleUploadDevisPdf, handleDeleteDevisPdf }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
