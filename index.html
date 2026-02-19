@@ -957,6 +957,11 @@
                 setSelectedProspect(null);
                 setFormData(getEmptyProspect());
                 setShowForm(true);
+                // Réinitialiser les devis
+                setDevisList([]);
+                setShowDevisForm(false);
+                setEditingDevisId(null);
+                setDevisPdfFile(null);
               }}
             />
 
@@ -979,6 +984,11 @@
               onCancel={() => {
                 setShowForm(false);
                 setFormData(getEmptyProspect());
+                // Réinitialiser les devis
+                setDevisList([]);
+                setShowDevisForm(false);
+                setEditingDevisId(null);
+                setDevisPdfFile(null);
               }}
               newActionType={newActionType}
               onActionTypeChange={setNewActionType}
@@ -3618,7 +3628,7 @@
                       placeholder="Notes sur ce devis..."
                       value={devisFormData.comment}
                       onChange={(e) => setDevisFormData({...devisFormData, comment: e.target.value})}
-                      style={{...styles.formInput, minHeight: '60px', resize: 'vertical', fontFamily: 'inherit', padding: '8px'}}
+                      style={{...styles.formInput, width: '100%', minHeight: '80px', resize: 'vertical', fontFamily: 'inherit', padding: '8px', boxSizing: 'border-box'}}
                     />
                   </div>
 
