@@ -180,7 +180,8 @@
         annual_amount: 0,
         training_amount: 0,
         chance_percent: 0,
-        modules: {}
+        modules: {},
+        comment: ''
       });
       const [devisPdfFile, setDevisPdfFile] = React.useState(null);
       const [isUploadingDevisPdf, setIsUploadingDevisPdf] = React.useState(false);
@@ -367,7 +368,8 @@
           annual_amount: 0,
           training_amount: 0,
           chance_percent: 0,
-          modules: {}
+          modules: {},
+          comment: ''
         });
         setEditingDevisId(null);
         setDevisPdfFile(null);
@@ -382,7 +384,8 @@
           annual_amount: devis.annual_amount || 0,
           training_amount: devis.training_amount || 0,
           chance_percent: devis.chance_percent || 0,
-          modules: typeof devis.modules === 'string' ? JSON.parse(devis.modules) : (devis.modules || {})
+          modules: typeof devis.modules === 'string' ? JSON.parse(devis.modules) : (devis.modules || {}),
+          comment: devis.comment || ''
         });
         setEditingDevisId(devis.id);
         setDevisPdfFile(null);
@@ -3601,6 +3604,17 @@
                     </div>
                   </div>
 
+                  {/* Ligne 4 : Commentaire */}
+                  <div style={{marginBottom: '15px'}}>
+                    <label style={{display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold'}}>Commentaire</label>
+                    <textarea
+                      placeholder="Notes sur ce devis..."
+                      value={devisFormData.comment}
+                      onChange={(e) => setDevisFormData({...devisFormData, comment: e.target.value})}
+                      style={{...styles.formInput, minHeight: '60px', resize: 'vertical', fontFamily: 'inherit', padding: '8px'}}
+                    />
+                  </div>
+
                   {/* Boutons */}
                   <div style={{display: 'flex', gap: '10px'}}>
                     <button
@@ -3764,110 +3778,6 @@
             </div>
             )}
 
-            {/* Section Modules - Visible pour Devis/Démo/Négociation/Signé */}
-            {['Devis', 'Démo', 'Négociation', 'Signé'].includes(formData.status) && (
-            <div style={styles.formSection}>
-              <h3>Modules retenus</h3>
-              <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '8px 15px',
-                marginBottom: '10px'
-              }}>
-                {[
-                  {name: 'Biz', color: '#17a2b8'},
-                  {name: 'Biz + Fab', key: 'biz_avec_fab', color: '#17a2b8'},
-                  {name: 'Fab', color: '#17a2b8'},
-                  {name: 'Net', color: '#17a2b8'},
-                  {name: 'Kub', color: '#17a2b8'},
-                  {name: 'Mag', color: '#e91e63'},
-                  {name: 'VRP', color: '#9c27b0'},
-                  {name: 'Col', color: '#ff9800'},
-                  {name: 'Log', color: '#ffc107'},
-                  {name: 'Jet', color: '#4caf50'}
-                ].map(module => (
-                  <div key={module.key || module.name} style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                    <span style={{
-                      color: module.color,
-                      fontWeight: 'bold',
-                      fontSize: '13px',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {module.name}
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="999"
-                      placeholder="0"
-                      value={formData[`module_${module.key || module.name.toLowerCase()}`] || 0}
-                      onChange={(e) => handleChange(`module_${module.key || module.name.toLowerCase()}`, parseInt(e.target.value) || 0)}
-                      style={{
-                        width: '50px',
-                        padding: '4px 6px',
-                        border: '1px solid #d0d0d0',
-                        borderRadius: '4px',
-                        textAlign: 'center',
-                        fontSize: '13px'
-                      }}
-                    />
-                  </div>
-                ))}
-                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                  <span style={{
-                    color: '#666',
-                    fontWeight: 'bold',
-                    fontSize: '13px',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    Flux Tiers
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="999"
-                    placeholder="0"
-                    value={formData.module_flux_tiers || 0}
-                    onChange={(e) => handleChange('module_flux_tiers', parseInt(e.target.value) || 0)}
-                    style={{
-                      width: '50px',
-                      padding: '4px 6px',
-                      border: '1px solid #d0d0d0',
-                      borderRadius: '4px',
-                      textAlign: 'center',
-                      fontSize: '13px'
-                    }}
-                  />
-                </div>
-                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                  <label style={{display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}>
-                    <input
-                      type="checkbox"
-                      checked={formData.module_compta_sage || false}
-                      onChange={(e) => handleChange('module_compta_sage', e.target.checked)}
-                      style={{width: '16px', height: '16px'}}
-                    />
-                    <span style={{color: '#3cd6b9', fontWeight: 'bold', fontSize: '13px', whiteSpace: 'nowrap'}}>
-                      Compta Sage
-                    </span>
-                  </label>
-                </div>
-                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                  <label style={{display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}>
-                    <input
-                      type="checkbox"
-                      checked={formData.module_facturation_electronique || false}
-                      onChange={(e) => handleChange('module_facturation_electronique', e.target.checked)}
-                      style={{width: '16px', height: '16px'}}
-                    />
-                    <span style={{color: '#666', fontWeight: 'bold', fontSize: '13px', whiteSpace: 'nowrap'}}>
-                      Facturation Électronique
-                    </span>
-                  </label>
-                </div>
-              </div>
-            </div>
-            )}
 
             {/* Section Statut et Notes - Uniquement en mode édition */}
             {selectedProspect && selectedProspect.id && (
