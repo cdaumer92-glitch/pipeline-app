@@ -353,10 +353,13 @@
           });
           if (res.ok) {
             const devis = await res.json();
-            setDevisList(devis);
+            setDevisList(devis || []);
+          } else {
+            setDevisList([]);
           }
         } catch (err) {
           console.error('Erreur fetchDevis:', err);
+          setDevisList([]);
         }
       };
 
@@ -814,6 +817,10 @@
         fetchStatusHistory(prospect.id);
         fetchInterlocuteurs(prospect.id);
         fetchDevis(prospect.id);
+        // Réinitialiser le formulaire devis
+        setShowDevisForm(false);
+        setEditingDevisId(null);
+        setDevisPdfFile(null);
         setNewActionDate(new Date().toISOString().split('T')[0]);
       };
 
