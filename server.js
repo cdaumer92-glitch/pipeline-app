@@ -607,7 +607,8 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
       annual_amount,
       training_amount,
       chance_percent,
-      modules
+      modules,
+      comment
     } = req.body;
     
     const result = await pool.query(
@@ -619,8 +620,9 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
         annual_amount,
         training_amount,
         chance_percent,
-        modules
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        modules,
+        comment
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *`,
       [
         id,
@@ -630,7 +632,8 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
         annual_amount || 0,
         training_amount || 0,
         chance_percent || 0,
-        JSON.stringify(modules || {})
+        JSON.stringify(modules || {}),
+        comment || null
       ]
     );
     
@@ -652,7 +655,8 @@ app.put('/api/devis/:id', auth, async (req, res) => {
       annual_amount,
       training_amount,
       chance_percent,
-      modules
+      modules,
+      comment
     } = req.body;
     
     const result = await pool.query(
@@ -664,8 +668,9 @@ app.put('/api/devis/:id', auth, async (req, res) => {
         training_amount = $5,
         chance_percent = $6,
         modules = $7,
+        comment = $8,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $8
+      WHERE id = $9
       RETURNING *`,
       [
         quote_date || null,
@@ -675,6 +680,7 @@ app.put('/api/devis/:id', auth, async (req, res) => {
         training_amount || 0,
         chance_percent || 0,
         JSON.stringify(modules || {}),
+        comment || null,
         id
       ]
     );
