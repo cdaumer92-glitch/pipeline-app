@@ -3058,6 +3058,21 @@
             API_URL={API_URL}
             interlocuteurs={interlocuteurs}
             devisList={devisList}
+            onEdit={onEdit}
+            showDevisForm={showDevisForm}
+            setShowDevisForm={setShowDevisForm}
+            editingDevisId={editingDevisId}
+            setEditingDevisId={setEditingDevisId}
+            devisFormData={devisFormData}
+            setDevisFormData={setDevisFormData}
+            devisPdfFile={devisPdfFile}
+            setDevisPdfFile={setDevisPdfFile}
+            isUploadingDevisPdf={isUploadingDevisPdf}
+            handleAddDevis={handleAddDevis}
+            handleEditDevis={handleEditDevis}
+            handleSaveDevis={handleSaveDevis}
+            handleDeleteDevis={handleDeleteDevis}
+            selectedProspect={selectedProspect}
           />
         </div>
       );
@@ -3519,7 +3534,7 @@
       );
     }
 
-    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, devisList }) {
+    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, selectedProspect }) {
       const [actionNotes, setActionNotes] = React.useState({});
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
@@ -3542,16 +3557,34 @@
           <h3>📋 Suivi des activités</h3>
           
           {/* Section Devis */}
-          {devisList && devisList.length > 0 && (
-            <div style={{
-              backgroundColor: '#f9f9f9',
-              padding: '15px',
-              borderRadius: '8px',
-              marginBottom: '20px',
-              border: '1px solid #ddd'
-            }}>
-              <h4 style={{marginTop: 0, marginBottom: '15px', color: '#333'}}>📄 Devis</h4>
-              
+          <div style={{
+            backgroundColor: '#f9f9f9',
+            padding: '15px',
+            borderRadius: '8px',
+            marginBottom: '20px',
+            border: '1px solid #ddd'
+          }}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
+              <h4 style={{marginTop: 0, marginBottom: 0, color: '#333'}}>📄 Devis ({devisList?.length || 0})</h4>
+              <button
+                onClick={handleAddDevis}
+                style={{
+                  backgroundColor: '#10a0dc',
+                  color: 'white',
+                  border: 'none',
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 'bold'
+                }}
+              >
+                + Ajouter un devis
+              </button>
+            </div>
+            
+            {devisList && devisList.length > 0 ? (
+              <>
               {/* Dernier devis (toujours visible) */}
               {(() => {
                 const lastDevis = devisList[0];
@@ -3697,6 +3730,229 @@
                   )}
                 </>
               )}
+            </>
+            ) : (
+              <div style={{
+                padding: '20px',
+                textAlign: 'center',
+                color: '#999',
+                backgroundColor: 'white',
+                borderRadius: '6px',
+                fontSize: '14px'
+              }}>
+                Aucun devis créé. Cliquez sur "+ Ajouter un devis" pour commencer.
+              </div>
+            )}
+            </div>
+          
+          
+          {/* Popup formulaire devis */}
+          {showDevisForm && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 9999
+            }}>
+              <div style={{
+                backgroundColor: 'white',
+                padding: '25px',
+                borderRadius: '12px',
+                maxWidth: '900px',
+                width: '90%',
+                maxHeight: '90vh',
+                overflow: 'auto',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+              }}>
+                <h3 style={{marginTop: 0, marginBottom: '20px', color: '#10a0dc'}}>
+                  {editingDevisId ? 'Modifier le devis' : 'Nouveau devis'}
+                </h3>
+                
+                {/* Date, montants, probabilité */}
+                <div style={{display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap'}}>
+                  <div style={{flex: '1 1 140px'}}>
+                    <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Date</label>
+                    <input
+                      type="date"
+                      value={devisFormData.quote_date}
+                      onChange={(e) => setDevisFormData({...devisFormData, quote_date: e.target.value})}
+                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                    />
+                  </div>
+                  <div style={{flex: '1 1 120px'}}>
+                    <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Setup</label>
+                    <input
+                      type="number"
+                      value={devisFormData.setup_amount}
+                      onChange={(e) => setDevisFormData({...devisFormData, setup_amount: parseFloat(e.target.value) || 0})}
+                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                    />
+                  </div>
+                  <div style={{flex: '1 1 120px'}}>
+                    <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Abo. (M)</label>
+                    <input
+                      type="number"
+                      value={devisFormData.monthly_amount}
+                      onChange={(e) => setDevisFormData({...devisFormData, monthly_amount: parseFloat(e.target.value) || 0})}
+                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                    />
+                  </div>
+                  <div style={{flex: '1 1 120px'}}>
+                    <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Abo. (A)</label>
+                    <input
+                      type="number"
+                      value={devisFormData.annual_amount}
+                      onChange={(e) => setDevisFormData({...devisFormData, annual_amount: parseFloat(e.target.value) || 0})}
+                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                    />
+                  </div>
+                  <div style={{flex: '1 1 120px'}}>
+                    <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Formation</label>
+                    <input
+                      type="number"
+                      value={devisFormData.training_amount}
+                      onChange={(e) => setDevisFormData({...devisFormData, training_amount: parseFloat(e.target.value) || 0})}
+                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                    />
+                  </div>
+                  <div style={{flex: '1 1 100px'}}>
+                    <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Proba.</label>
+                    <select
+                      value={devisFormData.chance_percent}
+                      onChange={(e) => setDevisFormData({...devisFormData, chance_percent: parseInt(e.target.value) || 0})}
+                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                    >
+                      <option value="0">0%</option>
+                      <option value="20">20%</option>
+                      <option value="40">40%</option>
+                      <option value="60">60%</option>
+                      <option value="80">80%</option>
+                      <option value="100">100%</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Commentaire */}
+                <div style={{marginBottom: '15px'}}>
+                  <label style={{display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold'}}>Commentaire</label>
+                  <textarea
+                    placeholder="Notes sur ce devis..."
+                    value={devisFormData.comment}
+                    onChange={(e) => setDevisFormData({...devisFormData, comment: e.target.value})}
+                    style={{width: '100%', minHeight: '60px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', resize: 'vertical', boxSizing: 'border-box'}}
+                  />
+                </div>
+
+                {/* Modules */}
+                <div style={{marginBottom: '15px'}}>
+                  <label style={{display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold'}}>Modules</label>
+                  <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px 15px'}}>
+                    {[
+                      {name: 'Biz', key: 'biz', color: '#17a2b8'},
+                      {name: 'Biz + Fab', key: 'biz_avec_fab', color: '#17a2b8'},
+                      {name: 'Fab', key: 'fab', color: '#17a2b8'},
+                      {name: 'Net', key: 'net', color: '#17a2b8'},
+                      {name: 'Kub', key: 'kub', color: '#17a2b8'},
+                      {name: 'Mag', key: 'mag', color: '#e91e63'},
+                      {name: 'VRP', key: 'vrp', color: '#9c27b0'},
+                      {name: 'Col', key: 'col', color: '#ff9800'},
+                      {name: 'Log', key: 'log', color: '#ffc107'},
+                      {name: 'Jet', key: 'jet', color: '#4caf50'},
+                      {name: 'Flux Tiers', key: 'flux_tiers', color: '#666'}
+                    ].map(module => (
+                      <div key={module.key} style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                        <span style={{color: module.color, fontWeight: 'bold', fontSize: '13px'}}>{module.name}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="999"
+                          value={devisFormData.modules[module.key] || 0}
+                          onChange={(e) => setDevisFormData({
+                            ...devisFormData,
+                            modules: {...devisFormData.modules, [module.key]: parseInt(e.target.value) || 0}
+                          })}
+                          style={{width: '50px', padding: '4px', border: '1px solid #ddd', borderRadius: '4px', textAlign: 'center', fontSize: '13px'}}
+                        />
+                      </div>
+                    ))}
+                    <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                      <label style={{display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}>
+                        <input
+                          type="checkbox"
+                          checked={devisFormData.modules.compta_sage || false}
+                          onChange={(e) => setDevisFormData({
+                            ...devisFormData,
+                            modules: {...devisFormData.modules, compta_sage: e.target.checked}
+                          })}
+                          style={{width: '16px', height: '16px'}}
+                        />
+                        <span style={{color: '#3cd6b9', fontWeight: 'bold', fontSize: '13px'}}>Compta Sage</span>
+                      </label>
+                    </div>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                      <label style={{display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}>
+                        <input
+                          type="checkbox"
+                          checked={devisFormData.modules.facturation_electronique || false}
+                          onChange={(e) => setDevisFormData({
+                            ...devisFormData,
+                            modules: {...devisFormData.modules, facturation_electronique: e.target.checked}
+                          })}
+                          style={{width: '16px', height: '16px'}}
+                        />
+                        <span style={{color: '#666', fontWeight: 'bold', fontSize: '13px'}}>Facturation Électronique</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Boutons */}
+                <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
+                  <button
+                    type="button"
+                    onClick={handleSaveDevis}
+                    disabled={isUploadingDevisPdf}
+                    style={{
+                      backgroundColor: '#10a0dc',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 20px',
+                      borderRadius: '6px',
+                      cursor: isUploadingDevisPdf ? 'not-allowed' : 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      opacity: isUploadingDevisPdf ? 0.5 : 1
+                    }}
+                  >
+                    {isUploadingDevisPdf ? '⏳ Enregistrement...' : '💾 Enregistrer'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDevisForm(false);
+                      setEditingDevisId(null);
+                      setDevisPdfFile(null);
+                    }}
+                    style={{
+                      backgroundColor: '#999',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 20px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
             </div>
           )}
           
