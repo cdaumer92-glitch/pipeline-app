@@ -3698,6 +3698,30 @@
                     const modules = typeof devis.modules === 'string' ? JSON.parse(devis.modules) : (devis.modules || {});
                     const modulesCount = Object.values(modules).filter(v => v > 0 || v === true).length;
                     
+                    // Formater les modules actifs avec leurs quantités
+                    const modulesList = Object.entries(modules)
+                      .filter(([key, value]) => value > 0 || value === true)
+                      .map(([key, value]) => {
+                        const moduleNames = {
+                          'biz': 'Biz',
+                          'biz_avec_fab': 'Biz+Fab',
+                          'fab': 'Fab',
+                          'net': 'Net',
+                          'kub': 'Kub',
+                          'mag': 'Mag',
+                          'vrp': 'VRP',
+                          'col': 'Col',
+                          'log': 'Log',
+                          'jet': 'Jet',
+                          'flux_tiers': 'Flux Tiers',
+                          'compta_sage': 'Compta Sage',
+                          'facturation_electronique': 'Fact. Élec'
+                        };
+                        const name = moduleNames[key] || key;
+                        return value === true ? name : `${name}(${value})`;
+                      })
+                      .join(', ');
+                    
                     return (
                       <div
                         key={devis.id}
@@ -3732,7 +3756,7 @@
                               <strong> Formation:</strong> {formatNumber(devis.training_amount || 0)}
                             </div>
                             <div style={{fontSize: '13px', color: '#888'}}>
-                              {modulesCount > 0 ? `${modulesCount} module(s)` : 'Aucun module'}
+                              {modulesCount > 0 ? `${modulesCount} module(s) - ${modulesList}` : 'Aucun module'}
                               {devis.pdf_url && ' | 📄 PDF'}
                             </div>
                           </div>
