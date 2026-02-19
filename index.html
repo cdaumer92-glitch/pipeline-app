@@ -2815,42 +2815,6 @@
               </div>
             </div>
 
-          <ActivitiesSection
-            nextActions={nextActions}
-            statusHistory={statusHistory}
-            onAddNextAction={onAddNextAction}
-            onToggleNextAction={onToggleNextAction}
-            onDeleteNextAction={onDeleteNextAction}
-            newActionType={newActionType}
-            onActionTypeChange={onActionTypeChange}
-            newActionDate={newActionDate}
-            onActionDateChange={onActionDateChange}
-            newActionActor={newActionActor}
-            onActionActorChange={onActionActorChange}
-            newActionContact={newActionContact}
-            onActionContactChange={onActionContactChange}
-            newActionComment={newActionComment}
-            onActionCommentChange={onActionCommentChange}
-            user={user}
-            API_URL={API_URL}
-            interlocuteurs={interlocuteurs}
-            devisList={devisList}
-            onEdit={onEdit}
-            showDevisForm={showDevisForm}
-            setShowDevisForm={setShowDevisForm}
-            editingDevisId={editingDevisId}
-            setEditingDevisId={setEditingDevisId}
-            devisFormData={devisFormData}
-            setDevisFormData={setDevisFormData}
-            devisPdfFile={devisPdfFile}
-            setDevisPdfFile={setDevisPdfFile}
-            isUploadingDevisPdf={isUploadingDevisPdf}
-            handleAddDevis={handleAddDevis}
-            handleEditDevis={handleEditDevis}
-            handleSaveDevis={handleSaveDevis}
-            handleDeleteDevis={handleDeleteDevis}
-            selectedProspect={selectedProspect}
-          />
             {/* Section Contacts */}
             <div style={{marginBottom: '15px'}}>
               <h3 style={{fontSize: '16px', color: '#666', marginBottom: '8px', fontWeight: 'bold'}}>Contacts :</h3>
@@ -2951,8 +2915,73 @@
             )}
 
 
+
+            <div style={{
+              padding: '15px 20px',
+              backgroundColor: '#f9f9f9',
+              borderRadius: '6px',
+              marginBottom: '15px',
+              marginLeft: '20px',
+              marginRight: '20px',
+              border: '1px solid #e0e0e0'
+            }}>
+              <div style={{fontSize: '18px', fontWeight: 'bold', color: '#333'}}>
+                <strong>Prochaine action:</strong> {
+                  (() => {
+                    const uncompletedActions = nextActions.filter(a => !a.completed);
+                    if (uncompletedActions.length === 0) return 'Aucune';
+                    const nextAction = uncompletedActions.sort((a, b) => new Date(a.planned_date) - new Date(b.planned_date))[0];
+                    return nextAction.action_type;
+                  })()
+                } - <strong>Date:</strong> {
+                  (() => {
+                    const uncompletedActions = nextActions.filter(a => !a.completed);
+                    if (uncompletedActions.length === 0) return '-';
+                    const nextAction = uncompletedActions.sort((a, b) => new Date(a.planned_date) - new Date(b.planned_date))[0];
+                    return new Date(nextAction.planned_date).toLocaleDateString();
+                  })()
+                }
+              </div>
+            </div>
+
           </div>
 
+          <ActivitiesSection
+            nextActions={nextActions}
+            statusHistory={statusHistory}
+            onAddNextAction={onAddNextAction}
+            onToggleNextAction={onToggleNextAction}
+            onDeleteNextAction={onDeleteNextAction}
+            newActionType={newActionType}
+            onActionTypeChange={onActionTypeChange}
+            newActionDate={newActionDate}
+            onActionDateChange={onActionDateChange}
+            newActionActor={newActionActor}
+            onActionActorChange={onActionActorChange}
+            newActionContact={newActionContact}
+            onActionContactChange={onActionContactChange}
+            newActionComment={newActionComment}
+            onActionCommentChange={onActionCommentChange}
+            user={user}
+            API_URL={API_URL}
+            interlocuteurs={interlocuteurs}
+            devisList={devisList}
+            onEdit={onEdit}
+            showDevisForm={showDevisForm}
+            setShowDevisForm={setShowDevisForm}
+            editingDevisId={editingDevisId}
+            setEditingDevisId={setEditingDevisId}
+            devisFormData={devisFormData}
+            setDevisFormData={setDevisFormData}
+            devisPdfFile={devisPdfFile}
+            setDevisPdfFile={setDevisPdfFile}
+            isUploadingDevisPdf={isUploadingDevisPdf}
+            handleAddDevis={handleAddDevis}
+            handleEditDevis={handleEditDevis}
+            handleSaveDevis={handleSaveDevis}
+            handleDeleteDevis={handleDeleteDevis}
+            selectedProspect={selectedProspect}
+          />
         </div>
       );
     }
@@ -4083,32 +4112,6 @@
           
           {/* Formulaire pour ajouter une nouvelle action */}
           <div style={styles.activityForm}>
-              padding: '15px 20px',
-              backgroundColor: '#f9f9f9',
-              borderRadius: '6px',
-              marginBottom: '15px',
-              marginLeft: '20px',
-              marginRight: '20px',
-              border: '1px solid #e0e0e0'
-            }}>
-              <div style={{fontSize: '18px', fontWeight: 'bold', color: '#333'}}>
-                <strong>Prochaine action:</strong> {
-                  (() => {
-                    const uncompletedActions = nextActions.filter(a => !a.completed);
-                    if (uncompletedActions.length === 0) return 'Aucune';
-                    const nextAction = uncompletedActions.sort((a, b) => new Date(a.planned_date) - new Date(b.planned_date))[0];
-                    return nextAction.action_type;
-                  })()
-                } - <strong>Date:</strong> {
-                  (() => {
-                    const uncompletedActions = nextActions.filter(a => !a.completed);
-                    if (uncompletedActions.length === 0) return '-';
-                    const nextAction = uncompletedActions.sort((a, b) => new Date(a.planned_date) - new Date(b.planned_date))[0];
-                    return new Date(nextAction.planned_date).toLocaleDateString();
-                  })()
-                }
-              </div>
-            </div>
             <h4>Ajouter une action</h4>
             <div style={styles.activityRow}>
               <select value={newActionType} onChange={(e) => onActionTypeChange(e.target.value)} style={{...styles.activitySelect, flex: 1}}>
