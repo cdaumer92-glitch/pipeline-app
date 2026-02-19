@@ -621,10 +621,22 @@
           }
         }
 
-        // Vérifier qu'il y a une date de devis si le statut est Devis, Démo, Négociation ou Signé
+        // Si le statut est Devis/Démo/Négociation/Signé et qu'il n'y a pas de date de devis,
+        // prendre automatiquement la date du dernier devis (s'il existe)
         if (['Devis', 'Démo', 'Négociation', 'Signé'].includes(formData.status) && !formData.quote_date) {
-          alert('Une date de devis est requise pour le statut ' + formData.status);
-          return;
+          if (devisList && devisList.length > 0) {
+            // Prendre la date du dernier devis (le plus récent)
+            const lastDevis = devisList[0];
+            if (lastDevis.quote_date) {
+              formData.quote_date = lastDevis.quote_date;
+            } else {
+              alert('Une date de devis est requise pour le statut ' + formData.status);
+              return;
+            }
+          } else {
+            alert('Veuillez créer un devis avant de passer au statut ' + formData.status);
+            return;
+          }
         }
 
         try {
@@ -3628,7 +3640,7 @@
                       placeholder="Notes sur ce devis..."
                       value={devisFormData.comment}
                       onChange={(e) => setDevisFormData({...devisFormData, comment: e.target.value})}
-                      style={{...styles.formInput, width: '100%', minHeight: '80px', resize: 'vertical', fontFamily: 'inherit', padding: '8px', boxSizing: 'border-box'}}
+                      style={{...styles.formInput, width: '100%', maxWidth: 'none', minHeight: '80px', resize: 'vertical', fontFamily: 'inherit', padding: '8px', boxSizing: 'border-box'}}
                     />
                   </div>
 
