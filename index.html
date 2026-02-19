@@ -2914,36 +2914,6 @@
               </div>
             )}
 
-            {/* Montants - Afficher seulement si au moins un montant > 0 */}
-            {(selectedProspect.setup_amount > 0 || 
-              selectedProspect.monthly_amount > 0 || 
-              selectedProspect.annual_amount > 0 || 
-              selectedProspect.training_amount > 0) && (
-              <>
-                <div style={styles.amountsGrid}>
-                  <div style={styles.amountItem}>
-                    <label style={styles.amountLabelSetup}>Setup</label>
-                    <div style={styles.amountValue}>{formatCurrency(selectedProspect.setup_amount)}</div>
-                  </div>
-                  <div style={styles.amountItem}>
-                    <label style={styles.amountLabelAbonnement}>Abonnement (mois)</label>
-                    <div style={styles.amountValue}>{formatCurrency(selectedProspect.monthly_amount)}</div>
-                  </div>
-                  <div style={styles.amountItem}>
-                    <label style={styles.amountLabelAnnual}>Abonnement (an)</label>
-                    <div style={styles.amountValue}>{formatCurrency(selectedProspect.annual_amount)}</div>
-                  </div>
-                  <div style={styles.amountItem}>
-                    <label style={styles.amountLabelFormation}>Formation</label>
-                    <div style={styles.amountValue}>{formatCurrency(selectedProspect.training_amount)}</div>
-                  </div>
-                </div>
-                
-                {/* Modules retenus */}
-                <ModulesDisplay prospectId={selectedProspect.id} user={user} API_URL={API_URL} />
-              </>
-            )}
-
 
 
             <div style={{
@@ -2974,68 +2944,6 @@
               </div>
             </div>
 
-            {selectedProspect.pdf_url && (
-            <div style={{
-              backgroundColor: '#e8f4f8',
-              padding: '15px',
-              borderRadius: '4px',
-              marginBottom: '15px',
-              marginLeft: '20px',
-              marginRight: '20px',
-              border: '1px solid #b0dae6'
-            }}>
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
-                <div style={{flex: 1}}>
-                  <div style={{marginBottom: '10px'}}>
-                    📄 <strong>Devis PDF</strong>
-                  </div>
-                  {selectedProspect.notes && (
-                    <div style={{
-                      marginTop: '10px',
-                      padding: '10px',
-                      backgroundColor: '#fff',
-                      borderRadius: '4px',
-                      fontSize: '14px',
-                      color: '#666',
-                      whiteSpace: 'pre-line'
-                    }}>
-                      <strong style={{color: '#333'}}>Notes sur le Devis:</strong>
-                      <div style={{marginTop: '5px'}}>{selectedProspect.notes}</div>
-                    </div>
-                  )}
-                </div>
-                <div style={{display: 'flex', gap: '10px', marginLeft: '15px'}}>
-                  <button
-                    onClick={async () => {
-                      try {
-                        const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/download-pdf`, {
-                          headers: { 'Authorization': `Bearer ${user.token}` }
-                        });
-                        if (res.ok) {
-                          const blob = await res.blob();
-                          const url = window.URL.createObjectURL(blob);
-                          window.open(url, '_blank');
-                        } else {
-                          alert('Erreur: ' + (await res.text()));
-                        }
-                      } catch (err) {
-                        alert('Erreur: ' + err.message);
-                      }
-                    }}
-                    style={{padding: '8px 12px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap'}}
-                  >
-                    👁️ Visionner
-                  </button>
-                  <button
-                    onClick={() => onEdit(selectedProspect)}
-                    style={{padding: '8px 12px', backgroundColor: '#ffc107', color: '#333', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap'}}
-                  >
-                    🗑️ Supprimer
-                  </button>
-                </div>
-              </div>
-            </div>
-            )}
           </div>
 
           <ActivitiesSection
