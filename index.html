@@ -3627,6 +3627,68 @@
                           {lastDevis.chance_percent}%
                         </span>
                       </div>
+                      <div style={{display: 'flex', gap: '5px', flexShrink: 0}}>
+                        {lastDevis.pdf_url && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`${API_URL}/devis/${lastDevis.id}/download-pdf`, {
+                                  headers: { 'Authorization': `Bearer ${user.token}` }
+                                });
+                                if (res.ok) {
+                                  const blob = await res.blob();
+                                  const url = window.URL.createObjectURL(blob);
+                                  window.open(url, '_blank');
+                                }
+                              } catch (err) {
+                                alert('Erreur: ' + err.message);
+                              }
+                            }}
+                            style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#17a2b8',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            👁️
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleEditDevis(lastDevis)}
+                          style={{
+                            padding: '4px 8px',
+                            backgroundColor: '#10a0dc',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px'
+                          }}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteDevis(lastDevis.id)}
+                          style={{
+                            padding: '4px 8px',
+                            backgroundColor: '#e23b63',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px'
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
                     <div style={{fontSize: '13px', color: '#555', marginBottom: '5px'}}>
                       <strong>Setup:</strong> {formatNumber(lastDevis.setup_amount || 0)} | 
@@ -3698,20 +3760,84 @@
                               border: '1px solid #ddd'
                             }}
                           >
-                            <div style={{fontSize: '14px', fontWeight: 'bold', color: '#333', marginBottom: '5px'}}>
-                              Devis #{index + 2}
-                              {devis.quote_date && <span style={{color: '#666', fontWeight: 'normal', fontSize: '12px'}}> - {new Date(devis.quote_date).toLocaleDateString('fr-FR')}</span>}
-                              <span style={{
-                                marginLeft: '8px',
-                                padding: '2px 6px',
-                                borderRadius: '3px',
-                                fontSize: '11px',
-                                fontWeight: 'bold',
-                                backgroundColor: devis.chance_percent >= 80 ? '#d4edda' : devis.chance_percent >= 40 ? '#fff3cd' : '#f8d7da',
-                                color: devis.chance_percent >= 80 ? '#155724' : devis.chance_percent >= 40 ? '#856404' : '#721c24'
-                              }}>
-                                {devis.chance_percent}%
-                              </span>
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '5px'}}>
+                              <div style={{fontSize: '14px', fontWeight: 'bold', color: '#333'}}>
+                                Devis #{index + 2}
+                                {devis.quote_date && <span style={{color: '#666', fontWeight: 'normal', fontSize: '12px'}}> - {new Date(devis.quote_date).toLocaleDateString('fr-FR')}</span>}
+                                <span style={{
+                                  marginLeft: '8px',
+                                  padding: '2px 6px',
+                                  borderRadius: '3px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  backgroundColor: devis.chance_percent >= 80 ? '#d4edda' : devis.chance_percent >= 40 ? '#fff3cd' : '#f8d7da',
+                                  color: devis.chance_percent >= 80 ? '#155724' : devis.chance_percent >= 40 ? '#856404' : '#721c24'
+                                }}>
+                                  {devis.chance_percent}%
+                                </span>
+                              </div>
+                              <div style={{display: 'flex', gap: '5px', flexShrink: 0}}>
+                                {devis.pdf_url && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        const res = await fetch(`${API_URL}/devis/${devis.id}/download-pdf`, {
+                                          headers: { 'Authorization': `Bearer ${user.token}` }
+                                        });
+                                        if (res.ok) {
+                                          const blob = await res.blob();
+                                          const url = window.URL.createObjectURL(blob);
+                                          window.open(url, '_blank');
+                                        }
+                                      } catch (err) {
+                                        alert('Erreur: ' + err.message);
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '4px 8px',
+                                      backgroundColor: '#17a2b8',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      cursor: 'pointer',
+                                      fontSize: '11px'
+                                    }}
+                                  >
+                                    👁️
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditDevis(devis)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    backgroundColor: '#10a0dc',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontSize: '11px'
+                                  }}
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteDevis(devis.id)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    backgroundColor: '#e23b63',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontSize: '11px'
+                                  }}
+                                >
+                                  🗑️
+                                </button>
+                              </div>
                             </div>
                             <div style={{fontSize: '12px', color: '#555'}}>
                               <strong>Setup:</strong> {formatNumber(devis.setup_amount || 0)} | 
@@ -3847,6 +3973,18 @@
                     onChange={(e) => setDevisFormData({...devisFormData, comment: e.target.value})}
                     style={{width: '100%', minHeight: '60px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', resize: 'vertical', boxSizing: 'border-box'}}
                   />
+                </div>
+
+                {/* PDF du devis */}
+                <div style={{marginBottom: '15px'}}>
+                  <label style={{display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold'}}>PDF du devis</label>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={(e) => setDevisPdfFile(e.target.files[0])}
+                    style={{padding: '6px', border: '1px solid #ddd', borderRadius: '4px', width: '100%', fontSize: '13px'}}
+                  />
+                  {devisPdfFile && <div style={{fontSize: '12px', color: '#666', marginTop: '5px'}}>✓ {devisPdfFile.name}</div>}
                 </div>
 
                 {/* Modules */}
