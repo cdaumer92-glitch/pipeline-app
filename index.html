@@ -3446,6 +3446,7 @@
       const [actionNotes, setActionNotes] = React.useState({});
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
+      const [showNewActionPopup, setShowNewActionPopup] = React.useState(false);
       
       // Initialiser les notes avec les completed_note existantes
       React.useEffect(() => {
@@ -4043,6 +4044,22 @@
                     {showCompletedActions ? '▼ Masquer cochées' : '▶ Afficher cochées'} ({nextActions.filter(a => a.completed).length})
                   </button>
                 )}
+                <button
+                  onClick={() => setShowNewActionPopup(true)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '11px',
+                    backgroundColor: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  + Nouvelle activité
+                </button>
               </div>
               {nextActions.filter(action => !action.completed || showCompletedActions).map((action) => (
                 <div key={action.id} style={{...styles.nextActionItem, opacity: action.completed ? 0.6 : 1}}>
@@ -4110,68 +4127,129 @@
             </div>
           )}
           
-          {/* Formulaire pour ajouter une nouvelle action */}
-          <div style={styles.activityForm}>
-            <h4>Ajouter une action</h4>
-            <div style={styles.activityRow}>
-              <select value={newActionType} onChange={(e) => onActionTypeChange(e.target.value)} style={{...styles.activitySelect, flex: 1}}>
-                <option>Appel</option>
-                <option>Relance</option>
-                <option>Email</option>
-                <option>A faire</option>
-                <option>Point technique</option>
-                <option>Démo</option>
-                <option>Négociation</option>
-                <option>Signature</option>
-              </select>
-              <input
-                type="date"
-                value={newActionDate}
-                onChange={(e) => onActionDateChange(e.target.value)}
-                style={{...styles.activitySelect, flex: 1}}
-              />
-              <select value={newActionActor} onChange={(e) => onActionActorChange(e.target.value)} style={{...styles.activitySelect, flex: 1}}>
-                <option value="">-- De (Acteur) --</option>
-                <option>Roger</option>
-                <option>Christian</option>
-                <option>Frédéric</option>
-                <option>Claude</option>
-              </select>
-              <select value={newActionContact} onChange={(e) => onActionContactChange(e.target.value)} style={{...styles.activitySelect, flex: 1}}>
-                <option value="">-- À (Contact) --</option>
-                <option value="Interne">Interne</option>
-                {interlocuteurs && interlocuteurs.length > 0 ? (
-                  interlocuteurs.map(interlocuteur => (
-                    <option key={interlocuteur.id} value={interlocuteur.nom}>
-                      {interlocuteur.nom} {interlocuteur.fonction && `(${interlocuteur.fonction})`}
-                    </option>
-                  ))
-                ) : (
-                  <option value="" disabled>Aucun contact disponible</option>
-                )}
-              </select>
+          {/* Popup formulaire nouvelle action */}
+          {showNewActionPopup && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 9999
+            }}>
+              <div style={{
+                backgroundColor: 'white',
+                padding: '25px',
+                borderRadius: '12px',
+                maxWidth: '600px',
+                width: '90%',
+                maxHeight: '90vh',
+                overflow: 'auto',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+              }}>
+                <h4 style={{marginTop: 0, marginBottom: '20px', color: '#333'}}>Nouvelle activité</h4>
+                
+                <div style={{display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap'}}>
+                  <select value={newActionType} onChange={(e) => onActionTypeChange(e.target.value)} style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}>
+                    <option>Appel</option>
+                    <option>Relance</option>
+                    <option>Email</option>
+                    <option>A faire</option>
+                    <option>Point technique</option>
+                    <option>Démo</option>
+                    <option>Négociation</option>
+                    <option>Signature</option>
+                  </select>
+                  <input
+                    type="date"
+                    value={newActionDate}
+                    onChange={(e) => onActionDateChange(e.target.value)}
+                    style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
+                  />
+                </div>
+
+                <div style={{display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap'}}>
+                  <select value={newActionActor} onChange={(e) => onActionActorChange(e.target.value)} style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}>
+                    <option value="">-- De (Acteur) --</option>
+                    <option>Christian</option>
+                    <option>Roger</option>
+                    <option>Claude</option>
+                  </select>
+                  <select value={newActionContact} onChange={(e) => onActionContactChange(e.target.value)} style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}>
+                    <option value="">-- À (Contact) --</option>
+                    <option value="Interne">Interne</option>
+                    {interlocuteurs && interlocuteurs.length > 0 ? (
+                      interlocuteurs.map(interlocuteur => (
+                        <option key={interlocuteur.id} value={interlocuteur.nom}>
+                          {interlocuteur.nom} {interlocuteur.fonction && `(${interlocuteur.fonction})`}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>Aucun contact disponible</option>
+                    )}
+                  </select>
+                </div>
+
+                <textarea
+                  placeholder="Commentaire (optionnel)..."
+                  value={newActionComment}
+                  onChange={(e) => onActionCommentChange(e.target.value)}
+                  style={{
+                    padding: '11px 12px',
+                    border: '1px solid #d0d0d0',
+                    borderRadius: '6px',
+                    minHeight: '80px',
+                    fontFamily: 'inherit',
+                    fontSize: '13px',
+                    lineHeight: '1.5',
+                    marginBottom: '15px',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    resize: 'vertical'
+                  }}
+                />
+
+                <div style={{display: 'flex', gap: '10px', justifyContent: 'flex-end'}}>
+                  <button
+                    onClick={() => {
+                      onAddNextAction();
+                      setShowNewActionPopup(false);
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#10a0dc',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    ✅ Ajouter
+                  </button>
+                  <button
+                    onClick={() => setShowNewActionPopup(false)}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#999',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
             </div>
-            <textarea
-              placeholder="Commentaire (optionnel)..."
-              value={newActionComment}
-              onChange={(e) => onActionCommentChange(e.target.value)}
-              style={{padding: '11px 12px', border: '1px solid #d0d0d0', borderRadius: '6px', minHeight: '50px', fontFamily: 'inherit', fontSize: '13px', lineHeight: '1.5', marginTop: '8px', width: '100%', boxSizing: 'border-box', resize: 'none'}}
-            />
-            <div style={{display: 'flex', gap: '10px', marginTop: '10px'}}>
-              <button onClick={() => {
-                if (!newActionActor.trim()) {
-                  alert('Veuillez sélectionner un acteur (De)');
-                  return;
-                }
-                if (!newActionContact.trim()) {
-                  alert('Veuillez sélectionner un contact (À)');
-                  return;
-                }
-                onAddNextAction();
-                onActionCommentChange('');
-              }} style={{...styles.activityBtn, width: '100%'}}>Ajouter</button>
-            </div>
-          </div>
+          )}
         </div>
       );
     }
