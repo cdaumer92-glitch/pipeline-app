@@ -1576,7 +1576,10 @@
               }}
               onFocus={() => globalSearch.length >= 2 && setShowResults(true)}
               onKeyDown={(e) => {
-                const filtered = prospects.filter(p => p.name.toLowerCase().includes(globalSearch.toLowerCase()));
+                const filtered = prospects.filter(p => 
+                  p.name.toLowerCase().includes(globalSearch.toLowerCase()) ||
+                  (p.contact_name && p.contact_name.toLowerCase().includes(globalSearch.toLowerCase()))
+                ).slice(0, 10);
                 if (e.key === 'ArrowDown') {
                   e.preventDefault();
                   setSelectedSearchIndex(prev => prev < filtered.length - 1 ? prev + 1 : prev);
