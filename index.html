@@ -2101,8 +2101,8 @@
           </div>
 
           {/* Statut */}
-          <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
-            <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Statut:</span>
+          <div style={{...styles.filterContainer, marginTop: '6px', paddingTop: '6px'}}>
+            <span style={{fontSize: '11px', fontWeight: '600', color: '#607a7a', width: '100%', marginBottom: '4px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Statut</span>
             {['Tous', 'Devis', 'Signé', 'Perdu'].map(status => (
               <button
                 key={status}
@@ -2118,8 +2118,8 @@
           </div>
 
           {/* Commercial */}
-          <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
-            <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Commercial:</span>
+          <div style={{...styles.filterContainer, marginTop: '6px', paddingTop: '6px'}}>
+            <span style={{fontSize: '11px', fontWeight: '600', color: '#607a7a', width: '100%', marginBottom: '4px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Commercial</span>
             {['Tous', 'Roger', 'Christian', 'Frédéric'].map(commercial => {
               const count = getProspectCountByCommercial(allProspects, commercial);
               return (
@@ -2143,8 +2143,8 @@
           </div>
 
           {/* Trier par */}
-          <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
-            <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Trier par:</span>
+          <div style={{...styles.filterContainer, marginTop: '6px', paddingTop: '6px'}}>
+            <span style={{fontSize: '11px', fontWeight: '600', color: '#607a7a', width: '100%', marginBottom: '4px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Trier par</span>
             {[{label: 'Nom', value: 'name'}, {label: 'Ancienneté', value: 'ancienneté'}, {label: 'Probabilité', value: 'probabilité'}].map(option => (
               <button
                 key={option.value}
@@ -2217,12 +2217,15 @@
                   ...(selectedProspect?.id === prospect.id ? styles.prospectItemActive : {})
                 }}
               >
-                <div style={styles.prospectName}>{prospect.name}</div>
-                <div style={styles.prospectSubtitle}>{prospect.contact_name}</div>
-                <div style={{fontSize: '12px', marginTop: '6px', color: '#607a7a'}}>
-                  Action planifiée: <strong style={{color: prospectActionsInfo[prospect.id]?.hasAction ? '#007d89' : '#e5856f'}}>{prospectActionsInfo[prospect.id]?.hasAction ? 'Oui' : 'Non'}</strong>
-                  {prospectActionsInfo[prospect.id]?.isLate && <span style={{color: '#e5856f', fontWeight: 'bold'}}> - En retard</span>}
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '4px'}}>
+                  <div style={styles.prospectName}>{prospect.name}</div>
+                  {prospectActionsInfo[prospect.id]?.hasAction && prospectActionsInfo[prospect.id]?.nextActionDate && (
+                    <div style={{fontSize: '11px', color: prospectActionsInfo[prospect.id]?.isLate ? '#e5856f' : '#607a7a', fontWeight: '500'}}>
+                      {new Date(prospectActionsInfo[prospect.id].nextActionDate).toLocaleDateString('fr-FR', {day: '2-digit', month: '2-digit'})}
+                    </div>
+                  )}
                 </div>
+                <div style={styles.prospectSubtitle}>{prospect.contact_name}</div>
                 <div style={styles.prospectAmount}>
                   {formatCurrency(prospect.monthly_amount)}/mois + {formatCurrency(prospect.annual_amount)}/an
                 </div>
@@ -4456,7 +4459,7 @@
       header: {
         backgroundColor: '#ffffff',
         color: '#007d89',
-        padding: '20px',
+        padding: '12px 20px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -4533,7 +4536,7 @@
       },
       leftPanel: {
         width: '350px',
-        background: 'linear-gradient(160deg, #dfeff0 0%, #e4f0f0 100%)',
+        background: '#ffffff',
         borderRight: '1px solid #c8dede',
         display: 'flex',
         flexDirection: 'column',
@@ -4545,12 +4548,12 @@
         overflowY: 'auto'
       },
       newBtn: {
-        margin: '15px',
-        padding: '10px 14px',
+        margin: '12px',
+        padding: '8px 12px',
         backgroundColor: '#f79d8d',
         color: 'white',
         border: 'none',
-        borderRadius: '8px',
+        borderRadius: '6px',
         cursor: 'pointer',
         fontWeight: '600',
         fontSize: '13px',
@@ -4558,11 +4561,11 @@
         letterSpacing: '0.01em'
       },
       searchInput: {
-        margin: '0 15px 15px 15px',
-        padding: '9px 12px',
+        margin: '0 12px 10px 12px',
+        padding: '8px 10px',
         border: '1px solid #c8dede',
         borderRadius: '6px',
-        width: 'calc(100% - 30px)',
+        width: 'calc(100% - 24px)',
         boxSizing: 'border-box',
         backgroundColor: '#f2f8f8',
         fontSize: '0.9rem',
@@ -4571,24 +4574,24 @@
       filterContainer: {
         display: 'flex',
         flexWrap: 'wrap',
-        gap: '5px',
-        padding: '0 15px 15px 15px',
+        gap: '4px',
+        padding: '0 12px 8px 12px',
         borderBottom: '1px solid #c8dede'
       },
       filterBtn: {
-        padding: '6px 12px',
+        padding: '4px 10px',
         backgroundColor: 'transparent',
         border: '1px solid #c8dede',
-        borderRadius: '20px',
+        borderRadius: '16px',
         cursor: 'pointer',
-        fontSize: '13px',
+        fontSize: '12px',
         transition: 'all 0.2s',
         color: '#607a7a',
         fontWeight: '400'
       },
       filterBtnActive: {
-        backgroundColor: 'rgba(0,125,137,0.12)',
-        color: '#007d89',
+        backgroundColor: '#007d89',
+        color: '#ffffff',
         borderColor: '#007d89',
         fontWeight: '600'
       },
@@ -4598,7 +4601,7 @@
         paddingBottom: '15px'
       },
       prospectItem: {
-        padding: '15px',
+        padding: '12px',
         borderBottom: '1px solid #c8dede',
         cursor: 'pointer',
         transition: 'all 0.2s',
