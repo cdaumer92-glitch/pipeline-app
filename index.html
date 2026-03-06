@@ -131,7 +131,7 @@
       if (commercial === 'Tous') {
         return prospects.length;
       }
-      return prospects.filter(p => p.assigned_to === commercial).length;
+      return (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.assigned_to === commercial).length;
     }
 
     function App() {
@@ -836,7 +836,7 @@
         setNewActionDate(new Date().toISOString().split('T')[0]);
       };
 
-      const filteredProspects = prospects.filter(p => {
+      const filteredProspects = (prospects && Array.isArray(prospects) ? prospects : []).filter(p => {
         // Filtre par type de société (Suspect/Prospect/Client)
         let matchSocietyType;
         if (filterSocietyType === 'Tous') {
@@ -1096,7 +1096,7 @@
             }
 
             // Prospects créés dans la période
-            const prospectsCreated = prospects.filter(p => {
+            const prospectsCreated = (prospects && Array.isArray(prospects) ? prospects : []).filter(p => {
               if (p.assigned_to !== commercial) return false;
               const createdDate = new Date(p.created_at);
               return createdDate >= startDate && createdDate <= endDate;
@@ -1107,7 +1107,7 @@
             const clients = prospectsCreated.filter(p => p.statut_societe === 'Client').length;
 
             // Devis créés dans la période
-            const devisCreated = prospects.filter(p => {
+            const devisCreated = (prospects && Array.isArray(prospects) ? prospects : []).filter(p => {
               if (p.assigned_to !== commercial) return false;
               if (p.status !== 'Devis') return false;
               if (!p.status_date) return false;
@@ -1116,7 +1116,7 @@
             });
 
             // Charger toutes les actions du commercial (en parallèle pour optimiser)
-            const commercialProspects = prospects.filter(p => p.assigned_to === commercial);
+            const commercialProspects = (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.assigned_to === commercial);
             const actionsPromises = commercialProspects.map(async (prospect) => {
               try {
                 const res = await fetch(`${API_URL}/prospects/${prospect.id}/next_actions`, {
@@ -1548,7 +1548,7 @@
       }, []);
       
       const filteredProspects = globalSearch.length >= 2 && prospects && Array.isArray(prospects)
-        ? prospects.filter(p => 
+        ? (prospects && Array.isArray(prospects) ? prospects : []).filter(p => 
             p.name.toLowerCase().includes(globalSearch.toLowerCase()) ||
             (p.contact_name && p.contact_name.toLowerCase().includes(globalSearch.toLowerCase()))
           ).slice(0, 10) // Limiter à 10 résultats
@@ -2189,17 +2189,17 @@
       
       const stats = {
         total: prospects.length,
-        prospection: prospects.filter(p => p.status === 'Prospection').length,
-        devis: prospects.filter(p => p.status === 'Devis').length,
-        demo: prospects.filter(p => p.status === 'Démo').length,
-        negotiation: prospects.filter(p => p.status === 'Négociation').length,
-        signed: prospects.filter(p => p.status === 'Signé').length,
-        lost: prospects.filter(p => p.status === 'Perdu').length,
+        prospection: (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.status === 'Prospection').length,
+        devis: (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.status === 'Devis').length,
+        demo: (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.status === 'Démo').length,
+        negotiation: (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.status === 'Négociation').length,
+        signed: (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.status === 'Signé').length,
+        lost: (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.status === 'Perdu').length,
         totalValue: prospects.reduce((sum, p) => sum + (p.monthly_amount * 12 + p.annual_amount), 0)
       };
 
       // Prospects en Devis ou Négociation seulement
-      const prospectsPipeline = prospects.filter(p => p.status === 'Devis' || p.status === 'Négociation');
+      const prospectsPipeline = (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.status === 'Devis' || p.status === 'Négociation');
       const monthlyAbonnement = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
       const annualAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0), 0);
       const setupAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.setup_amount) || 0), 0);
@@ -2215,7 +2215,7 @@
 
       // Fonction pour trier la liste
       const getSortedProspects = (commercialName) => {
-        const filtered = prospects.filter(p => p.assigned_to === commercialName);
+        const filtered = (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.assigned_to === commercialName);
         return filtered.sort((a, b) => {
           let compareA, compareB;
           
@@ -2462,7 +2462,7 @@
             <h3 style={{marginTop: 0}}>Par commercial</h3>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px'}}>
               {commercials.map(commercial => {
-                const commercialProspects = prospects.filter(p => p.assigned_to === commercial);
+                const commercialProspects = (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.assigned_to === commercial);
                 const commercialPipeline = commercialProspects.filter(p => p.status === 'Devis' || p.status === 'Négociation');
                 const signed = commercialProspects.filter(p => p.status === 'Signé').length;
                 const monthlyValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
