@@ -4090,10 +4090,9 @@
           )}
           
           {/* Next Actions complétées et en cours */}
-          {nextActions.length > 0 && (
-            <div style={styles.nextActionsListBox}>
-              <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px'}}>
-                <h4 style={{margin: 0}}>Actions</h4>
+          <div style={styles.nextActionsListBox}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px'}}>
+              <h4 style={{margin: 0}}>Actions</h4>
                 {nextActions.some(a => a.completed) && (
                   <button
                     onClick={() => setShowCompletedActions(!showCompletedActions)}
@@ -4129,6 +4128,13 @@
                   + Nouvelle activité
                 </button>
               </div>
+              
+              {nextActions.length === 0 && (
+                <div style={{padding: '20px', textAlign: 'center', color: '#999', fontSize: '14px'}}>
+                  Aucune action enregistrée. Cliquez sur "+ Nouvelle activité" pour en créer une.
+                </div>
+              )}
+              
               {nextActions.filter(action => !action.completed || showCompletedActions).map((action) => (
                 <div key={action.id} style={{...styles.nextActionItem, opacity: action.completed ? 0.6 : 1}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px'}}>
@@ -4193,7 +4199,6 @@
                 </div>
               ))}
             </div>
-          )}
           
           {/* Popup formulaire nouvelle action */}
           {showNewActionPopup && (
