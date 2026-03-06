@@ -3817,13 +3817,6 @@
               <div style={{
                 padding: '20px',
                 textAlign: 'center',
-                color: '#999',
-                backgroundColor: 'white',
-                borderRadius: '6px',
-                fontSize: '14px'
-              }}>
-                Aucun devis créé. Cliquez sur "+ Ajouter un devis" pour commencer.
-              </div>
             )}
             </div>
           
@@ -3872,54 +3865,100 @@
                 </div>
                 
                 {/* Stepper visuel pour le statut */}
-                <div style={{marginBottom: '20px'}}>
-                  <label style={{display: 'block', marginBottom: '10px', fontSize: '13px', fontWeight: 'bold'}}>Parcours du devis</label>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap'}}>
+                <div style={{marginBottom: '15px'}}>
+                  <label style={{display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold'}}>Statut du devis</label>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap'}}>
                     {['En cours', 'Envoyé', 'Discussion', 'Gagné', 'Perdu'].map((status, index) => {
                       const isActive = devisFormData.devis_status === status;
-                      const stepNumber = index + 1;
-                      const isGagnePerdu = status === 'Gagné' || status === 'Perdu';
                       
                       return (
                         <React.Fragment key={status}>
                           <div
-                            onClick={() => setDevisFormData({...devisFormData, devis_status: status})}
+                            onClick={() => {
+                              setDevisFormData({
+                                ...devisFormData, 
+                                devis_status: status,
+                                chance_percent: 
+                                  status === 'En cours' ? 20 :
+                                  status === 'Envoyé' ? 30 :
+                                  status === 'Discussion' ? (devisFormData.chance_percent === 40 || devisFormData.chance_percent === 60 ? devisFormData.chance_percent : 40) :
+                                  status === 'Gagné' ? 100 : 0
+                              });
+                            }}
                             style={{
                               cursor: 'pointer',
-                              padding: '12px 20px',
-                              borderRadius: '8px',
-                              border: isActive ? '2px solid #10a0dc' : '2px solid #ddd',
+                              padding: '6px 12px',
+                              borderRadius: '6px',
+                              border: isActive ? '2px solid #10a0dc' : '1px solid #ddd',
                               backgroundColor: isActive ? 
                                 (status === 'Gagné' ? '#d4edda' :
                                  status === 'Perdu' ? '#f8d7da' :
                                  status === 'Discussion' ? '#fff3cd' :
                                  status === 'Envoyé' ? '#d1ecf1' : '#e3f2fd') : 'white',
                               fontWeight: isActive ? 'bold' : 'normal',
-                              fontSize: '13px',
+                              fontSize: '12px',
                               transition: 'all 0.2s',
-                              boxShadow: isActive ? '0 2px 8px rgba(16,160,220,0.3)' : 'none',
-                              minWidth: isGagnePerdu ? '90px' : '120px',
-                              textAlign: 'center'
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              whiteSpace: 'nowrap'
                             }}
                           >
-                            <div style={{fontSize: '18px', marginBottom: '4px'}}>
+                            <span style={{fontSize: '14px'}}>
                               {status === 'En cours' ? '📝' :
                                status === 'Envoyé' ? '📤' :
                                status === 'Discussion' ? '🤝' :
                                status === 'Gagné' ? '✅' : '❌'}
-                            </div>
-                            <div>{status}</div>
+                            </span>
+                            <span>{status}</span>
                           </div>
                           {index < 2 && (
-                            <div style={{fontSize: '20px', color: '#ccc'}}>→</div>
+                            <div style={{fontSize: '14px', color: '#ccc'}}>→</div>
                           )}
                           {index === 2 && (
-                            <div style={{fontSize: '20px', color: '#ccc'}}>⤵</div>
+                            <div style={{fontSize: '14px', color: '#ccc'}}>↓</div>
                           )}
                         </React.Fragment>
                       );
                     })}
                   </div>
+                  
+                  {/* Choix 40% ou 60% pour Discussion */}
+                  {devisFormData.devis_status === 'Discussion' && (
+                    <div style={{marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'center'}}>
+                      <span style={{fontSize: '12px', color: '#666'}}>Probabilité:</span>
+                      <button
+                        type="button"
+                        onClick={() => setDevisFormData({...devisFormData, chance_percent: 40})}
+                        style={{
+                          padding: '4px 12px',
+                          borderRadius: '4px',
+                          border: devisFormData.chance_percent === 40 ? '2px solid #10a0dc' : '1px solid #ddd',
+                          backgroundColor: devisFormData.chance_percent === 40 ? '#fff3cd' : 'white',
+                          fontWeight: devisFormData.chance_percent === 40 ? 'bold' : 'normal',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        40%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDevisFormData({...devisFormData, chance_percent: 60})}
+                        style={{
+                          padding: '4px 12px',
+                          borderRadius: '4px',
+                          border: devisFormData.chance_percent === 60 ? '2px solid #10a0dc' : '1px solid #ddd',
+                          backgroundColor: devisFormData.chance_percent === 60 ? '#fff3cd' : 'white',
+                          fontWeight: devisFormData.chance_percent === 60 ? 'bold' : 'normal',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        60%
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Date, montants, probabilité */}
@@ -3968,21 +4007,6 @@
                       onChange={(e) => setDevisFormData({...devisFormData, training_amount: parseFloat(e.target.value) || 0})}
                       style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
                     />
-                  </div>
-                  <div style={{flex: '1 1 100px'}}>
-                    <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Proba.</label>
-                    <select
-                      value={devisFormData.chance_percent}
-                      onChange={(e) => setDevisFormData({...devisFormData, chance_percent: parseInt(e.target.value) || 0})}
-                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
-                    >
-                      <option value="0">0%</option>
-                      <option value="20">20%</option>
-                      <option value="40">40%</option>
-                      <option value="60">60%</option>
-                      <option value="80">80%</option>
-                      <option value="100">100%</option>
-                    </select>
                   </div>
                 </div>
 
@@ -4173,12 +4197,6 @@
                   + Nouvelle activité
                 </button>
               </div>
-              
-              {nextActions.length === 0 && (
-                <div style={{padding: '20px', textAlign: 'center', color: '#999', fontSize: '14px'}}>
-                  Aucune action enregistrée. Cliquez sur "+ Nouvelle activité" pour en créer une.
-                </div>
-              )}
               
               {nextActions.filter(action => !action.completed || showCompletedActions).map((action) => (
                 <div key={action.id} style={{...styles.nextActionItem, opacity: action.completed ? 0.6 : 1}}>
