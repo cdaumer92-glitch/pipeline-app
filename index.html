@@ -3476,24 +3476,6 @@
                 </div>
               )}
               
-              <div style={styles.formGrid}>
-                <select
-                  value={formData.status}
-                  onChange={(e) => handleChange('status', e.target.value)}
-                  style={styles.formInput}
-                  key={formData.id || 'new'}
-                >
-                  <option>Prospection</option>
-                  <option>Devis</option>
-                  <option>Démo</option>
-                  <option>Négociation</option>
-                  <option>Signé</option>
-                  <option>Ajourné N+1</option>
-                  <option>Éliminé par nous</option>
-                  <option>Perdu</option>
-                </select>
-              </div>
-              
               <textarea
                 placeholder="Notes"
                 value={formData.notes}
