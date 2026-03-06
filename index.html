@@ -43,10 +43,31 @@
       color: var(--texte-principal);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      font-size: 14px;
+      line-height: 1.5;
+      font-weight: 400;
+      letter-spacing: 0.01em;
+    }
+    
+    h1, h2, h3, h4 {
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    
+    h3 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
     }
     
     input, select, textarea, button {
       font-family: 'Lato', sans-serif;
+      font-size: 0.875rem;
+      letter-spacing: 0.01em;
+    }
+    
+    button {
+      font-weight: 600;
     }
   </style>
 </head>
@@ -2193,26 +2214,14 @@
                 onClick={() => onSelect(prospect)}
                 style={{
                   ...styles.prospectItem,
-                  ...(selectedProspect?.id === prospect.id ? styles.prospectItemActive : {}),
-                  ...(prospect.status === 'Perdu' ? { backgroundColor: '#ffe6e6', borderLeft: '4px solid #ff6666' } : {}),
-                  ...(prospect.status === 'Ajourné N+1' ? { backgroundColor: '#fff3e0', borderLeft: '4px solid #ff9800' } : {}),
-                  ...(prospect.status === 'Éliminé par nous' ? { backgroundColor: '#f0f0f0', borderLeft: '4px solid #888' } : {})
+                  ...(selectedProspect?.id === prospect.id ? styles.prospectItemActive : {})
                 }}
               >
                 <div style={styles.prospectName}>{prospect.name}</div>
                 <div style={styles.prospectSubtitle}>{prospect.contact_name}</div>
-                <div style={styles.prospectStatusRow}>
-                  <span style={styles.prospectStatus}>
-                    {prospect.status}
-                    {prospect.chance_percent && prospect.chance_percent > 0 && (
-                      <span style={{fontWeight: 'bold', color: '#007d89', marginLeft: '5px'}}>({prospect.chance_percent}%)</span>
-                    )}
-                  </span>
-                  {prospect.quote_date && <span style={styles.prospectQuoteDate}>{new Date(prospect.quote_date).toLocaleDateString()}</span>}
-                </div>
-                <div style={{fontSize: '12px', marginTop: '6px', color: '#666'}}>
-                  Action planifiée: <strong style={{color: prospectActionsInfo[prospect.id]?.hasAction ? '#28a745' : '#cc0000'}}>{prospectActionsInfo[prospect.id]?.hasAction ? 'Oui' : 'Non'}</strong>
-                  {prospectActionsInfo[prospect.id]?.isLate && <span style={{color: '#cc0000', fontWeight: 'bold'}}> - En retard</span>}
+                <div style={{fontSize: '12px', marginTop: '6px', color: '#607a7a'}}>
+                  Action planifiée: <strong style={{color: prospectActionsInfo[prospect.id]?.hasAction ? '#007d89' : '#e5856f'}}>{prospectActionsInfo[prospect.id]?.hasAction ? 'Oui' : 'Non'}</strong>
+                  {prospectActionsInfo[prospect.id]?.isLate && <span style={{color: '#e5856f', fontWeight: 'bold'}}> - En retard</span>}
                 </div>
                 <div style={styles.prospectAmount}>
                   {formatCurrency(prospect.monthly_amount)}/mois + {formatCurrency(prospect.annual_amount)}/an
@@ -4537,15 +4546,16 @@
       },
       newBtn: {
         margin: '15px',
-        padding: '12px 15px',
+        padding: '10px 14px',
         backgroundColor: '#f79d8d',
         color: 'white',
         border: 'none',
         borderRadius: '8px',
         cursor: 'pointer',
-        fontWeight: 'bold',
-        fontSize: '14px',
-        boxShadow: '0 2px 6px rgba(247,157,141,0.35)'
+        fontWeight: '600',
+        fontSize: '13px',
+        boxShadow: '0 2px 6px rgba(247,157,141,0.35)',
+        letterSpacing: '0.01em'
       },
       searchInput: {
         margin: '0 15px 15px 15px',
@@ -4571,15 +4581,16 @@
         border: '1px solid #c8dede',
         borderRadius: '20px',
         cursor: 'pointer',
-        fontSize: '12px',
+        fontSize: '13px',
         transition: 'all 0.2s',
-        color: '#607a7a'
+        color: '#607a7a',
+        fontWeight: '400'
       },
       filterBtnActive: {
         backgroundColor: 'rgba(0,125,137,0.12)',
         color: '#007d89',
         borderColor: '#007d89',
-        fontWeight: '700'
+        fontWeight: '600'
       },
       prospectsList: {
         flex: 1,
@@ -4592,26 +4603,29 @@
         cursor: 'pointer',
         transition: 'all 0.2s',
         borderLeft: '3px solid transparent',
-        backgroundColor: 'transparent'
+        backgroundColor: '#ffffff'
       },
       prospectItemActive: {
         backgroundColor: 'rgba(0,125,137,0.12)',
         borderLeftColor: '#f79d8d'
       },
       prospectName: {
-        fontWeight: 'bold',
-        fontSize: '15px',
-        marginBottom: '4px'
+        fontWeight: '600',
+        fontSize: '14px',
+        marginBottom: '4px',
+        color: '#1a3535',
+        letterSpacing: '-0.01em'
       },
       prospectSubtitle: {
-        fontSize: '12px',
-        color: '#666',
-        marginBottom: '4px'
+        fontSize: '13px',
+        color: '#607a7a',
+        marginBottom: '4px',
+        fontWeight: '400'
       },
       prospectStatus: {
-        fontSize: '11px',
-        fontWeight: 'bold',
-        color: '#0066cc',
+        fontSize: '12px',
+        fontWeight: '500',
+        color: '#007d89',
         marginBottom: '4px'
       },
       prospectStatusRow: {
@@ -4621,13 +4635,13 @@
         marginBottom: '4px'
       },
       prospectQuoteDate: {
-        fontSize: '10px',
-        color: '#666',
-        fontStyle: 'italic'
+        fontSize: '11px',
+        color: '#607a7a',
+        fontStyle: 'normal'
       },
       prospectAmount: {
-        fontSize: '13px',
-        fontWeight: 'bold',
+        fontSize: '12px',
+        fontWeight: '600',
         color: '#007d89'
       },
       prospectDetail: {
