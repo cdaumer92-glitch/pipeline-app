@@ -404,6 +404,14 @@
             alert('Veuillez d\'abord créer la société');
             return;
           }
+          
+          // Validation : Discussion nécessite 40% ou 60%
+          if (devisFormData.devis_status === 'Discussion' && 
+              devisFormData.chance_percent !== 40 && 
+              devisFormData.chance_percent !== 60) {
+            alert('Pour le statut "Discussion", vous devez choisir 40% ou 60%');
+            return;
+          }
 
           const url = editingDevisId 
             ? `${API_URL}/devis/${editingDevisId}`
@@ -3877,7 +3885,7 @@
                                 chance_percent: 
                                   status === 'En cours' ? 20 :
                                   status === 'Envoyé' ? 30 :
-                                  status === 'Discussion' ? (devisFormData.chance_percent === 40 || devisFormData.chance_percent === 60 ? devisFormData.chance_percent : 40) :
+                                  status === 'Discussion' ? (devisFormData.chance_percent === 40 || devisFormData.chance_percent === 60 ? devisFormData.chance_percent : null) :
                                   status === 'Gagné' ? 100 : 0
                               });
                             }}
@@ -3907,6 +3915,50 @@
                                status === 'Gagné' ? '✅' : '❌'}
                             </span>
                             <span>{status}</span>
+                            
+                            {/* Sous Discussion : choix 40 ou 60 */}
+                            {status === 'Discussion' && isActive && (
+                              <div style={{display: 'flex', gap: '6px', marginLeft: '8px'}}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDevisFormData({...devisFormData, chance_percent: 40});
+                                  }}
+                                  style={{
+                                    padding: '2px 8px',
+                                    borderRadius: '3px',
+                                    border: devisFormData.chance_percent === 40 ? '2px solid #10a0dc' : '1px solid #999',
+                                    backgroundColor: devisFormData.chance_percent === 40 ? '#10a0dc' : 'white',
+                                    color: devisFormData.chance_percent === 40 ? 'white' : '#666',
+                                    fontWeight: devisFormData.chance_percent === 40 ? 'bold' : 'normal',
+                                    fontSize: '10px',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  40%
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDevisFormData({...devisFormData, chance_percent: 60});
+                                  }}
+                                  style={{
+                                    padding: '2px 8px',
+                                    borderRadius: '3px',
+                                    border: devisFormData.chance_percent === 60 ? '2px solid #10a0dc' : '1px solid #999',
+                                    backgroundColor: devisFormData.chance_percent === 60 ? '#10a0dc' : 'white',
+                                    color: devisFormData.chance_percent === 60 ? 'white' : '#666',
+                                    fontWeight: devisFormData.chance_percent === 60 ? 'bold' : 'normal',
+                                    fontSize: '10px',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  60%
+                                </button>
+                              </div>
+                            )}
                           </div>
                           {index < 2 && (
                             <div style={{fontSize: '14px', color: '#ccc'}}>→</div>
@@ -3918,43 +3970,6 @@
                       );
                     })}
                   </div>
-                  
-                  {/* Choix 40% ou 60% pour Discussion */}
-                  {devisFormData.devis_status === 'Discussion' && (
-                    <div style={{marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'center'}}>
-                      <span style={{fontSize: '12px', color: '#666'}}>Probabilité:</span>
-                      <button
-                        type="button"
-                        onClick={() => setDevisFormData({...devisFormData, chance_percent: 40})}
-                        style={{
-                          padding: '4px 12px',
-                          borderRadius: '4px',
-                          border: devisFormData.chance_percent === 40 ? '2px solid #10a0dc' : '1px solid #ddd',
-                          backgroundColor: devisFormData.chance_percent === 40 ? '#fff3cd' : 'white',
-                          fontWeight: devisFormData.chance_percent === 40 ? 'bold' : 'normal',
-                          fontSize: '12px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        40%
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDevisFormData({...devisFormData, chance_percent: 60})}
-                        style={{
-                          padding: '4px 12px',
-                          borderRadius: '4px',
-                          border: devisFormData.chance_percent === 60 ? '2px solid #10a0dc' : '1px solid #ddd',
-                          backgroundColor: devisFormData.chance_percent === 60 ? '#fff3cd' : 'white',
-                          fontWeight: devisFormData.chance_percent === 60 ? 'bold' : 'normal',
-                          fontSize: '12px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        60%
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 {/* Date, montants, probabilité */}
