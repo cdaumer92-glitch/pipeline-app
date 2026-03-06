@@ -2101,8 +2101,8 @@
           </div>
 
           {/* Statut */}
-          <div style={{...styles.filterContainer, marginTop: '6px', paddingTop: '6px'}}>
-            <span style={{fontSize: '11px', fontWeight: '600', color: '#607a7a', width: '100%', marginBottom: '4px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Statut</span>
+          <div style={{...styles.filterContainer, marginTop: '6px', paddingTop: '6px', flexWrap: 'nowrap', alignItems: 'center'}}>
+            <span style={{fontSize: '11px', fontWeight: '600', color: '#607a7a', marginRight: '8px', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap'}}>Statut</span>
             {['Tous', 'Devis', 'Signé', 'Perdu'].map(status => (
               <button
                 key={status}
@@ -2118,8 +2118,8 @@
           </div>
 
           {/* Commercial */}
-          <div style={{...styles.filterContainer, marginTop: '6px', paddingTop: '6px'}}>
-            <span style={{fontSize: '11px', fontWeight: '600', color: '#607a7a', width: '100%', marginBottom: '4px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Commercial</span>
+          <div style={{...styles.filterContainer, marginTop: '6px', paddingTop: '6px', alignItems: 'center'}}>
+            <span style={{fontSize: '11px', fontWeight: '600', color: '#607a7a', marginRight: '8px', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap'}}>Commercial</span>
             {['Tous', 'Roger', 'Christian', 'Frédéric'].map(commercial => {
               const count = getProspectCountByCommercial(allProspects, commercial);
               return (
@@ -2128,15 +2128,10 @@
                   onClick={() => onFilterCommercialChange(commercial)}
                   style={{
                     ...styles.filterBtn,
-                    ...(filterCommercial === commercial ? styles.filterBtnActive : {}),
-                    fontSize: '12px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
+                    ...(filterCommercial === commercial ? styles.filterBtnActive : {})
                   }}
                 >
-                  <span>{commercial}</span>
-                  <span style={{fontSize: '11px', marginLeft: '8px', opacity: 0.7}}>({count})</span>
+                  {commercial === 'Tous' ? `Tous (${count})` : `${commercial} (${count})`}
                 </button>
               );
             })}
