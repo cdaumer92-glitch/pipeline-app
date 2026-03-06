@@ -820,7 +820,6 @@
       };
 
       const handleSelectProspect = (prospect) => {
-        console.log('Clicking on prospect:', prospect.id, prospect.name);
         setSelectedProspect(prospect);
         setShowForm(false);  // Fermer le formulaire pour afficher les activités
         if (!activities[prospect.id]) {
@@ -1548,7 +1547,7 @@
         return () => document.removeEventListener('mousedown', handleClickOutside);
       }, []);
       
-      const filteredProspects = globalSearch.length >= 2 && prospects
+      const filteredProspects = globalSearch.length >= 2 && prospects && Array.isArray(prospects)
         ? prospects.filter(p => 
             p.name.toLowerCase().includes(globalSearch.toLowerCase()) ||
             (p.contact_name && p.contact_name.toLowerCase().includes(globalSearch.toLowerCase()))
@@ -1589,10 +1588,10 @@
                 }}
                 onFocus={() => globalSearch.length >= 2 && setShowResults(true)}
                 onKeyDown={(e) => {
-                  const filtered = prospects.filter(p => 
+                  const filtered = prospects && Array.isArray(prospects) ? prospects.filter(p => 
                     p.name.toLowerCase().includes(globalSearch.toLowerCase()) ||
                     (p.contact_name && p.contact_name.toLowerCase().includes(globalSearch.toLowerCase()))
-                  ).slice(0, 10);
+                  ).slice(0, 10) : [];
                   if (e.key === 'ArrowDown') {
                     e.preventDefault();
                     setSelectedSearchIndex(prev => prev < filtered.length - 1 ? prev + 1 : prev);
