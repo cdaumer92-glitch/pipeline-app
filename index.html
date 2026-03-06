@@ -4,17 +4,49 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pipeline TexasWin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
   <style>
+    :root {
+      /* Palette principale */
+      --fond-general: #f2f8f8;
+      --surface: #ffffff;
+      --surface-secondaire: #edf6f6;
+      --bordures: #c8dede;
+      --texte-principal: #1a3535;
+      --texte-secondaire: #607a7a;
+      
+      /* Teal */
+      --teal-principal: #007d89;
+      --teal-hover: #005f6b;
+      
+      /* Salmon */
+      --salmon: #f79d8d;
+      --salmon-hover: #e5856f;
+      
+      /* Modules */
+      --module-biz: #1a9fdb;
+      --module-kub: #64B340;
+      --module-mag: #E72E7B;
+      --module-log: #FBC02D;
+      --module-flux: #666666;
+    }
+    
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
+    
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-      background: #f5f5f5;
+      font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      background: var(--fond-general);
+      color: var(--texte-principal);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+    }
+    
+    input, select, textarea, button {
+      font-family: 'Lato', sans-serif;
     }
   </style>
 </head>
@@ -1252,14 +1284,14 @@
             {/* Header */}
             <div style={{
               padding: '20px 30px',
-              borderBottom: '2px solid #10a0dc',
+              borderBottom: '2px solid #007d89',
               backgroundColor: '#f9f9f9',
               position: 'sticky',
               top: 0,
               zIndex: 1
             }}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                <h2 style={{margin: 0, color: '#002147'}}>
+                <h2 style={{margin: 0, color: '#007d89'}}>
                   📋 Récapitulatif {recapData.periodLabel} - {commercial}
                 </h2>
                 <button onClick={onClose} style={{
@@ -1293,7 +1325,7 @@
               }}>
                 {/* Entreprises créées */}
                 <div>
-                  <h3 style={{color: '#002147', marginBottom: '15px'}}>
+                  <h3 style={{color: '#007d89', marginBottom: '15px'}}>
                     🏢 Entreprises créées : {recapData.prospectsCreated.length}
                   </h3>
                   {recapData.prospectsCreated.length > 0 ? (
@@ -1326,7 +1358,7 @@
 
                 {/* Devis créés */}
                 <div>
-                  <h3 style={{color: '#002147', marginBottom: '15px'}}>
+                  <h3 style={{color: '#007d89', marginBottom: '15px'}}>
                     📄 Devis créés : {recapData.devisCreated.length}
                   </h3>
                   {recapData.devisCreated.length > 0 ? (
@@ -1358,7 +1390,7 @@
               }}>
                 {/* Actions planifiées */}
                 <div>
-                  <h3 style={{color: '#10a0dc', marginBottom: '15px'}}>
+                  <h3 style={{color: '#007d89', marginBottom: '15px'}}>
                     📅 Actions planifiées {recapData.periodLabel} : {recapData.actionsPlanned.length}
                   </h3>
                   {recapData.actionsPlanned.length > 0 ? (
@@ -1377,7 +1409,7 @@
                           onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}
                         >
                           <strong>{action.action_type}</strong>
-                          <span style={{color: '#10a0dc', marginLeft: '6px'}}>→ {action.prospect_name}</span>
+                          <span style={{color: '#007d89', marginLeft: '6px'}}>→ {action.prospect_name}</span>
                           {action.contact && <span style={{color: '#999'}}> ({action.contact})</span>}
                           <div style={{fontSize: '12px', color: '#888', marginTop: '3px'}}>
                             📅 Prévu le {new Date(action.planned_date).toLocaleDateString('fr-FR')}
@@ -1428,7 +1460,7 @@
 
               {/* Nouvelles actions (après les 2 tableaux) */}
               <div style={{marginBottom: '30px'}}>
-                <h3 style={{color: '#002147', marginBottom: '15px'}}>
+                <h3 style={{color: '#007d89', marginBottom: '15px'}}>
                   ✅ Nouvelles actions : {recapData.actionsCreated.length}
                 </h3>
                 {recapData.actionsCreated.length > 0 ? (
@@ -1447,7 +1479,7 @@
                         onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f9f9f9'}
                       >
                         <strong>{action.action_type}</strong>
-                        <span style={{color: '#10a0dc', marginLeft: '6px'}}>→ {action.prospect_name}</span>
+                        <span style={{color: '#007d89', marginLeft: '6px'}}>→ {action.prospect_name}</span>
                         {action.contact && <span style={{color: '#999'}}> ({action.contact})</span>}
                         <div style={{fontSize: '12px', color: '#888', marginTop: '3px'}}>
                           📅 Prévu le {new Date(action.planned_date).toLocaleDateString('fr-FR')}
@@ -1718,7 +1750,7 @@
               onClick={onNewProspect}
               style={{
                 padding: '11px 18px',
-                backgroundColor: '#10a0dc',
+                backgroundColor: '#007d89',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
@@ -1730,14 +1762,14 @@
                 transition: 'all 0.2s'
               }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0d8ec2'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10a0dc'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#007d89'}
             >
               + Nlle Société
             </button>
           </div>
           
           <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
-            <button onClick={onDashboard} style={{...styles.dashboardBtn, ...(isDashboard ? {backgroundColor: '#10a0dc', color: 'white'} : {})}}>📊 Dashboard</button>
+            <button onClick={onDashboard} style={{...styles.dashboardBtn, ...(isDashboard ? {backgroundColor: '#007d89', color: 'white'} : {})}}>📊 Dashboard</button>
             {user.name === 'Christian' && (
               <button onClick={onSettings} style={styles.settingsBtn}>⚙️ Paramètres</button>
             )}
@@ -1870,14 +1902,14 @@
                 placeholder="Email"
                 value={newUserEmail}
                 onChange={(e) => setNewUserEmail(e.target.value)}
-                style={{width: '100%', padding: '10px', marginBottom: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box'}}
+                style={{width: '100%', padding: '10px', marginBottom: '10px', border: '1px solid #c8dede', borderRadius: '4px', boxSizing: 'border-box'}}
               />
               <input
                 type="text"
                 placeholder="Nom complet"
                 value={newUserName}
                 onChange={(e) => setNewUserName(e.target.value)}
-                style={{width: '100%', padding: '10px', marginBottom: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box'}}
+                style={{width: '100%', padding: '10px', marginBottom: '10px', border: '1px solid #c8dede', borderRadius: '4px', boxSizing: 'border-box'}}
               />
               <div style={{display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px'}}>
                 <input
@@ -1885,7 +1917,7 @@
                   placeholder="Mot de passe"
                   value={newUserPassword}
                   onChange={(e) => setNewUserPassword(e.target.value)}
-                  style={{flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box'}}
+                  style={{flex: 1, padding: '10px', border: '1px solid #c8dede', borderRadius: '4px', boxSizing: 'border-box'}}
                 />
                 <input
                   type="checkbox"
@@ -1895,7 +1927,7 @@
                   title="Afficher le mot de passe"
                 />
               </div>
-              <button onClick={handleCreateUser} style={{backgroundColor: '#10a0dc', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>Créer</button>
+              <button onClick={handleCreateUser} style={{backgroundColor: '#007d89', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>Créer</button>
             </div>
 
             {/* Liste des utilisateurs */}
@@ -1923,7 +1955,7 @@
                         placeholder="Nouveau mot de passe"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        style={{flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '4px'}}
+                        style={{flex: 1, padding: '10px', border: '1px solid #c8dede', borderRadius: '4px'}}
                       />
                       <button
                         onClick={() => setShowPassword({...showPassword, [u.id]: !showPassword[u.id]})}
@@ -1931,7 +1963,7 @@
                       >
                         {showPassword[u.id] ? 'Masquer' : 'Voir'}
                       </button>
-                      <button onClick={() => handleChangePassword(u.id)} style={{backgroundColor: '#10a0dc', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '4px', cursor: 'pointer'}}>Valider</button>
+                      <button onClick={() => handleChangePassword(u.id)} style={{backgroundColor: '#007d89', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '4px', cursor: 'pointer'}}>Valider</button>
                       <button onClick={() => {setEditingUserId(null); setNewPassword('');}} style={{backgroundColor: '#ccc', border: 'none', padding: '10px 15px', borderRadius: '4px', cursor: 'pointer'}}>Annuler</button>
                     </div>
                   ) : (
@@ -2173,7 +2205,7 @@
                   <span style={styles.prospectStatus}>
                     {prospect.status}
                     {prospect.chance_percent && prospect.chance_percent > 0 && (
-                      <span style={{fontWeight: 'bold', color: '#10a0dc', marginLeft: '5px'}}>({prospect.chance_percent}%)</span>
+                      <span style={{fontWeight: 'bold', color: '#007d89', marginLeft: '5px'}}>({prospect.chance_percent}%)</span>
                     )}
                   </span>
                   {prospect.quote_date && <span style={styles.prospectQuoteDate}>{new Date(prospect.quote_date).toLocaleDateString()}</span>}
@@ -2308,7 +2340,7 @@
             
             {/* Carré 1: Compteurs prospects */}
             <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📊 Prospects ({stats.prospection + prospectsPipeline.length})</h3>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #007d89', paddingBottom: '8px'}}>📊 Prospects ({stats.prospection + prospectsPipeline.length})</h3>
               <div style={{fontSize: '15px', lineHeight: '2'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
                   <span style={{color: '#666'}}>Total Suspect:</span>
@@ -2316,7 +2348,7 @@
                 </div>
                 <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
                   <span style={{color: '#666'}}>En pipeline:</span>
-                  <strong style={{color: '#10a0dc', fontSize: '16px'}}>{prospectsPipeline.length}</strong>
+                  <strong style={{color: '#007d89', fontSize: '16px'}}>{prospectsPipeline.length}</strong>
                 </div>
                 <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
                   <span style={{color: '#666'}}>Signé:</span>
@@ -2331,7 +2363,7 @@
 
             {/* Carré 2: Abonnements */}
             <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📅 Abonnements</h3>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #007d89', paddingBottom: '8px'}}>📅 Abonnements</h3>
               <div style={{fontSize: '14px', lineHeight: '1.6'}}>
                 <div style={{marginBottom: '12px'}}>
                   <div style={{color: '#666', marginBottom: '6px', fontWeight: 'bold'}}>/mois:</div>
@@ -2340,8 +2372,8 @@
                     <span style={{fontSize: '12px', color: '#999'}}>Brut</span>
                   </div>
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc'}}>{formatCurrency(monthlyPondere)}</span>
-                    <span style={{fontSize: '12px', color: '#10a0dc'}}>Pondéré</span>
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#007d89'}}>{formatCurrency(monthlyPondere)}</span>
+                    <span style={{fontSize: '12px', color: '#007d89'}}>Pondéré</span>
                   </div>
                 </div>
                 <div>
@@ -2351,8 +2383,8 @@
                     <span style={{fontSize: '12px', color: '#999'}}>Brut</span>
                   </div>
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc'}}>{formatCurrency(annualPondere)}</span>
-                    <span style={{fontSize: '12px', color: '#10a0dc'}}>Pondéré</span>
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#007d89'}}>{formatCurrency(annualPondere)}</span>
+                    <span style={{fontSize: '12px', color: '#007d89'}}>Pondéré</span>
                   </div>
                 </div>
               </div>
@@ -2360,7 +2392,7 @@
 
             {/* Carré 3: Setup + Formation */}
             <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>💰 Prestations</h3>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #007d89', paddingBottom: '8px'}}>💰 Prestations</h3>
               <div style={{fontSize: '14px', lineHeight: '1.6'}}>
                 <div style={{marginBottom: '12px'}}>
                   <div style={{color: '#666', marginBottom: '6px', fontWeight: 'bold'}}>Setup:</div>
@@ -2369,8 +2401,8 @@
                     <span style={{fontSize: '12px', color: '#999'}}>Brut</span>
                   </div>
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc'}}>{formatCurrency(setupPondere)}</span>
-                    <span style={{fontSize: '12px', color: '#10a0dc'}}>Pondéré</span>
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#007d89'}}>{formatCurrency(setupPondere)}</span>
+                    <span style={{fontSize: '12px', color: '#007d89'}}>Pondéré</span>
                   </div>
                 </div>
                 <div>
@@ -2380,8 +2412,8 @@
                     <span style={{fontSize: '12px', color: '#999'}}>Brut</span>
                   </div>
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc'}}>{formatCurrency(formationPondere)}</span>
-                    <span style={{fontSize: '12px', color: '#10a0dc'}}>Pondéré</span>
+                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#007d89'}}>{formatCurrency(formationPondere)}</span>
+                    <span style={{fontSize: '12px', color: '#007d89'}}>Pondéré</span>
                   </div>
                 </div>
               </div>
@@ -2389,7 +2421,7 @@
 
             {/* Carré 4: Répartition par probabilité */}
             <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📈 Par probabilité</h3>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #007d89', paddingBottom: '8px'}}>📈 Par probabilité</h3>
               <div style={{fontSize: '12px', lineHeight: '1.8'}}>
                 {(() => {
                   const ranges = [
@@ -2425,7 +2457,7 @@
 
             {/* Carré 5: Âge des devis */}
             <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>⏱️ Ancienneté des devis</h3>
+              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #007d89', paddingBottom: '8px'}}>⏱️ Ancienneté des devis</h3>
               <div style={{fontSize: '11px', lineHeight: '1.8'}}>
                 {(() => {
                   const now = new Date();
@@ -2514,12 +2546,12 @@
                 });
                 
                 return (
-                  <div key={commercial} style={{borderLeft: '4px solid #10a0dc', paddingLeft: '15px', cursor: 'pointer', padding: '15px', backgroundColor: selectedCommercial === commercial ? '#e8f4f8' : 'transparent', borderRadius: '6px', transition: 'background-color 0.2s'}} onClick={() => onSelectCommercial(selectedCommercial === commercial ? null : commercial)}>
-                    <h4 style={{margin: '0 0 10px 0', color: selectedCommercial === commercial ? '#10a0dc' : '#333'}}>{commercial}</h4>
+                  <div key={commercial} style={{borderLeft: '4px solid #007d89', paddingLeft: '15px', cursor: 'pointer', padding: '15px', backgroundColor: selectedCommercial === commercial ? '#e8f4f8' : 'transparent', borderRadius: '6px', transition: 'background-color 0.2s'}} onClick={() => onSelectCommercial(selectedCommercial === commercial ? null : commercial)}>
+                    <h4 style={{margin: '0 0 10px 0', color: selectedCommercial === commercial ? '#007d89' : '#333'}}>{commercial}</h4>
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Prospects: <strong>{commercialProspects.length}</strong></div>
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Signés: <strong style={{color: '#00cc00'}}>{signed}</strong></div>
-                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement mensuel: <strong style={{color: '#10a0dc'}}>{formatNumber(monthlyValue)}</strong></div>
-                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement annuel: <strong style={{color: '#10a0dc'}}>{formatNumber(annualValue)}</strong></div>
+                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement mensuel: <strong style={{color: '#007d89'}}>{formatNumber(monthlyValue)}</strong></div>
+                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement annuel: <strong style={{color: '#007d89'}}>{formatNumber(annualValue)}</strong></div>
                     <div style={{fontSize: '13px', color: '#28a745', marginBottom: '5px'}}>
                       Nb actions planifiées: <strong>{nbActionsPlannees}</strong>
                       {nbActionsPlannees > 0 && (
@@ -2542,7 +2574,7 @@
                         }}
                         style={{
                           padding: '6px 8px',
-                          backgroundColor: '#10a0dc',
+                          backgroundColor: '#007d89',
                           color: 'white',
                           border: 'none',
                           borderRadius: '4px',
@@ -2643,7 +2675,7 @@
                             padding: '3px 8px',
                             borderRadius: '3px',
                             backgroundColor: (prospect.statut_societe === 'Client' ? '#e3f2fd' : 
-                                            prospect.statut_societe === 'Prospect' ? '#fff3e0' : '#f5f5f5')
+                                            prospect.statut_societe === 'Prospect' ? '#fff3e0' : '#f2f8f8')
                           }}>
                             {prospect.statut_societe || 'Prospect'}
                           </span>
@@ -2709,7 +2741,7 @@
                         </td>
                         <td style={{padding: '10px', textAlign: 'center'}}>
                           {prospect.chance_percent && prospect.chance_percent > 0 ? (
-                            <span style={{color: '#10a0dc', fontSize: '13px', fontWeight: 'bold'}}>{prospect.chance_percent}%</span>
+                            <span style={{color: '#007d89', fontSize: '13px', fontWeight: 'bold'}}>{prospect.chance_percent}%</span>
                           ) : (
                             <span style={{color: '#ccc'}}>-</span>
                           )}
@@ -2841,7 +2873,7 @@
                     padding: '4px 12px',
                     borderRadius: '4px',
                     backgroundColor: selectedProspect.statut_societe === 'Client' ? '#e3f2fd' : 
-                                    selectedProspect.statut_societe === 'Prospect' ? '#fff3e0' : '#f5f5f5'
+                                    selectedProspect.statut_societe === 'Prospect' ? '#fff3e0' : '#f2f8f8'
                   }}>
                     {selectedProspect.statut_societe || 'Prospect'}
                   </span>
@@ -2896,7 +2928,7 @@
                   </div>
                 );
 
-                const badgePrincipal = <span style={{backgroundColor: '#10a0dc', color: 'white', fontSize: '10px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '3px', whiteSpace: 'nowrap'}}>⭐ PRINCIPAL</span>;
+                const badgePrincipal = <span style={{backgroundColor: '#007d89', color: 'white', fontSize: '10px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '3px', whiteSpace: 'nowrap'}}>⭐ PRINCIPAL</span>;
                 const badgeDecideur = <span style={{backgroundColor: '#d3a002', color: 'white', fontSize: '10px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '3px', whiteSpace: 'nowrap'}}>👔 DÉCIDEUR</span>;
 
                 return (
@@ -2925,7 +2957,7 @@
                   style={{
                     display: 'flex', alignItems: 'center', gap: '6px',
                     background: 'none', border: 'none', cursor: 'pointer',
-                    color: '#10a0dc', fontSize: '13px', fontWeight: 'bold', padding: '4px 0'
+                    color: '#007d89', fontSize: '13px', fontWeight: 'bold', padding: '4px 0'
                   }}
                 >
                   <span style={{
@@ -2952,7 +2984,7 @@
                           <span style={{fontSize: '13px', color: '#555'}}>📞 {c.telephone}</span>
                         )}
                         {c.email && (
-                          <a href={`mailto:${c.email}`} style={{fontSize: '13px', color: '#10a0dc'}}>✉ {c.email}</a>
+                          <a href={`mailto:${c.email}`} style={{fontSize: '13px', color: '#007d89'}}>✉ {c.email}</a>
                         )}
                       </div>
                     ))}
@@ -2963,7 +2995,7 @@
             </div>
 
             {selectedProspect.solutions_en_place && (
-              <div style={{marginTop: '15px', marginBottom: '15px', padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '6px', borderLeft: '4px solid #10a0dc'}}>
+              <div style={{marginTop: '15px', marginBottom: '15px', padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '6px', borderLeft: '4px solid #007d89'}}>
                 <strong style={{fontSize: '15px', color: '#333', display: 'block', marginBottom: '8px'}}>Solutions en place:</strong>
                 <div style={{fontSize: '14px', color: '#666', whiteSpace: 'pre-line'}}>
                   {selectedProspect.solutions_en_place}
@@ -3200,7 +3232,7 @@
                       setShowInterlocuteurForm(true);
                     }}
                     style={{
-                      backgroundColor: '#10a0dc',
+                      backgroundColor: '#007d89',
                       color: 'white',
                       border: 'none',
                       padding: '8px 16px',
@@ -3221,9 +3253,9 @@
                     backgroundColor: '#f9f9f9',
                     borderRadius: '8px',
                     marginBottom: '15px',
-                    border: '2px solid #10a0dc'
+                    border: '2px solid #007d89'
                   }}>
-                    <h4 style={{marginTop: 0, color: '#10a0dc'}}>
+                    <h4 style={{marginTop: 0, color: '#007d89'}}>
                       {interlocuteurForm.id ? 'Modifier l\'interlocuteur' : 'Nouvel interlocuteur'}
                     </h4>
                     <div style={{display: 'grid', gap: '12px'}}>
@@ -3323,7 +3355,7 @@
                         style={{
                           padding: '15px',
                           backgroundColor: interlocuteur.principal ? '#e8f4f8' : 'white',
-                          border: interlocuteur.principal ? '2px solid #10a0dc' : '1px solid #ddd',
+                          border: interlocuteur.principal ? '2px solid #007d89' : '1px solid #ddd',
                           borderRadius: '8px',
                           position: 'relative'
                         }}
@@ -3331,7 +3363,7 @@
                         <div style={{display: 'flex', gap: '6px', position: 'absolute', top: '10px', right: '10px'}}>
                           {interlocuteur.principal && (
                             <div style={{
-                              backgroundColor: '#10a0dc',
+                              backgroundColor: '#007d89',
                               color: 'white',
                               padding: '4px 10px',
                               borderRadius: '4px',
@@ -3385,7 +3417,7 @@
                               setShowInterlocuteurForm(true);
                             }}
                             style={{
-                              backgroundColor: '#10a0dc',
+                              backgroundColor: '#007d89',
                               color: 'white',
                               border: 'none',
                               padding: '6px 12px',
@@ -3478,14 +3510,14 @@
             padding: '15px',
             borderRadius: '8px',
             marginBottom: '20px',
-            border: '1px solid #ddd'
+            border: '1px solid #c8dede'
           }}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
               <h4 style={{marginTop: 0, marginBottom: 0, color: '#333'}}>📄 Devis ({devisList?.length || 0})</h4>
               <button
                 onClick={handleAddDevis}
                 style={{
-                  backgroundColor: '#10a0dc',
+                  backgroundColor: '#007d89',
                   color: 'white',
                   border: 'none',
                   padding: '6px 12px',
@@ -3525,7 +3557,7 @@
                     padding: '12px',
                     borderRadius: '6px',
                     marginBottom: devisList.length > 1 ? '10px' : '0',
-                    border: '2px solid #10a0dc'
+                    border: '2px solid #007d89'
                   }}>
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
                       <div style={{fontSize: '15px', fontWeight: 'bold', color: '#333'}}>
@@ -3603,7 +3635,7 @@
                           onClick={() => handleEditDevis(lastDevis)}
                           style={{
                             padding: '4px 8px',
-                            backgroundColor: '#10a0dc',
+                            backgroundColor: '#007d89',
                             color: 'white',
                             border: 'none',
                             borderRadius: '4px',
@@ -3642,7 +3674,7 @@
                       </div>
                     )}
                     {lastDevis.comment && (
-                      <div style={{fontSize: '12px', color: '#666', fontStyle: 'italic', marginTop: '8px', padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '4px'}}>
+                      <div style={{fontSize: '12px', color: '#666', fontStyle: 'italic', marginTop: '8px', padding: '8px', backgroundColor: '#f2f8f8', borderRadius: '4px'}}>
                         💬 {lastDevis.comment}
                       </div>
                     )}
@@ -3659,11 +3691,11 @@
                       width: '100%',
                       padding: '8px',
                       backgroundColor: 'white',
-                      border: '1px solid #ddd',
+                      border: '1px solid #c8dede',
                       borderRadius: '4px',
                       cursor: 'pointer',
                       fontSize: '13px',
-                      color: '#10a0dc',
+                      color: '#007d89',
                       fontWeight: 'bold',
                       marginBottom: showAllDevis ? '10px' : '0'
                     }}
@@ -3697,7 +3729,7 @@
                               backgroundColor: 'white',
                               padding: '10px',
                               borderRadius: '6px',
-                              border: '1px solid #ddd'
+                              border: '1px solid #c8dede'
                             }}
                           >
                             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '5px'}}>
@@ -3776,7 +3808,7 @@
                                   onClick={() => handleEditDevis(devis)}
                                   style={{
                                     padding: '4px 8px',
-                                    backgroundColor: '#10a0dc',
+                                    backgroundColor: '#007d89',
                                     color: 'white',
                                     border: 'none',
                                     borderRadius: '4px',
@@ -3849,7 +3881,7 @@
                 overflow: 'auto',
                 boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
               }}>
-                <h3 style={{marginTop: 0, marginBottom: '20px', color: '#10a0dc'}}>
+                <h3 style={{marginTop: 0, marginBottom: '20px', color: '#007d89'}}>
                   {editingDevisId ? 'Modifier le devis' : 'Nouveau devis'}
                 </h3>
 
@@ -3862,7 +3894,7 @@
                       placeholder="Ex: Projet e-commerce, Migration v4..."
                       value={devisFormData.devis_name}
                       onChange={(e) => setDevisFormData({...devisFormData, devis_name: e.target.value})}
-                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                      style={{padding: '8px', border: '1px solid #c8dede', borderRadius: '4px', width: '100%'}}
                       required
                     />
                   </div>
@@ -3893,7 +3925,7 @@
                               cursor: 'pointer',
                               padding: '6px 12px',
                               borderRadius: '6px',
-                              border: isActive ? '2px solid #10a0dc' : '1px solid #ddd',
+                              border: isActive ? '2px solid #007d89' : '1px solid #ddd',
                               backgroundColor: isActive ? 
                                 (status === 'Gagné' ? '#d4edda' :
                                  status === 'Perdu' ? '#f8d7da' :
@@ -3928,8 +3960,8 @@
                                   style={{
                                     padding: '2px 8px',
                                     borderRadius: '3px',
-                                    border: devisFormData.chance_percent === 40 ? '2px solid #10a0dc' : '1px solid #999',
-                                    backgroundColor: devisFormData.chance_percent === 40 ? '#10a0dc' : 'white',
+                                    border: devisFormData.chance_percent === 40 ? '2px solid #007d89' : '1px solid #999',
+                                    backgroundColor: devisFormData.chance_percent === 40 ? '#007d89' : 'white',
                                     color: devisFormData.chance_percent === 40 ? 'white' : '#666',
                                     fontWeight: devisFormData.chance_percent === 40 ? 'bold' : 'normal',
                                     fontSize: '10px',
@@ -3947,8 +3979,8 @@
                                   style={{
                                     padding: '2px 8px',
                                     borderRadius: '3px',
-                                    border: devisFormData.chance_percent === 60 ? '2px solid #10a0dc' : '1px solid #999',
-                                    backgroundColor: devisFormData.chance_percent === 60 ? '#10a0dc' : 'white',
+                                    border: devisFormData.chance_percent === 60 ? '2px solid #007d89' : '1px solid #999',
+                                    backgroundColor: devisFormData.chance_percent === 60 ? '#007d89' : 'white',
                                     color: devisFormData.chance_percent === 60 ? 'white' : '#666',
                                     fontWeight: devisFormData.chance_percent === 60 ? 'bold' : 'normal',
                                     fontSize: '10px',
@@ -3980,7 +4012,7 @@
                       type="date"
                       value={devisFormData.quote_date}
                       onChange={(e) => setDevisFormData({...devisFormData, quote_date: e.target.value})}
-                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                      style={{padding: '8px', border: '1px solid #c8dede', borderRadius: '4px', width: '100%'}}
                     />
                   </div>
                   <div style={{flex: '1 1 120px'}}>
@@ -3989,7 +4021,7 @@
                       type="number"
                       value={devisFormData.setup_amount}
                       onChange={(e) => setDevisFormData({...devisFormData, setup_amount: parseFloat(e.target.value) || 0})}
-                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                      style={{padding: '8px', border: '1px solid #c8dede', borderRadius: '4px', width: '100%'}}
                     />
                   </div>
                   <div style={{flex: '1 1 120px'}}>
@@ -3998,7 +4030,7 @@
                       type="number"
                       value={devisFormData.monthly_amount}
                       onChange={(e) => setDevisFormData({...devisFormData, monthly_amount: parseFloat(e.target.value) || 0})}
-                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                      style={{padding: '8px', border: '1px solid #c8dede', borderRadius: '4px', width: '100%'}}
                     />
                   </div>
                   <div style={{flex: '1 1 120px'}}>
@@ -4007,7 +4039,7 @@
                       type="number"
                       value={devisFormData.annual_amount}
                       onChange={(e) => setDevisFormData({...devisFormData, annual_amount: parseFloat(e.target.value) || 0})}
-                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                      style={{padding: '8px', border: '1px solid #c8dede', borderRadius: '4px', width: '100%'}}
                     />
                   </div>
                   <div style={{flex: '1 1 120px'}}>
@@ -4016,7 +4048,7 @@
                       type="number"
                       value={devisFormData.training_amount}
                       onChange={(e) => setDevisFormData({...devisFormData, training_amount: parseFloat(e.target.value) || 0})}
-                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                      style={{padding: '8px', border: '1px solid #c8dede', borderRadius: '4px', width: '100%'}}
                     />
                   </div>
                 </div>
@@ -4028,7 +4060,7 @@
                     placeholder="Notes sur ce devis..."
                     value={devisFormData.comment}
                     onChange={(e) => setDevisFormData({...devisFormData, comment: e.target.value})}
-                    style={{width: '100%', minHeight: '60px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', resize: 'vertical', boxSizing: 'border-box'}}
+                    style={{width: '100%', minHeight: '60px', padding: '8px', border: '1px solid #c8dede', borderRadius: '4px', resize: 'vertical', boxSizing: 'border-box'}}
                   />
                 </div>
 
@@ -4039,7 +4071,7 @@
                     type="file"
                     accept=".pdf"
                     onChange={(e) => setDevisPdfFile(e.target.files[0])}
-                    style={{padding: '6px', border: '1px solid #ddd', borderRadius: '4px', width: '100%', fontSize: '13px'}}
+                    style={{padding: '6px', border: '1px solid #c8dede', borderRadius: '4px', width: '100%', fontSize: '13px'}}
                   />
                   {devisPdfFile && <div style={{fontSize: '12px', color: '#666', marginTop: '5px'}}>✓ {devisPdfFile.name}</div>}
                 </div>
@@ -4072,7 +4104,7 @@
                             ...devisFormData,
                             modules: {...devisFormData.modules, [module.key]: parseInt(e.target.value) || 0}
                           })}
-                          style={{width: '50px', padding: '4px', border: '1px solid #ddd', borderRadius: '4px', textAlign: 'center', fontSize: '13px'}}
+                          style={{width: '50px', padding: '4px', border: '1px solid #c8dede', borderRadius: '4px', textAlign: 'center', fontSize: '13px'}}
                         />
                       </div>
                     ))}
@@ -4114,7 +4146,7 @@
                     onClick={handleSaveDevis}
                     disabled={isUploadingDevisPdf}
                     style={{
-                      backgroundColor: '#10a0dc',
+                      backgroundColor: '#007d89',
                       color: 'white',
                       border: 'none',
                       padding: '10px 20px',
@@ -4179,7 +4211,7 @@
                     style={{
                       padding: '6px 12px',
                       fontSize: '11px',
-                      backgroundColor: showCompletedActions ? '#6c757d' : '#10a0dc',
+                      backgroundColor: showCompletedActions ? '#6c757d' : '#007d89',
                       color: 'white',
                       border: 'none',
                       borderRadius: '4px',
@@ -4225,7 +4257,7 @@
                         style={{cursor: action.completed ? 'not-allowed' : 'pointer', marginTop: '2px', flexShrink: 0, opacity: action.completed ? 0.5 : 1}}
                       />
                       <span style={{textDecoration: action.completed ? 'line-through' : 'none'}}>
-                        <strong>{action.action_type}</strong> | {new Date(action.planned_date).toLocaleDateString('fr-FR')} | {action.actor}{action.contact ? <span style={{color: '#10a0dc'}}> → {action.contact}</span> : ''}
+                        <strong>{action.action_type}</strong> | {new Date(action.planned_date).toLocaleDateString('fr-FR')} | {action.actor}{action.contact ? <span style={{color: '#007d89'}}> → {action.contact}</span> : ''}
                       </span>
                     </div>
                     <button 
@@ -4301,7 +4333,7 @@
                 <h4 style={{marginTop: 0, marginBottom: '20px', color: '#333'}}>Nouvelle activité</h4>
                 
                 <div style={{display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap'}}>
-                  <select value={newActionType} onChange={(e) => onActionTypeChange(e.target.value)} style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}>
+                  <select value={newActionType} onChange={(e) => onActionTypeChange(e.target.value)} style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #c8dede', borderRadius: '4px'}}>
                     <option>Appel</option>
                     <option>Relance</option>
                     <option>Email</option>
@@ -4315,18 +4347,18 @@
                     type="date"
                     value={newActionDate}
                     onChange={(e) => onActionDateChange(e.target.value)}
-                    style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
+                    style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #c8dede', borderRadius: '4px'}}
                   />
                 </div>
 
                 <div style={{display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap'}}>
-                  <select value={newActionActor} onChange={(e) => onActionActorChange(e.target.value)} style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}>
+                  <select value={newActionActor} onChange={(e) => onActionActorChange(e.target.value)} style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #c8dede', borderRadius: '4px'}}>
                     <option value="">-- De (Acteur) --</option>
                     <option>Christian</option>
                     <option>Roger</option>
                     <option>Claude</option>
                   </select>
-                  <select value={newActionContact} onChange={(e) => onActionContactChange(e.target.value)} style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}>
+                  <select value={newActionContact} onChange={(e) => onActionContactChange(e.target.value)} style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #c8dede', borderRadius: '4px'}}>
                     <option value="">-- À (Contact) --</option>
                     <option value="Interne">Interne</option>
                     {interlocuteurs && interlocuteurs.length > 0 ? (
@@ -4368,7 +4400,7 @@
                     }}
                     style={{
                       padding: '10px 20px',
-                      backgroundColor: '#10a0dc',
+                      backgroundColor: '#007d89',
                       color: 'white',
                       border: 'none',
                       borderRadius: '6px',
@@ -4409,17 +4441,18 @@
         display: 'flex',
         flexDirection: 'column',
         height: '100vh',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        backgroundColor: '#f5f5f5'
+        fontFamily: "'Lato', sans-serif",
+        backgroundColor: '#f2f8f8'
       },
       header: {
-        backgroundColor: '#002147',
-        color: 'white',
+        backgroundColor: '#ffffff',
+        color: '#007d89',
         padding: '20px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        boxShadow: '0 2px 12px rgba(0,125,137,0.08)',
+        borderBottom: '2px solid #c8dede'
       },
       headerLeft: {
         display: 'flex',
@@ -4491,56 +4524,62 @@
       },
       leftPanel: {
         width: '350px',
-        backgroundColor: 'white',
-        borderRight: '1px solid #ddd',
+        background: 'linear-gradient(160deg, #dfeff0 0%, #e4f0f0 100%)',
+        borderRight: '1px solid #c8dede',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden'
       },
       rightPanel: {
         flex: 1,
-        backgroundColor: '#f9f9f9',
+        backgroundColor: '#f2f8f8',
         overflowY: 'auto'
       },
       newBtn: {
         margin: '15px',
         padding: '12px 15px',
-        backgroundColor: '#10a0dc',
+        backgroundColor: '#f79d8d',
         color: 'white',
         border: 'none',
-        borderRadius: '4px',
+        borderRadius: '8px',
         cursor: 'pointer',
         fontWeight: 'bold',
-        fontSize: '14px'
+        fontSize: '14px',
+        boxShadow: '0 2px 6px rgba(247,157,141,0.35)'
       },
       searchInput: {
         margin: '0 15px 15px 15px',
-        padding: '10px',
-        border: '1px solid #ddd',
-        borderRadius: '4px',
+        padding: '9px 12px',
+        border: '1px solid #c8dede',
+        borderRadius: '6px',
         width: 'calc(100% - 30px)',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        backgroundColor: '#f2f8f8',
+        fontSize: '0.9rem',
+        fontFamily: "'Lato', sans-serif"
       },
       filterContainer: {
         display: 'flex',
         flexWrap: 'wrap',
         gap: '5px',
         padding: '0 15px 15px 15px',
-        borderBottom: '1px solid #eee'
+        borderBottom: '1px solid #c8dede'
       },
       filterBtn: {
         padding: '6px 12px',
-        backgroundColor: '#f0f0f0',
-        border: '1px solid #ddd',
+        backgroundColor: 'transparent',
+        border: '1px solid #c8dede',
         borderRadius: '20px',
         cursor: 'pointer',
         fontSize: '12px',
-        transition: 'all 0.2s'
+        transition: 'all 0.2s',
+        color: '#607a7a'
       },
       filterBtnActive: {
-        backgroundColor: '#002147',
-        color: 'white',
-        borderColor: '#002147'
+        backgroundColor: 'rgba(0,125,137,0.12)',
+        color: '#007d89',
+        borderColor: '#007d89',
+        fontWeight: '700'
       },
       prospectsList: {
         flex: 1,
@@ -4549,14 +4588,15 @@
       },
       prospectItem: {
         padding: '15px',
-        borderBottom: '1px solid #eee',
+        borderBottom: '1px solid #c8dede',
         cursor: 'pointer',
         transition: 'all 0.2s',
-        borderLeft: '3px solid transparent'
+        borderLeft: '3px solid transparent',
+        backgroundColor: 'transparent'
       },
       prospectItemActive: {
-        backgroundColor: '#e8f4f8',
-        borderLeftColor: '#002147'
+        backgroundColor: 'rgba(0,125,137,0.12)',
+        borderLeftColor: '#f79d8d'
       },
       prospectName: {
         fontWeight: 'bold',
@@ -4588,7 +4628,7 @@
       prospectAmount: {
         fontSize: '13px',
         fontWeight: 'bold',
-        color: '#002147'
+        color: '#007d89'
       },
       prospectDetail: {
         padding: '20px'
@@ -4607,19 +4647,19 @@
       },
       editBtn: {
         padding: '8px 12px',
-        backgroundColor: '#17a2b8',
+        backgroundColor: '#007d89',
         color: 'white',
         border: 'none',
-        borderRadius: '4px',
+        borderRadius: '6px',
         cursor: 'pointer',
         fontSize: '13px'
       },
       deleteBtn: {
         padding: '8px 12px',
-        backgroundColor: '#dc3545',
+        backgroundColor: '#e5856f',
         color: 'white',
         border: 'none',
-        borderRadius: '4px',
+        borderRadius: '6px',
         cursor: 'pointer',
         fontSize: '13px'
       },
@@ -4648,10 +4688,11 @@
         marginBottom: '20px'
       },
       detailItem: {
-        backgroundColor: 'white',
+        backgroundColor: '#ffffff',
         padding: '12px',
-        borderRadius: '4px',
-        borderLeft: '3px solid #002147'
+        borderRadius: '10px',
+        borderLeft: '3px solid #007d89',
+        boxShadow: '0 2px 8px rgba(0,125,137,0.08)'
       },
       amountsGrid: {
         display: 'grid',
@@ -4678,7 +4719,7 @@
         fontWeight: 'bold',
         marginBottom: '8px',
         fontSize: '14px',
-        color: '#10a0dc'
+        color: '#007d89'
       },
       amountLabelFormation: {
         display: 'block',
@@ -4697,7 +4738,7 @@
       amountValue: {
         fontSize: '16px',
         fontWeight: 'bold',
-        color: '#002147'
+        color: '#007d89'
       },
       summaryBox: {
         backgroundColor: '#e8f4f8',
@@ -4706,7 +4747,7 @@
         marginBottom: '20px',
         display: 'flex',
         gap: '20px',
-        borderLeft: '4px solid #002147'
+        borderLeft: '4px solid #007d89'
       },
       otherDetails: {
         backgroundColor: 'white',
@@ -4742,7 +4783,7 @@
         marginBottom: '8px',
         backgroundColor: 'white',
         borderRadius: '4px',
-        border: '1px solid #ddd'
+        border: '1px solid #c8dede'
       },
       historyItem: {
         padding: '8px',
@@ -4750,7 +4791,7 @@
         backgroundColor: 'white',
         borderRadius: '4px',
         fontSize: '13px',
-        border: '1px solid #ddd'
+        border: '1px solid #c8dede'
       },
       activityForm: {
         display: 'flex',
@@ -4763,32 +4804,33 @@
         gap: '10px'
       },
       activitySelect: {
-        padding: '10px 12px',
-        border: '1px solid #d0d0d0',
+        padding: '9px 12px',
+        border: '1px solid #c8dede',
         borderRadius: '6px',
-        fontSize: '13px',
-        fontFamily: 'inherit',
-        backgroundColor: 'white',
+        fontSize: '0.9rem',
+        fontFamily: "'Lato', sans-serif",
+        backgroundColor: '#f2f8f8',
         cursor: 'pointer',
-        transition: 'border-color 0.2s',
+        transition: 'border-color 0.2s, background-color 0.2s',
         maxWidth: '200px',
         flex: '1'
       },
       activityInput: {
-        padding: '11px 12px',
-        border: '1px solid #d0d0d0',
+        padding: '9px 12px',
+        border: '1px solid #c8dede',
         borderRadius: '6px',
         minHeight: '80px',
-        fontFamily: 'inherit',
-        fontSize: '13px',
+        fontFamily: "'Lato', sans-serif",
+        fontSize: '0.9rem',
         lineHeight: '1.5',
         resize: 'none',
-        transition: 'border-color 0.2s',
-        maxWidth: '600px'
+        transition: 'border-color 0.2s, background-color 0.2s',
+        maxWidth: '600px',
+        backgroundColor: '#f2f8f8'
       },
       activityBtn: {
         padding: '11px 16px',
-        backgroundColor: '#10a0dc',
+        backgroundColor: '#007d89',
         color: 'white',
         border: 'none',
         borderRadius: '6px',
@@ -4796,7 +4838,7 @@
         fontWeight: '600',
         fontSize: '13px',
         transition: 'background-color 0.2s, box-shadow 0.2s',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        boxShadow: '0 2px 6px rgba(0,125,137,0.25)'
       },
       activitiesList: {
         display: 'flex',
@@ -4804,7 +4846,7 @@
         gap: '10px'
       },
       activityItem: {
-        backgroundColor: '#f5f5f5',
+        backgroundColor: '#f2f8f8',
         padding: '12px',
         borderRadius: '4px',
         borderLeft: '3px solid #0066cc'
@@ -4838,11 +4880,11 @@
         margin: '0 auto'
       },
       oldStatusBox: {
-        backgroundColor: '#f5f5f5',
+        backgroundColor: '#f2f8f8',
         padding: '12px',
         borderRadius: '6px',
         marginBottom: '15px',
-        border: '1px solid #ddd'
+        border: '1px solid #c8dede'
       },
       oldStatusLabel: {
         fontSize: '12px',
@@ -4888,7 +4930,7 @@
         fontWeight: 'bold',
         marginBottom: '8px',
         fontSize: '13px',
-        color: '#10a0dc',
+        color: '#007d89',
         letterSpacing: '0.3px'
       },
       labelFormation: {
@@ -4932,19 +4974,20 @@
         marginTop: '10px'
       },
       formInput: {
-        padding: '11px 12px',
-        border: '1px solid #d0d0d0',
+        padding: '9px 12px',
+        border: '1px solid #c8dede',
         borderRadius: '6px',
-        fontSize: '14px',
-        fontFamily: 'inherit',
-        transition: 'border-color 0.2s, box-shadow 0.2s',
-        maxWidth: '280px'
+        fontSize: '0.9rem',
+        fontFamily: "'Lato', sans-serif",
+        transition: 'border-color 0.2s, box-shadow 0.2s, background-color 0.2s',
+        maxWidth: '280px',
+        backgroundColor: '#f2f8f8'
       },
       totalCalc: {
         marginTop: '15px',
         padding: '10px',
-        backgroundColor: '#e8f4f8',
-        borderLeft: '4px solid #002147',
+        backgroundColor: '#edf6f6',
+        borderLeft: '4px solid #007d89',
         fontSize: '14px'
       },
       formActions: {
@@ -4955,10 +4998,10 @@
       saveBtn: {
         flex: 1,
         padding: '12px',
-        backgroundColor: '#10a0dc',
+        backgroundColor: '#007d89',
         color: 'white',
         border: 'none',
-        borderRadius: '4px',
+        borderRadius: '8px',
         cursor: 'pointer',
         fontWeight: 'bold',
         fontSize: '14px'
@@ -4966,10 +5009,10 @@
       cancelBtn: {
         flex: 1,
         padding: '12px',
-        backgroundColor: '#6c757d',
-        color: 'white',
-        border: 'none',
-        borderRadius: '4px',
+        backgroundColor: 'transparent',
+        color: '#607a7a',
+        border: '1px solid #c8dede',
+        borderRadius: '8px',
         cursor: 'pointer',
         fontWeight: 'bold',
         fontSize: '14px'
@@ -4979,7 +5022,7 @@
         justifyContent: 'center',
         alignItems: 'center',
         height: '100vh',
-        backgroundColor: '#f5f5f5'
+        backgroundColor: '#f2f8f8'
       },
       loginBox: {
         backgroundColor: 'white',
@@ -4997,13 +5040,13 @@
       },
       input: {
         padding: '10px',
-        border: '1px solid #ddd',
+        border: '1px solid #c8dede',
         borderRadius: '4px',
         fontSize: '14px'
       },
       submitBtn: {
         padding: '12px',
-        backgroundColor: '#002147',
+        backgroundColor: '#007d89',
         color: 'white',
         border: 'none',
         borderRadius: '4px',
