@@ -215,7 +215,7 @@
       // Charger les actions de tous les prospects après le chargement
       React.useEffect(() => {
         if (prospects.length > 0 && user) {
-          prospects.forEach(prospect => {
+          (prospects && Array.isArray(prospects) ? prospects : []).forEach(prospect => {
             fetchNextActions(prospect.id);
           });
         }
@@ -931,7 +931,7 @@
                 setRecapCommercial(null);
               }}
               onNavigate={(prospectId) => {
-                const prospect = prospects.find(p => p.id === prospectId);
+                const prospect = (prospects && Array.isArray(prospects) ? prospects : []).find(p => p.id === prospectId);
                 if (prospect) {
                   handleSelectProspect(prospect);
                   setIsDashboard(false);
@@ -2145,7 +2145,7 @@
           })()}
 
           <div style={styles.prospectsList}>
-            {prospects.map(prospect => (
+            {(prospects && Array.isArray(prospects) ? prospects : []).map(prospect => (
               <div
                 key={prospect.id}
                 onClick={() => onSelect(prospect)}
@@ -2195,7 +2195,7 @@
         negotiation: (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.status === 'Négociation').length,
         signed: (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.status === 'Signé').length,
         lost: (prospects && Array.isArray(prospects) ? prospects : []).filter(p => p.status === 'Perdu').length,
-        totalValue: prospects.reduce((sum, p) => sum + (p.monthly_amount * 12 + p.annual_amount), 0)
+        totalValue: (prospects && Array.isArray(prospects) ? prospects : []).reduce((sum, p) => sum + (p.monthly_amount * 12 + p.annual_amount), 0)
       };
 
       // Prospects en Devis ou Négociation seulement
@@ -2258,7 +2258,7 @@
                 const actions = prospectActionsInfo[prospectId];
                 if (!actions || !actions.hasAction) return 0;
                 // Trouver la prochaine action non complétée
-                const nextAction = prospects.find(p => p.id === prospectId)?.nextActions?.filter(a => !a.completed).sort((x, y) => new Date(x.planned_date) - new Date(y.planned_date))[0];
+                const nextAction = (prospects && Array.isArray(prospects) ? prospects : []).find(p => p.id === prospectId)?.nextActions?.filter(a => !a.completed).sort((x, y) => new Date(x.planned_date) - new Date(y.planned_date))[0];
                 return nextAction ? new Date(nextAction.planned_date).getTime() : 0;
               };
               compareA = getNextActionDate(a.id);
