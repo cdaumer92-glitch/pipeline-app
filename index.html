@@ -174,6 +174,8 @@
       const [showDevisForm, setShowDevisForm] = React.useState(false);
       const [editingDevisId, setEditingDevisId] = React.useState(null);
       const [devisFormData, setDevisFormData] = React.useState({
+        devis_name: '',
+        devis_status: 'En cours',
         quote_date: '',
         setup_amount: 0,
         monthly_amount: 0,
@@ -3590,8 +3592,32 @@
                   }}>
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
                       <div style={{fontSize: '15px', fontWeight: 'bold', color: '#333'}}>
-                        Devis #{devisList.length > 1 ? '1' : ''}
+                        {lastDevis.devis_name || 'Devis #' + (devisList.length > 1 ? '1' : '')}
                         {lastDevis.quote_date && <span style={{color: '#666', fontWeight: 'normal', fontSize: '13px'}}> - {new Date(lastDevis.quote_date).toLocaleDateString('fr-FR')}</span>}
+                        {lastDevis.devis_status && (
+                          <span style={{
+                            marginLeft: '8px',
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            backgroundColor: 
+                              lastDevis.devis_status === 'Gagné' ? '#d4edda' :
+                              lastDevis.devis_status === 'Perdu' ? '#f8d7da' :
+                              lastDevis.devis_status === 'Négo' ? '#fff3cd' :
+                              lastDevis.devis_status === 'Envoyé' ? '#d1ecf1' : '#e2e3e5',
+                            color:
+                              lastDevis.devis_status === 'Gagné' ? '#155724' :
+                              lastDevis.devis_status === 'Perdu' ? '#721c24' :
+                              lastDevis.devis_status === 'Négo' ? '#856404' :
+                              lastDevis.devis_status === 'Envoyé' ? '#0c5460' : '#383d41'
+                          }}>
+                            {lastDevis.devis_status === 'Gagné' ? '✅ Gagné' :
+                             lastDevis.devis_status === 'Perdu' ? '❌ Perdu' :
+                             lastDevis.devis_status === 'Négo' ? '🤝 Négo' :
+                             lastDevis.devis_status === 'Envoyé' ? '📤 Envoyé' : '📝 En cours'}
+                          </span>
+                        )}
                         <span style={{
                           marginLeft: '8px',
                           padding: '2px 6px',
@@ -3739,8 +3765,32 @@
                           >
                             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '5px'}}>
                               <div style={{fontSize: '14px', fontWeight: 'bold', color: '#333'}}>
-                                Devis #{index + 2}
+                                {devis.devis_name || ('Devis #' + (index + 2))}
                                 {devis.quote_date && <span style={{color: '#666', fontWeight: 'normal', fontSize: '12px'}}> - {new Date(devis.quote_date).toLocaleDateString('fr-FR')}</span>}
+                                {devis.devis_status && (
+                                  <span style={{
+                                    marginLeft: '8px',
+                                    padding: '3px 8px',
+                                    borderRadius: '4px',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold',
+                                    backgroundColor: 
+                                      devis.devis_status === 'Gagné' ? '#d4edda' :
+                                      devis.devis_status === 'Perdu' ? '#f8d7da' :
+                                      devis.devis_status === 'Négo' ? '#fff3cd' :
+                                      devis.devis_status === 'Envoyé' ? '#d1ecf1' : '#e2e3e5',
+                                    color:
+                                      devis.devis_status === 'Gagné' ? '#155724' :
+                                      devis.devis_status === 'Perdu' ? '#721c24' :
+                                      devis.devis_status === 'Négo' ? '#856404' :
+                                      devis.devis_status === 'Envoyé' ? '#0c5460' : '#383d41'
+                                  }}>
+                                    {devis.devis_status === 'Gagné' ? '✅' :
+                                     devis.devis_status === 'Perdu' ? '❌' :
+                                     devis.devis_status === 'Négo' ? '🤝' :
+                                     devis.devis_status === 'Envoyé' ? '📤' : '📝'}
+                                  </span>
+                                )}
                                 <span style={{
                                   marginLeft: '8px',
                                   padding: '2px 6px',
@@ -3876,7 +3926,36 @@
                 <h3 style={{marginTop: 0, marginBottom: '20px', color: '#10a0dc'}}>
                   {editingDevisId ? 'Modifier le devis' : 'Nouveau devis'}
                 </h3>
-                
+
+                {/* Nom du devis et Statut */}
+                <div style={{display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap'}}>
+                  <div style={{flex: '2 1 200px'}}>
+                    <label style={{display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold'}}>Nom du devis *</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Projet e-commerce, Migration v4..."
+                      value={devisFormData.devis_name}
+                      onChange={(e) => setDevisFormData({...devisFormData, devis_name: e.target.value})}
+                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                      required
+                    />
+                  </div>
+                  <div style={{flex: '1 1 150px'}}>
+                    <label style={{display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold'}}>Statut</label>
+                    <select
+                      value={devisFormData.devis_status}
+                      onChange={(e) => setDevisFormData({...devisFormData, devis_status: e.target.value})}
+                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                    >
+                      <option value="En cours">📝 En cours</option>
+                      <option value="Envoyé">📤 Envoyé</option>
+                      <option value="Négo">🤝 Négo</option>
+                      <option value="Gagné">✅ Gagné</option>
+                      <option value="Perdu">❌ Perdu</option>
+                    </select>
+                  </div>
+                </div>
+
                 {/* Date, montants, probabilité */}
                 <div style={{display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap'}}>
                   <div style={{flex: '1 1 140px'}}>

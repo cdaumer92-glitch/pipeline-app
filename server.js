@@ -601,6 +601,8 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
   try {
     const { id } = req.params;
     const {
+      devis_name,
+      devis_status,
       quote_date,
       setup_amount,
       monthly_amount,
@@ -614,6 +616,8 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
     const result = await pool.query(
       `INSERT INTO devis (
         prospect_id,
+        devis_name,
+        devis_status,
         quote_date,
         setup_amount,
         monthly_amount,
@@ -622,10 +626,12 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
         chance_percent,
         modules,
         comment
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *`,
       [
         id,
+        devis_name || 'Devis sans nom',
+        devis_status || 'En cours',
         quote_date || null,
         setup_amount || 0,
         monthly_amount || 0,
@@ -649,6 +655,8 @@ app.put('/api/devis/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
     const {
+      devis_name,
+      devis_status,
       quote_date,
       setup_amount,
       monthly_amount,
@@ -661,18 +669,22 @@ app.put('/api/devis/:id', auth, async (req, res) => {
     
     const result = await pool.query(
       `UPDATE devis SET
-        quote_date = $1,
-        setup_amount = $2,
-        monthly_amount = $3,
-        annual_amount = $4,
-        training_amount = $5,
-        chance_percent = $6,
-        modules = $7,
-        comment = $8,
+        devis_name = $1,
+        devis_status = $2,
+        quote_date = $3,
+        setup_amount = $4,
+        monthly_amount = $5,
+        annual_amount = $6,
+        training_amount = $7,
+        chance_percent = $8,
+        modules = $9,
+        comment = $10,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $9
+      WHERE id = $11
       RETURNING *`,
       [
+        devis_name,
+        devis_status,
         quote_date || null,
         setup_amount || 0,
         monthly_amount || 0,
