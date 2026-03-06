@@ -2042,7 +2042,7 @@
           {/* Statut */}
           <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
             <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Statut:</span>
-            {['Tous', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Ajourné N+1', 'Éliminé par nous', 'Perdu'].map(status => (
+            {['Tous', 'Devis', 'Signé', 'Perdu'].map(status => (
               <button
                 key={status}
                 onClick={() => onFilterChange(status)}
@@ -3604,17 +3604,17 @@
                             backgroundColor: 
                               lastDevis.devis_status === 'Gagné' ? '#d4edda' :
                               lastDevis.devis_status === 'Perdu' ? '#f8d7da' :
-                              lastDevis.devis_status === 'Négo' ? '#fff3cd' :
+                              lastDevis.devis_status === 'Discussion' ? '#fff3cd' :
                               lastDevis.devis_status === 'Envoyé' ? '#d1ecf1' : '#e2e3e5',
                             color:
                               lastDevis.devis_status === 'Gagné' ? '#155724' :
                               lastDevis.devis_status === 'Perdu' ? '#721c24' :
-                              lastDevis.devis_status === 'Négo' ? '#856404' :
+                              lastDevis.devis_status === 'Discussion' ? '#856404' :
                               lastDevis.devis_status === 'Envoyé' ? '#0c5460' : '#383d41'
                           }}>
                             {lastDevis.devis_status === 'Gagné' ? '✅ Gagné' :
                              lastDevis.devis_status === 'Perdu' ? '❌ Perdu' :
-                             lastDevis.devis_status === 'Négo' ? '🤝 Négo' :
+                             lastDevis.devis_status === 'Discussion' ? '🤝 Discussion' :
                              lastDevis.devis_status === 'Envoyé' ? '📤 Envoyé' : '📝 En cours'}
                           </span>
                         )}
@@ -3777,17 +3777,17 @@
                                     backgroundColor: 
                                       devis.devis_status === 'Gagné' ? '#d4edda' :
                                       devis.devis_status === 'Perdu' ? '#f8d7da' :
-                                      devis.devis_status === 'Négo' ? '#fff3cd' :
+                                      devis.devis_status === 'Discussion' ? '#fff3cd' :
                                       devis.devis_status === 'Envoyé' ? '#d1ecf1' : '#e2e3e5',
                                     color:
                                       devis.devis_status === 'Gagné' ? '#155724' :
                                       devis.devis_status === 'Perdu' ? '#721c24' :
-                                      devis.devis_status === 'Négo' ? '#856404' :
+                                      devis.devis_status === 'Discussion' ? '#856404' :
                                       devis.devis_status === 'Envoyé' ? '#0c5460' : '#383d41'
                                   }}>
                                     {devis.devis_status === 'Gagné' ? '✅' :
                                      devis.devis_status === 'Perdu' ? '❌' :
-                                     devis.devis_status === 'Négo' ? '🤝' :
+                                     devis.devis_status === 'Discussion' ? '🤝' :
                                      devis.devis_status === 'Envoyé' ? '📤' : '📝'}
                                   </span>
                                 )}
@@ -3940,19 +3940,56 @@
                       required
                     />
                   </div>
-                  <div style={{flex: '1 1 150px'}}>
-                    <label style={{display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold'}}>Statut</label>
-                    <select
-                      value={devisFormData.devis_status}
-                      onChange={(e) => setDevisFormData({...devisFormData, devis_status: e.target.value})}
-                      style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
-                    >
-                      <option value="En cours">📝 En cours</option>
-                      <option value="Envoyé">📤 Envoyé</option>
-                      <option value="Négo">🤝 Négo</option>
-                      <option value="Gagné">✅ Gagné</option>
-                      <option value="Perdu">❌ Perdu</option>
-                    </select>
+                </div>
+                
+                {/* Stepper visuel pour le statut */}
+                <div style={{marginBottom: '20px'}}>
+                  <label style={{display: 'block', marginBottom: '10px', fontSize: '13px', fontWeight: 'bold'}}>Parcours du devis</label>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap'}}>
+                    {['En cours', 'Envoyé', 'Discussion', 'Gagné', 'Perdu'].map((status, index) => {
+                      const isActive = devisFormData.devis_status === status;
+                      const stepNumber = index + 1;
+                      const isGagnePerdu = status === 'Gagné' || status === 'Perdu';
+                      
+                      return (
+                        <React.Fragment key={status}>
+                          <div
+                            onClick={() => setDevisFormData({...devisFormData, devis_status: status})}
+                            style={{
+                              cursor: 'pointer',
+                              padding: '12px 20px',
+                              borderRadius: '8px',
+                              border: isActive ? '2px solid #10a0dc' : '2px solid #ddd',
+                              backgroundColor: isActive ? 
+                                (status === 'Gagné' ? '#d4edda' :
+                                 status === 'Perdu' ? '#f8d7da' :
+                                 status === 'Discussion' ? '#fff3cd' :
+                                 status === 'Envoyé' ? '#d1ecf1' : '#e3f2fd') : 'white',
+                              fontWeight: isActive ? 'bold' : 'normal',
+                              fontSize: '13px',
+                              transition: 'all 0.2s',
+                              boxShadow: isActive ? '0 2px 8px rgba(16,160,220,0.3)' : 'none',
+                              minWidth: isGagnePerdu ? '90px' : '120px',
+                              textAlign: 'center'
+                            }}
+                          >
+                            <div style={{fontSize: '18px', marginBottom: '4px'}}>
+                              {status === 'En cours' ? '📝' :
+                               status === 'Envoyé' ? '📤' :
+                               status === 'Discussion' ? '🤝' :
+                               status === 'Gagné' ? '✅' : '❌'}
+                            </div>
+                            <div>{status}</div>
+                          </div>
+                          {index < 2 && (
+                            <div style={{fontSize: '20px', color: '#ccc'}}>→</div>
+                          )}
+                          {index === 2 && (
+                            <div style={{fontSize: '20px', color: '#ccc'}}>⤵</div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </div>
                 </div>
 
