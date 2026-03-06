@@ -2841,27 +2841,6 @@
                     Géré par <strong>{selectedProspect.assigned_to}</strong>
                   </span>
                 </div>
-                {/* Ligne 1 : Statut */}
-                <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px'}}>
-                  <span style={{fontSize: '15px', color: '#666'}}>Statut :</span>
-                  <span style={{
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    color: selectedProspect.status === 'Devis' ? '#12a0dc' : getStatusColor(selectedProspect.status)
-                  }}>
-                    {selectedProspect.status}
-                  </span>
-                  {selectedProspect.status === 'Devis' && selectedProspect.chance_percent && selectedProspect.chance_percent > 0 && (
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#12a0dc'}}>
-                      ({selectedProspect.chance_percent}%)
-                    </span>
-                  )}
-                  {selectedProspect.status === 'Devis' && selectedProspect.quote_date && (
-                    <span style={{fontSize: '13px', color: '#999'}}>
-                      depuis le {new Date(selectedProspect.quote_date).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
                 
                 {/* Ligne 2 : Adresse + Tél + Boutons */}
                 <div style={{display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between'}}>
