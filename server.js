@@ -347,13 +347,13 @@ app.put('/api/next_actions/:id', auth, async (req, res) => {
   try {
     if (saveNotesOnly) {
       await pool.query(
-        `UPDATE next_actions SET completed_note=$1 WHERE id=$2 AND user_id=$3`,
-        [completed_notes || null, req.params.id, req.userId]
+        `UPDATE next_actions SET completed_note=$1 WHERE id=$2`,
+        [completed_notes || null, req.params.id]
       );
     } else {
       await pool.query(
-        `UPDATE next_actions SET completed=$1, completed_date=$2, completed_note=$3 WHERE id=$4 AND user_id=$5`,
-        [completed ? 1 : 0, completed ? new Date().toISOString().split('T')[0] : null, completed_notes || null, req.params.id, req.userId]
+        `UPDATE next_actions SET completed=$1, completed_date=$2, completed_note=$3 WHERE id=$4`,
+        [completed ? 1 : 0, completed ? new Date().toISOString().split('T')[0] : null, completed_notes || null, req.params.id]
       );
     }
     res.json({ ok: true });
