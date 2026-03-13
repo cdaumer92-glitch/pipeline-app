@@ -2235,6 +2235,7 @@
       const [sortBy, setSortBy] = React.useState('name');
       const [sortAsc, setSortAsc] = React.useState(true);
       const [hoveredProspect, setHoveredProspect] = React.useState(null);
+      const [showNouveauxModal, setShowNouveauxModal] = React.useState(null); // {commercial, type: 'devis'|'prospects'|'clients', period: 'semaine'|'mois'}
       
       const stats = {
         total: prospects.length,
@@ -2517,18 +2518,60 @@
                 const monthlyValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
                 const annualValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0), 0);
                 
+                // Calculer les dates
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const startOfWeek = new Date(today);
+                startOfWeek.setDate(today.getDate() - today.getDay() + 1); // Lundi
+                const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                const endOfWeek = new Date(today);
+                endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
+                const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                
+                // Nouveaux prospects (created_at cette semaine/mois)
+                const nouveauxProspectsSemaine = commercialProspects.filter(p => {
+                  const createdDate = new Date(p.created_at);
+                  return createdDate >= startOfWeek && createdDate <= today;
+                }).length;
+                
+                const nouveauxProspectsMois = commercialProspects.filter(p => {
+                  const createdDate = new Date(p.created_at);
+                  return createdDate >= startOfMonth && createdDate <= today;
+                }).length;
+                
+                // Nouveaux clients (statut_societe passé à "Client" cette semaine/mois)
+                // Note: On suppose que created_at indique la création initiale
+                // Pour une vraie date de passage en "Client", il faudrait un champ dédié
+                const nouveauxClientsSemaine = commercialProspects.filter(p => {
+                  if (p.statut_societe !== 'Client') return false;
+                  const createdDate = new Date(p.created_at);
+                  return createdDate >= startOfWeek && createdDate <= today;
+                }).length;
+                
+                const nouveauxClientsMois = commercialProspects.filter(p => {
+                  if (p.statut_societe !== 'Client') return false;
+                  const createdDate = new Date(p.created_at);
+                  return createdDate >= startOfMonth && createdDate <= today;
+                }).length;
+                
+                // Nouveaux devis - on va approximer avec les sociétés ayant des devis récents
+                // Idéalement il faudrait charger tous les devis pour avoir les vraies dates
+                const nouveauxDevisSemaine = commercialProspects.filter(p => {
+                  const quoteDate = p.quote_date ? new Date(p.quote_date) : null;
+                  return quoteDate && quoteDate >= startOfWeek && quoteDate <= today;
+                }).length;
+                
+                const nouveauxDevisMois = commercialProspects.filter(p => {
+                  const quoteDate = p.quote_date ? new Date(p.quote_date) : null;
+                  return quoteDate && quoteDate >= startOfMonth && quoteDate <= today;
+                }).length;
+                
                 // Calculer les actions planifiées et en retard
                 let nbActionsPlannees = 0;
                 let nbActionsEnRetard = 0;
                 let thisWeek = 0;
                 let thisMonth = 0;
                 let beyondMonth = 0;
-                
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const endOfWeek = new Date(today);
-                endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
-                const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
                 
                 commercialProspects.forEach(prospect => {
                   const actionInfo = prospectActionsInfo[prospect.id];
@@ -2555,6 +2598,44 @@
                 return (
                   <div key={commercial} style={{borderLeft: '4px solid #007d89', paddingLeft: '15px', cursor: 'pointer', padding: '15px', backgroundColor: selectedCommercial === commercial ? '#e8f4f8' : 'transparent', borderRadius: '6px', transition: 'background-color 0.2s'}} onClick={() => onSelectCommercial(selectedCommercial === commercial ? null : commercial)}>
                     <h4 style={{margin: '0 0 10px 0', color: selectedCommercial === commercial ? '#007d89' : '#333'}}>{commercial}</h4>
+                    
+                    {/* Nouveaux cette semaine/mois */}
+                    <div style={{fontSize: '12px', color: '#607a7a', marginBottom: '8px', padding: '8px', backgroundColor: '#f2f8f8', borderRadius: '4px'}}>
+                      <div style={{fontWeight: '600', marginBottom: '4px', color: '#1a3535'}}>📊 Nouveaux</div>
+                      <div style={{display: 'flex', gap: '12px', fontSize: '11px'}}>
+                        <span>Devis: 
+                          <strong 
+                            style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline'}} 
+                            onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'devis', period: 'semaine'}); }}
+                          >{nouveauxDevisSemaine}S</strong> / 
+                          <strong 
+                            style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline'}} 
+                            onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'devis', period: 'mois'}); }}
+                          >{nouveauxDevisMois}M</strong>
+                        </span>
+                        <span>Prospects: 
+                          <strong 
+                            style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline'}} 
+                            onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'prospects', period: 'semaine'}); }}
+                          >{nouveauxProspectsSemaine}S</strong> / 
+                          <strong 
+                            style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline'}} 
+                            onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'prospects', period: 'mois'}); }}
+                          >{nouveauxProspectsMois}M</strong>
+                        </span>
+                        <span>Clients: 
+                          <strong 
+                            style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline'}} 
+                            onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'clients', period: 'semaine'}); }}
+                          >{nouveauxClientsSemaine}S</strong> / 
+                          <strong 
+                            style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline'}} 
+                            onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'clients', period: 'mois'}); }}
+                          >{nouveauxClientsMois}M</strong>
+                        </span>
+                      </div>
+                    </div>
+                    
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Prospects: <strong>{commercialProspects.length}</strong></div>
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Signés: <strong style={{color: '#00cc00'}}>{signed}</strong></div>
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement mensuel: <strong style={{color: '#007d89'}}>{formatNumber(monthlyValue)}</strong></div>
@@ -2825,6 +2906,114 @@
               </div>
             </div>
           )}
+          
+          {/* Modal Nouveaux */}
+          {showNouveauxModal && (() => {
+            const { commercial, type, period } = showNouveauxModal;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const startOfWeek = new Date(today);
+            startOfWeek.setDate(today.getDate() - today.getDay() + 1);
+            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const startDate = period === 'semaine' ? startOfWeek : startOfMonth;
+            
+            const commercialProspects = prospects.filter(p => p.assigned_to === commercial);
+            let filteredList = [];
+            let title = '';
+            
+            if (type === 'devis') {
+              filteredList = commercialProspects.filter(p => {
+                const quoteDate = p.quote_date ? new Date(p.quote_date) : null;
+                return quoteDate && quoteDate >= startDate && quoteDate <= today;
+              });
+              title = `Nouveaux devis ${commercial} - ${period === 'semaine' ? 'Cette semaine' : 'Ce mois'}`;
+            } else if (type === 'prospects') {
+              filteredList = commercialProspects.filter(p => {
+                const createdDate = new Date(p.created_at);
+                return createdDate >= startDate && createdDate <= today;
+              });
+              title = `Nouveaux prospects ${commercial} - ${period === 'semaine' ? 'Cette semaine' : 'Ce mois'}`;
+            } else if (type === 'clients') {
+              filteredList = commercialProspects.filter(p => {
+                if (p.statut_societe !== 'Client') return false;
+                const createdDate = new Date(p.created_at);
+                return createdDate >= startDate && createdDate <= today;
+              });
+              title = `Nouveaux clients ${commercial} - ${period === 'semaine' ? 'Cette semaine' : 'Ce mois'}`;
+            }
+            
+            return (
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000
+              }} onClick={() => setShowNouveauxModal(null)}>
+                <div style={{
+                  backgroundColor: 'white',
+                  padding: '30px',
+                  borderRadius: '12px',
+                  maxWidth: '700px',
+                  maxHeight: '80vh',
+                  overflowY: 'auto',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
+                }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+                    <h3 style={{margin: 0, color: '#007d89'}}>{title}</h3>
+                    <button onClick={() => setShowNouveauxModal(null)} style={{
+                      backgroundColor: '#f79d8d',
+                      color: 'white',
+                      border: 'none',
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '13px'
+                    }}>✕ Fermer</button>
+                  </div>
+                  
+                  {filteredList.length === 0 ? (
+                    <p style={{color: '#666', textAlign: 'center', padding: '20px'}}>Aucun résultat pour cette période.</p>
+                  ) : (
+                    <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                      {filteredList.map(p => (
+                        <div key={p.id} style={{
+                          padding: '12px',
+                          backgroundColor: '#f2f8f8',
+                          borderRadius: '8px',
+                          borderLeft: '4px solid #007d89',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }} 
+                        onClick={() => {
+                          setShowNouveauxModal(null);
+                          onSelectProspect(p);
+                          onOpenDashboard();
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e3f4fd'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f2f8f8'}
+                        >
+                          <div style={{fontWeight: '600', fontSize: '14px', color: '#1a3535', marginBottom: '4px'}}>{p.name}</div>
+                          <div style={{fontSize: '12px', color: '#607a7a'}}>
+                            {type === 'devis' && p.quote_date && `Date devis: ${new Date(p.quote_date).toLocaleDateString('fr-FR')}`}
+                            {type === 'prospects' && p.created_at && `Créé le: ${new Date(p.created_at).toLocaleDateString('fr-FR')}`}
+                            {type === 'clients' && p.created_at && `Client depuis: ${new Date(p.created_at).toLocaleDateString('fr-FR')}`}
+                            {' • '}
+                            {p.contact_name && `Contact: ${p.contact_name}`}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       );
     }
@@ -2870,42 +3059,43 @@
               borderBottom: '2px solid #e0e0e0'
             }}>
               <div style={{flex: 1}}>
-                <div style={{display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '8px'}}>
-                  <h2 style={{margin: 0, fontSize: '24px', fontWeight: 'bold'}}>{selectedProspect.name}</h2>
+                {/* Ligne unique : Nom + Géré par + Badge + Adresse + Boutons */}
+                <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px'}}>
+                  <h2 style={{margin: 0, fontSize: '20px', fontWeight: 'bold', color: '#1a3535'}}>{selectedProspect.name}</h2>
+                  <span style={{fontSize: '13px', color: '#607a7a'}}>
+                    Géré par <strong style={{color: '#007d89'}}>{selectedProspect.assigned_to}</strong>
+                  </span>
                   <span style={{
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    color: selectedProspect.statut_societe === 'Client' ? '#12a0dc' : 
-                           selectedProspect.statut_societe === 'Prospect' ? '#ff9800' : '#999',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    color: selectedProspect.statut_societe === 'Client' ? '#d4a017' : 
+                           selectedProspect.statut_societe === 'Prospect' ? '#1a9fdb' : '#8a8a8a',
                     padding: '4px 12px',
-                    borderRadius: '4px',
-                    backgroundColor: selectedProspect.statut_societe === 'Client' ? '#e3f2fd' : 
-                                    selectedProspect.statut_societe === 'Prospect' ? '#fff3e0' : '#f2f8f8'
+                    borderRadius: '14px',
+                    backgroundColor: selectedProspect.statut_societe === 'Client' ? '#fff9e6' : 
+                                    selectedProspect.statut_societe === 'Prospect' ? '#e3f4fd' : '#f0f0f0',
+                    border: `1px solid ${selectedProspect.statut_societe === 'Client' ? '#f0e0b3' : 
+                                         selectedProspect.statut_societe === 'Prospect' ? '#b3dff5' : '#d0d0d0'}`,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    whiteSpace: 'nowrap'
                   }}>
                     {selectedProspect.statut_societe || 'Prospect'}
                   </span>
-                  <span style={{fontSize: '15px', color: '#666'}}>
-                    Géré par <strong>{selectedProspect.assigned_to}</strong>
-                  </span>
-                </div>
-                
-                {/* Ligne 2 : Adresse + Tél + Boutons */}
-                <div style={{display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between'}}>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '15px', flex: 1}}>
-                    {selectedProspect.adresse && (
-                      <span style={{fontSize: '14px', color: '#666'}}>
-                        <strong>Adresse:</strong> {selectedProspect.adresse}
-                      </span>
-                    )}
-                    {selectedProspect.tel_standard && (
-                      <span style={{fontSize: '14px', color: '#666'}}>
-                        <strong>Tél Standard:</strong> {selectedProspect.tel_standard}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{display: 'flex', gap: '10px'}}>
-                    <button onClick={() => onEdit(selectedProspect)} style={styles.editBtn}>🏢 Information Société</button>
-                    <button onClick={() => onDelete(selectedProspect.id)} style={styles.deleteBtn}>🗑️ Supprimer</button>
+                  {selectedProspect.adresse && (
+                    <span style={{fontSize: '13px', color: '#607a7a'}}>
+                      {selectedProspect.adresse}
+                    </span>
+                  )}
+                  {selectedProspect.tel_standard && (
+                    <span style={{fontSize: '13px', color: '#607a7a'}}>
+                      📞 {selectedProspect.tel_standard}
+                    </span>
+                  )}
+                  <div style={{flex: 1}} />
+                  <div style={{display: 'flex', gap: '8px'}}>
+                    <button onClick={() => onEdit(selectedProspect)} style={{...styles.editBtn, padding: '6px 12px', fontSize: '12px'}}>🏢 Information</button>
+                    <button onClick={() => onDelete(selectedProspect.id)} style={{...styles.deleteBtn, padding: '6px 12px', fontSize: '12px'}}>🗑️</button>
                   </div>
                 </div>
               </div>
@@ -3246,7 +3436,7 @@
                       borderRadius: '6px',
                       cursor: 'pointer',
                       fontSize: '14px',
-                      fontWeight: 'bold'
+                      fontWeight: '600'
                     }}
                   >
                     + Ajouter un interlocuteur
@@ -3439,7 +3629,7 @@
                             type="button"
                             onClick={() => handleDeleteInterlocuteur(interlocuteur.id)}
                             style={{
-                              backgroundColor: '#e23b63',
+                              backgroundColor: '#f79d8d',
                               color: 'white',
                               border: 'none',
                               padding: '6px 12px',
@@ -3448,7 +3638,7 @@
                               fontSize: '13px'
                             }}
                           >
-                            🗑️ Supprimer
+                            🗑️
                           </button>
                         </div>
                       </div>
@@ -3528,10 +3718,10 @@
                   color: 'white',
                   border: 'none',
                   padding: '6px 12px',
-                  borderRadius: '4px',
+                  borderRadius: '6px',
                   cursor: 'pointer',
                   fontSize: '13px',
-                  fontWeight: 'bold'
+                  fontWeight: '600'
                 }}
               >
                 + Ajouter un devis
@@ -3657,7 +3847,7 @@
                           onClick={() => handleDeleteDevis(lastDevis.id)}
                           style={{
                             padding: '4px 8px',
-                            backgroundColor: '#e23b63',
+                            backgroundColor: '#f79d8d',
                             color: 'white',
                             border: 'none',
                             borderRadius: '4px',
@@ -3830,7 +4020,7 @@
                                   onClick={() => handleDeleteDevis(devis.id)}
                                   style={{
                                     padding: '4px 8px',
-                                    backgroundColor: '#e23b63',
+                                    backgroundColor: '#f79d8d',
                                     color: 'white',
                                     border: 'none',
                                     borderRadius: '4px',
@@ -4664,16 +4854,18 @@
         border: 'none',
         borderRadius: '6px',
         cursor: 'pointer',
-        fontSize: '13px'
+        fontSize: '13px',
+        fontWeight: '600'
       },
       deleteBtn: {
         padding: '8px 12px',
-        backgroundColor: '#e5856f',
+        backgroundColor: '#f79d8d',
         color: 'white',
         border: 'none',
         borderRadius: '6px',
         cursor: 'pointer',
-        fontSize: '13px'
+        fontSize: '13px',
+        fontWeight: '600'
       },
       detailRow: {
         display: 'flex',
