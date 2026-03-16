@@ -185,6 +185,18 @@
       });
       const [devisPdfFile, setDevisPdfFile] = React.useState(null);
       const [isUploadingDevisPdf, setIsUploadingDevisPdf] = React.useState(false);
+      
+      // States Affaires
+      const [affairesList, setAffairesList] = React.useState([]);
+      const [showAffaireForm, setShowAffaireForm] = React.useState(false);
+      const [editingAffaireId, setEditingAffaireId] = React.useState(null);
+      const [affaireFormData, setAffaireFormData] = React.useState({
+        nom_affaire: '',
+        description: '',
+        statut_global: 'En cours'
+      });
+      const [selectedAffaireId, setSelectedAffaireId] = React.useState(null);
+      
       const [filterSocietyType, setFilterSocietyType] = React.useState('Tous');
       const [filterStatus, setFilterStatus] = React.useState('Tous');
       const [filterCommercial, setFilterCommercial] = React.useState('Tous');
@@ -402,11 +414,20 @@
             return;
           }
 
-          const url = editingDevisId 
-            ? `${API_URL}/devis/${editingDevisId}`
-            : `${API_URL}/prospects/${selectedProspect.id}/devis`;
-          
-          const method = editingDevisId ? 'PUT' : 'POST';
+          // Si on crée un nouveau devis ET qu'une affaire est sélectionnée, utiliser la route affaire
+          let url, method;
+          if (editingDevisId) {
+            url = `${API_URL}/devis/${editingDevisId}`;
+            method = 'PUT';
+          } else {
+            // Nouveau devis : créer dans l'affaire si sélectionnée, sinon en orphelin
+            if (selectedAffaireId) {
+              url = `${API_URL}/affaires/${selectedAffaireId}/devis`;
+            } else {
+              url = `${API_URL}/prospects/${selectedProspect.id}/devis`;
+            }
+            method = 'POST';
+          }
 
           const res = await fetch(url, {
             method,
@@ -510,6 +531,118 @@
           }
         } catch (err) {
           console.error('Erreur handleDeleteDevisPdf:', err);
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleRattacherDevisAffaire = async (devisId, affaireId) => {
+        try {
+          const res = await fetch(`${API_URL}/devis/${devisId}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${user.token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ affaire_id: affaireId })
+          });
+
+          if (res.ok) {
+            await fetchDevis(selectedProspect.id);
+            await fetchAffaires(selectedProspect.id);
+          } else {
+            alert('Erreur lors du rattachement');
+          }
+        } catch (err) {
+          console.error('Erreur handleRattacherDevisAffaire:', err);
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      // ============ AFFAIRES ============
+      const fetchAffaires = async (prospectId) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/affaires`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setAffairesList(data);
+          }
+        } catch (err) {
+          console.error('Erreur fetchAffaires:', err);
+        }
+      };
+
+      const handleAddAffaire = () => {
+        setAffaireFormData({ nom_affaire: '', description: '', statut_global: 'En cours' });
+        setEditingAffaireId(null);
+        setShowAffaireForm(true);
+      };
+
+      const handleEditAffaire = (affaire) => {
+        setAffaireFormData({
+          nom_affaire: affaire.nom_affaire,
+          description: affaire.description || '',
+          statut_global: affaire.statut_global
+        });
+        setEditingAffaireId(affaire.id);
+        setShowAffaireForm(true);
+      };
+
+      const handleSaveAffaire = async () => {
+        if (!selectedProspect || !affaireFormData.nom_affaire.trim()) {
+          alert('Le nom de l\'affaire est obligatoire');
+          return;
+        }
+
+        try {
+          const url = editingAffaireId
+            ? `${API_URL}/affaires/${editingAffaireId}`
+            : `${API_URL}/prospects/${selectedProspect.id}/affaires`;
+
+          const res = await fetch(url, {
+            method: editingAffaireId ? 'PUT' : 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify(affaireFormData)
+          });
+
+          if (res.ok) {
+            await fetchAffaires(selectedProspect.id);
+            setShowAffaireForm(false);
+            setEditingAffaireId(null);
+            setAffaireFormData({ nom_affaire: '', description: '', statut_global: 'En cours' });
+          } else {
+            alert('Erreur lors de l\'enregistrement');
+          }
+        } catch (err) {
+          console.error('Erreur handleSaveAffaire:', err);
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleDeleteAffaire = async (affaireId) => {
+        if (!window.confirm('Supprimer cette affaire et tous ses devis ?')) return;
+
+        try {
+          const res = await fetch(`${API_URL}/affaires/${affaireId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+
+          if (res.ok) {
+            await fetchAffaires(selectedProspect.id);
+            await fetchDevis(selectedProspect.id);
+            if (selectedAffaireId === affaireId) {
+              setSelectedAffaireId(null);
+            }
+          } else {
+            alert('Erreur lors de la suppression');
+          }
+        } catch (err) {
+          console.error('Erreur handleDeleteAffaire:', err);
           alert('Erreur: ' + err.message);
         }
       };
@@ -829,10 +962,12 @@
         fetchStatusHistory(prospect.id);
         fetchInterlocuteurs(prospect.id);
         fetchDevis(prospect.id);
+        fetchAffaires(prospect.id);
         // Réinitialiser le formulaire devis
         setShowDevisForm(false);
         setEditingDevisId(null);
         setDevisPdfFile(null);
+        setSelectedAffaireId(null);
         setNewActionDate(new Date().toISOString().split('T')[0]);
       };
 
@@ -1037,6 +1172,19 @@
               handleDeleteDevis={handleDeleteDevis}
               handleUploadDevisPdf={handleUploadDevisPdf}
               handleDeleteDevisPdf={handleDeleteDevisPdf}
+              affairesList={affairesList}
+              selectedAffaireId={selectedAffaireId}
+              setSelectedAffaireId={setSelectedAffaireId}
+              handleAddAffaire={handleAddAffaire}
+              handleEditAffaire={handleEditAffaire}
+              handleSaveAffaire={handleSaveAffaire}
+              handleDeleteAffaire={handleDeleteAffaire}
+              showAffaireForm={showAffaireForm}
+              setShowAffaireForm={setShowAffaireForm}
+              editingAffaireId={editingAffaireId}
+              setEditingAffaireId={setEditingAffaireId}
+              affaireFormData={affaireFormData}
+              setAffaireFormData={setAffaireFormData}
             />
           </div>
           )}
@@ -2712,7 +2860,7 @@
       );
     }
 
-    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleUploadDevisPdf, handleDeleteDevisPdf }) {
+    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleUploadDevisPdf, handleDeleteDevisPdf, affairesList, selectedAffaireId, setSelectedAffaireId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');

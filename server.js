@@ -927,7 +927,8 @@ app.put('/api/devis/:id', auth, async (req, res) => {
       training_amount,
       chance_percent,
       modules,
-      comment
+      comment,
+      affaire_id
     } = req.body;
     
     const result = await pool.query(
@@ -942,8 +943,9 @@ app.put('/api/devis/:id', auth, async (req, res) => {
         chance_percent = $8,
         modules = $9,
         comment = $10,
+        affaire_id = $11,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $11
+      WHERE id = $12
       RETURNING *`,
       [
         devis_name,
@@ -956,6 +958,7 @@ app.put('/api/devis/:id', auth, async (req, res) => {
         chance_percent || 0,
         JSON.stringify(modules || {}),
         comment || null,
+        affaire_id !== undefined ? affaire_id : null,
         id
       ]
     );
