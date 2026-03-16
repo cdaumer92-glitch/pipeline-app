@@ -455,6 +455,11 @@
           return;
         }
 
+        if (!selectedProspect?.id) {
+          alert('Veuillez d\'abord créer la société avant de créer une affaire');
+          return;
+        }
+
         try {
           const url = editingAffaireId
             ? `${API_URL}/affaires/${editingAffaireId}`

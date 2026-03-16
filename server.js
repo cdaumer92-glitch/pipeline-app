@@ -706,6 +706,75 @@ app.get('/api/affaires/:id/devis', auth, async (req, res) => {
   }
 });
 
+// POST /api/affaires/:id/devis - Créer un devis dans une affaire
+app.post('/api/affaires/:id/devis', auth, async (req, res) => {
+  try {
+    const affaireId = req.params.id;
+    const {
+      devis_name,
+      devis_status,
+      quote_date,
+      setup_amount,
+      monthly_amount,
+      annual_amount,
+      training_amount,
+      chance_percent,
+      modules,
+      comment
+    } = req.body;
+
+    // Récupérer le prospect_id depuis l'affaire
+    const affaireResult = await pool.query(
+      'SELECT prospect_id FROM affaires WHERE id = $1',
+      [affaireId]
+    );
+
+    if (affaireResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Affaire non trouvée' });
+    }
+
+    const prospectId = affaireResult.rows[0].prospect_id;
+
+    const result = await pool.query(
+      `INSERT INTO devis (
+        prospect_id, 
+        affaire_id,
+        devis_name,
+        devis_status,
+        quote_date, 
+        setup_amount, 
+        monthly_amount, 
+        annual_amount, 
+        training_amount, 
+        chance_percent, 
+        modules,
+        comment,
+        created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW()) 
+      RETURNING *`,
+      [
+        prospectId,
+        affaireId,
+        devis_name || null,
+        devis_status || 'En cours',
+        quote_date,
+        parseFloat(setup_amount) || 0,
+        parseFloat(monthly_amount) || 0,
+        parseFloat(annual_amount) || 0,
+        parseFloat(training_amount) || 0,
+        parseInt(chance_percent) || 0,
+        JSON.stringify(modules || {}),
+        comment || null
+      ]
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Erreur POST /api/affaires/:id/devis:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ===================== DEVIS =====================
 // GET /api/devis/all - Récupérer tous les devis avec info commercial
 app.get('/api/devis/all', auth, async (req, res) => {
