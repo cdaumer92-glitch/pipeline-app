@@ -408,6 +408,7 @@
           modules: typeof devis.modules === 'string' ? JSON.parse(devis.modules) : (devis.modules || {}),
           comment: devis.comment || ''
         });
+        setSelectedAffaireId(devis.affaire_id || null);
         setEditingDevisId(devis.id);
         setDevisPdfFile(null);
         setShowDevisForm(true);
@@ -441,7 +442,10 @@
               'Authorization': `Bearer ${user.token}`,
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify(devisFormData)
+            body: JSON.stringify({
+              ...devisFormData,
+              affaire_id: selectedAffaireId || null
+            })
           });
 
           if (res.ok) {
