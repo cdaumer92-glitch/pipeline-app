@@ -175,6 +175,7 @@
       const [editingDevisId, setEditingDevisId] = React.useState(null);
       const [devisFormData, setDevisFormData] = React.useState({
         devis_name: '',
+        devis_status: 'En cours',
         quote_date: '',
         setup_amount: 0,
         monthly_amount: 0,
@@ -379,6 +380,7 @@
       const handleAddDevis = () => {
         setDevisFormData({
           devis_name: '',
+          devis_status: 'En cours',
           quote_date: new Date().toISOString().split('T')[0],
           setup_amount: 0,
           monthly_amount: 0,
@@ -396,6 +398,7 @@
       const handleEditDevis = (devis) => {
         setDevisFormData({
           devis_name: devis.devis_name || '',
+          devis_status: devis.devis_status || 'En cours',
           quote_date: devis.quote_date || '',
           setup_amount: devis.setup_amount || 0,
           monthly_amount: devis.monthly_amount || 0,
@@ -454,6 +457,7 @@
             setEditingDevisId(null);
             setDevisFormData({
               devis_name: '',
+              devis_status: 'En cours',
               quote_date: '',
               setup_amount: 0,
               monthly_amount: 0,
