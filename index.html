@@ -1009,11 +1009,15 @@
         fetchNextActions(prospect.id);
         fetchStatusHistory(prospect.id);
         fetchInterlocuteurs(prospect.id);
+        fetchAffaires(prospect.id);
         fetchDevis(prospect.id);
-        // Réinitialiser le formulaire devis
+        // Réinitialiser les formulaires
         setShowDevisForm(false);
         setEditingDevisId(null);
         setDevisPdfFile(null);
+        setShowAffaireForm(false);
+        setEditingAffaireId(null);
+        setSelectedAffaireId(null);
         setNewActionDate(new Date().toISOString().split('T')[0]);
       };
 
@@ -1215,6 +1219,19 @@
               setInterlocuteurForm={setInterlocuteurForm}
               handleSaveInterlocuteur={handleSaveInterlocuteur}
               handleDeleteInterlocuteur={handleDeleteInterlocuteur}
+              affairesList={affairesList}
+              showAffaireForm={showAffaireForm}
+              setShowAffaireForm={setShowAffaireForm}
+              editingAffaireId={editingAffaireId}
+              setEditingAffaireId={setEditingAffaireId}
+              affaireFormData={affaireFormData}
+              setAffaireFormData={setAffaireFormData}
+              selectedAffaireId={selectedAffaireId}
+              setSelectedAffaireId={setSelectedAffaireId}
+              handleAddAffaire={handleAddAffaire}
+              handleEditAffaire={handleEditAffaire}
+              handleSaveAffaire={handleSaveAffaire}
+              handleDeleteAffaire={handleDeleteAffaire}
               devisList={devisList}
               showDevisForm={showDevisForm}
               setShowDevisForm={setShowDevisForm}
@@ -3217,7 +3234,7 @@
       );
     }
 
-    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleUploadDevisPdf, handleDeleteDevisPdf }) {
+    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, affairesList, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, selectedAffaireId, setSelectedAffaireId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleUploadDevisPdf, handleDeleteDevisPdf }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
@@ -3235,7 +3252,7 @@
       };
 
       if (showForm) {
-        return <ProspectForm formData={formData} onFormChange={onFormChange} onSave={onSave} onCancel={onCancel} selectedProspect={selectedProspect} user={user} API_URL={API_URL} interlocuteurs={interlocuteurs} showInterlocuteurForm={showInterlocuteurForm} setShowInterlocuteurForm={setShowInterlocuteurForm} interlocuteurForm={interlocuteurForm} setInterlocuteurForm={setInterlocuteurForm} handleSaveInterlocuteur={handleSaveInterlocuteur} handleDeleteInterlocuteur={handleDeleteInterlocuteur} devisList={devisList} showDevisForm={showDevisForm} setShowDevisForm={setShowDevisForm} editingDevisId={editingDevisId} setEditingDevisId={setEditingDevisId} devisFormData={devisFormData} setDevisFormData={setDevisFormData} devisPdfFile={devisPdfFile} setDevisPdfFile={setDevisPdfFile} isUploadingDevisPdf={isUploadingDevisPdf} handleAddDevis={handleAddDevis} handleEditDevis={handleEditDevis} handleSaveDevis={handleSaveDevis} handleDeleteDevis={handleDeleteDevis} handleUploadDevisPdf={handleUploadDevisPdf} handleDeleteDevisPdf={handleDeleteDevisPdf} />;
+        return <ProspectForm formData={formData} onFormChange={onFormChange} onSave={onSave} onCancel={onCancel} selectedProspect={selectedProspect} user={user} API_URL={API_URL} interlocuteurs={interlocuteurs} showInterlocuteurForm={showInterlocuteurForm} setShowInterlocuteurForm={setShowInterlocuteurForm} interlocuteurForm={interlocuteurForm} setInterlocuteurForm={setInterlocuteurForm} handleSaveInterlocuteur={handleSaveInterlocuteur} handleDeleteInterlocuteur={handleDeleteInterlocuteur} affairesList={affairesList} showAffaireForm={showAffaireForm} setShowAffaireForm={setShowAffaireForm} editingAffaireId={editingAffaireId} setEditingAffaireId={setEditingAffaireId} affaireFormData={affaireFormData} setAffaireFormData={setAffaireFormData} selectedAffaireId={selectedAffaireId} setSelectedAffaireId={setSelectedAffaireId} handleAddAffaire={handleAddAffaire} handleEditAffaire={handleEditAffaire} handleSaveAffaire={handleSaveAffaire} handleDeleteAffaire={handleDeleteAffaire} devisList={devisList} showDevisForm={showDevisForm} setShowDevisForm={setShowDevisForm} editingDevisId={editingDevisId} setEditingDevisId={setEditingDevisId} devisFormData={devisFormData} setDevisFormData={setDevisFormData} devisPdfFile={devisPdfFile} setDevisPdfFile={setDevisPdfFile} isUploadingDevisPdf={isUploadingDevisPdf} handleAddDevis={handleAddDevis} handleEditDevis={handleEditDevis} handleSaveDevis={handleSaveDevis} handleDeleteDevis={handleDeleteDevis} handleUploadDevisPdf={handleUploadDevisPdf} handleDeleteDevisPdf={handleDeleteDevisPdf} />;
       }
 
       if (!selectedProspect) {
@@ -3390,6 +3407,190 @@
             )}
             </div>
 
+            {/* ===================== SECTION AFFAIRES ===================== */}
+            <div style={{marginTop: '20px', marginBottom: '20px', paddingLeft: '20px', paddingRight: '20px'}}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
+                <h3 style={{fontSize: '16px', color: '#666', fontWeight: 'bold', margin: 0}}>Affaires commerciales :</h3>
+                <button
+                  onClick={handleAddAffaire}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#007d89',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: '600'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#006570'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#007d89'}
+                >
+                  + Nouvelle affaire
+                </button>
+              </div>
+
+              {affairesList.length === 0 ? (
+                <div style={{
+                  padding: '20px',
+                  backgroundColor: '#f2f8f8',
+                  borderRadius: '6px',
+                  textAlign: 'center',
+                  color: '#607a7a',
+                  fontSize: '14px'
+                }}>
+                  Aucune affaire. Cliquez sur "+ Nouvelle affaire" pour commencer.
+                </div>
+              ) : (
+                <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                  {affairesList.map(affaire => {
+                    // Compter les devis de cette affaire
+                    const affaireDevis = devisList.filter(d => d.affaire_id === affaire.id);
+                    const devisActifs = affaireDevis.filter(d => d.devis_status !== 'Non retenu');
+                    const dernierDevisActif = devisActifs.length > 0 
+                      ? devisActifs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
+                      : null;
+                    
+                    const isSelected = selectedAffaireId === affaire.id;
+
+                    return (
+                      <div
+                        key={affaire.id}
+                        style={{
+                          padding: '12px',
+                          backgroundColor: isSelected ? '#e8f4f8' : '#ffffff',
+                          border: isSelected ? '2px solid #007d89' : '1px solid #c8dede',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                        onClick={() => setSelectedAffaireId(isSelected ? null : affaire.id)}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = '#f9fafa';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = '#ffffff';
+                        }}
+                      >
+                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+                          <div style={{flex: 1}}>
+                            <div style={{fontSize: '15px', fontWeight: '700', color: '#1a3535', marginBottom: '4px'}}>
+                              {affaire.nom_affaire}
+                            </div>
+                            {affaire.description && (
+                              <div style={{fontSize: '13px', color: '#607a7a', marginBottom: '6px'}}>
+                                {affaire.description}
+                              </div>
+                            )}
+                            <div style={{display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap'}}>
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                backgroundColor: affaire.statut_global === 'Gagné' ? '#d4f4dd' :
+                                                affaire.statut_global === 'Perdu' ? '#ffe0e0' :
+                                                affaire.statut_global === 'Discussion' ? '#fff9e6' : '#e8f4f8',
+                                color: affaire.statut_global === 'Gagné' ? '#2d7738' :
+                                       affaire.statut_global === 'Perdu' ? '#c62828' :
+                                       affaire.statut_global === 'Discussion' ? '#d4a017' : '#007d89'
+                              }}>
+                                {affaire.statut_global}
+                              </span>
+                              <span style={{fontSize: '12px', color: '#607a7a'}}>
+                                {affaireDevis.length} devis
+                              </span>
+                              {dernierDevisActif && (
+                                <span style={{fontSize: '12px', fontWeight: '600', color: '#007d89'}}>
+                                  {dernierDevisActif.chance_percent}%
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{display: 'flex', gap: '4px'}}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditAffaire(affaire);
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                backgroundColor: '#007d89',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '11px'
+                              }}
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteAffaire(affaire.id);
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                backgroundColor: '#f79d8d',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '11px'
+                              }}
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Afficher les devis de cette affaire si sélectionnée */}
+                        {isSelected && affaireDevis.length > 0 && (
+                          <div style={{
+                            marginTop: '12px',
+                            paddingTop: '12px',
+                            borderTop: '1px solid #c8dede'
+                          }}>
+                            <div style={{fontSize: '13px', fontWeight: '600', color: '#1a3535', marginBottom: '8px'}}>
+                              Devis de cette affaire :
+                            </div>
+                            {affaireDevis.map(devis => (
+                              <div
+                                key={devis.id}
+                                style={{
+                                  padding: '8px',
+                                  backgroundColor: '#f2f8f8',
+                                  borderRadius: '4px',
+                                  marginBottom: '6px',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                <div style={{fontWeight: '600', color: '#1a3535', marginBottom: '2px'}}>
+                                  {devis.devis_name || 'Sans nom'}
+                                </div>
+                                <div style={{display: 'flex', gap: '8px', fontSize: '11px', color: '#607a7a'}}>
+                                  <span>{devis.devis_status}</span>
+                                  <span>•</span>
+                                  <span>{devis.chance_percent}%</span>
+                                  {devis.quote_date && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{new Date(devis.quote_date).toLocaleDateString('fr-FR')}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {selectedProspect.solutions_en_place && (
               <div style={{marginTop: '15px', marginBottom: '15px', padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '6px', borderLeft: '4px solid #007d89'}}>
                 <strong style={{fontSize: '15px', color: '#333', display: 'block', marginBottom: '8px'}}>Solutions en place:</strong>
@@ -3450,6 +3651,19 @@
             user={user}
             API_URL={API_URL}
             interlocuteurs={interlocuteurs}
+            affairesList={affairesList}
+            showAffaireForm={showAffaireForm}
+            setShowAffaireForm={setShowAffaireForm}
+            editingAffaireId={editingAffaireId}
+            setEditingAffaireId={setEditingAffaireId}
+            affaireFormData={affaireFormData}
+            setAffaireFormData={setAffaireFormData}
+            selectedAffaireId={selectedAffaireId}
+            setSelectedAffaireId={setSelectedAffaireId}
+            handleAddAffaire={handleAddAffaire}
+            handleEditAffaire={handleEditAffaire}
+            handleSaveAffaire={handleSaveAffaire}
+            handleDeleteAffaire={handleDeleteAffaire}
             devisList={devisList}
             onEdit={onEdit}
             showDevisForm={showDevisForm}
@@ -3471,7 +3685,7 @@
       );
     }
 
-    function ProspectForm({ formData, onFormChange, onSave, onCancel, selectedProspect, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleUploadDevisPdf, handleDeleteDevisPdf }) {
+    function ProspectForm({ formData, onFormChange, onSave, onCancel, selectedProspect, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, affairesList, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, selectedAffaireId, setSelectedAffaireId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleUploadDevisPdf, handleDeleteDevisPdf }) {
       const [pdfFile, setPdfFile] = React.useState(null);
       const [isUploading, setIsUploading] = React.useState(false);
 
@@ -3868,6 +4082,298 @@
               </div>
             )}
 
+            {/* ==================== SECTION AFFAIRES ==================== */}
+            {selectedProspect && selectedProspect.id && (
+              <div style={styles.formSection}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
+                  <h3>📁 Affaires Commerciales</h3>
+                  <button
+                    type="button"
+                    onClick={handleAddAffaire}
+                    style={{
+                      backgroundColor: '#007d89',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '8px 15px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600'
+                    }}
+                  >
+                    + Nouvelle affaire
+                  </button>
+                </div>
+
+                {/* Formulaire création/édition affaire */}
+                {showAffaireForm && (
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f2f8f8',
+                    borderRadius: '8px',
+                    marginBottom: '15px',
+                    border: '2px solid #007d89'
+                  }}>
+                    <h4 style={{margin: '0 0 15px 0', color: '#007d89'}}>
+                      {editingAffaireId ? 'Modifier l\'affaire' : 'Nouvelle affaire'}
+                    </h4>
+                    
+                    <input
+                      type="text"
+                      placeholder="Nom de l'affaire (ex: Migration ERP, Formation nouveaux users...)"
+                      value={affaireFormData.nom_affaire}
+                      onChange={(e) => setAffaireFormData({...affaireFormData, nom_affaire: e.target.value})}
+                      style={{
+                        ...styles.formInput,
+                        marginBottom: '10px',
+                        width: '100%'
+                      }}
+                    />
+                    
+                    <textarea
+                      placeholder="Description / contexte (optionnel)"
+                      value={affaireFormData.description}
+                      onChange={(e) => setAffaireFormData({...affaireFormData, description: e.target.value})}
+                      style={{
+                        ...styles.formInput,
+                        marginBottom: '10px',
+                        width: '100%',
+                        minHeight: '80px',
+                        resize: 'vertical',
+                        fontFamily: 'Lato, sans-serif'
+                      }}
+                    />
+                    
+                    <select
+                      value={affaireFormData.statut_global}
+                      onChange={(e) => setAffaireFormData({...affaireFormData, statut_global: e.target.value})}
+                      style={{
+                        ...styles.formInput,
+                        marginBottom: '15px',
+                        width: '100%'
+                      }}
+                    >
+                      <option value="En cours">En cours</option>
+                      <option value="Discussion">Discussion</option>
+                      <option value="Gagné">Gagné</option>
+                      <option value="Perdu">Perdu</option>
+                      <option value="Abandonné">Abandonné</option>
+                    </select>
+
+                    <div style={{display: 'flex', gap: '10px'}}>
+                      <button
+                        onClick={handleSaveAffaire}
+                        style={{
+                          backgroundColor: '#007d89',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '10px 20px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: '600'
+                        }}
+                      >
+                        {editingAffaireId ? 'Modifier' : 'Créer'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowAffaireForm(false);
+                          setEditingAffaireId(null);
+                        }}
+                        style={{
+                          backgroundColor: '#ccc',
+                          color: '#333',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '10px 20px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Liste des affaires */}
+                <div style={{display: 'grid', gap: '10px'}}>
+                  {affairesList.length === 0 ? (
+                    <div style={{
+                      padding: '20px',
+                      textAlign: 'center',
+                      color: '#999',
+                      fontSize: '14px',
+                      backgroundColor: '#f9f9f9',
+                      borderRadius: '6px'
+                    }}>
+                      Aucune affaire créée. Cliquez sur "+ Nouvelle affaire" pour commencer.
+                    </div>
+                  ) : (
+                    affairesList.map(affaire => {
+                      const isSelected = selectedAffaireId === affaire.id;
+                      const affaireDevis = devisList.filter(d => d.affaire_id === affaire.id);
+                      const maxChance = affaireDevis.length > 0 ? Math.max(...affaireDevis.map(d => d.chance_percent || 0)) : 0;
+                      
+                      return (
+                        <div
+                          key={affaire.id}
+                          style={{
+                            padding: '15px',
+                            backgroundColor: isSelected ? '#e8f4f8' : 'white',
+                            border: isSelected ? '2px solid #007d89' : '1px solid #ddd',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                          onClick={() => setSelectedAffaireId(isSelected ? null : affaire.id)}
+                        >
+                          {/* Header affaire */}
+                          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
+                            <div style={{flex: 1}}>
+                              <div style={{fontWeight: '600', fontSize: '15px', color: '#1a3535', marginBottom: '5px'}}>
+                                📁 {affaire.nom_affaire}
+                              </div>
+                              {affaire.description && (
+                                <div style={{fontSize: '13px', color: '#607a7a', marginBottom: '8px'}}>
+                                  {affaire.description}
+                                </div>
+                              )}
+                              <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+                                <span style={{
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  color: affaire.statut_global === 'Gagné' ? '#28a745' : 
+                                         affaire.statut_global === 'Perdu' ? '#dc3545' :
+                                         affaire.statut_global === 'Discussion' ? '#007d89' : '#666',
+                                  backgroundColor: affaire.statut_global === 'Gagné' ? '#d4edda' :
+                                                   affaire.statut_global === 'Perdu' ? '#f8d7da' :
+                                                   affaire.statut_global === 'Discussion' ? '#e8f4f8' : '#f0f0f0',
+                                  padding: '3px 8px',
+                                  borderRadius: '4px'
+                                }}>
+                                  {affaire.statut_global}
+                                </span>
+                                {maxChance > 0 && (
+                                  <span style={{fontSize: '13px', color: '#007d89', fontWeight: 'bold'}}>
+                                    {maxChance}%
+                                  </span>
+                                )}
+                                <span style={{fontSize: '12px', color: '#999'}}>
+                                  {affaireDevis.length} devis
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div style={{display: 'flex', gap: '6px'}} onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => handleEditAffaire(affaire)}
+                                style={{
+                                  backgroundColor: '#007d89',
+                                  color: 'white',
+                                  border: 'none',
+                                  padding: '6px 12px',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '13px'
+                                }}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAffaire(affaire.id)}
+                                style={{
+                                  backgroundColor: '#f79d8d',
+                                  color: 'white',
+                                  border: 'none',
+                                  padding: '6px 12px',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '13px'
+                                }}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Devis de cette affaire (si affaire sélectionnée) */}
+                          {isSelected && affaireDevis.length > 0 && (
+                            <div style={{
+                              marginTop: '15px',
+                              paddingTop: '15px',
+                              borderTop: '1px solid #c8dede'
+                            }}>
+                              <div style={{fontSize: '13px', fontWeight: '600', color: '#1a3535', marginBottom: '10px'}}>
+                                📄 Devis de cette affaire :
+                              </div>
+                              {affaireDevis.map(devis => (
+                                <div
+                                  key={devis.id}
+                                  style={{
+                                    padding: '10px',
+                                    backgroundColor: '#f9f9f9',
+                                    borderRadius: '6px',
+                                    marginBottom: '8px',
+                                    fontSize: '13px'
+                                  }}
+                                >
+                                  <div style={{fontWeight: '600', color: '#1a3535', marginBottom: '4px'}}>
+                                    {devis.devis_name || 'Sans nom'}
+                                  </div>
+                                  <div style={{display: 'flex', gap: '10px', fontSize: '12px', color: '#607a7a'}}>
+                                    <span>Statut: <strong>{devis.devis_status}</strong></span>
+                                    <span>Proba: <strong style={{color: '#007d89'}}>{devis.chance_percent}%</strong></span>
+                                    {devis.quote_date && (
+                                      <span>Date: {new Date(devis.quote_date).toLocaleDateString('fr-FR')}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div style={{
+                  marginTop: '15px',
+                  padding: '12px',
+                  backgroundColor: '#fff3cd',
+                  borderRadius: '6px',
+                  border: '1px solid #ffc107',
+                  fontSize: '13px',
+                  color: '#856404'
+                }}>
+                  💡 <strong>Astuce:</strong> Cliquez sur une affaire pour voir ses devis. Les nouveaux devis seront automatiquement associés à l'affaire sélectionnée.
+                </div>
+              </div>
+            )}
+
+            {/* Section Affaires - Information en mode création */}
+            {(!selectedProspect || !selectedProspect.id) && (
+              <div style={styles.formSection}>
+                <h3>📁 Affaires Commerciales</h3>
+                <div style={{
+                  padding: '20px',
+                  backgroundColor: '#fff3cd',
+                  borderRadius: '8px',
+                  border: '1px solid #ffc107',
+                  color: '#856404'
+                }}>
+                  <p style={{margin: 0, fontSize: '14px'}}>
+                    ℹ️ <strong>Les affaires pourront être créées après la création de l'entreprise.</strong>
+                  </p>
+                  <p style={{margin: '8px 0 0 0', fontSize: '13px', color: '#666'}}>
+                    Une affaire regroupe tous les devis liés à un même projet commercial.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div style={styles.formActions}>
               <button onClick={onSave} style={styles.saveBtn}>Enregistrer / Activités</button>
               <button onClick={onCancel} style={styles.cancelBtn}>Annuler</button>
@@ -3877,7 +4383,7 @@
       );
     }
 
-    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, selectedProspect }) {
+    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, selectedAffaireId, setSelectedAffaireId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, selectedProspect }) {
       const [actionNotes, setActionNotes] = React.useState({});
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
@@ -3900,18 +4406,18 @@
         <div style={styles.activitiesSection}>
           <h3>📋 Suivi des activités</h3>
           
-          {/* Section Devis */}
+          {/* ============ Section Affaires ============ */}
           <div style={{
-            backgroundColor: '#f9f9f9',
+            backgroundColor: '#f2f8f8',
             padding: '15px',
             borderRadius: '8px',
             marginBottom: '20px',
             border: '1px solid #c8dede'
           }}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
-              <h4 style={{marginTop: 0, marginBottom: 0, color: '#333'}}>📄 Devis ({devisList?.length || 0})</h4>
+              <h4 style={{marginTop: 0, marginBottom: 0, color: '#1a3535'}}>📁 Affaires ({affairesList?.length || 0})</h4>
               <button
-                onClick={handleAddDevis}
+                onClick={handleAddAffaire}
                 style={{
                   backgroundColor: '#007d89',
                   color: 'white',
@@ -3920,18 +4426,328 @@
                   borderRadius: '6px',
                   cursor: 'pointer',
                   fontSize: '13px',
-                  fontWeight: '600'
+                  fontWeight: '600',
+                  fontFamily: 'Lato, sans-serif'
                 }}
+              >
+                + Nouvelle affaire
+              </button>
+            </div>
+
+            {/* Liste des affaires */}
+            {affairesList && affairesList.length > 0 ? (
+              <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                {affairesList.map(affaire => {
+                  const isSelected = selectedAffaireId === affaire.id;
+                  const affaireDevis = devisList.filter(d => d.affaire_id === affaire.id);
+                  const maxChance = affaireDevis.length > 0 
+                    ? Math.max(...affaireDevis.map(d => d.chance_percent || 0)) 
+                    : 0;
+                  
+                  return (
+                    <div
+                      key={affaire.id}
+                      onClick={() => setSelectedAffaireId(isSelected ? null : affaire.id)}
+                      style={{
+                        padding: '12px',
+                        backgroundColor: isSelected ? '#e8f4f5' : '#ffffff',
+                        borderRadius: '6px',
+                        border: isSelected ? '2px solid #007d89' : '1px solid #c8dede',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        fontFamily: 'Lato, sans-serif'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) e.currentTarget.style.backgroundColor = '#f9f9f9';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) e.currentTarget.style.backgroundColor = '#ffffff';
+                      }}
+                    >
+                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+                        <div style={{flex: 1}}>
+                          <div style={{fontWeight: '600', fontSize: '14px', color: '#1a3535', marginBottom: '4px'}}>
+                            {affaire.nom_affaire}
+                          </div>
+                          {affaire.description && (
+                            <div style={{fontSize: '12px', color: '#607a7a', marginBottom: '6px'}}>
+                              {affaire.description}
+                            </div>
+                          )}
+                          <div style={{display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap'}}>
+                            <span style={{
+                              fontSize: '11px',
+                              padding: '3px 8px',
+                              borderRadius: '12px',
+                              backgroundColor: 
+                                affaire.statut_global === 'Gagné' ? '#d4edda' :
+                                affaire.statut_global === 'Perdu' ? '#f8d7da' :
+                                affaire.statut_global === 'Discussion' ? '#cce5ff' :
+                                affaire.statut_global === 'Abandonné' ? '#e2e3e5' :
+                                '#fff3cd',
+                              color:
+                                affaire.statut_global === 'Gagné' ? '#155724' :
+                                affaire.statut_global === 'Perdu' ? '#721c24' :
+                                affaire.statut_global === 'Discussion' ? '#004085' :
+                                affaire.statut_global === 'Abandonné' ? '#383d41' :
+                                '#856404',
+                              fontWeight: '600'
+                            }}>
+                              {affaire.statut_global}
+                            </span>
+                            <span style={{fontSize: '12px', color: '#607a7a'}}>
+                              {affaireDevis.length} devis
+                            </span>
+                            {maxChance > 0 && (
+                              <span style={{fontSize: '12px', color: '#007d89', fontWeight: '600'}}>
+                                {maxChance}%
+                              </span>
+                            )}
+                            <span style={{fontSize: '11px', color: '#999'}}>
+                              Créée le {new Date(affaire.created_at).toLocaleDateString('fr-FR')}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{display: 'flex', gap: '4px', marginLeft: '12px'}}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleEditAffaire(affaire); }}
+                            style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#007d89',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '11px',
+                              fontWeight: '600'
+                            }}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteAffaire(affaire.id); }}
+                            style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#f79d8d',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '11px'
+                            }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{
+                padding: '20px',
+                textAlign: 'center',
+                color: '#999',
+                fontSize: '13px',
+                backgroundColor: '#ffffff',
+                borderRadius: '6px',
+                border: '1px dashed #c8dede'
+              }}>
+                Aucune affaire. Cliquez sur "+ Nouvelle affaire" pour commencer.
+              </div>
+            )}
+          </div>
+
+          {/* Formulaire Affaire (modal) */}
+          {showAffaireForm && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 10000
+            }}>
+              <div style={{
+                backgroundColor: 'white',
+                padding: '25px',
+                borderRadius: '10px',
+                width: '500px',
+                maxWidth: '90%',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                fontFamily: 'Lato, sans-serif'
+              }}>
+                <h3 style={{marginTop: 0, color: '#1a3535'}}>
+                  {editingAffaireId ? '✏️ Modifier l\'affaire' : '➕ Nouvelle affaire'}
+                </h3>
+                
+                <div style={{marginBottom: '15px'}}>
+                  <label style={{display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '13px', color: '#1a3535'}}>
+                    Nom de l'affaire *
+                  </label>
+                  <input
+                    type="text"
+                    value={affaireFormData.nom_affaire}
+                    onChange={(e) => setAffaireFormData({...affaireFormData, nom_affaire: e.target.value})}
+                    placeholder="Ex: Migration ERP, Formation utilisateurs..."
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #c8dede',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontFamily: 'Lato, sans-serif',
+                      backgroundColor: '#f2f8f8'
+                    }}
+                  />
+                </div>
+
+                <div style={{marginBottom: '15px'}}>
+                  <label style={{display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '13px', color: '#1a3535'}}>
+                    Description
+                  </label>
+                  <textarea
+                    value={affaireFormData.description}
+                    onChange={(e) => setAffaireFormData({...affaireFormData, description: e.target.value})}
+                    placeholder="Description du projet commercial..."
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #c8dede',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontFamily: 'Lato, sans-serif',
+                      backgroundColor: '#f2f8f8',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+
+                <div style={{marginBottom: '20px'}}>
+                  <label style={{display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '13px', color: '#1a3535'}}>
+                    Statut global
+                  </label>
+                  <select
+                    value={affaireFormData.statut_global}
+                    onChange={(e) => setAffaireFormData({...affaireFormData, statut_global: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #c8dede',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontFamily: 'Lato, sans-serif',
+                      backgroundColor: '#f2f8f8'
+                    }}
+                  >
+                    <option value="En cours">En cours</option>
+                    <option value="Discussion">Discussion</option>
+                    <option value="Gagné">Gagné</option>
+                    <option value="Perdu">Perdu</option>
+                    <option value="Abandonné">Abandonné</option>
+                  </select>
+                </div>
+
+                <div style={{display: 'flex', gap: '10px', justifyContent: 'flex-end'}}>
+                  <button
+                    onClick={() => { setShowAffaireForm(false); setEditingAffaireId(null); }}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#f79d8d',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      fontFamily: 'Lato, sans-serif'
+                    }}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleSaveAffaire}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#007d89',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      fontFamily: 'Lato, sans-serif'
+                    }}
+                  >
+                    {editingAffaireId ? 'Enregistrer' : 'Créer l\'affaire'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* ============ Section Devis ============ */}
+          <div style={{
+            backgroundColor: '#f9f9f9',
+            padding: '15px',
+            borderRadius: '8px',
+            marginBottom: '20px',
+            border: '1px solid #c8dede'
+          }}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
+              <h4 style={{marginTop: 0, marginBottom: 0, color: '#333'}}>
+                📄 Devis 
+                {selectedAffaireId && devisList.filter(d => d.affaire_id === selectedAffaireId).length > 0 
+                  ? ` (${devisList.filter(d => d.affaire_id === selectedAffaireId).length})` 
+                  : ''}
+              </h4>
+              <button
+                onClick={handleAddDevis}
+                disabled={!selectedAffaireId}
+                style={{
+                  backgroundColor: selectedAffaireId ? '#007d89' : '#ccc',
+                  color: 'white',
+                  border: 'none',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  cursor: selectedAffaireId ? 'pointer' : 'not-allowed',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  opacity: selectedAffaireId ? 1 : 0.6
+                }}
+                title={!selectedAffaireId ? 'Sélectionnez une affaire pour ajouter un devis' : ''}
               >
                 + Ajouter un devis
               </button>
             </div>
             
-            {devisList && devisList.length > 0 ? (
+            {!selectedAffaireId ? (
+              <div style={{
+                padding: '30px',
+                textAlign: 'center',
+                color: '#607a7a',
+                fontSize: '14px',
+                backgroundColor: '#ffffff',
+                borderRadius: '6px',
+                border: '1px dashed #c8dede'
+              }}>
+                <div style={{fontSize: '40px', marginBottom: '10px'}}>👆</div>
+                <strong>Sélectionnez une affaire ci-dessus</strong> pour voir ses devis
+              </div>
+            ) : (() => {
+              const filteredDevis = devisList.filter(d => d.affaire_id === selectedAffaireId);
+              
+              return filteredDevis.length > 0 ? (
               <>
               {/* Dernier devis (toujours visible) */}
               {(() => {
-                const lastDevis = devisList[0];
+                const lastDevis = filteredDevis[0];
                 const modules = typeof lastDevis.modules === 'string' ? JSON.parse(lastDevis.modules) : (lastDevis.modules || {});
                 const modulesList = Object.entries(modules)
                   .filter(([key, value]) => value > 0 || value === true)
@@ -3952,12 +4768,12 @@
                     backgroundColor: 'white',
                     padding: '12px',
                     borderRadius: '6px',
-                    marginBottom: devisList.length > 1 ? '10px' : '0',
+                    marginBottom: filteredDevis.length > 1 ? '10px' : '0',
                     border: '2px solid #007d89'
                   }}>
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
                       <div style={{fontSize: '15px', fontWeight: 'bold', color: '#333'}}>
-                        {lastDevis.devis_name || 'Devis #' + (devisList.length > 1 ? '1' : '')}
+                        {lastDevis.devis_name || 'Devis sans nom'}
                         {lastDevis.quote_date && <span style={{color: '#666', fontWeight: 'normal', fontSize: '13px'}}> - {new Date(lastDevis.quote_date).toLocaleDateString('fr-FR')}</span>}
                         {lastDevis.devis_status && (
                           <span style={{
@@ -4079,7 +4895,7 @@
               })()}
               
               {/* Bouton déplier/replier si plus d'1 devis */}
-              {devisList.length > 1 && (
+              {filteredDevis.length > 1 && (
                 <>
                   <button
                     onClick={() => setShowAllDevis(!showAllDevis)}
@@ -4096,13 +4912,13 @@
                       marginBottom: showAllDevis ? '10px' : '0'
                     }}
                   >
-                    {showAllDevis ? '▲ Masquer' : `▼ Voir ${devisList.length - 1} autre${devisList.length > 2 ? 's' : ''} devis`}
+                    {showAllDevis ? '▲ Masquer' : `▼ Voir ${filteredDevis.length - 1} autre${filteredDevis.length > 2 ? 's' : ''} devis`}
                   </button>
                   
                   {/* Autres devis (si déplié) */}
                   {showAllDevis && (
                     <div style={{display: 'grid', gap: '8px'}}>
-                      {devisList.slice(1).map((devis, index) => {
+                      {filteredDevis.slice(1).map((devis, index) => {
                         const modules = typeof devis.modules === 'string' ? JSON.parse(devis.modules) : (devis.modules || {});
                         const modulesList = Object.entries(modules)
                           .filter(([key, value]) => value > 0 || value === true)
@@ -4249,11 +5065,175 @@
                 </>
               )}
               </>
-            ) : null}
+            ) : (
+              <div style={{
+                padding: '20px',
+                textAlign: 'center',
+                color: '#999',
+                fontSize: '13px',
+                backgroundColor: '#ffffff',
+                borderRadius: '6px',
+                border: '1px dashed #c8dede'
+              }}>
+                Aucun devis pour cette affaire. Cliquez sur "+ Ajouter un devis" pour commencer.
+              </div>
+            );
+            })()}
             </div>
           
           
-          {/* Popup formulaire devis */}
+          {/* Popup formulaire AFFAIRE (ANCIEN - À SUPPRIMER) */}
+          {showAffaireForm && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 9999
+            }}>
+              <div style={{
+                backgroundColor: 'white',
+                padding: '25px',
+                borderRadius: '12px',
+                maxWidth: '600px',
+                width: '90%',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+              }}>
+                <h3 style={{marginTop: 0, marginBottom: '20px', color: '#007d89', fontSize: '18px', fontWeight: '700'}}>
+                  {editingAffaireId ? 'Modifier l\'affaire' : 'Nouvelle affaire'}
+                </h3>
+
+                <div style={{marginBottom: '15px'}}>
+                  <label style={{display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold', color: '#1a3535'}}>
+                    Nom de l'affaire *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Migration ERP, Projet e-commerce, Formation utilisateurs..."
+                    value={affaireFormData.nom_affaire}
+                    onChange={(e) => setAffaireFormData({...affaireFormData, nom_affaire: e.target.value})}
+                    style={{
+                      padding: '10px',
+                      border: '1px solid #c8dede',
+                      borderRadius: '6px',
+                      width: '100%',
+                      fontSize: '14px',
+                      fontFamily: 'Lato, sans-serif'
+                    }}
+                    required
+                  />
+                </div>
+
+                <div style={{marginBottom: '15px'}}>
+                  <label style={{display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold', color: '#1a3535'}}>
+                    Description
+                  </label>
+                  <textarea
+                    placeholder="Description de l'affaire..."
+                    value={affaireFormData.description}
+                    onChange={(e) => setAffaireFormData({...affaireFormData, description: e.target.value})}
+                    style={{
+                      padding: '10px',
+                      border: '1px solid #c8dede',
+                      borderRadius: '6px',
+                      width: '100%',
+                      minHeight: '80px',
+                      fontSize: '14px',
+                      fontFamily: 'Lato, sans-serif',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+
+                <div style={{marginBottom: '20px'}}>
+                  <label style={{display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold', color: '#1a3535'}}>
+                    Statut global
+                  </label>
+                  <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+                    {['En cours', 'Discussion', 'Gagné', 'Perdu', 'Abandonné'].map(status => {
+                      const isActive = affaireFormData.statut_global === status;
+                      return (
+                        <button
+                          key={status}
+                          type="button"
+                          onClick={() => setAffaireFormData({...affaireFormData, statut_global: status})}
+                          style={{
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            border: isActive ? '2px solid #007d89' : '1px solid #c8dede',
+                            backgroundColor: isActive ? '#e8f4f8' : '#ffffff',
+                            color: isActive ? '#007d89' : '#607a7a',
+                            fontWeight: isActive ? '600' : '400',
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isActive) {
+                              e.currentTarget.style.backgroundColor = '#f2f8f8';
+                              e.currentTarget.style.borderColor = '#007d89';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isActive) {
+                              e.currentTarget.style.backgroundColor = '#ffffff';
+                              e.currentTarget.style.borderColor = '#c8dede';
+                            }
+                          }}
+                        >
+                          {status}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={{display: 'flex', gap: '10px', justifyContent: 'flex-end'}}>
+                  <button
+                    onClick={() => {
+                      setShowAffaireForm(false);
+                      setEditingAffaireId(null);
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#f2f8f8',
+                      color: '#607a7a',
+                      border: '1px solid #c8dede',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600'
+                    }}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleSaveAffaire}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#007d89',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#006570'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#007d89'}
+                  >
+                    {editingAffaireId ? 'Modifier' : 'Créer'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {showDevisForm && (
             <div style={{
               position: 'fixed',
