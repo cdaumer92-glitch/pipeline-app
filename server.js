@@ -578,6 +578,224 @@ app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
 // ==========================================
 
 // GET /api/prospects/:id/devis - Liste des devis d'un prospect
+// ===================== AFFAIRES =====================
+// GET /api/prospects/:id/affaires - Récupérer toutes les affaires d'un prospect
+app.get('/api/prospects/:id/affaires', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      `SELECT * FROM affaires 
+       WHERE prospect_id = $1 
+       ORDER BY created_at DESC`,
+      [id]
+    );
+    
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur GET /api/prospects/:id/affaires:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/prospects/:id/affaires - Créer une nouvelle affaire
+app.post('/api/prospects/:id/affaires', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nom_affaire, description } = req.body;
+    
+    const result = await pool.query(
+      `INSERT INTO affaires (prospect_id, nom_affaire, description, statut_global, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, NOW(), NOW())
+       RETURNING *`,
+      [id, nom_affaire, description || '', 'En cours']
+    );
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Erreur POST /api/prospects/:id/affaires:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/affaires/:id - Modifier une affaire
+app.put('/api/affaires/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nom_affaire, description, statut_global } = req.body;
+    
+    const result = await pool.query(
+      `UPDATE affaires 
+       SET nom_affaire = $1, description = $2, statut_global = $3, updated_at = NOW()
+       WHERE id = $4
+       RETURNING *`,
+      [nom_affaire, description, statut_global, id]
+    );
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Erreur PUT /api/affaires/:id:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/affaires/:id - Supprimer une affaire (et ses devis en cascade)
+app.delete('/api/affaires/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await pool.query('DELETE FROM affaires WHERE id = $1', [id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Erreur DELETE /api/affaires/:id:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/affaires/:id/devis - Récupérer tous les devis d'une affaire
+app.get('/api/affaires/:id/devis', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      `SELECT * FROM devis 
+       WHERE affaire_id = $1 
+       ORDER BY created_at DESC`,
+      [id]
+    );
+    
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur GET /api/affaires/:id/devis:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== AFFAIRES =====================
+
+// GET /api/prospects/:id/affaires - Récupérer toutes les affaires d'une société
+app.get('/api/prospects/:id/affaires', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      `SELECT a.*, 
+              COUNT(d.id) as nb_devis,
+              MAX(d.created_at) as dernier_devis_date
+       FROM affaires a
+       LEFT JOIN devis d ON d.affaire_id = a.id
+       WHERE a.prospect_id = $1
+       GROUP BY a.id
+       ORDER BY a.created_at DESC`,
+      [id]
+    );
+    
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur GET /api/prospects/:id/affaires:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/prospects/:id/affaires - Créer une nouvelle affaire
+app.post('/api/prospects/:id/affaires', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nom_affaire, description, statut_global } = req.body;
+    
+    const result = await pool.query(
+      `INSERT INTO affaires (prospect_id, nom_affaire, description, statut_global, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, NOW(), NOW())
+       RETURNING *`,
+      [id, nom_affaire, description || null, statut_global || 'En cours']
+    );
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Erreur POST /api/prospects/:id/affaires:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/affaires/:id - Récupérer une affaire spécifique
+app.get('/api/affaires/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      `SELECT * FROM affaires WHERE id = $1`,
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Affaire non trouvée' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Erreur GET /api/affaires/:id:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/affaires/:id - Modifier une affaire
+app.put('/api/affaires/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nom_affaire, description, statut_global } = req.body;
+    
+    const result = await pool.query(
+      `UPDATE affaires 
+       SET nom_affaire = $1, description = $2, statut_global = $3, updated_at = NOW()
+       WHERE id = $4
+       RETURNING *`,
+      [nom_affaire, description, statut_global, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Affaire non trouvée' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Erreur PUT /api/affaires/:id:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/affaires/:id - Supprimer une affaire (et ses devis en cascade)
+app.delete('/api/affaires/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await pool.query('DELETE FROM affaires WHERE id = $1', [id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Erreur DELETE /api/affaires/:id:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/affaires/:id/devis - Récupérer tous les devis d'une affaire
+app.get('/api/affaires/:id/devis', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      `SELECT * FROM devis 
+       WHERE affaire_id = $1 
+       ORDER BY created_at DESC`,
+      [id]
+    );
+    
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur GET /api/affaires/:id/devis:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== DEVIS =====================
 // GET /api/devis/all - Récupérer tous les devis avec info commercial
 app.get('/api/devis/all', auth, async (req, res) => {
   try {
@@ -617,6 +835,7 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
   try {
     const { id } = req.params;
     const {
+      affaire_id,
       devis_name,
       devis_status,
       quote_date,
@@ -629,9 +848,15 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
       comment
     } = req.body;
     
+    // affaire_id est obligatoire
+    if (!affaire_id) {
+      return res.status(400).json({ error: 'affaire_id est obligatoire' });
+    }
+    
     const result = await pool.query(
       `INSERT INTO devis (
         prospect_id,
+        affaire_id,
         devis_name,
         devis_status,
         quote_date,
@@ -642,10 +867,11 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
         chance_percent,
         modules,
         comment
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *`,
       [
         id,
+        affaire_id,
         devis_name || 'Devis sans nom',
         devis_status || 'En cours',
         quote_date || null,

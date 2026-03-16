@@ -222,6 +222,16 @@
         principal: false,
         decideur: false
       });
+      // États pour les affaires
+      const [affairesList, setAffairesList] = React.useState([]);
+      const [showAffaireForm, setShowAffaireForm] = React.useState(false);
+      const [editingAffaireId, setEditingAffaireId] = React.useState(null);
+      const [affaireFormData, setAffaireFormData] = React.useState({
+        nom_affaire: '',
+        description: '',
+        statut_global: 'En cours'
+      });
+      const [selectedAffaireId, setSelectedAffaireId] = React.useState(null); // Pour afficher les devis d'une affaire
       // États pour les devis
       const [devisList, setDevisList] = React.useState([]);
       const [showDevisForm, setShowDevisForm] = React.useState(false);
@@ -402,6 +412,99 @@
       };
 
       // ============ DEVIS ============
+      const fetchAffaires = async (prospectId) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/affaires`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          if (res.ok) {
+            const affaires = await res.json();
+            setAffairesList(affaires || []);
+          } else {
+            setAffairesList([]);
+          }
+        } catch (err) {
+          console.error('Erreur fetchAffaires:', err);
+          setAffairesList([]);
+        }
+      };
+
+      const handleAddAffaire = () => {
+        setAffaireFormData({
+          nom_affaire: '',
+          description: '',
+          statut_global: 'En cours'
+        });
+        setEditingAffaireId(null);
+        setShowAffaireForm(true);
+      };
+
+      const handleEditAffaire = (affaire) => {
+        setAffaireFormData({
+          nom_affaire: affaire.nom_affaire,
+          description: affaire.description || '',
+          statut_global: affaire.statut_global
+        });
+        setEditingAffaireId(affaire.id);
+        setShowAffaireForm(true);
+      };
+
+      const handleSaveAffaire = async () => {
+        if (!affaireFormData.nom_affaire) {
+          alert('Le nom de l\'affaire est obligatoire');
+          return;
+        }
+
+        try {
+          const url = editingAffaireId
+            ? `${API_URL}/affaires/${editingAffaireId}`
+            : `${API_URL}/prospects/${selectedProspect.id}/affaires`;
+          
+          const method = editingAffaireId ? 'PUT' : 'POST';
+
+          const res = await fetch(url, {
+            method,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify(affaireFormData)
+          });
+
+          if (res.ok) {
+            await fetchAffaires(selectedProspect.id);
+            setShowAffaireForm(false);
+            setEditingAffaireId(null);
+          } else {
+            alert('Erreur lors de la sauvegarde de l\'affaire');
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleDeleteAffaire = async (affaireId) => {
+        if (!window.confirm('Supprimer cette affaire et tous ses devis ?')) return;
+
+        try {
+          const res = await fetch(`${API_URL}/affaires/${affaireId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+
+          if (res.ok) {
+            await fetchAffaires(selectedProspect.id);
+            if (selectedAffaireId === affaireId) {
+              setSelectedAffaireId(null);
+            }
+          } else {
+            alert('Erreur lors de la suppression');
+          }
+        } catch (err) {
+          alert('Erreur: ' + err.message);
+        }
+      };
+
       const fetchDevis = async (prospectId) => {
         try {
           const res = await fetch(`${API_URL}/prospects/${prospectId}/devis`, {
@@ -420,13 +523,19 @@
       };
 
       const handleAddDevis = () => {
+        if (!selectedAffaireId) {
+          alert('Veuillez sélectionner une affaire avant d\'ajouter un devis');
+          return;
+        }
         setDevisFormData({
+          devis_name: '',
+          devis_status: 'En cours',
           quote_date: new Date().toISOString().split('T')[0],
           setup_amount: 0,
           monthly_amount: 0,
           annual_amount: 0,
           training_amount: 0,
-          chance_percent: 0,
+          chance_percent: 20, // Par défaut "En cours" = 20%
           modules: {},
           comment: ''
         });
@@ -458,6 +567,11 @@
             return;
           }
           
+          if (!selectedAffaireId && !editingDevisId) {
+            alert('Veuillez sélectionner une affaire');
+            return;
+          }
+          
           // Validation : Discussion nécessite 40% ou 60%
           if (devisFormData.devis_status === 'Discussion' && 
               devisFormData.chance_percent !== 40 && 
@@ -468,7 +582,7 @@
 
           const url = editingDevisId 
             ? `${API_URL}/devis/${editingDevisId}`
-            : `${API_URL}/prospects/${selectedProspect.id}/devis`;
+            : `${API_URL}/affaires/${selectedAffaireId}/devis`;
           
           const method = editingDevisId ? 'PUT' : 'POST';
 
@@ -490,16 +604,20 @@
             }
 
             await fetchDevis(selectedProspect.id);
+            await fetchAffaires(selectedProspect.id); // Rafraîchir les affaires aussi
             setShowDevisForm(false);
             setEditingDevisId(null);
             setDevisFormData({
+              devis_name: '',
+              devis_status: 'En cours',
               quote_date: '',
               setup_amount: 0,
               monthly_amount: 0,
               annual_amount: 0,
               training_amount: 0,
               chance_percent: 0,
-              modules: {}
+              modules: {},
+              comment: ''
             });
             setDevisPdfFile(null);
           } else {
@@ -2333,6 +2451,19 @@
               compareA = getNextActionDate(a.id);
               compareB = getNextActionDate(b.id);
               return sortAsc ? compareA - compareB : compareB - compareA;
+            case 'probabilité':
+              // Tri par probabilité du dernier devis - TOUJOURS décroissant (plus grand % en premier)
+              // Il faut aller chercher le chance_percent dans les devis, pas dans prospect
+              const getMaxChance = (prospect) => {
+                // Chercher dans allDevis le devis de ce prospect avec le plus grand chance_percent
+                const prospectDevis = allDevis.filter(d => d.prospect_id === prospect.id);
+                if (prospectDevis.length === 0) return 0;
+                // Retourner le max chance_percent de tous les devis de ce prospect
+                return Math.max(...prospectDevis.map(d => d.chance_percent || 0));
+              };
+              compareA = getMaxChance(a);
+              compareB = getMaxChance(b);
+              return compareB - compareA; // Décroissant
             default:
               return 0;
           }
@@ -2873,11 +3004,15 @@
                           })()}
                         </td>
                         <td style={{padding: '10px', textAlign: 'center'}}>
-                          {prospect.chance_percent && prospect.chance_percent > 0 ? (
-                            <span style={{color: '#007d89', fontSize: '13px', fontWeight: 'bold'}}>{prospect.chance_percent}%</span>
-                          ) : (
-                            <span style={{color: '#ccc'}}>-</span>
-                          )}
+                          {(() => {
+                            const prospectDevis = allDevis.filter(d => d.prospect_id === prospect.id);
+                            const maxChance = prospectDevis.length > 0 ? Math.max(...prospectDevis.map(d => d.chance_percent || 0)) : 0;
+                            return maxChance > 0 ? (
+                              <span style={{color: '#007d89', fontSize: '13px', fontWeight: 'bold'}}>{maxChance}%</span>
+                            ) : (
+                              <span style={{color: '#ccc'}}>-</span>
+                            );
+                          })()}
                         </td>
                         <td style={{padding: '10px', textAlign: 'center'}} onClick={(e) => e.stopPropagation()}>
                           {prospect.pdf_url && (
