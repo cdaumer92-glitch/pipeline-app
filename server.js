@@ -578,6 +578,22 @@ app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
 // ==========================================
 
 // GET /api/prospects/:id/devis - Liste des devis d'un prospect
+// GET /api/devis/all - Récupérer tous les devis avec info commercial
+app.get('/api/devis/all', auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT d.*, p.name as prospect_name, p.assigned_to as commercial
+       FROM devis d
+       LEFT JOIN prospects p ON d.prospect_id = p.id
+       ORDER BY d.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur GET /api/devis/all:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/prospects/:id/devis', auth, async (req, res) => {
   try {
     const { id } = req.params;
