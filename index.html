@@ -3114,6 +3114,18 @@
             API_URL={API_URL}
             interlocuteurs={interlocuteurs}
             affairesList={affairesList}
+            selectedAffaireId={selectedAffaireId}
+            setSelectedAffaireId={setSelectedAffaireId}
+            handleAddAffaire={handleAddAffaire}
+            handleEditAffaire={handleEditAffaire}
+            handleSaveAffaire={handleSaveAffaire}
+            handleDeleteAffaire={handleDeleteAffaire}
+            showAffaireForm={showAffaireForm}
+            setShowAffaireForm={setShowAffaireForm}
+            editingAffaireId={editingAffaireId}
+            setEditingAffaireId={setEditingAffaireId}
+            affaireFormData={affaireFormData}
+            setAffaireFormData={setAffaireFormData}
             devisList={devisList}
             onEdit={onEdit}
             showDevisForm={showDevisForm}
@@ -3129,6 +3141,7 @@
             handleEditDevis={handleEditDevis}
             handleSaveDevis={handleSaveDevis}
             handleDeleteDevis={handleDeleteDevis}
+            handleRattacherDevisAffaire={handleRattacherDevisAffaire}
             selectedProspect={selectedProspect}
           />
         </div>
@@ -3532,55 +3545,6 @@
               </div>
             )}
 
-            {/* Section Statut et Notes - Uniquement en mode édition */}
-            {selectedProspect && selectedProspect.id && (
-            <div style={styles.formSection}>
-              <h3>Statut</h3>
-              
-              {selectedProspect && selectedProspect.id && (
-                <div style={styles.oldStatusBox}>
-                  <div style={styles.oldStatusLabel}>Ancien statut</div>
-                  <div style={styles.oldStatusValue}>{selectedProspect.status}</div>
-                  {selectedProspect.status_date && (
-                    <div style={{...styles.oldStatusLabel, marginTop: '5px', fontWeight: 'normal', color: '#999'}}>
-                      depuis le {new Date(selectedProspect.status_date).toLocaleDateString()}
-                    </div>
-                  )}
-                  {selectedProspect.notes && (
-                    <>
-                      <div style={{...styles.oldStatusLabel, marginTop: '10px'}}>Notes associées</div>
-                      <div style={styles.oldStatusNotes}>{selectedProspect.notes}</div>
-                    </>
-                  )}
-                </div>
-              )}
-              
-              <div style={styles.formGrid}>
-                <select
-                  value={formData.status}
-                  onChange={(e) => handleChange('status', e.target.value)}
-                  style={styles.formInput}
-                  key={formData.id || 'new'}
-                >
-                  <option>Prospection</option>
-                  <option>Devis</option>
-                  <option>Démo</option>
-                  <option>Négociation</option>
-                  <option>Signé</option>
-                  <option>Ajourné N+1</option>
-                  <option>Éliminé par nous</option>
-                  <option>Perdu</option>
-                </select>
-              </div>
-              
-              <textarea
-                placeholder="Notes"
-                value={formData.notes}
-                onChange={(e) => handleChange('notes', e.target.value)}
-                style={{padding: '10px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px', marginTop: '10px', width: 'calc(100% - 40px)', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: '14px'}}
-              />
-            </div>
-            )}
 
             <div style={styles.formActions}>
               <button onClick={onSave} style={styles.saveBtn}>Enregistrer / Activités</button>
@@ -3591,7 +3555,7 @@
       );
     }
 
-    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, selectedProspect }) {
+    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, selectedProspect }) {
       const [actionNotes, setActionNotes] = React.useState({});
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
