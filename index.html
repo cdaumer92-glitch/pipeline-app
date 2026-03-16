@@ -915,10 +915,15 @@
         }
       };
 
-      const handleAddNextAction = async () => {
+      const handleAddNextAction = async (affaireId = null) => {
         if (!selectedProspect) return;
+        
+        const url = affaireId 
+          ? `${API_URL}/affaires/${affaireId}/next_actions`
+          : `${API_URL}/prospects/${selectedProspect.id}/next_actions`;
+        
         try {
-          const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/next_actions`, {
+          const res = await fetch(url, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -929,7 +934,8 @@
               planned_date: newActionDate, 
               actor: newActionActor,
               contact: newActionContact,
-              completed_note: newActionComment 
+              completed_note: newActionComment,
+              affaire_id: affaireId || undefined
             })
           });
           if (res.ok) {
@@ -4371,7 +4377,7 @@
       const [actionNotes, setActionNotes] = React.useState({});
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
-      const [showNewActionPopup, setShowNewActionPopup] = React.useState(false);
+      const [showNewActionPopup, setShowNewActionPopup] = React.useState(null); // null ou {affaireId: X}
       
       // Initialiser les notes avec les completed_note existantes
       React.useEffect(() => {
@@ -4533,13 +4539,119 @@
                         </div>
                       </div>
 
-                      {/* Devis de l'affaire (visible si affaire sélectionnée) */}
+                      {/* Contenu de l'affaire (visible si affaire sélectionnée) */}
                       {isSelected && (
                         <div style={{
                           padding: '15px',
                           backgroundColor: '#f9f9f9',
                           borderTop: '1px solid #c8dede'
                         }}>
+                          {/* Section Prochaines actions de cette affaire */}
+                          <div style={{marginBottom: '20px'}}>
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
+                              <h5 style={{margin: 0, fontSize: '13px', color: '#1a3535', fontWeight: '600'}}>
+                                📅 Prochaines actions
+                              </h5>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowNewActionPopup({affaireId: affaire.id});
+                                }}
+                                style={{
+                                  backgroundColor: '#007d89',
+                                  color: 'white',
+                                  border: 'none',
+                                  padding: '5px 10px',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  fontFamily: 'Lato, sans-serif'
+                                }}
+                              >
+                                + Nouvelle action
+                              </button>
+                            </div>
+                            {(() => {
+                              const affaireActions = (nextActions || []).filter(a => a.affaire_id === affaire.id && !a.completed);
+                              
+                              if (affaireActions.length === 0) {
+                                return (
+                                  <div style={{
+                                    padding: '15px',
+                                    textAlign: 'center',
+                                    color: '#999',
+                                    fontSize: '12px',
+                                    backgroundColor: '#ffffff',
+                                    borderRadius: '4px',
+                                    border: '1px dashed #c8dede',
+                                    marginBottom: '10px'
+                                  }}>
+                                    Aucune action planifiée pour cette affaire
+                                  </div>
+                                );
+                              }
+                              
+                              return (
+                                <div style={{display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px'}}>
+                                  {affaireActions.slice(0, 3).map(action => {
+                                    const isOverdue = new Date(action.planned_date) < new Date() && !action.completed;
+                                    return (
+                                      <div
+                                        key={action.id}
+                                        style={{
+                                          padding: '8px 10px',
+                                          backgroundColor: '#ffffff',
+                                          borderRadius: '4px',
+                                          border: `1px solid ${isOverdue ? '#f79d8d' : '#e0e0e0'}`,
+                                          fontSize: '12px',
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
+                                          alignItems: 'center'
+                                        }}
+                                      >
+                                        <div style={{flex: 1}}>
+                                          <span style={{fontWeight: '600', color: isOverdue ? '#f79d8d' : '#1a3535'}}>
+                                            {action.action_type}
+                                          </span>
+                                          {' - '}
+                                          <span style={{color: '#607a7a'}}>
+                                            {new Date(action.planned_date).toLocaleDateString('fr-FR')}
+                                          </span>
+                                          {action.contact && (
+                                            <span style={{color: '#999', marginLeft: '6px'}}>
+                                              ({action.contact})
+                                            </span>
+                                          )}
+                                        </div>
+                                        <button
+                                          onClick={() => onToggleNextAction(action.id, true)}
+                                          style={{
+                                            padding: '3px 8px',
+                                            backgroundColor: '#007d89',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '3px',
+                                            cursor: 'pointer',
+                                            fontSize: '11px'
+                                          }}
+                                        >
+                                          ✓ Valider
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                  {affaireActions.length > 3 && (
+                                    <div style={{fontSize: '11px', color: '#999', textAlign: 'center'}}>
+                                      + {affaireActions.length - 3} autre(s) action(s)
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Section Devis de cette affaire */}
                           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
                             <h5 style={{margin: 0, fontSize: '13px', color: '#1a3535', fontWeight: '600'}}>
                               📄 Devis de cette affaire ({affaireDevis.length})
@@ -5405,8 +5517,8 @@
                 <div style={{display: 'flex', gap: '10px', justifyContent: 'flex-end'}}>
                   <button
                     onClick={() => {
-                      onAddNextAction();
-                      setShowNewActionPopup(false);
+                      onAddNextAction(showNewActionPopup?.affaireId || null);
+                      setShowNewActionPopup(null);
                     }}
                     style={{
                       padding: '10px 20px',
@@ -5422,7 +5534,7 @@
                     ✅ Ajouter
                   </button>
                   <button
-                    onClick={() => setShowNewActionPopup(false)}
+                    onClick={() => setShowNewActionPopup(null)}
                     style={{
                       padding: '10px 20px',
                       backgroundColor: '#999',

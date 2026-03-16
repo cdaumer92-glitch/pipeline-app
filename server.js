@@ -329,12 +329,53 @@ app.get('/api/prospects/:id/next_actions', auth, async (req, res) => {
   }
 });
 
-app.post('/api/prospects/:id/next_actions', auth, async (req, res) => {
-  const { action_type, planned_date, actor, contact, completed_note } = req.body;
+// GET /api/affaires/:id/next_actions - Récupérer les actions d'une affaire
+app.get('/api/affaires/:id/next_actions', auth, async (req, res) => {
   try {
     const result = await pool.query(
-      'INSERT INTO next_actions (prospect_id, action_type, planned_date, actor, contact, completed_note, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-      [req.params.id, action_type, planned_date || null, actor, contact || null, completed_note || null, req.userId]
+      'SELECT * FROM next_actions WHERE affaire_id = $1 ORDER BY planned_date ASC', 
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/prospects/:id/next_actions', auth, async (req, res) => {
+  const { action_type, planned_date, actor, contact, completed_note, affaire_id } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO next_actions (prospect_id, affaire_id, action_type, planned_date, actor, contact, completed_note, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+      [req.params.id, affaire_id || null, action_type, planned_date || null, actor, contact || null, completed_note || null, req.userId]
+    );
+    res.json({ id: result.rows[0].id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/affaires/:id/next_actions - Créer une action pour une affaire
+app.post('/api/affaires/:id/next_actions', auth, async (req, res) => {
+  const affaireId = req.params.id;
+  const { action_type, planned_date, actor, contact, completed_note } = req.body;
+  
+  try {
+    // Récupérer le prospect_id depuis l'affaire
+    const affaireResult = await pool.query(
+      'SELECT prospect_id FROM affaires WHERE id = $1',
+      [affaireId]
+    );
+
+    if (affaireResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Affaire non trouvée' });
+    }
+
+    const prospectId = affaireResult.rows[0].prospect_id;
+
+    const result = await pool.query(
+      'INSERT INTO next_actions (prospect_id, affaire_id, action_type, planned_date, actor, contact, completed_note, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+      [prospectId, affaireId, action_type, planned_date || null, actor, contact || null, completed_note || null, req.userId]
     );
     res.json({ id: result.rows[0].id });
   } catch (err) {
