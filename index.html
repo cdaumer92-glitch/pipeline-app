@@ -1819,7 +1819,7 @@
           </div>
           
           {/* Bouton Nouvelle Société collé à la recherche */}
-          <button onClick={onNewProspect} style={{backgroundColor: '#007d89', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', marginLeft: '10px'}}>+ Nlle Société</button>
+          <button onClick={onNewProspect} style={{backgroundColor: '#007d89', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', marginLeft: '0'}}>+ Nlle Société</button>
           
           <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
             <button onClick={onDashboard} style={{...styles.dashboardBtn, ...(isDashboard ? {backgroundColor: '#10a0dc', color: 'white'} : {})}}>📊 Dashboard</button>
@@ -3637,7 +3637,9 @@
                                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                                     <div style={{flex: 1}}>
                                       <div style={{fontSize: '13px', fontWeight: '600'}}>{devis.devis_name || 'Sans nom'} <span style={{fontSize: '11px', color: '#007d89'}}>{devis.chance_percent}%</span></div>
-                                      <div style={{fontSize: '11px', color: '#666'}}>{devis.setup_amount?.toLocaleString('fr-FR')}€ + {devis.monthly_amount?.toLocaleString('fr-FR')}€/mois</div>
+                                      <div style={{fontSize: '11px', color: '#666'}}>
+                                        Setup: {devis.setup_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | Abo (M): {devis.monthly_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | Abo (A): {devis.annual_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | Formation: {devis.training_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T.
+                                      </div>
                                     </div>
                                     <div style={{display: 'flex', gap: '4px'}}>
                                       <button onClick={() => handleEditDevis(devis)} style={{padding: '3px 6px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}>✏️</button>

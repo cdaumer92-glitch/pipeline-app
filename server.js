@@ -869,11 +869,6 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
       comment
     } = req.body;
     
-    // affaire_id est obligatoire
-    if (!affaire_id) {
-      return res.status(400).json({ error: 'affaire_id est obligatoire' });
-    }
-    
     const result = await pool.query(
       `INSERT INTO devis (
         prospect_id,
@@ -892,7 +887,7 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
       RETURNING *`,
       [
         id,
-        affaire_id,
+        affaire_id || null,
         devis_name || 'Devis sans nom',
         devis_status || 'En cours',
         quote_date || null,
@@ -934,7 +929,7 @@ app.put('/api/devis/:id', auth, async (req, res) => {
     const result = await pool.query(
       `UPDATE devis SET
         devis_name = $1,
-        devis_status = $2,
+        devis_status = COALESCE($2, devis_status),
         quote_date = $3,
         setup_amount = $4,
         monthly_amount = $5,
@@ -949,7 +944,7 @@ app.put('/api/devis/:id', auth, async (req, res) => {
       RETURNING *`,
       [
         devis_name,
-        devis_status,
+        devis_status || null,
         quote_date || null,
         setup_amount || 0,
         monthly_amount || 0,
