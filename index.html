@@ -2620,40 +2620,65 @@
                     <h4 style={{margin: '0 0 10px 0', color: selectedCommercial === commercial ? '#007d89' : '#333'}}>{commercial}</h4>
                     
                     {/* Nouveaux cette semaine/mois */}
-                    <div style={{fontSize: '12px', color: '#607a7a', marginBottom: '8px', padding: '8px', backgroundColor: '#f2f8f8', borderRadius: '4px'}}>
-                      <div style={{fontWeight: '600', marginBottom: '4px', color: '#1a3535'}}>📊 Nouveaux</div>
-                      <div style={{display: 'flex', gap: '12px', fontSize: '11px'}}>
-                        <span>Devis: 
-                          <strong 
-                            style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline'}} 
-                            onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'devis', period: 'semaine'}); }}
-                          >{nouveauxDevisSemaine}S</strong> / 
-                          <strong 
-                            style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline'}} 
-                            onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'devis', period: 'mois'}); }}
-                          >{nouveauxDevisMois}M</strong>
-                        </span>
-                        <span>Prospects: 
-                          <strong 
-                            style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline'}} 
-                            onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'prospects', period: 'semaine'}); }}
-                          >{nouveauxProspectsSemaine}S</strong> / 
-                          <strong 
-                            style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline'}} 
-                            onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'prospects', period: 'mois'}); }}
-                          >{nouveauxProspectsMois}M</strong>
-                        </span>
-                        <span>Clients: 
-                          <strong 
-                            style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline'}} 
-                            onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'clients', period: 'semaine'}); }}
-                          >{nouveauxClientsSemaine}S</strong> / 
-                          <strong 
-                            style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline'}} 
-                            onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'clients', period: 'mois'}); }}
-                          >{nouveauxClientsMois}M</strong>
-                        </span>
-                      </div>
+                    <div style={{fontSize: '11px', color: '#607a7a', marginBottom: '8px', margin: '0 -15px 8px -15px', padding: '8px 15px', backgroundColor: '#f2f8f8', borderRadius: '0', display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'nowrap'}}>
+                      <span style={{fontWeight: '600', color: '#1a3535'}}>📊</span>
+                      
+                      <span style={{color: '#1a9fdb', fontWeight: '500'}}>Devis:</span>
+                      <span
+                        style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline', padding: '2px 4px', borderRadius: '3px', transition: 'background-color 0.2s', whiteSpace: 'nowrap'}} 
+                        onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'devis', period: 'semaine'}); }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,125,137,0.1)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <strong>{nouveauxDevisSemaine}</strong> (sem)
+                      </span>
+                      <span style={{color: '#d0d0d0'}}>;</span>
+                      <span
+                        style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline', padding: '2px 4px', borderRadius: '3px', transition: 'background-color 0.2s', whiteSpace: 'nowrap'}} 
+                        onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'devis', period: 'mois'}); }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,125,137,0.1)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <strong>{nouveauxDevisMois}</strong> (mois)
+                      </span>
+                      
+                      <span style={{color: '#ff9800', fontWeight: '500'}}>Prospects:</span>
+                      <span
+                        style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline', padding: '2px 4px', borderRadius: '3px', transition: 'background-color 0.2s', whiteSpace: 'nowrap'}} 
+                        onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'prospects', period: 'semaine'}); }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,125,137,0.1)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <strong>{nouveauxProspectsSemaine}</strong> (sem)
+                      </span>
+                      <span style={{color: '#d0d0d0'}}>;</span>
+                      <span
+                        style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline', padding: '2px 4px', borderRadius: '3px', transition: 'background-color 0.2s', whiteSpace: 'nowrap'}} 
+                        onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'prospects', period: 'mois'}); }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,125,137,0.1)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <strong>{nouveauxProspectsMois}</strong> (mois)
+                      </span>
+                      
+                      <span style={{color: '#d4a017', fontWeight: '500'}}>Clients:</span>
+                      <span
+                        style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline', padding: '2px 4px', borderRadius: '3px', transition: 'background-color 0.2s', whiteSpace: 'nowrap'}} 
+                        onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'clients', period: 'semaine'}); }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,125,137,0.1)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <strong>{nouveauxClientsSemaine}</strong> (sem)
+                      </span>
+                      <span style={{color: '#d0d0d0'}}>;</span>
+                      <span
+                        style={{cursor: 'pointer', color: '#007d89', textDecoration: 'underline', padding: '2px 4px', borderRadius: '3px', transition: 'background-color 0.2s', whiteSpace: 'nowrap'}} 
+                        onClick={(e) => { e.stopPropagation(); setShowNouveauxModal({commercial, type: 'clients', period: 'mois'}); }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,125,137,0.1)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <strong>{nouveauxClientsMois}</strong> (mois)
+                      </span>
                     </div>
                     
                     <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Prospects: <strong>{commercialProspects.length}</strong></div>
