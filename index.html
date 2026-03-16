@@ -174,6 +174,7 @@
       const [showDevisForm, setShowDevisForm] = React.useState(false);
       const [editingDevisId, setEditingDevisId] = React.useState(null);
       const [devisFormData, setDevisFormData] = React.useState({
+        devis_name: '',
         quote_date: '',
         setup_amount: 0,
         monthly_amount: 0,
@@ -377,6 +378,7 @@
 
       const handleAddDevis = () => {
         setDevisFormData({
+          devis_name: '',
           quote_date: new Date().toISOString().split('T')[0],
           setup_amount: 0,
           monthly_amount: 0,
@@ -393,6 +395,7 @@
 
       const handleEditDevis = (devis) => {
         setDevisFormData({
+          devis_name: devis.devis_name || '',
           quote_date: devis.quote_date || '',
           setup_amount: devis.setup_amount || 0,
           monthly_amount: devis.monthly_amount || 0,
@@ -450,6 +453,7 @@
             setShowDevisForm(false);
             setEditingDevisId(null);
             setDevisFormData({
+              devis_name: '',
               quote_date: '',
               setup_amount: 0,
               monthly_amount: 0,
@@ -951,6 +955,13 @@
         setShowForm(true);
       };
 
+      const handleNewProspect = () => {
+        setFormData(getEmptyProspect());
+        setSelectedProspect(null);
+        setShowForm(true);
+        setIsDashboard(false);
+      };
+
       const handleSelectProspect = (prospect) => {
         console.log('Clicking on prospect:', prospect.id, prospect.name);
         setSelectedProspect(prospect);
@@ -1039,6 +1050,7 @@
             onSettings={() => setShowSettings(true)}
             prospects={prospects}
             onSelectProspect={handleSelectProspect}
+            onNewProspect={handleNewProspect}
           />
           
           {showSettings && <Settings onClose={() => setShowSettings(false)} user={user} />}
@@ -1667,7 +1679,7 @@
       );
     }
 
-    function Header({ user, onLogout, onDashboard, isDashboard, onSettings, prospects, onSelectProspect }) {
+    function Header({ user, onLogout, onDashboard, isDashboard, onSettings, prospects, onSelectProspect, onNewProspect }) {
       const [globalSearch, setGlobalSearch] = React.useState('');
       const [showResults, setShowResults] = React.useState(false);
       const searchRef = React.useRef(null);
@@ -1805,6 +1817,9 @@
               </div>
             )}
           </div>
+          
+          {/* Bouton Nouvelle Société collé à la recherche */}
+          <button onClick={onNewProspect} style={{backgroundColor: '#007d89', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', marginLeft: '10px'}}>+ Nlle Société</button>
           
           <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
             <button onClick={onDashboard} style={{...styles.dashboardBtn, ...(isDashboard ? {backgroundColor: '#10a0dc', color: 'white'} : {})}}>📊 Dashboard</button>
@@ -2090,7 +2105,6 @@
     function LeftPanel({ prospects, allProspects, selectedProspect, onSelect, filterSocietyType, onFilterSocietyTypeChange, filterStatus, onFilterChange, filterCommercial, onFilterCommercialChange, searchTerm, onSearchChange, sortBy, onSortChange, prospectActionsInfo, onNewProspect }) {
       return (
         <div style={styles.leftPanel}>
-          <button onClick={onNewProspect} style={styles.newBtn}>+ Nouvelle entreprise</button>
           
           {/* Type de société : Suspects / Prospects / Clients */}
           <div style={{...styles.filterContainer, marginTop: '15px'}}>
@@ -3579,20 +3593,71 @@
         <div style={styles.activitiesSection}>
           <h3>📋 Suivi des activités</h3>
           
-          {/* Section Affaires */}
-          {affairesList && affairesList.length > 0 && (
-            <div style={{backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #ddd'}}>
-              <h4 style={{marginTop: 0, marginBottom: '15px', color: '#333'}}>📁 Affaires ({affairesList.length})</h4>
-              <div style={{fontSize: '14px', color: '#666'}}>
-                {affairesList.map(affaire => (
-                  <div key={affaire.id} style={{padding: '10px', backgroundColor: '#fff', borderRadius: '4px', marginBottom: '8px', border: '1px solid #e0e0e0'}}>
-                    <strong>{affaire.nom_affaire}</strong>
-                    {affaire.description && <div style={{fontSize: '12px', color: '#999', marginTop: '4px'}}>{affaire.description}</div>}
-                  </div>
-                ))}
-              </div>
+          {/* ========== SECTION AFFAIRES AVEC ACCORDÉON ========== */}
+          <div style={{backgroundColor: '#f2f8f8', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #c8dede'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
+              <h4 style={{marginTop: 0, marginBottom: 0, color: '#1a3535'}}>📁 Affaires ({affairesList?.length || 0})</h4>
+              <button onClick={handleAddAffaire} style={{backgroundColor: '#007d89', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600'}}>
+                + Nouvelle affaire
+              </button>
             </div>
-          )}
+
+            {affairesList && affairesList.length > 0 ? (
+              <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                {affairesList.map(affaire => {
+                  const isOpen = selectedAffaireId === affaire.id;
+                  const affaireDevis = devisList.filter(d => d.affaire_id === affaire.id);
+                  return (
+                    <div key={affaire.id} style={{backgroundColor: '#fff', borderRadius: '6px', border: isOpen ? '2px solid #007d89' : '1px solid #c8dede', overflow: 'hidden'}}>
+                      <div onClick={() => setSelectedAffaireId(isOpen ? null : affaire.id)} style={{padding: '12px', cursor: 'pointer', backgroundColor: isOpen ? '#e8f4f5' : '#fff'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                          <div style={{flex: 1}}>
+                            <div style={{fontWeight: '600', fontSize: '14px', color: '#1a3535'}}>{isOpen ? '▼' : '▶'} {affaire.nom_affaire}</div>
+                            <div style={{fontSize: '12px', color: '#607a7a', marginTop: '4px'}}>📄 {affaireDevis.length} devis</div>
+                          </div>
+                          <div style={{display: 'flex', gap: '4px'}} onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => handleEditAffaire(affaire)} style={{padding: '4px 8px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px'}}>✏️</button>
+                            <button onClick={() => handleDeleteAffaire(affaire.id)} style={{padding: '4px 8px', backgroundColor: '#f79d8d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px'}}>🗑️</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {isOpen && (
+                        <div style={{padding: '15px', backgroundColor: '#f9f9f9', borderTop: '1px solid #c8dede'}}>
+                          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
+                            <h5 style={{margin: 0, fontSize: '13px', color: '#1a3535'}}>📄 Devis ({affaireDevis.length})</h5>
+                            <button onClick={handleAddDevis} style={{backgroundColor: '#007d89', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}>+ Devis</button>
+                          </div>
+                          {affaireDevis.length === 0 ? (
+                            <div style={{padding: '15px', textAlign: 'center', color: '#999', fontSize: '12px'}}>Aucun devis</div>
+                          ) : (
+                            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                              {affaireDevis.map(devis => (
+                                <div key={devis.id} style={{padding: '10px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #e0e0e0'}}>
+                                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                    <div style={{flex: 1}}>
+                                      <div style={{fontSize: '13px', fontWeight: '600'}}>{devis.devis_name || 'Sans nom'} <span style={{fontSize: '11px', color: '#007d89'}}>{devis.chance_percent}%</span></div>
+                                      <div style={{fontSize: '11px', color: '#666'}}>{devis.setup_amount?.toLocaleString('fr-FR')}€ + {devis.monthly_amount?.toLocaleString('fr-FR')}€/mois</div>
+                                    </div>
+                                    <div style={{display: 'flex', gap: '4px'}}>
+                                      <button onClick={() => handleEditDevis(devis)} style={{padding: '3px 6px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}>✏️</button>
+                                      <button onClick={() => handleDeleteDevis(devis.id)} style={{padding: '3px 6px', backgroundColor: '#f79d8d', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}>🗑️</button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{padding: '20px', textAlign: 'center', color: '#999', fontSize: '13px'}}>Aucune affaire</div>
+            )}
+          </div>
           
           {/* Section Devis */}
           <div style={{
@@ -3938,6 +4003,18 @@
                   {editingDevisId ? 'Modifier le devis' : 'Nouveau devis'}
                 </h3>
                 
+                {/* Nom du devis */}
+                <div style={{marginBottom: '15px'}}>
+                  <label style={{display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold'}}>Nom du devis</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Devis Migration ERP, Devis Formation..."
+                    value={devisFormData.devis_name || ''}
+                    onChange={(e) => setDevisFormData({...devisFormData, devis_name: e.target.value})}
+                    style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%', fontSize: '14px'}}
+                  />
+                </div>
+
                 {/* Date, montants, probabilité */}
                 <div style={{display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap'}}>
                   <div style={{flex: '1 1 140px'}}>
@@ -3949,6 +4026,21 @@
                       style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
                     />
                   </div>
+                  {affairesList.length > 0 && (
+                    <div style={{flex: '1 1 200px'}}>
+                      <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Affaire</label>
+                      <select
+                        value={selectedAffaireId || ''}
+                        onChange={(e) => setSelectedAffaireId(e.target.value ? parseInt(e.target.value) : null)}
+                        style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%'}}
+                      >
+                        <option value="">-- Aucune affaire --</option>
+                        {affairesList.map(aff => (
+                          <option key={aff.id} value={aff.id}>{aff.nom_affaire}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div style={{flex: '1 1 120px'}}>
                     <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Setup</label>
                     <input
