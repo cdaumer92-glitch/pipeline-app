@@ -397,10 +397,19 @@
       };
 
       const handleEditDevis = (devis) => {
+        // Formater la date PostgreSQL en YYYY-MM-DD pour input HTML
+        let formattedDate = '';
+        if (devis.quote_date) {
+          const d = new Date(devis.quote_date);
+          if (!isNaN(d.getTime())) {
+            formattedDate = d.toISOString().split('T')[0];
+          }
+        }
+        
         setDevisFormData({
           devis_name: devis.devis_name || '',
           devis_status: devis.devis_status || 'En cours',
-          quote_date: devis.quote_date || '',
+          quote_date: formattedDate,
           setup_amount: devis.setup_amount || 0,
           monthly_amount: devis.monthly_amount || 0,
           annual_amount: devis.annual_amount || 0,
@@ -3679,9 +3688,17 @@
                                 <div key={devis.id} style={{padding: '10px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #e0e0e0'}}>
                                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                                     <div style={{flex: 1}}>
-                                      <div style={{fontSize: '13px', fontWeight: '600'}}>{devis.devis_name || 'Sans nom'} <span style={{fontSize: '11px', color: '#007d89'}}>{devis.chance_percent}%</span></div>
+                                      <div style={{fontSize: '13px', fontWeight: '600'}}>
+                                        {devis.devis_name || 'Sans nom'}
+                                        {devis.quote_date && (
+                                          <span style={{fontSize: '11px', color: '#607a7a', fontWeight: '400', marginLeft: '8px'}}>
+                                            [{new Date(devis.quote_date).toLocaleDateString('fr-FR')}]
+                                          </span>
+                                        )}
+                                        <span style={{fontSize: '11px', color: '#007d89', marginLeft: '8px'}}>{devis.chance_percent}%</span>
+                                      </div>
                                       <div style={{fontSize: '11px', color: '#666'}}>
-                                        Setup: {devis.setup_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | Abo (M): {devis.monthly_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | Abo (A): {devis.annual_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | Formation: {devis.training_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T.
+                                        <strong>Setup:</strong> {devis.setup_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | <strong>Abo (M):</strong> {devis.monthly_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | <strong>Abo (A):</strong> {devis.annual_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | <strong>Formation:</strong> {devis.training_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T.
                                       </div>
                                     </div>
                                     <div style={{display: 'flex', gap: '4px'}}>
@@ -3831,6 +3848,93 @@
                     </div>
                   </div>
                 )}
+
+                {/* Stepper statut devis */}
+                <div style={{marginBottom: '20px'}}>
+                  <label style={{display: 'block', marginBottom: '10px', fontSize: '13px', fontWeight: 'bold'}}>Statut du devis</label>
+                  
+                  {/* Stepper visuel */}
+                  <div style={{display: 'flex', alignItems: 'center', marginBottom: '12px', gap: '8px'}}>
+                    {['En cours', 'Envoyé', 'Discussion', 'Gagné', 'Perdu'].map((status, idx) => {
+                      const currentIdx = ['En cours', 'Envoyé', 'Discussion', 'Gagné', 'Perdu'].indexOf(devisFormData.devis_status || 'En cours');
+                      const isActive = idx <= currentIdx;
+                      const isWon = status === 'Gagné' && devisFormData.devis_status === 'Gagné';
+                      const isLost = status === 'Perdu' && devisFormData.devis_status === 'Perdu';
+                      
+                      return (
+                        <React.Fragment key={status}>
+                          <div style={{flex: 1, textAlign: 'center'}}>
+                            <div 
+                              onClick={() => {
+                                const probabilities = {
+                                  'En cours': 20,
+                                  'Envoyé': 40,
+                                  'Discussion': 60,
+                                  'Gagné': 100,
+                                  'Perdu': 0
+                                };
+                                setDevisFormData({
+                                  ...devisFormData, 
+                                  devis_status: status,
+                                  chance_percent: probabilities[status]
+                                });
+                              }}
+                              style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '50%',
+                              backgroundColor: isWon ? '#28a745' : isLost ? '#dc3545' : isActive ? '#007d89' : '#e0e0e0',
+                              color: 'white',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              margin: '0 auto 5px',
+                              fontWeight: 'bold',
+                              fontSize: '14px',
+                              cursor: 'pointer',
+                              transition: 'transform 0.2s, box-shadow 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = 'scale(1.1)';
+                              e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = 'scale(1)';
+                              e.currentTarget.style.boxShadow = 'none';
+                            }}
+                            >
+                              {isWon ? '✓' : isLost ? '✗' : idx + 1}
+                            </div>
+                            <div style={{fontSize: '11px', color: isActive ? '#1a3535' : '#999', fontWeight: isActive ? '600' : '400'}}>
+                              {status}
+                            </div>
+                          </div>
+                          {idx < 4 && (
+                            <div style={{
+                              flex: 0.5,
+                              height: '3px',
+                              backgroundColor: isActive && idx < currentIdx ? '#007d89' : '#e0e0e0',
+                              marginTop: '-20px'
+                            }} />
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+
+                  {/* Select statut */}
+                  <select
+                    value={devisFormData.devis_status || 'En cours'}
+                    onChange={(e) => setDevisFormData({...devisFormData, devis_status: e.target.value})}
+                    style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%', fontSize: '14px'}}
+                  >
+                    <option value="En cours">En cours</option>
+                    <option value="Envoyé">Envoyé</option>
+                    <option value="Discussion">Discussion</option>
+                    <option value="Gagné">Gagné</option>
+                    <option value="Perdu">Perdu</option>
+                  </select>
+                </div>
 
                 {/* Date, montants, probabilité */}
                 <div style={{display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap'}}>
