@@ -405,7 +405,7 @@ app.put('/api/next_actions/:id', auth, async (req, res) => {
 
 app.delete('/api/next_actions/:id', auth, async (req, res) => {
   try {
-    await pool.query('DELETE FROM next_actions WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    await pool.query('DELETE FROM next_actions WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -798,7 +798,7 @@ app.post('/api/affaires/:id/devis', auth, async (req, res) => {
         affaireId,
         devis_name || null,
         devis_status || 'En cours',
-        quote_date,
+        quote_date === '' ? null : quote_date,
         parseFloat(setup_amount) || 0,
         parseFloat(monthly_amount) || 0,
         parseFloat(annual_amount) || 0,
@@ -890,7 +890,7 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
         affaire_id || null,
         devis_name || 'Devis sans nom',
         devis_status || 'En cours',
-        quote_date || null,
+        quote_date === '' ? null : quote_date,
         setup_amount || 0,
         monthly_amount || 0,
         annual_amount || 0,
@@ -926,6 +926,9 @@ app.put('/api/devis/:id', auth, async (req, res) => {
       affaire_id
     } = req.body;
     
+    console.log('🔧 PUT /api/devis/' + id);
+    console.log('Body reçu:', req.body);
+    
     const result = await pool.query(
       `UPDATE devis SET
         devis_name = $1,
@@ -945,7 +948,7 @@ app.put('/api/devis/:id', auth, async (req, res) => {
       [
         devis_name,
         devis_status || null,
-        quote_date || null,
+        quote_date === '' ? null : quote_date, // Convertir chaîne vide en null pour PostgreSQL
         setup_amount || 0,
         monthly_amount || 0,
         annual_amount || 0,
@@ -958,13 +961,15 @@ app.put('/api/devis/:id', auth, async (req, res) => {
       ]
     );
     
+    console.log('✅ Devis mis à jour:', result.rows[0]);
+    
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Devis non trouvé' });
     }
     
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Erreur PUT /api/devis/:id:', err);
+    console.error('❌ Erreur PUT /api/devis/:id:', err);
     res.status(500).json({ error: err.message });
   }
 });

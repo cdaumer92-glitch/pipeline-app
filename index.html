@@ -781,7 +781,7 @@
 
       const handleToggleActionAffaire = async (actionId, completed, affaireId) => {
         try {
-          const res = await fetch(`${API_URL}/next_actions/${actionId}/toggle`, {
+          const res = await fetch(`${API_URL}/next_actions/${actionId}`, {
             method: 'PUT',
             headers: {
               'Authorization': `Bearer ${user.token}`,
