@@ -191,7 +191,17 @@
       
       // States Affaires
       const [affairesList, setAffairesList] = React.useState([]);
+      const [affairesActions, setAffairesActions] = React.useState({}); // {affaire_id: [actions]}
       const [showAffaireForm, setShowAffaireForm] = React.useState(false);
+      const [showActionAffaireForm, setShowActionAffaireForm] = React.useState(false);
+      const [selectedAffaireForAction, setSelectedAffaireForAction] = React.useState(null);
+      const [actionAffaireFormData, setActionAffaireFormData] = React.useState({
+        action_type: 'Appel',
+        action_date: new Date().toISOString().split('T')[0],
+        action_actor: '',
+        action_contact: '',
+        action_comment: ''
+      });
       const [editingAffaireId, setEditingAffaireId] = React.useState(null);
       const [affaireFormData, setAffaireFormData] = React.useState({
         nom_affaire: '',
@@ -199,6 +209,7 @@
         statut_global: 'En cours'
       });
       const [selectedAffaireId, setSelectedAffaireId] = React.useState(null);
+      const [expandedActionId, setExpandedActionId] = React.useState(null);
       
       const [filterSocietyType, setFilterSocietyType] = React.useState('Tous');
       const [filterStatus, setFilterStatus] = React.useState('Tous');
@@ -618,6 +629,23 @@
           if (res.ok) {
             const data = await res.json();
             setAffairesList(data);
+            
+            // Charger les actions pour chaque affaire
+            const actionsMap = {};
+            for (const affaire of data) {
+              try {
+                const actionsRes = await fetch(`${API_URL}/affaires/${affaire.id}/next_actions`, {
+                  headers: { 'Authorization': `Bearer ${user.token}` }
+                });
+                if (actionsRes.ok) {
+                  actionsMap[affaire.id] = await actionsRes.json();
+                }
+              } catch (err) {
+                console.error(`Erreur chargement actions affaire ${affaire.id}:`, err);
+                actionsMap[affaire.id] = [];
+              }
+            }
+            setAffairesActions(actionsMap);
           }
         } catch (err) {
           console.error('Erreur fetchAffaires:', err);
@@ -694,6 +722,96 @@
           }
         } catch (err) {
           console.error('Erreur handleDeleteAffaire:', err);
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      // ============ ACTIONS AFFAIRE ============
+      const handleOpenActionAffaireForm = (affaireId) => {
+        setSelectedAffaireForAction(affaireId);
+        setActionAffaireFormData({
+          action_type: 'Appel',
+          action_date: new Date().toISOString().split('T')[0],
+          action_actor: user.name || '',
+          action_contact: '',
+          action_comment: ''
+        });
+        setShowActionAffaireForm(true);
+      };
+
+      const handleSaveActionAffaire = async () => {
+        if (!selectedAffaireForAction) return;
+
+        try {
+          const res = await fetch(`${API_URL}/affaires/${selectedAffaireForAction}/next_actions`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${user.token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              action_type: actionAffaireFormData.action_type,
+              planned_date: actionAffaireFormData.action_date,
+              actor: actionAffaireFormData.action_actor,
+              contact: actionAffaireFormData.action_contact,
+              completed_note: actionAffaireFormData.action_comment,
+              affaire_id: selectedAffaireForAction
+            })
+          });
+
+          if (res.ok) {
+            await fetchAffaires(selectedProspect.id);
+            setShowActionAffaireForm(false);
+            setSelectedAffaireForAction(null);
+            setActionAffaireFormData({
+              action_type: 'Appel',
+              action_date: new Date().toISOString().split('T')[0],
+              action_actor: '',
+              action_contact: '',
+              action_comment: ''
+            });
+          } else {
+            alert('Erreur lors de la création de l\'action');
+          }
+        } catch (err) {
+          console.error('Erreur handleSaveActionAffaire:', err);
+          alert('Erreur: ' + err.message);
+        }
+      };
+
+      const handleToggleActionAffaire = async (actionId, completed, affaireId) => {
+        try {
+          const res = await fetch(`${API_URL}/next_actions/${actionId}/toggle`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${user.token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ completed })
+          });
+
+          if (res.ok) {
+            await fetchAffaires(selectedProspect.id);
+          }
+        } catch (err) {
+          console.error('Erreur handleToggleActionAffaire:', err);
+        }
+      };
+
+      const handleDeleteActionAffaire = async (actionId, affaireId) => {
+        if (!window.confirm('Supprimer cette action ?')) return;
+
+        try {
+          const res = await fetch(`${API_URL}/next_actions/${actionId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+
+          if (res.ok) {
+            await fetchAffaires(selectedProspect.id);
+          }
+        } catch (err) {
+          console.error('Erreur handleDeleteActionAffaire:', err);
           alert('Erreur: ' + err.message);
         }
       };
@@ -1238,6 +1356,8 @@
               affairesList={affairesList}
               selectedAffaireId={selectedAffaireId}
               setSelectedAffaireId={setSelectedAffaireId}
+              expandedActionId={expandedActionId}
+              setExpandedActionId={setExpandedActionId}
               handleAddAffaire={handleAddAffaire}
               handleEditAffaire={handleEditAffaire}
               handleSaveAffaire={handleSaveAffaire}
@@ -1248,6 +1368,16 @@
               setEditingAffaireId={setEditingAffaireId}
               affaireFormData={affaireFormData}
               setAffaireFormData={setAffaireFormData}
+              affairesActions={affairesActions}
+              handleOpenActionAffaireForm={handleOpenActionAffaireForm}
+              handleToggleActionAffaire={handleToggleActionAffaire}
+              handleDeleteActionAffaire={handleDeleteActionAffaire}
+              showActionAffaireForm={showActionAffaireForm}
+              setShowActionAffaireForm={setShowActionAffaireForm}
+              actionAffaireFormData={actionAffaireFormData}
+              setActionAffaireFormData={setActionAffaireFormData}
+              handleSaveActionAffaire={handleSaveActionAffaire}
+              interlocuteurs={interlocuteurs}
             />
           </div>
           )}
@@ -2926,7 +3056,7 @@
       );
     }
 
-    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData }) {
+    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
@@ -3182,6 +3312,8 @@
             affairesList={affairesList}
             selectedAffaireId={selectedAffaireId}
             setSelectedAffaireId={setSelectedAffaireId}
+            expandedActionId={expandedActionId}
+            setExpandedActionId={setExpandedActionId}
             handleAddAffaire={handleAddAffaire}
             handleEditAffaire={handleEditAffaire}
             handleSaveAffaire={handleSaveAffaire}
@@ -3192,6 +3324,15 @@
             setEditingAffaireId={setEditingAffaireId}
             affaireFormData={affaireFormData}
             setAffaireFormData={setAffaireFormData}
+            affairesActions={affairesActions}
+            handleOpenActionAffaireForm={handleOpenActionAffaireForm}
+            handleToggleActionAffaire={handleToggleActionAffaire}
+            handleDeleteActionAffaire={handleDeleteActionAffaire}
+            showActionAffaireForm={showActionAffaireForm}
+            setShowActionAffaireForm={setShowActionAffaireForm}
+            actionAffaireFormData={actionAffaireFormData}
+            setActionAffaireFormData={setActionAffaireFormData}
+            handleSaveActionAffaire={handleSaveActionAffaire}
             devisList={devisList}
             onEdit={onEdit}
             showDevisForm={showDevisForm}
@@ -3624,7 +3765,7 @@
       );
     }
 
-    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleDeleteDevisPDF, handleRattacherDevisAffaire, selectedProspect }) {
+    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleDeleteDevisPDF, handleRattacherDevisAffaire, selectedProspect }) {
       const [actionNotes, setActionNotes] = React.useState({});
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
@@ -3746,6 +3887,100 @@
                               ))}
                             </div>
                           )}
+                          
+                          {/* ========== ACTIONS DE L'AFFAIRE ========== */}
+                          <div style={{marginTop: '20px'}}>
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
+                              <h5 style={{margin: 0, fontSize: '13px', color: '#1a3535'}}>📋 Actions affaire ({affairesActions[affaire.id]?.length || 0})</h5>
+                              <button 
+                                onClick={() => handleOpenActionAffaireForm(affaire.id)}
+                                style={{backgroundColor: '#007d89', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}
+                              >
+                                + Action
+                              </button>
+                            </div>
+                            
+                            {(!affairesActions[affaire.id] || affairesActions[affaire.id].length === 0) ? (
+                              <div style={{padding: '15px', textAlign: 'center', color: '#999', fontSize: '12px', backgroundColor: '#fff', borderRadius: '4px'}}>
+                                Aucune action pour cette affaire
+                              </div>
+                            ) : (
+                              <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
+                                {affairesActions[affaire.id].map(action => {
+                                  const isExpanded = expandedActionId === action.id;
+                                  return (
+                                  <div key={action.id} style={{
+                                    backgroundColor: action.completed ? '#e8f5e9' : '#fff',
+                                    borderRadius: '4px',
+                                    border: '1px solid ' + (action.completed ? '#c8e6c9' : '#e0e0e0'),
+                                    overflow: 'hidden'
+                                  }}>
+                                    <div 
+                                      onClick={() => setExpandedActionId(isExpanded ? null : action.id)}
+                                      style={{
+                                        padding: '8px 10px',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      <div style={{flex: 1, display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                        <input
+                                          type="checkbox"
+                                          checked={action.completed || false}
+                                          onChange={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleActionAffaire(action.id, e.target.checked, affaire.id);
+                                          }}
+                                          style={{cursor: 'pointer'}}
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <div style={{flex: 1}}>
+                                          <div style={{fontSize: '12px', fontWeight: '600', color: action.completed ? '#666' : '#1a3535', textDecoration: action.completed ? 'line-through' : 'none'}}>
+                                            {action.action_type} • {new Date(action.planned_date).toLocaleDateString('fr-FR')}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div style={{display: 'flex', gap: '4px', alignItems: 'center'}}>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteActionAffaire(action.id, affaire.id);
+                                          }}
+                                          style={{padding: '3px 6px', backgroundColor: '#f79d8d', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}
+                                          title="Supprimer l'action"
+                                        >
+                                          🗑️
+                                        </button>
+                                      </div>
+                                    </div>
+                                    
+                                    {isExpanded && (
+                                      <div style={{padding: '8px 10px', borderTop: '1px solid ' + (action.completed ? '#c8e6c9' : '#e0e0e0'), backgroundColor: action.completed ? '#f1f8f2' : '#f9f9f9'}}>
+                                        {(action.actor || action.contact) && (
+                                          <div style={{fontSize: '11px', color: '#666', marginBottom: '4px'}}>
+                                            {action.actor && <span><strong>De:</strong> {action.actor}</span>}
+                                            {action.actor && action.contact && <span> • </span>}
+                                            {action.contact && <span><strong>À:</strong> {action.contact}</span>}
+                                          </div>
+                                        )}
+                                        {action.completed_note && (
+                                          <div style={{fontSize: '11px', color: '#666', fontStyle: 'italic'}}>
+                                            <strong>Commentaire:</strong> {action.completed_note}
+                                          </div>
+                                        )}
+                                        {!action.actor && !action.contact && !action.completed_note && (
+                                          <div style={{fontSize: '11px', color: '#999', fontStyle: 'italic'}}>Aucun détail supplémentaire</div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -3851,6 +4086,148 @@
                     }}
                   >
                     💾 Enregistrer
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========== MODAL ACTION AFFAIRE ========== */}
+          {showActionAffaireForm && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 9999
+            }}>
+              <div style={{
+                backgroundColor: 'white',
+                padding: '25px',
+                borderRadius: '12px',
+                maxWidth: '600px',
+                width: '90%',
+                maxHeight: '90vh',
+                overflow: 'auto',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+              }}>
+                <h4 style={{marginTop: 0, marginBottom: '20px', color: '#333'}}>Nouvelle activité</h4>
+                
+                <div style={{display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap'}}>
+                  <select
+                    value={actionAffaireFormData.action_type}
+                    onChange={(e) => setActionAffaireFormData({...actionAffaireFormData, action_type: e.target.value})}
+                    style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
+                  >
+                    <option>Appel</option>
+                    <option>Relance</option>
+                    <option>Email</option>
+                    <option>A faire</option>
+                    <option>Point technique</option>
+                    <option>Démo</option>
+                    <option>Négociation</option>
+                    <option>Signature</option>
+                  </select>
+                  <input
+                    type="date"
+                    value={actionAffaireFormData.action_date}
+                    onChange={(e) => setActionAffaireFormData({...actionAffaireFormData, action_date: e.target.value})}
+                    style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
+                  />
+                </div>
+
+                <div style={{display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap'}}>
+                  <select
+                    value={actionAffaireFormData.action_actor}
+                    onChange={(e) => setActionAffaireFormData({...actionAffaireFormData, action_actor: e.target.value})}
+                    style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
+                  >
+                    <option value="">-- De (Acteur) --</option>
+                    <option>Christian</option>
+                    <option>Roger</option>
+                    <option>Frédéric</option>
+                  </select>
+                  <select
+                    value={actionAffaireFormData.action_contact}
+                    onChange={(e) => setActionAffaireFormData({...actionAffaireFormData, action_contact: e.target.value})}
+                    style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
+                  >
+                    <option value="">-- À (Contact) --</option>
+                    <option value="Interne">Interne</option>
+                    {interlocuteurs && interlocuteurs.length > 0 ? (
+                      interlocuteurs.map(interlocuteur => (
+                        <option key={interlocuteur.id} value={interlocuteur.nom}>
+                          {interlocuteur.nom} {interlocuteur.fonction && `(${interlocuteur.fonction})`}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>Aucun contact disponible</option>
+                    )}
+                  </select>
+                </div>
+
+                <textarea
+                  placeholder="Commentaire (optionnel)..."
+                  value={actionAffaireFormData.action_comment}
+                  onChange={(e) => setActionAffaireFormData({...actionAffaireFormData, action_comment: e.target.value})}
+                  style={{
+                    padding: '11px 12px',
+                    border: '1px solid #d0d0d0',
+                    borderRadius: '6px',
+                    minHeight: '80px',
+                    fontFamily: 'inherit',
+                    fontSize: '13px',
+                    lineHeight: '1.5',
+                    marginBottom: '15px',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    resize: 'vertical'
+                  }}
+                />
+
+                <div style={{display: 'flex', gap: '10px', justifyContent: 'flex-end'}}>
+                  <button
+                    onClick={() => {
+                      setShowActionAffaireForm(false);
+                      setActionAffaireFormData({
+                        action_type: 'Appel',
+                        action_date: new Date().toISOString().split('T')[0],
+                        action_actor: '',
+                        action_contact: '',
+                        action_comment: ''
+                      });
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#ccc',
+                      color: '#333',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleSaveActionAffaire}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#10a0dc',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    ✓ Ajouter
                   </button>
                 </div>
               </div>
@@ -4270,7 +4647,7 @@
           {nextActions.length > 0 && (
             <div style={styles.nextActionsListBox}>
               <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px'}}>
-                <h4 style={{margin: 0}}>Actions</h4>
+                <h4 style={{margin: 0}}>🏢 Actions Société</h4>
                 {nextActions.some(a => a.completed) && (
                   <button
                     onClick={() => setShowCompletedActions(!showCompletedActions)}
