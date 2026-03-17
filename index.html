@@ -3820,7 +3820,7 @@
                       {isOpen && (
                         <div style={{padding: '15px', backgroundColor: '#f9f9f9', borderTop: '1px solid #c8dede'}}>
                           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
-                            <h5 style={{margin: 0, fontSize: '13px', color: '#1a3535'}}>📄 Devis ({affaireDevis.length})</h5>
+                            <h5 style={{margin: 0, fontSize: '13px', color: '#007d89', fontWeight: 'bold'}}>📄 Devis ({affaireDevis.length})</h5>
                             <button onClick={handleAddDevis} style={{backgroundColor: '#007d89', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}>+ Devis</button>
                           </div>
                           {affaireDevis.length === 0 ? (
@@ -3891,10 +3891,10 @@
                           {/* ========== ACTIONS DE L'AFFAIRE ========== */}
                           <div style={{marginTop: '20px'}}>
                             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
-                              <h5 style={{margin: 0, fontSize: '13px', color: '#1a3535'}}>📋 Actions affaire ({affairesActions[affaire.id]?.length || 0})</h5>
+                              <h5 style={{margin: 0, fontSize: '13px', color: '#ff8c42', fontWeight: 'bold'}}>📋 Actions affaire ({affairesActions[affaire.id]?.length || 0})</h5>
                               <button 
                                 onClick={() => handleOpenActionAffaireForm(affaire.id)}
-                                style={{backgroundColor: '#007d89', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}
+                                style={{backgroundColor: '#ff8c42', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}
                               >
                                 + Action
                               </button>
