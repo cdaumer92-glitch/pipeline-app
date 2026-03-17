@@ -322,7 +322,7 @@ app.delete('/api/prospects/:id', auth, async (req, res) => {
 // ===================== NEXT ACTIONS =====================
 app.get('/api/prospects/:id/next_actions', auth, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM next_actions WHERE prospect_id = $1 ORDER BY planned_date ASC', [req.params.id]);
+    const result = await pool.query('SELECT * FROM next_actions WHERE prospect_id = $1 AND affaire_id IS NULL ORDER BY planned_date ASC', [req.params.id]);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
