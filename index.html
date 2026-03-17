@@ -4644,34 +4644,16 @@
           )}
           
           {/* Next Actions complétées et en cours */}
-          {nextActions.length > 0 && (
-            <div style={styles.nextActionsListBox}>
-              <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px'}}>
-                <h4 style={{margin: 0}}>🏢 Actions Société</h4>
-                {nextActions.some(a => a.completed) && (
-                  <button
-                    onClick={() => setShowCompletedActions(!showCompletedActions)}
-                    style={{
-                      padding: '6px 12px',
-                      fontSize: '11px',
-                      backgroundColor: showCompletedActions ? '#6c757d' : '#10a0dc',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontWeight: 'bold',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {showCompletedActions ? '▼ Masquer cochées' : '▶ Afficher cochées'} ({nextActions.filter(a => a.completed).length})
-                  </button>
-                )}
+          <div style={styles.nextActionsListBox}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px'}}>
+              <h4 style={{margin: 0}}>🏢 Actions Société</h4>
+              {nextActions.length > 0 && nextActions.some(a => a.completed) && (
                 <button
-                  onClick={() => setShowNewActionPopup(true)}
+                  onClick={() => setShowCompletedActions(!showCompletedActions)}
                   style={{
                     padding: '6px 12px',
                     fontSize: '11px',
-                    backgroundColor: '#28a745',
+                    backgroundColor: showCompletedActions ? '#6c757d' : '#10a0dc',
                     color: 'white',
                     border: 'none',
                     borderRadius: '4px',
@@ -4680,10 +4662,33 @@
                     whiteSpace: 'nowrap'
                   }}
                 >
-                  + Nouvelle activité
+                  {showCompletedActions ? '▼ Masquer cochées' : '▶ Afficher cochées'} ({nextActions.filter(a => a.completed).length})
                 </button>
+              )}
+              <button
+                onClick={() => setShowNewActionPopup(true)}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '11px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                + Nouvelle activité
+              </button>
+            </div>
+            
+            {nextActions.length === 0 ? (
+              <div style={{padding: '20px', textAlign: 'center', color: '#999', fontSize: '13px', fontStyle: 'italic'}}>
+                Aucune action au niveau société. Créez-en une avec "+ Nouvelle activité"
               </div>
-              {nextActions.filter(action => !action.completed || showCompletedActions).map((action) => (
+            ) : (
+              nextActions.filter(action => !action.completed || showCompletedActions).map((action) => (
                 <div key={action.id} style={{...styles.nextActionItem, opacity: action.completed ? 0.6 : 1}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px'}}>
                     <div style={{display: 'flex', gap: '10px', alignItems: 'flex-start', flex: 1}}>
@@ -4745,9 +4750,9 @@
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
           
           {/* Popup formulaire nouvelle action */}
           {showNewActionPopup && (
