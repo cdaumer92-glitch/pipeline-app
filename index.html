@@ -1222,6 +1222,7 @@
               editingDevisId={editingDevisId}
               setEditingDevisId={setEditingDevisId}
               editingDevis={editingDevis}
+              setEditingDevis={setEditingDevis}
               devisFormData={devisFormData}
               setDevisFormData={setDevisFormData}
               devisPdfFile={devisPdfFile}
@@ -2925,7 +2926,7 @@
       );
     }
 
-    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData }) {
+    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
@@ -2943,7 +2944,7 @@
       };
 
       if (showForm) {
-        return <ProspectForm formData={formData} onFormChange={onFormChange} onSave={onSave} onCancel={onCancel} selectedProspect={selectedProspect} user={user} API_URL={API_URL} interlocuteurs={interlocuteurs} showInterlocuteurForm={showInterlocuteurForm} setShowInterlocuteurForm={setShowInterlocuteurForm} interlocuteurForm={interlocuteurForm} setInterlocuteurForm={setInterlocuteurForm} handleSaveInterlocuteur={handleSaveInterlocuteur} handleDeleteInterlocuteur={handleDeleteInterlocuteur} devisList={devisList} showDevisForm={showDevisForm} setShowDevisForm={setShowDevisForm} editingDevisId={editingDevisId} setEditingDevisId={setEditingDevisId} editingDevis={editingDevis} devisFormData={devisFormData} setDevisFormData={setDevisFormData} devisPdfFile={devisPdfFile} setDevisPdfFile={setDevisPdfFile} isUploadingDevisPdf={isUploadingDevisPdf} handleAddDevis={handleAddDevis} handleEditDevis={handleEditDevis} handleSaveDevis={handleSaveDevis} handleDeleteDevis={handleDeleteDevis} handleUploadDevisPdf={handleUploadDevisPdf} handleDeleteDevisPDF={handleDeleteDevisPDF} />;
+        return <ProspectForm formData={formData} onFormChange={onFormChange} onSave={onSave} onCancel={onCancel} selectedProspect={selectedProspect} user={user} API_URL={API_URL} interlocuteurs={interlocuteurs} showInterlocuteurForm={showInterlocuteurForm} setShowInterlocuteurForm={setShowInterlocuteurForm} interlocuteurForm={interlocuteurForm} setInterlocuteurForm={setInterlocuteurForm} handleSaveInterlocuteur={handleSaveInterlocuteur} handleDeleteInterlocuteur={handleDeleteInterlocuteur} devisList={devisList} showDevisForm={showDevisForm} setShowDevisForm={setShowDevisForm} editingDevisId={editingDevisId} setEditingDevisId={setEditingDevisId} editingDevis={editingDevis} setEditingDevis={setEditingDevis} devisFormData={devisFormData} setDevisFormData={setDevisFormData} devisPdfFile={devisPdfFile} setDevisPdfFile={setDevisPdfFile} isUploadingDevisPdf={isUploadingDevisPdf} handleAddDevis={handleAddDevis} handleEditDevis={handleEditDevis} handleSaveDevis={handleSaveDevis} handleDeleteDevis={handleDeleteDevis} handleUploadDevisPdf={handleUploadDevisPdf} handleDeleteDevisPDF={handleDeleteDevisPDF} />;
       }
 
       if (!selectedProspect) {
@@ -3198,6 +3199,7 @@
             editingDevisId={editingDevisId}
             setEditingDevisId={setEditingDevisId}
             editingDevis={editingDevis}
+            setEditingDevis={setEditingDevis}
             devisFormData={devisFormData}
             setDevisFormData={setDevisFormData}
             devisPdfFile={devisPdfFile}
@@ -3215,7 +3217,7 @@
       );
     }
 
-    function ProspectForm({ formData, onFormChange, onSave, onCancel, selectedProspect, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleUploadDevisPdf, handleDeleteDevisPDF }) {
+    function ProspectForm({ formData, onFormChange, onSave, onCancel, selectedProspect, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleUploadDevisPdf, handleDeleteDevisPDF }) {
       const [pdfFile, setPdfFile] = React.useState(null);
       const [isUploading, setIsUploading] = React.useState(false);
 
@@ -3622,7 +3624,7 @@
       );
     }
 
-    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleDeleteDevisPDF, handleRattacherDevisAffaire, selectedProspect }) {
+    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleDeleteDevisPDF, handleRattacherDevisAffaire, selectedProspect }) {
       const [actionNotes, setActionNotes] = React.useState({});
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
@@ -3729,15 +3731,15 @@
                                               e.stopPropagation();
                                               handleDeleteDevisPDF(devis.id);
                                             }}
-                                            style={{padding: '3px 6px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}
+                                            style={{padding: '3px 6px', backgroundColor: '#f79d8d', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}
                                             title="Supprimer le PDF"
                                           >
                                             🗑️📄
                                           </button>
                                         </>
                                       )}
-                                      <button onClick={() => handleEditDevis(devis)} style={{padding: '3px 6px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}>✏️</button>
-                                      <button onClick={() => handleDeleteDevis(devis.id)} style={{padding: '3px 6px', backgroundColor: '#f79d8d', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}>🗑️</button>
+                                      <button onClick={() => handleEditDevis(devis)} title="Modifier le devis" style={{padding: '3px 6px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}>✏️</button>
+                                      <button onClick={() => handleDeleteDevis(devis.id)} title="Supprimer le devis" style={{padding: '3px 6px', backgroundColor: '#f79d8d', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}>🗑️</button>
                                     </div>
                                   </div>
                                 </div>
@@ -3755,6 +3757,106 @@
             )}
           </div>
           
+          {/* ========== MODAL AFFAIRE ========== */}
+          {showAffaireForm && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 9999
+            }}>
+              <div style={{
+                backgroundColor: 'white',
+                padding: '25px',
+                borderRadius: '12px',
+                maxWidth: '500px',
+                width: '90%',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+              }}>
+                <h3 style={{marginTop: 0, marginBottom: '20px', color: '#007d89'}}>
+                  {editingAffaireId ? 'Modifier l\'affaire' : 'Nouvelle affaire'}
+                </h3>
+                
+                <div style={{marginBottom: '15px'}}>
+                  <label style={{display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold'}}>Nom de l'affaire *</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Migration ERP, Changement système..."
+                    value={affaireFormData.nom_affaire}
+                    onChange={(e) => setAffaireFormData({...affaireFormData, nom_affaire: e.target.value})}
+                    style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%', fontSize: '14px'}}
+                  />
+                </div>
+
+                <div style={{marginBottom: '15px'}}>
+                  <label style={{display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold'}}>Description</label>
+                  <textarea
+                    placeholder="Description de l'affaire..."
+                    value={affaireFormData.description}
+                    onChange={(e) => setAffaireFormData({...affaireFormData, description: e.target.value})}
+                    style={{width: '100%', minHeight: '60px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', resize: 'vertical', boxSizing: 'border-box'}}
+                  />
+                </div>
+
+                <div style={{marginBottom: '20px'}}>
+                  <label style={{display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold'}}>Statut</label>
+                  <select
+                    value={affaireFormData.statut_global}
+                    onChange={(e) => setAffaireFormData({...affaireFormData, statut_global: e.target.value})}
+                    style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%', fontSize: '14px'}}
+                  >
+                    <option value="En cours">En cours</option>
+                    <option value="Gagné">Gagné</option>
+                    <option value="Perdu">Perdu</option>
+                  </select>
+                </div>
+
+                <div style={{display: 'flex', gap: '10px', justifyContent: 'flex-end'}}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAffaireForm(false);
+                      setEditingAffaireId(null);
+                      setAffaireFormData({ nom_affaire: '', description: '', statut_global: 'En cours' });
+                    }}
+                    style={{
+                      backgroundColor: '#999',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 20px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleSaveAffaire}
+                    style={{
+                      backgroundColor: '#007d89',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 20px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    💾 Enregistrer
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {showDevisForm && (
             <div style={{
               position: 'fixed',
