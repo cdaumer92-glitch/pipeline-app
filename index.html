@@ -2802,12 +2802,14 @@
                   <span 
                     onClick={() => {
                       console.log('[DEBUG] Clic Devis semaine');
+                      // TEMPORAIRE : enlever filtre date pour tester
                       const filtered = prospects.filter(p => 
-                        p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status) &&
-                        p.real_quote_date && new Date(p.real_quote_date) >= startOfWeek
+                        p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status)
+                        // && p.real_quote_date && new Date(p.real_quote_date) >= startOfWeek
                       );
                       console.log('[DEBUG] Prospects filtrés:', filtered.length);
-                      setCompteurModalData({ title: '📊 Devis cette semaine', prospects: filtered });
+                      console.log('[DEBUG] Détail:', filtered.map(p => ({nom: p.name, date: p.real_quote_date})));
+                      setCompteurModalData({ title: '📊 Devis cette semaine (TOUS pour test)', prospects: filtered });
                       setShowCompteurModal(true);
                       console.log('[DEBUG] Modal devrait être ouverte');
                     }}
