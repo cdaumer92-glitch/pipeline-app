@@ -1279,6 +1279,67 @@ app.get('/api/admin/active-users', requireAdmin, async (req, res) => {
   }
 });
 
+// ===================== ROUTE OPTIMISÉE PROSPECTS ENRICHIS =====================
+// GET /api/prospects/enriched - Récupérer tous les prospects avec leur dernier devis actif
+app.get('/api/prospects/enriched', auth, async (req, res) => {
+  try {
+    // Récupérer tous les prospects
+    const prospectsResult = await pool.query('SELECT * FROM prospects ORDER BY name');
+    const prospects = prospectsResult.rows;
+
+    // Pour chaque prospect, trouver le dernier devis actif
+    const enrichedProspects = await Promise.all(prospects.map(async (prospect) => {
+      try {
+        // Trouver la dernière affaire en cours avec un devis
+        const affaireDevisQuery = `
+          SELECT 
+            a.nom_affaire,
+            d.devis_status,
+            d.chance_percent,
+            d.quote_date,
+            d.quote_date as sort_date
+          FROM affaires a
+          INNER JOIN devis d ON d.affaire_id = a.id
+          WHERE a.prospect_id = $1 
+            AND a.statut_global NOT IN ('Gagné', 'Perdu')
+          ORDER BY d.quote_date DESC NULLS LAST
+          LIMIT 1
+        `;
+        
+        const result = await pool.query(affaireDevisQuery, [prospect.id]);
+        
+        if (result.rows.length > 0) {
+          const devisData = result.rows[0];
+          return {
+            ...prospect,
+            real_status: devisData.devis_status,
+            real_probability: devisData.chance_percent,
+            real_affaire_name: devisData.nom_affaire,
+            real_quote_date: devisData.quote_date
+          };
+        }
+        
+        // Pas de devis actif
+        return {
+          ...prospect,
+          real_status: null,
+          real_probability: 0,
+          real_affaire_name: null,
+          real_quote_date: null
+        };
+      } catch (err) {
+        console.error(`Erreur enrichissement prospect ${prospect.id}:`, err);
+        return prospect;
+      }
+    }));
+
+    res.json(enrichedProspects);
+  } catch (err) {
+    console.error('Erreur GET /api/prospects/enriched:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ===================== START =====================
 initDB().then(() => {
   app.listen(PORT, '0.0.0.0', () => {

@@ -140,7 +140,7 @@
         return null; // Pas d'affaire = pas de statut affiché
       }
 
-      // Chercher toutes les affaires avec devis actifs (pas Gagné/Perdu)
+      // Chercher toutes les affaires avec devis actifs (pas affaire Gagnée/Perdue)
       const affairesAvecDevis = [];
       
       for (const affaire of affaires) {
@@ -148,7 +148,8 @@
           continue; // Ignorer affaires terminées
         }
         
-        const devisAffaire = devisList.filter(d => d.affaire_id === affaire.id && d.devis_status !== 'Perdu' && d.devis_status !== 'Gagné');
+        // Prendre TOUS les devis de l'affaire en cours (même ceux à 100%)
+        const devisAffaire = devisList.filter(d => d.affaire_id === affaire.id);
         
         if (devisAffaire.length > 0) {
           // Prendre le devis le plus récent
@@ -290,52 +291,17 @@
 
       const fetchProspects = async () => {
         try {
-          const res = await fetch(`${API_URL}/prospects`, {
+          // UNE SEULE requête optimisée côté backend
+          const res = await fetch(`${API_URL}/prospects/enriched`, {
             headers: { 'Authorization': `Bearer ${user.token}` }
           });
           const data = await res.json();
           
-          // Enrichir chaque prospect avec son statut réel depuis affaires/devis
-          const enrichedProspects = await Promise.all(data.map(async (prospect) => {
-            try {
-              // Charger affaires du prospect
-              const affairesRes = await fetch(`${API_URL}/prospects/${prospect.id}/affaires`, {
-                headers: { 'Authorization': `Bearer ${user.token}` }
-              });
-              const affaires = affairesRes.ok ? await affairesRes.json() : [];
-              
-              // Charger tous les devis de toutes les affaires
-              let allDevis = [];
-              for (const affaire of affaires) {
-                const devisRes = await fetch(`${API_URL}/affaires/${affaire.id}/devis`, {
-                  headers: { 'Authorization': `Bearer ${user.token}` }
-                });
-                if (devisRes.ok) {
-                  const devisAffaire = await devisRes.json();
-                  allDevis = allDevis.concat(devisAffaire);
-                }
-              }
-              
-              // Calculer statut réel
-              const realStatus = getProspectRealStatus(affaires, allDevis);
-              
-              return {
-                ...prospect,
-                // Nouveau champs calculés
-                real_status: realStatus?.devisStatus || null,
-                real_probability: realStatus?.probability || 0,
-                real_affaire_name: realStatus?.affaireName || null,
-                real_quote_date: realStatus?.quoteDate || null
-              };
-            } catch (err) {
-              console.error(`Erreur enrichissement prospect ${prospect.id}:`, err);
-              return prospect;
-            }
-          }));
+          console.log('[DEBUG] Prospects enrichis chargés:', data.length, '- avec devis:', data.filter(p => p.real_status).length);
           
-          setProspects(enrichedProspects);
+          setProspects(data);
         } catch (err) {
-          console.error('Erreur:', err);
+          console.error('[ERROR] fetchProspects:', err);
         }
       };
 
@@ -1237,12 +1203,24 @@
           matchSocietyType = p.statut_societe === filterSocietyType;
         }
         
-        // Filtre par statut (Prospection, Devis, Démo, etc.)
+        // Filtre par statut
         let matchStatus;
         if (filterStatus === 'Tous') {
           matchStatus = true;
+        } else if (filterStatus === 'Devis') {
+          // "Devis" = tous ceux qui ont un statut de devis actif (En cours, Envoyé, Discussion)
+          matchStatus = p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status);
+        } else if (filterStatus === 'Prospection') {
+          // "Prospection" = ceux qui n'ont pas de devis actif
+          matchStatus = !p.real_status;
+        } else if (filterStatus === 'Signé') {
+          // "Signé" = Gagné
+          matchStatus = p.real_status === 'Gagné';
+        } else if (filterStatus === 'Perdu') {
+          // "Perdu" = Perdu
+          matchStatus = p.real_status === 'Perdu';
         } else {
-          // Utiliser real_status (calculé depuis affaires/devis) au lieu de status (obsolète)
+          // Autres statuts : mapper directement
           matchStatus = p.real_status === filterStatus;
         }
         
