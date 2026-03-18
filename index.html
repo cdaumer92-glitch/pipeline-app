@@ -2657,6 +2657,14 @@
       const formationPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.training_amount) || 0) * ((p.real_probability || 0) / 100), 0);
 
       const commercials = ['Roger', 'Christian', 'Frédéric'];
+      
+      // Calcul dates pour compteurs
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
       // Fonction pour trier la liste
       const getSortedProspects = (commercialName) => {
@@ -2740,13 +2748,6 @@
           
           {/* Compteurs Devis / Prospects / Clients (semaine / mois) */}
           {(() => {
-            const now = new Date();
-            const startOfWeek = new Date(now);
-            startOfWeek.setDate(now.getDate() - now.getDay());
-            startOfWeek.setHours(0, 0, 0, 0);
-            
-            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-            
             // Devis = prospects avec real_status (En cours, Envoyé, Discussion)
             const devisWeek = prospects.filter(p => 
               p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status) &&
