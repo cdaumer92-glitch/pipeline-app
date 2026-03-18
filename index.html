@@ -2801,12 +2801,15 @@
                   <span style={{fontWeight: 'bold', color: '#1a9fdb'}}>📊 Devis:</span>
                   <span 
                     onClick={() => {
+                      console.log('[DEBUG] Clic Devis semaine');
                       const filtered = prospects.filter(p => 
                         p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status) &&
                         p.real_quote_date && new Date(p.real_quote_date) >= startOfWeek
                       );
+                      console.log('[DEBUG] Prospects filtrés:', filtered.length);
                       setCompteurModalData({ title: '📊 Devis cette semaine', prospects: filtered });
                       setShowCompteurModal(true);
+                      console.log('[DEBUG] Modal devrait être ouverte');
                     }}
                     style={{
                       padding: '2px 4px',
