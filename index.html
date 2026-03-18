@@ -2541,27 +2541,27 @@
       
       const stats = {
         total: prospects.length,
-        prospection: prospects.filter(p => p.status === 'Prospection').length,
-        devis: prospects.filter(p => p.status === 'Devis').length,
-        demo: prospects.filter(p => p.status === 'Démo').length,
-        negotiation: prospects.filter(p => p.status === 'Négociation').length,
-        signed: prospects.filter(p => p.status === 'Signé').length,
-        lost: prospects.filter(p => p.status === 'Perdu').length,
+        prospection: prospects.filter(p => !p.real_status).length, // Pas de devis = Prospection
+        devis: prospects.filter(p => p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status)).length,
+        demo: prospects.filter(p => p.real_status === 'Démo').length,
+        negotiation: prospects.filter(p => p.real_status === 'Négociation').length,
+        signed: prospects.filter(p => p.real_status === 'Gagné').length,
+        lost: prospects.filter(p => p.real_status === 'Perdu').length,
         totalValue: prospects.reduce((sum, p) => sum + (p.monthly_amount * 12 + p.annual_amount), 0)
       };
 
       // Prospects en Devis ou Négociation seulement
-      const prospectsPipeline = prospects.filter(p => p.status === 'Devis' || p.status === 'Négociation');
+      const prospectsPipeline = prospects.filter(p => p.real_status && ['En cours', 'Envoyé', 'Discussion', 'Négociation'].includes(p.real_status));
       const monthlyAbonnement = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
       const annualAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0), 0);
       const setupAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.setup_amount) || 0), 0);
       const formationAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.training_amount) || 0), 0);
       
       // Calcul des valeurs pondérées (montant × probabilité)
-      const monthlyPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0) * ((p.chance_percent || 0) / 100), 0);
-      const annualPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0) * ((p.chance_percent || 0) / 100), 0);
-      const setupPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.setup_amount) || 0) * ((p.chance_percent || 0) / 100), 0);
-      const formationPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.training_amount) || 0) * ((p.chance_percent || 0) / 100), 0);
+      const monthlyPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0) * ((p.real_probability || 0) / 100), 0);
+      const annualPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0) * ((p.real_probability || 0) / 100), 0);
+      const setupPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.setup_amount) || 0) * ((p.real_probability || 0) / 100), 0);
+      const formationPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.training_amount) || 0) * ((p.real_probability || 0) / 100), 0);
 
       const commercials = ['Roger', 'Christian', 'Frédéric'];
 
@@ -2643,7 +2643,163 @@
       
       return (
         <div style={{padding: '30px', backgroundColor: '#f9f9f9', overflowY: 'auto', flex: 1}}>
-          <h2 style={{marginBottom: '30px'}}>Dashboard Commerciaux</h2>
+          <h2 style={{marginBottom: '20px'}}>Dashboard Commerciaux</h2>
+          
+          {/* Compteurs Devis / Prospects / Clients (semaine / mois) */}
+          {(() => {
+            const now = new Date();
+            const startOfWeek = new Date(now);
+            startOfWeek.setDate(now.getDate() - now.getDay());
+            startOfWeek.setHours(0, 0, 0, 0);
+            
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            
+            // Devis = prospects avec real_status (En cours, Envoyé, Discussion)
+            const devisWeek = prospects.filter(p => 
+              p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status) &&
+              p.real_quote_date && new Date(p.real_quote_date) >= startOfWeek
+            ).length;
+            
+            const devisMonth = prospects.filter(p => 
+              p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status) &&
+              p.real_quote_date && new Date(p.real_quote_date) >= startOfMonth
+            ).length;
+            
+            // Prospects = statut_societe = Prospect
+            const prospectsWeek = prospects.filter(p => 
+              p.statut_societe === 'Prospect' &&
+              p.created_at && new Date(p.created_at) >= startOfWeek
+            ).length;
+            
+            const prospectsMonth = prospects.filter(p => 
+              p.statut_societe === 'Prospect' &&
+              p.created_at && new Date(p.created_at) >= startOfMonth
+            ).length;
+            
+            // Clients = statut_societe = Client
+            const clientsWeek = prospects.filter(p => 
+              p.statut_societe === 'Client' &&
+              p.created_at && new Date(p.created_at) >= startOfWeek
+            ).length;
+            
+            const clientsMonth = prospects.filter(p => 
+              p.statut_societe === 'Client' &&
+              p.created_at && new Date(p.created_at) >= startOfMonth
+            ).length;
+            
+            return (
+              <div style={{
+                display: 'flex', 
+                gap: '30px', 
+                marginBottom: '30px', 
+                padding: '15px 20px', 
+                backgroundColor: 'white', 
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                fontSize: '14px',
+                alignItems: 'center'
+              }}>
+                {/* Texte introductif */}
+                <span style={{color: '#666', fontWeight: '500'}}>Nouveaux cette semaine ou ce mois :</span>
+                
+                {/* Devis */}
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <span style={{fontWeight: 'bold', color: '#1a9fdb'}}>📊 Devis:</span>
+                  <span 
+                    onClick={() => console.log('Devis semaine')}
+                    style={{
+                      padding: '2px 4px',
+                      cursor: 'pointer',
+                      borderRadius: '3px',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#e0f2f7'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                  >
+                    <strong style={{color: '#1a9fdb'}}>{devisWeek}</strong> <span style={{color: '#666'}}>(sem)</span>
+                  </span>
+                  <span style={{color: '#999'}}>;</span>
+                  <span 
+                    onClick={() => console.log('Devis mois')}
+                    style={{
+                      padding: '2px 4px',
+                      cursor: 'pointer',
+                      borderRadius: '3px',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#e0f2f7'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                  >
+                    <strong style={{color: '#1a9fdb'}}>{devisMonth}</strong> <span style={{color: '#666'}}>(mois)</span>
+                  </span>
+                </div>
+                
+                {/* Prospects */}
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <span style={{fontWeight: 'bold', color: '#ff9800'}}>Prospects:</span>
+                  <span 
+                    onClick={() => console.log('Prospects semaine')}
+                    style={{
+                      padding: '2px 4px',
+                      cursor: 'pointer',
+                      borderRadius: '3px',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#fff3e0'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                  >
+                    <strong style={{color: '#ff9800'}}>{prospectsWeek}</strong> <span style={{color: '#666'}}>(sem)</span>
+                  </span>
+                  <span style={{color: '#999'}}>;</span>
+                  <span 
+                    onClick={() => console.log('Prospects mois')}
+                    style={{
+                      padding: '2px 4px',
+                      cursor: 'pointer',
+                      borderRadius: '3px',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#fff3e0'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                  >
+                    <strong style={{color: '#ff9800'}}>{prospectsMonth}</strong> <span style={{color: '#666'}}>(mois)</span>
+                  </span>
+                </div>
+                
+                {/* Clients */}
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <span style={{fontWeight: 'bold', color: '#d4a017'}}>Clients:</span>
+                  <span 
+                    onClick={() => console.log('Clients semaine')}
+                    style={{
+                      padding: '2px 4px',
+                      cursor: 'pointer',
+                      borderRadius: '3px',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#fef9e7'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                  >
+                    <strong style={{color: '#d4a017'}}>{clientsWeek}</strong> <span style={{color: '#666'}}>(sem)</span>
+                  </span>
+                  <span style={{color: '#999'}}>;</span>
+                  <span 
+                    onClick={() => console.log('Clients mois')}
+                    style={{
+                      padding: '2px 4px',
+                      cursor: 'pointer',
+                      borderRadius: '3px',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#fef9e7'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                  >
+                    <strong style={{color: '#d4a017'}}>{clientsMonth}</strong> <span style={{color: '#666'}}>(mois)</span>
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
           
           {/* Vue d'ensemble - 5 carrés */}
           <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '20px', marginBottom: '40px'}}>
