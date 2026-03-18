@@ -134,6 +134,48 @@
       return prospects.filter(p => p.assigned_to === commercial).length;
     }
 
+    // Calculer le statut réel à partir des affaires et devis
+    function getProspectRealStatus(affaires, devisList) {
+      if (!affaires || affaires.length === 0) {
+        return null; // Pas d'affaire = pas de statut affiché
+      }
+
+      // Chercher toutes les affaires avec devis actifs (pas Gagné/Perdu)
+      const affairesAvecDevis = [];
+      
+      for (const affaire of affaires) {
+        if (affaire.statut_global === 'Gagné' || affaire.statut_global === 'Perdu') {
+          continue; // Ignorer affaires terminées
+        }
+        
+        const devisAffaire = devisList.filter(d => d.affaire_id === affaire.id && d.devis_status !== 'Perdu' && d.devis_status !== 'Gagné');
+        
+        if (devisAffaire.length > 0) {
+          // Prendre le devis le plus récent
+          const dernierDevis = devisAffaire.sort((a, b) => new Date(b.quote_date || 0) - new Date(a.quote_date || 0))[0];
+          affairesAvecDevis.push({
+            affaire: affaire,
+            devis: dernierDevis
+          });
+        }
+      }
+
+      if (affairesAvecDevis.length === 0) {
+        return null; // Pas de devis actif
+      }
+
+      // Si plusieurs affaires, prendre la plus récente
+      affairesAvecDevis.sort((a, b) => new Date(b.devis.quote_date || 0) - new Date(a.devis.quote_date || 0));
+      const affairePlusRecente = affairesAvecDevis[0];
+
+      return {
+        affaireName: affairePlusRecente.affaire.nom_affaire,
+        devisStatus: affairePlusRecente.devis.devis_status,
+        probability: affairePlusRecente.devis.chance_percent,
+        quoteDate: affairePlusRecente.devis.quote_date
+      };
+    }
+
     function App() {
       const [user, setUser] = React.useState(null);
       const [isDashboard, setIsDashboard] = React.useState(true);
@@ -252,7 +294,46 @@
             headers: { 'Authorization': `Bearer ${user.token}` }
           });
           const data = await res.json();
-          setProspects(data);
+          
+          // Enrichir chaque prospect avec son statut réel depuis affaires/devis
+          const enrichedProspects = await Promise.all(data.map(async (prospect) => {
+            try {
+              // Charger affaires du prospect
+              const affairesRes = await fetch(`${API_URL}/prospects/${prospect.id}/affaires`, {
+                headers: { 'Authorization': `Bearer ${user.token}` }
+              });
+              const affaires = affairesRes.ok ? await affairesRes.json() : [];
+              
+              // Charger tous les devis de toutes les affaires
+              let allDevis = [];
+              for (const affaire of affaires) {
+                const devisRes = await fetch(`${API_URL}/affaires/${affaire.id}/devis`, {
+                  headers: { 'Authorization': `Bearer ${user.token}` }
+                });
+                if (devisRes.ok) {
+                  const devisAffaire = await devisRes.json();
+                  allDevis = allDevis.concat(devisAffaire);
+                }
+              }
+              
+              // Calculer statut réel
+              const realStatus = getProspectRealStatus(affaires, allDevis);
+              
+              return {
+                ...prospect,
+                // Nouveau champs calculés
+                real_status: realStatus?.devisStatus || null,
+                real_probability: realStatus?.probability || 0,
+                real_affaire_name: realStatus?.affaireName || null,
+                real_quote_date: realStatus?.quoteDate || null
+              };
+            } catch (err) {
+              console.error(`Erreur enrichissement prospect ${prospect.id}:`, err);
+              return prospect;
+            }
+          }));
+          
+          setProspects(enrichedProspects);
         } catch (err) {
           console.error('Erreur:', err);
         }
@@ -1161,7 +1242,8 @@
         if (filterStatus === 'Tous') {
           matchStatus = true;
         } else {
-          matchStatus = p.status === filterStatus;
+          // Utiliser real_status (calculé depuis affaires/devis) au lieu de status (obsolète)
+          matchStatus = p.real_status === filterStatus;
         }
         
         const matchCommercial = filterCommercial === 'Tous' || p.assigned_to === filterCommercial;
@@ -1173,13 +1255,9 @@
         if (sortBy === 'name') {
           return a.name.localeCompare(b.name);
         } else if (sortBy === 'ancienneté') {
-          // Pour les devis, utiliser status_date (date du passage en statut Devis)
-          // Sinon utiliser created_at
+          // Utiliser real_quote_date (calculé depuis affaires/devis)
           const getRelevantDate = (prospect) => {
-            if (prospect.status === 'Devis' && prospect.status_date) {
-              return prospect.status_date;
-            }
-            return prospect.quote_date || prospect.created_at;
+            return prospect.real_quote_date || prospect.created_at;
           };
           
           const dateStrA = getRelevantDate(a);
@@ -1195,8 +1273,8 @@
           const dateB = new Date(dateStrB.includes('-') ? dateStrB : dateStrB.split('/').reverse().join('-')).getTime();
           return dateA - dateB;  // Plus ancien d'abord
         } else if (sortBy === 'probabilité') {
-          // Trier par probabilité décroissante (plus élevé en premier)
-          return (b.chance_percent || 0) - (a.chance_percent || 0);
+          // Trier par real_probability (calculé depuis affaires/devis)
+          return (b.real_probability || 0) - (a.real_probability || 0);
         }
         return 0;
       });
@@ -2452,13 +2530,17 @@
                 <div style={styles.prospectName}>{prospect.name}</div>
                 <div style={styles.prospectSubtitle}>{prospect.contact_name}</div>
                 <div style={styles.prospectStatusRow}>
-                  <span style={styles.prospectStatus}>
-                    {prospect.status}
-                    {prospect.chance_percent && prospect.chance_percent > 0 && (
-                      <span style={{fontWeight: 'bold', color: '#10a0dc', marginLeft: '5px'}}>({prospect.chance_percent}%)</span>
-                    )}
-                  </span>
-                  {prospect.quote_date && <span style={styles.prospectQuoteDate}>{new Date(prospect.quote_date).toLocaleDateString()}</span>}
+                  {prospect.real_status ? (
+                    <span style={styles.prospectStatus}>
+                      {prospect.real_status}
+                      {prospect.real_probability && prospect.real_probability > 0 && (
+                        <span style={{fontWeight: 'bold', color: '#007d89', marginLeft: '5px'}}>({prospect.real_probability}%)</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span style={{...styles.prospectStatus, color: '#999', fontStyle: 'italic'}}>Aucun devis actif</span>
+                  )}
+                  {prospect.real_quote_date && <span style={styles.prospectQuoteDate}>{new Date(prospect.real_quote_date).toLocaleDateString('fr-FR')}</span>}
                 </div>
                 <div style={{fontSize: '12px', marginTop: '6px', color: '#666'}}>
                   Action planifiée: <strong style={{color: prospectActionsInfo[prospect.id]?.hasAction ? '#28a745' : '#cc0000'}}>{prospectActionsInfo[prospect.id]?.hasAction ? 'Oui' : 'Non'}</strong>
@@ -3131,27 +3213,35 @@
                     Géré par <strong>{selectedProspect.assigned_to}</strong>
                   </span>
                 </div>
-                {/* Ligne 1 : Statut */}
-                <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px'}}>
-                  <span style={{fontSize: '15px', color: '#666'}}>Statut :</span>
-                  <span style={{
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    color: selectedProspect.status === 'Devis' ? '#12a0dc' : getStatusColor(selectedProspect.status)
-                  }}>
-                    {selectedProspect.status}
-                  </span>
-                  {selectedProspect.status === 'Devis' && selectedProspect.chance_percent && selectedProspect.chance_percent > 0 && (
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#12a0dc'}}>
-                      ({selectedProspect.chance_percent}%)
-                    </span>
-                  )}
-                  {selectedProspect.status === 'Devis' && selectedProspect.quote_date && (
-                    <span style={{fontSize: '13px', color: '#999'}}>
-                      depuis le {new Date(selectedProspect.quote_date).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
+                {/* Ligne 1 : Statut depuis affaires/devis */}
+                {(() => {
+                  const realStatus = getProspectRealStatus(affairesList, devisList);
+                  if (realStatus) {
+                    return (
+                      <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px'}}>
+                        <span style={{fontSize: '15px', color: '#666'}}>Affaire :</span>
+                        <span style={{fontSize: '16px', fontWeight: 'bold', color: '#1a3535'}}>
+                          {realStatus.affaireName}
+                        </span>
+                        <span style={{fontSize: '15px', color: '#666'}}>-</span>
+                        <span style={{fontSize: '16px', fontWeight: 'bold', color: '#007d89'}}>
+                          {realStatus.devisStatus}
+                        </span>
+                        {realStatus.probability && realStatus.probability > 0 && (
+                          <span style={{fontSize: '16px', fontWeight: 'bold', color: '#007d89'}}>
+                            ({realStatus.probability}%)
+                          </span>
+                        )}
+                        {realStatus.quoteDate && (
+                          <span style={{fontSize: '13px', color: '#999'}}>
+                            depuis le {new Date(realStatus.quoteDate).toLocaleDateString('fr-FR')}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 
                 {/* Ligne 2 : Adresse + Tél + Boutons */}
                 <div style={{display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between'}}>
