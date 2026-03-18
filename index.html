@@ -2289,70 +2289,86 @@
           
           {/* Type de société : Suspects / Prospects / Clients */}
           <div style={{...styles.filterContainer, marginTop: '15px'}}>
-            {['Tous', 'Suspect', 'Prospect', 'Client'].map(type => {
-              const count = type === 'Tous' 
-                ? allProspects.length 
-                : allProspects.filter(p => p.statut_societe === type).length;
-              return (
-                <button
-                  key={type}
-                  onClick={() => onFilterSocietyTypeChange(type)}
-                  style={{
-                    ...styles.filterBtn,
-                    ...(filterSocietyType === type ? styles.filterBtnActive : {}),
-                    fontSize: '12px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}
-                >
-                  <span>{type}{type === 'Suspect' ? 's' : type === 'Prospect' ? 's' : type === 'Client' ? 's' : ''}</span>
-                  <span style={{fontSize: '11px', marginLeft: '8px', opacity: 0.7}}>({count})</span>
-                </button>
-              );
-            })}
+            <label style={{fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '6px', display: 'block'}}>Type de société:</label>
+            <select 
+              value={filterSocietyType}
+              onChange={(e) => onFilterSocietyTypeChange(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                fontSize: '13px',
+                border: '1px solid #c8dede',
+                borderRadius: '4px',
+                backgroundColor: 'white',
+                color: '#1a3535',
+                cursor: 'pointer'
+              }}
+            >
+              {['Tous', 'Suspect', 'Prospect', 'Client'].map(type => {
+                const count = type === 'Tous' 
+                  ? allProspects.length 
+                  : allProspects.filter(p => p.statut_societe === type).length;
+                const label = type + (type === 'Suspect' || type === 'Prospect' || type === 'Client' ? 's' : '');
+                return (
+                  <option key={type} value={type}>
+                    {label} ({count})
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
           {/* Statut */}
           <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
-            <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Statut:</span>
-            {['Tous', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Ajourné N+1', 'Éliminé par nous', 'Perdu'].map(status => (
-              <button
-                key={status}
-                onClick={() => onFilterChange(status)}
-                style={{
-                  ...styles.filterBtn,
-                  ...(filterStatus === status ? styles.filterBtnActive : {})
-                }}
-              >
-                {status}
-              </button>
-            ))}
+            <label style={{fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '6px', display: 'block'}}>Statut:</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => onFilterChange(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                fontSize: '13px',
+                border: '1px solid #c8dede',
+                borderRadius: '4px',
+                backgroundColor: 'white',
+                color: '#1a3535',
+                cursor: 'pointer'
+              }}
+            >
+              {['Tous', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Ajourné N+1', 'Éliminé par nous', 'Perdu'].map(status => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Commercial */}
           <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
-            <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Commercial:</span>
-            {['Tous', 'Roger', 'Christian', 'Frédéric'].map(commercial => {
-              const count = getProspectCountByCommercial(allProspects, commercial);
-              return (
-                <button
-                  key={commercial}
-                  onClick={() => onFilterCommercialChange(commercial)}
-                  style={{
-                    ...styles.filterBtn,
-                    ...(filterCommercial === commercial ? styles.filterBtnActive : {}),
-                    fontSize: '12px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}
-                >
-                  <span>{commercial}</span>
-                  <span style={{fontSize: '11px', marginLeft: '8px', opacity: 0.7}}>({count})</span>
-                </button>
-              );
-            })}
+            <label style={{fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '6px', display: 'block'}}>Commercial:</label>
+            <select
+              value={filterCommercial}
+              onChange={(e) => onFilterCommercialChange(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                fontSize: '13px',
+                border: '1px solid #c8dede',
+                borderRadius: '4px',
+                backgroundColor: 'white',
+                color: '#1a3535',
+                cursor: 'pointer'
+              }}
+            >
+              {['Tous', 'Roger', 'Christian', 'Frédéric'].map(commercial => {
+                const count = getProspectCountByCommercial(allProspects, commercial);
+                return (
+                  <option key={commercial} value={commercial}>
+                    {commercial} ({count})
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
           {/* Trier par */}
