@@ -203,6 +203,11 @@
       const [formData, setFormData] = React.useState(getEmptyProspect());
       const [interlocuteurs, setInterlocuteurs] = React.useState([]);
       const [showInterlocuteurForm, setShowInterlocuteurForm] = React.useState(false);
+      
+      // STATE MODAL COMPTEURS (au niveau App pour éviter problèmes de rendu)
+      const [showCompteurModal, setShowCompteurModal] = React.useState(false);
+      const [compteurModalData, setCompteurModalData] = React.useState({ title: '', prospects: [] });
+      
       const [interlocuteurForm, setInterlocuteurForm] = React.useState({
         id: null,
         nom: '',
@@ -1309,6 +1314,8 @@
               user={user} 
               API_URL={API_URL} 
               prospectActionsInfo={prospectActionsInfo}
+              setShowCompteurModal={setShowCompteurModal}
+              setCompteurModalData={setCompteurModalData}
               onShowRecap={(commercial, period) => {
                 setRecapCommercial(commercial);
                 setRecapPeriod(period);
@@ -1436,6 +1443,97 @@
               interlocuteurs={interlocuteurs}
             />
           </div>
+          )}
+          
+          {/* Modal Compteurs Dashboard (au niveau App pour rendu correct) */}
+          {showCompteurModal && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 9999
+            }}>
+              <div style={{
+                backgroundColor: 'white',
+                padding: '25px',
+                borderRadius: '12px',
+                maxWidth: '600px',
+                width: '90%',
+                maxHeight: '80vh',
+                overflow: 'auto',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+              }}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+                  <h3 style={{margin: 0, color: '#007d89'}}>{compteurModalData.title}</h3>
+                  <button 
+                    onClick={() => setShowCompteurModal(false)}
+                    style={{
+                      backgroundColor: '#999',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    Fermer
+                  </button>
+                </div>
+                
+                {compteurModalData.prospects.length === 0 ? (
+                  <div style={{padding: '20px', textAlign: 'center', color: '#999', fontStyle: 'italic'}}>
+                    Aucun prospect trouvé pour cette période
+                  </div>
+                ) : (
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                    {compteurModalData.prospects.map(prospect => (
+                      <div 
+                        key={prospect.id}
+                        onClick={() => {
+                          handleSelectProspect(prospect);
+                          setIsDashboard(false);
+                          setShowCompteurModal(false);
+                        }}
+                        style={{
+                          padding: '12px',
+                          backgroundColor: '#f9f9f9',
+                          borderRadius: '6px',
+                          border: '1px solid #e0e0e0',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#e0f2f7';
+                          e.currentTarget.style.borderColor = '#007d89';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#f9f9f9';
+                          e.currentTarget.style.borderColor = '#e0e0e0';
+                        }}
+                      >
+                        <div style={{fontWeight: 'bold', color: '#1a3535', marginBottom: '4px'}}>{prospect.name}</div>
+                        <div style={{fontSize: '12px', color: '#666'}}>
+                          {prospect.contact_name && <span>{prospect.contact_name} • </span>}
+                          <span style={{color: '#007d89', fontWeight: '600'}}>{prospect.statut_societe}</span>
+                          {prospect.real_status && (
+                            <span style={{marginLeft: '8px', color: '#1a9fdb'}}>
+                              {prospect.real_status} ({prospect.real_probability}%)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
       );
@@ -1911,97 +2009,6 @@
               </div>
             ))}
           </div>
-          
-          {/* Modal compteurs */}
-          {showCompteurModal && (
-            <div style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.5)',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 9999
-            }}>
-              <div style={{
-                backgroundColor: 'white',
-                padding: '25px',
-                borderRadius: '12px',
-                maxWidth: '600px',
-                width: '90%',
-                maxHeight: '80vh',
-                overflow: 'auto',
-                boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
-              }}>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
-                  <h3 style={{margin: 0, color: '#007d89'}}>{compteurModalData.title}</h3>
-                  <button 
-                    onClick={() => setShowCompteurModal(false)}
-                    style={{
-                      backgroundColor: '#999',
-                      color: 'white',
-                      border: 'none',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '14px'
-                    }}
-                  >
-                    Fermer
-                  </button>
-                </div>
-                
-                {compteurModalData.prospects.length === 0 ? (
-                  <div style={{padding: '20px', textAlign: 'center', color: '#999', fontStyle: 'italic'}}>
-                    Aucun prospect trouvé pour cette période
-                  </div>
-                ) : (
-                  <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
-                    {compteurModalData.prospects.map(prospect => (
-                      <div 
-                        key={prospect.id}
-                        onClick={() => {
-                          onSelectProspect(prospect);
-                          onOpenDashboard();
-                          setShowCompteurModal(false);
-                        }}
-                        style={{
-                          padding: '12px',
-                          backgroundColor: '#f9f9f9',
-                          borderRadius: '6px',
-                          border: '1px solid #e0e0e0',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#e0f2f7';
-                          e.currentTarget.style.borderColor = '#007d89';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = '#f9f9f9';
-                          e.currentTarget.style.borderColor = '#e0e0e0';
-                        }}
-                      >
-                        <div style={{fontWeight: 'bold', color: '#1a3535', marginBottom: '4px'}}>{prospect.name}</div>
-                        <div style={{fontSize: '12px', color: '#666'}}>
-                          {prospect.contact_name && <span>{prospect.contact_name} • </span>}
-                          <span style={{color: '#007d89', fontWeight: '600'}}>{prospect.statut_societe}</span>
-                          {prospect.real_status && (
-                            <span style={{marginLeft: '8px', color: '#1a9fdb'}}>
-                              {prospect.real_status} ({prospect.real_probability}%)
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       );
     }
@@ -2625,12 +2632,10 @@
       );
     }
 
-    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo, onShowRecap }) {
+    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo, onShowRecap, setShowCompteurModal, setCompteurModalData }) {
       const [sortBy, setSortBy] = React.useState('name');
       const [sortAsc, setSortAsc] = React.useState(true);
       const [hoveredProspect, setHoveredProspect] = React.useState(null);
-      const [showCompteurModal, setShowCompteurModal] = React.useState(false);
-      const [compteurModalData, setCompteurModalData] = React.useState({ title: '', prospects: [] });
       
       const stats = {
         total: prospects.length,
@@ -2801,17 +2806,12 @@
                   <span style={{fontWeight: 'bold', color: '#1a9fdb'}}>📊 Devis:</span>
                   <span 
                     onClick={() => {
-                      console.log('[DEBUG] Clic Devis semaine');
-                      // TEMPORAIRE : enlever filtre date pour tester
                       const filtered = prospects.filter(p => 
-                        p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status)
-                        // && p.real_quote_date && new Date(p.real_quote_date) >= startOfWeek
+                        p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status) &&
+                        p.real_quote_date && new Date(p.real_quote_date) >= startOfWeek
                       );
-                      console.log('[DEBUG] Prospects filtrés:', filtered.length);
-                      console.log('[DEBUG] Détail:', filtered.map(p => ({nom: p.name, date: p.real_quote_date})));
-                      setCompteurModalData({ title: '📊 Devis cette semaine (TOUS pour test)', prospects: filtered });
+                      setCompteurModalData({ title: '📊 Devis cette semaine', prospects: filtered });
                       setShowCompteurModal(true);
-                      console.log('[DEBUG] Modal devrait être ouverte');
                     }}
                     style={{
                       padding: '2px 4px',
