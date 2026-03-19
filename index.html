@@ -2686,6 +2686,8 @@
 
       // Prospects en Devis ou Négociation seulement
       const prospectsPipeline = prospects.filter(p => p.real_status && ['En cours', 'Envoyé', 'Discussion', 'Négociation'].includes(p.real_status));
+      // Inclut Gagné uniquement pour les stats probabilité
+      const prospectsPipelineAll = prospects.filter(p => p.real_status && ['En cours', 'Envoyé', 'Discussion', 'Négociation', 'Gagné'].includes(p.real_status));
       const monthlyAbonnement = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount||p.monthly_amount) || 0), 0);
       const annualAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_annual_amount||p.annual_amount) || 0), 0);
       const setupAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_setup_amount||p.setup_amount) || 0), 0);
@@ -3076,11 +3078,11 @@
                   ];
                   
                   return ranges.map(range => {
-                    const prospectsInRange = prospectsPipeline.filter(p => 
+                    const prospectsInRange = prospectsPipelineAll.filter(p => 
                       (p.real_probability || 0) >= range.min && (p.real_probability || 0) <= range.max
                     );
                     const monthlyValue = prospectsInRange.reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount||p.monthly_amount) || 0), 0);
-                    const barWidth = prospectsPipeline.length > 0 ? (prospectsInRange.length / prospectsPipeline.length) * 100 : 0;
+                    const barWidth = prospectsPipelineAll.length > 0 ? (prospectsInRange.length / prospectsPipelineAll.length) * 100 : 0;
                     
                     return (
                       <div key={range.label} style={{marginBottom: '8px'}}>
