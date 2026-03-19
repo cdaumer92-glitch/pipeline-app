@@ -1348,8 +1348,9 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
           d.training_amount   AS devis_training
         FROM affaires a
         INNER JOIN devis d ON d.affaire_id = a.id
-        WHERE a.statut_global NOT IN ('Gagné', 'Perdu')
-        ORDER BY a.prospect_id, d.quote_date DESC NULLS LAST, d.created_at DESC
+        ORDER BY a.prospect_id, 
+          CASE a.statut_global WHEN 'Gagné' THEN 1 WHEN 'Perdu' THEN 2 ELSE 0 END,
+          d.quote_date DESC NULLS LAST, d.created_at DESC
       ),
       -- Résoudre le prospect_id même quand il est NULL (anciennes actions sans prospect_id)
       actions_resolved AS (
