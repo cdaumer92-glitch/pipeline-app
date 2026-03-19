@@ -303,6 +303,16 @@
           const data = await res.json();
           
           console.log('[DEBUG] Prospects enrichis chargés:', data.length, '- avec devis:', data.filter(p => p.real_status).length);
+          // DEBUG actions - à supprimer après vérification
+          const cuirco = data.find(p => p.name && p.name.toUpperCase().includes('CUIRCO'));
+          if (cuirco) console.log('[DEBUG CUIRCO]', JSON.stringify({
+            id: cuirco.id,
+            action_has_action: cuirco.action_has_action,
+            action_next_date: cuirco.action_next_date,
+            action_next_type: cuirco.action_next_type,
+            action_next_actor: cuirco.action_next_actor,
+            action_next_contact: cuirco.action_next_contact
+          }));
           
           setProspects(data);
 
