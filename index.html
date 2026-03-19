@@ -1828,7 +1828,7 @@
                         <li key={p.id} style={{marginBottom: '8px', fontSize: '14px'}}>
                           <strong>{p.name}</strong> - 
                           <span style={{marginLeft: '8px', color: '#666'}}>
-                            {formatCurrency((p.setup_amount || 0) + (p.monthly_amount || 0) * 12 + (p.annual_amount || 0) + (p.training_amount || 0))}
+                            {formatCurrency((p.real_setup_amount||p.setup_amount||0) + (p.real_monthly_amount||p.monthly_amount||0)*12 + (p.real_annual_amount||p.annual_amount||0) + (p.real_training_amount||p.training_amount||0))}
                           </span>
                         </li>
                       ))}
@@ -2689,13 +2689,13 @@
       const monthlyAbonnement = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount||p.monthly_amount) || 0), 0);
       const annualAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_annual_amount||p.annual_amount) || 0), 0);
       const setupAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_setup_amount||p.setup_amount) || 0), 0);
-      const formationAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.training_amount) || 0), 0);
+      const formationAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_training_amount||p.training_amount) || 0), 0);
       
       // Calcul des valeurs pondérées (montant × probabilité)
       const monthlyPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount||p.monthly_amount) || 0) * ((p.real_probability || 0) / 100), 0);
       const annualPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_annual_amount||p.annual_amount) || 0) * ((p.real_probability || 0) / 100), 0);
       const setupPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_setup_amount||p.setup_amount) || 0) * ((p.real_probability || 0) / 100), 0);
-      const formationPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.training_amount) || 0) * ((p.real_probability || 0) / 100), 0);
+      const formationPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_training_amount||p.training_amount) || 0) * ((p.real_probability || 0) / 100), 0);
 
       const commercials = ['Roger', 'Christian', 'Frédéric'];
       
@@ -2723,24 +2723,24 @@
               compareB = b.statut_societe || 'Prospect';
               return sortAsc ? compareA.localeCompare(compareB) : compareB.localeCompare(compareA);
             case 'setup':
-              compareA = a.setup_amount || 0;
-              compareB = b.setup_amount || 0;
+              compareA = a.real_setup_amount||a.setup_amount||0;
+              compareB = b.real_setup_amount||b.setup_amount||0;
               return sortAsc ? compareA - compareB : compareB - compareA;
             case 'monthly':
-              compareA = a.monthly_amount || 0;
-              compareB = b.monthly_amount || 0;
+              compareA = a.real_monthly_amount||a.monthly_amount||0;
+              compareB = b.real_monthly_amount||b.monthly_amount||0;
               return sortAsc ? compareA - compareB : compareB - compareA;
             case 'annual':
-              compareA = a.annual_amount || 0;
-              compareB = b.annual_amount || 0;
+              compareA = a.real_annual_amount||a.annual_amount||0;
+              compareB = b.real_annual_amount||b.annual_amount||0;
               return sortAsc ? compareA - compareB : compareB - compareA;
             case 'formation':
-              compareA = a.training_amount || 0;
-              compareB = b.training_amount || 0;
+              compareA = a.real_training_amount||a.training_amount||0;
+              compareB = b.real_training_amount||b.training_amount||0;
               return sortAsc ? compareA - compareB : compareB - compareA;
             case 'status':
-              compareA = a.status;
-              compareB = b.status;
+              compareA = a.real_status||'';
+              compareB = b.real_status||'';
               return sortAsc ? compareA.localeCompare(compareB) : compareB.localeCompare(compareA);
             case 'statusDate':
               compareA = new Date(a.status_date || '').getTime() || 0;
@@ -3077,9 +3077,9 @@
                   
                   return ranges.map(range => {
                     const prospectsInRange = prospectsPipeline.filter(p => 
-                      (p.chance_percent || 0) >= range.min && (p.chance_percent || 0) <= range.max
+                      (p.real_probability || 0) >= range.min && (p.real_probability || 0) <= range.max
                     );
-                    const monthlyValue = prospectsInRange.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
+                    const monthlyValue = prospectsInRange.reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount||p.monthly_amount) || 0), 0);
                     const barWidth = prospectsPipeline.length > 0 ? (prospectsInRange.length / prospectsPipeline.length) * 100 : 0;
                     
                     return (
@@ -3148,10 +3148,10 @@
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px'}}>
               {commercials.map(commercial => {
                 const commercialProspects = prospects.filter(p => p.assigned_to === commercial);
-                const commercialPipeline = commercialProspects.filter(p => p.status === 'Devis' || p.status === 'Négociation');
-                const signed = commercialProspects.filter(p => p.status === 'Signé').length;
-                const monthlyValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
-                const annualValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0), 0);
+                const commercialPipeline = commercialProspects.filter(p => p.real_status && ['En cours', 'Envoyé', 'Discussion', 'Négociation'].includes(p.real_status));
+                const signed = commercialProspects.filter(p => p.real_status === 'Gagné').length;
+                const monthlyValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount||p.monthly_amount) || 0), 0);
+                const annualValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.real_annual_amount||p.annual_amount) || 0), 0);
                 
                 // Calculer les actions planifiées et en retard
                 let nbActionsPlannees = 0;
