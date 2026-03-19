@@ -173,20 +173,20 @@
       font-size: 11px; font-weight: 600; text-transform: uppercase;
       letter-spacing: 1px; color: var(--tw-muted); margin-bottom: 12px;
     }
-    .tw-kpi-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 24px; }
+    .tw-kpi-strip { display: grid; grid-template-columns: repeat(5,1fr); gap: 12px; margin-bottom: 24px; }
     .tw-kpi-card {
       background: white; border: 1px solid var(--tw-border);
       border-radius: 10px; padding: 16px 20px;
       box-shadow: 0 1px 3px rgba(0,125,137,.06);
     }
     .tw-kpi-label { font-size: 11px; color: var(--tw-muted); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
-    .tw-kpi-value { font-size: 26px; font-weight: 600; font-family: 'DM Mono', monospace; color: var(--tw-ink); line-height: 1; }
+    .tw-kpi-value { font-size: 26px; font-weight: 600; font-family: 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; color: var(--tw-ink); line-height: 1; }
     .tw-kpi-sub { font-size: 12px; color: var(--tw-slate); margin-top: 5px; }
     .tw-kpi-sub b { color: var(--tw-ink); }
     .tw-kpi-duo { display: flex; gap: 16px; margin-top: 10px; }
     .tw-kpi-duo-sep { width: 1px; background: var(--tw-border); align-self: stretch; flex-shrink: 0; }
     .tw-duo-lbl { font-size: 10px; color: var(--tw-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
-    .tw-duo-val { font-size: 18px; font-weight: 600; font-family: 'DM Mono', monospace; }
+    .tw-duo-val { font-size: 18px; font-weight: 600; font-family: 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; }
     .tw-duo-sub { font-size: 11px; color: var(--tw-muted); margin-top: 2px; }
     /* Tab commerciaux */
     .tw-tab-wrap { background: white; border: 1px solid var(--tw-border); border-radius: 10px; box-shadow: 0 1px 3px rgba(0,125,137,.06); margin-bottom: 24px; overflow: hidden; }
@@ -205,7 +205,7 @@
     .tw-cs-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-bottom: 14px; }
     .tw-cs-item { background: var(--tw-bg); border-radius: 6px; padding: 10px; text-align: center; cursor: pointer; transition: background .15s; }
     .tw-cs-item:hover { background: var(--tw-teal-light); }
-    .tw-cs-val { font-size: 20px; font-weight: 700; font-family: 'DM Mono', monospace; }
+    .tw-cs-val { font-size: 20px; font-weight: 700; font-family: 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; }
     .tw-cs-lbl { font-size: 10px; color: var(--tw-muted); text-transform: uppercase; letter-spacing: .4px; margin-top: 3px; }
     .tw-row-line { display: flex; gap: 10px; margin-bottom: 8px; }
     .tw-row-box { flex: 1; background: var(--tw-bg); border-radius: 6px; padding: 9px 13px; display: flex; align-items: center; justify-content: space-between; }
@@ -225,12 +225,12 @@
     .tw-age-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f5f5f5; font-size: 12px; }
     .tw-age-row:last-child { border-bottom: none; }
     .tw-age-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .tw-age-val { font-family: 'DM Mono', monospace; font-weight: 700; font-size: 15px; }
+    .tw-age-val { font-family: 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 15px; }
     /* Base stats card */
     .tw-stat-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f8f8f8; font-size: 13px; }
     .tw-stat-row:last-child { border-bottom: none; }
     .tw-stat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 7px; flex-shrink: 0; }
-    .tw-stat-val { font-weight: 700; font-family: 'DM Mono', monospace; font-size: 15px; }
+    .tw-stat-val { font-weight: 700; font-family: 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; font-size: 15px; }
   </style>
 </head>
 <body>
@@ -2912,41 +2912,18 @@
           <div className="tw-section-title">Vue globale pipeline</div>
           <div className="tw-kpi-strip">
 
-            {/* Sociétés */}
+            {/* Carte 1 : Sociétés */}
             <div className="tw-kpi-card">
-              <div className="tw-kpi-label">Base — {prospects.length} sociétés</div>
-              <div style={{marginTop:'10px'}}>
-                <div style={{fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:'8px'}}>Sociétés</div>
-                {[
-                  {label:'Suspects',  val:nbSuspects,  color:'#999'},
-                  {label:'Prospects', val:nbProspects, color:'var(--tw-teal)'},
-                  {label:'Clients',   val:nbClients,   color:'var(--tw-green)'},
-                ].map(r => (
-                  <div key={r.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:'7px'}}>
-                      <div style={{width:'7px',height:'7px',borderRadius:'50%',background:r.color,flexShrink:0}}></div>
-                      <span style={{fontSize:'13px',color:'var(--tw-slate)'}}>{r.label}</span>
-                    </div>
-                    <span style={{fontSize:'16px',fontWeight:'700',fontFamily:'DM Mono,monospace',color:r.color}}>{r.val}</span>
-                  </div>
-                ))}
-                <div style={{borderTop:'1px solid var(--tw-border)',marginTop:'10px',paddingTop:'10px'}}>
-                  <div style={{fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:'8px'}}>Devis {thisYear}</div>
-                  {[
-                    {label:'En cours', val:devisEnCours, color:'var(--tw-teal)'},
-                    {label:'Gagnés',   val:devisGagnes,  color:'var(--tw-green)'},
-                    {label:'Perdus',   val:devisPerdus,  color:'var(--tw-red)'},
-                  ].map(r => (
-                    <div key={r.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px'}}>
-                      <div style={{display:'flex',alignItems:'center',gap:'7px'}}>
-                        <div style={{width:'7px',height:'7px',borderRadius:'3px',background:r.color,flexShrink:0}}></div>
-                        <span style={{fontSize:'13px',color:'var(--tw-slate)'}}>{r.label}</span>
-                      </div>
-                      <span style={{fontSize:'16px',fontWeight:'700',fontFamily:'DM Mono,monospace',color:r.color}}>{r.val}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <div className="tw-kpi-label">Sociétés en base</div>
+              <div className="tw-kpi-value" style={{color:'var(--tw-teal)'}}>{prospects.length}</div>
+              <div className="tw-kpi-sub"><b>{nbSuspects}</b> suspects · <b>{nbProspects}</b> prospects · <b>{nbClients}</b> clients</div>
+            </div>
+
+            {/* Carte 2 : Devis */}
+            <div className="tw-kpi-card">
+              <div className="tw-kpi-label">Devis en cours {thisYear}</div>
+              <div className="tw-kpi-value">{devisEnCours}</div>
+              <div className="tw-kpi-sub"><b>{devisGagnes}</b> gagné{devisGagnes>1?'s':''} · <b style={{color:'var(--tw-red)'}}>{devisPerdus}</b> perdu{devisPerdus>1?'s':''}</div>
             </div>
 
             {/* Potentiel devis en cours */}
@@ -3111,7 +3088,7 @@
                   <div key={r.label} className="tw-prob-row">
                     <div className="tw-prob-hdr">
                       <span style={{fontWeight:'600',color:r.color}}>{r.label}</span>
-                      <span style={{color:'var(--tw-slate)',fontFamily:'DM Mono,monospace'}}>{inRange.length} · {fmt(mVal)} €/m</span>
+                      <span style={{color:'var(--tw-slate)',fontFamily:'DM Sans,sans-serif', fontVariantNumeric:'tabular-nums'}}>{inRange.length} · {fmt(mVal)} €/m</span>
                     </div>
                     <div className="tw-prob-bar-bg"><div className="tw-prob-bar-fill" style={{width:`${pct}%`,background:r.color}}></div></div>
                   </div>
@@ -3138,7 +3115,7 @@
                     ].map(row => (
                       <div key={row.label} className="tw-stat-row">
                         <span style={{color:'var(--tw-slate)'}}>{row.label}</span>
-                        <div style={{display:'flex',gap:'12px',fontFamily:'DM Mono,monospace'}}>
+                        <div style={{display:'flex',gap:'12px',fontFamily:'DM Sans,sans-serif', fontVariantNumeric:'tabular-nums'}}>
                           <span style={{color:'var(--tw-muted)',fontSize:'11px'}}>Sem <b style={{color:'var(--tw-ink)'}}>{row.sem}</b></span>
                           <span style={{color:'var(--tw-muted)',fontSize:'11px'}}>Mois <b style={{color:'var(--tw-teal)'}}>{row.mois}</b></span>
                         </div>
