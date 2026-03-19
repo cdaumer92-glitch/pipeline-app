@@ -303,16 +303,7 @@
           const data = await res.json();
           
           console.log('[DEBUG] Prospects enrichis chargés:', data.length, '- avec devis:', data.filter(p => p.real_status).length);
-          // DEBUG actions - à supprimer après vérification
-          const cuirco = data.find(p => p.name && p.name.toUpperCase().includes('CUIRCO'));
-          if (cuirco) console.log('[DEBUG CUIRCO]', JSON.stringify({
-            id: cuirco.id,
-            action_has_action: cuirco.action_has_action,
-            action_next_date: cuirco.action_next_date,
-            action_next_type: cuirco.action_next_type,
-            action_next_actor: cuirco.action_next_actor,
-            action_next_contact: cuirco.action_next_contact
-          }));
+
           
           setProspects(data);
 
@@ -354,9 +345,15 @@
           const data = await res.json();
           setNextActions(data || []);
           
-          // Calculer l'état des actions
-          const actionInfo = getActionStatus(data || []);
-          setProspectActionsInfo(prev => ({...prev, [prospectId]: actionInfo}));
+          // Ne mettre à jour prospectActionsInfo que si l'enriched n'a pas déjà trouvé des actions
+          // (évite d'écraser les actions d'affaire avec la route qui ne retourne que les actions directes)
+          setProspectActionsInfo(prev => {
+            const existing = prev[prospectId];
+            // Si l'enriched a déjà détecté une action, on garde ses infos
+            if (existing?.hasAction) return prev;
+            const actionInfo = getActionStatus(data || []);
+            return {...prev, [prospectId]: actionInfo};
+          });
         } catch (err) {
           console.error('Erreur:', err);
         }
