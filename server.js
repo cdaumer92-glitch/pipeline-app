@@ -1424,6 +1424,20 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
   }
 });
 
+// ===================== DEBUG TEMPORAIRE =====================
+app.get('/api/debug/actions', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT na.id, na.prospect_id, na.affaire_id, na.action_type, na.planned_date, na.completed, a.prospect_id as aff_prospect_id
+      FROM next_actions na
+      LEFT JOIN affaires a ON a.id = na.affaire_id
+      WHERE na.completed = 0
+      ORDER BY na.id DESC LIMIT 20
+    `);
+    res.json(r.rows);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
 // ===================== START =====================
 initDB().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
