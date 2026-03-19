@@ -92,6 +92,56 @@ async function initDB() {
       ADD COLUMN IF NOT EXISTS contact TEXT
     `);
 
+    // Migration: Ajouter affaire_id dans next_actions si elle n'existe pas
+    await client.query(`
+      ALTER TABLE next_actions 
+      ADD COLUMN IF NOT EXISTS affaire_id INTEGER REFERENCES affaires(id) ON DELETE CASCADE
+    `);
+
+    // Table affaires (doit exister avant next_actions pour la FK)
+    await client.query(`CREATE TABLE IF NOT EXISTS affaires (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      nom_affaire TEXT NOT NULL,
+      description TEXT,
+      statut_global TEXT DEFAULT 'En cours',
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+
+    // Table devis
+    await client.query(`CREATE TABLE IF NOT EXISTS devis (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      affaire_id INTEGER REFERENCES affaires(id) ON DELETE CASCADE,
+      devis_name TEXT,
+      devis_status TEXT DEFAULT 'En cours',
+      quote_date DATE,
+      setup_amount NUMERIC(12,2) DEFAULT 0,
+      monthly_amount NUMERIC(12,2) DEFAULT 0,
+      annual_amount NUMERIC(12,2) DEFAULT 0,
+      training_amount NUMERIC(12,2) DEFAULT 0,
+      chance_percent INTEGER DEFAULT 0,
+      modules JSONB,
+      comment TEXT,
+      pdf_url TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+
+    // Table interlocuteurs
+    await client.query(`CREATE TABLE IF NOT EXISTS interlocuteurs (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      nom TEXT,
+      fonction TEXT,
+      email TEXT,
+      telephone TEXT,
+      principal BOOLEAN DEFAULT false,
+      decideur BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+
     await client.query(`CREATE TABLE IF NOT EXISTS next_actions (
       id SERIAL PRIMARY KEY,
       prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
@@ -1302,15 +1352,20 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
         ORDER BY a.prospect_id, d.quote_date DESC NULLS LAST, d.created_at DESC
       ),
       actions_info AS (
-        -- Pour chaque prospect, savoir s'il a des actions non complétées et si la plus proche est en retard
+        -- Pour chaque prospect, actions non complétées (prospect-level ou affaire en cours)
         SELECT 
-          prospect_id,
+          na.prospect_id,
           COUNT(*) > 0 AS has_action,
-          MIN(planned_date) AS next_action_date,
-          BOOL_OR(planned_date < CURRENT_DATE) AS is_late
-        FROM next_actions
-        WHERE completed = 0
-        GROUP BY prospect_id
+          MIN(na.planned_date) AS next_action_date,
+          BOOL_OR(na.planned_date < CURRENT_DATE) AS is_late
+        FROM next_actions na
+        LEFT JOIN affaires a ON a.id = na.affaire_id
+        WHERE na.completed = 0
+          AND (
+            na.affaire_id IS NULL  -- action prospect directe
+            OR a.statut_global NOT IN ('Gagné', 'Perdu')  -- action affaire en cours
+          )
+        GROUP BY na.prospect_id
       )
       SELECT 
         p.*,
