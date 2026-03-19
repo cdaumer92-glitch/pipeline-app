@@ -4,18 +4,234 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pipeline TexasWin</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-      background: #f5f5f5;
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f4f7f7;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
+    :root {
+      --tw-teal:       #007d89;
+      --tw-teal-light: #e6f4f5;
+      --tw-ink:        #1a3535;
+      --tw-slate:      #607a7a;
+      --tw-muted:      #9eb5b5;
+      --tw-border:     #e0ecec;
+      --tw-bg:         #f4f7f7;
+      --tw-green:      #2ec27e;
+      --tw-orange:     #f0932b;
+      --tw-red:        #e74c3c;
+      --tw-blue:       #3498db;
+    }
+    /* ── TOPBAR PROTOTYPE ── */
+    .tw-topbar {
+      height: 52px;
+      background: white;
+      border-bottom: 1px solid var(--tw-border);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      box-shadow: 0 1px 3px rgba(0,125,137,.06);
+    }
+    .tw-logo {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--tw-teal);
+      letter-spacing: -.3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    .tw-logo img { height: 28px; }
+    .tw-logo span { color: var(--tw-ink); }
+    .tw-nav { display: flex; gap: 2px; }
+    .tw-nav-btn {
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--tw-slate);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      font-family: 'DM Sans', sans-serif;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .tw-nav-btn:hover { background: var(--tw-teal-light); color: var(--tw-teal); }
+    .tw-nav-btn.tw-active { background: var(--tw-teal-light); color: var(--tw-teal); font-weight: 600; }
+    .tw-search-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--tw-bg);
+      border: 1px solid var(--tw-border);
+      border-radius: 7px;
+      padding: 5px 10px;
+      min-width: 220px;
+      flex: 1;
+      max-width: 320px;
+      transition: border-color .15s;
+      position: relative;
+    }
+    .tw-search-box:focus-within { border-color: var(--tw-teal); background: white; }
+    .tw-search-box input {
+      border: none;
+      background: transparent;
+      outline: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      color: var(--tw-ink);
+      width: 100%;
+    }
+    .tw-search-box input::placeholder { color: var(--tw-muted); }
+    .tw-btn-new {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: var(--tw-teal);
+      color: white;
+      border: none;
+      border-radius: 7px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity .15s;
+    }
+    .tw-btn-new:hover { opacity: .88; }
+    .tw-btn-icon {
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--tw-slate);
+      cursor: pointer;
+      border: 1px solid var(--tw-border);
+      background: white;
+      font-family: 'DM Sans', sans-serif;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .tw-btn-icon:hover { background: var(--tw-teal-light); color: var(--tw-teal); border-color: var(--tw-teal); }
+    .tw-user-chip {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 3px 10px 3px 3px;
+      background: var(--tw-teal-light);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--tw-teal);
+      white-space: nowrap;
+    }
+    .tw-avatar {
+      width: 26px; height: 26px;
+      background: var(--tw-teal);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: white;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .tw-search-dropdown {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0; right: 0;
+      background: white;
+      border: 1px solid var(--tw-border);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,125,137,.12);
+      z-index: 9999;
+      max-height: 380px;
+      overflow-y: auto;
+    }
+    .tw-search-item {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f5f5f5;
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .tw-search-item:last-child { border-bottom: none; }
+    .tw-search-item:hover { background: var(--tw-teal-light); }
+    /* ── DASHBOARD PROTOTYPE ── */
+    .tw-content { flex: 1; padding: 22px; overflow-y: auto; }
+    .tw-section-title {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--tw-muted); margin-bottom: 12px;
+    }
+    .tw-kpi-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 24px; }
+    .tw-kpi-card {
+      background: white; border: 1px solid var(--tw-border);
+      border-radius: 10px; padding: 16px 20px;
+      box-shadow: 0 1px 3px rgba(0,125,137,.06);
+    }
+    .tw-kpi-label { font-size: 11px; color: var(--tw-muted); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+    .tw-kpi-value { font-size: 26px; font-weight: 600; font-family: 'DM Mono', monospace; color: var(--tw-ink); line-height: 1; }
+    .tw-kpi-sub { font-size: 12px; color: var(--tw-slate); margin-top: 5px; }
+    .tw-kpi-sub b { color: var(--tw-ink); }
+    .tw-kpi-duo { display: flex; gap: 16px; margin-top: 10px; }
+    .tw-kpi-duo-sep { width: 1px; background: var(--tw-border); align-self: stretch; flex-shrink: 0; }
+    .tw-duo-lbl { font-size: 10px; color: var(--tw-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
+    .tw-duo-val { font-size: 18px; font-weight: 600; font-family: 'DM Mono', monospace; }
+    .tw-duo-sub { font-size: 11px; color: var(--tw-muted); margin-top: 2px; }
+    /* Tab commerciaux */
+    .tw-tab-wrap { background: white; border: 1px solid var(--tw-border); border-radius: 10px; box-shadow: 0 1px 3px rgba(0,125,137,.06); margin-bottom: 24px; overflow: hidden; }
+    .tw-tabs { display: flex; border-bottom: 1px solid var(--tw-border); background: var(--tw-bg); overflow-x: auto; }
+    .tw-tab {
+      padding: 11px 16px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+      border: none; background: transparent; color: var(--tw-slate); cursor: pointer;
+      border-bottom: 3px solid transparent; transition: all .15s; white-space: nowrap;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .tw-tab:hover { color: var(--tw-teal); background: var(--tw-teal-light); }
+    .tw-tab.tw-tab-active { color: var(--tw-teal); border-bottom-color: var(--tw-teal); background: white; font-weight: 600; }
+    .tw-tab-badge { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; background: var(--tw-red); color: white; border-radius: 50%; font-size: 10px; font-weight: 700; }
+    .tw-tab-body { padding: 18px 22px; }
+    /* Stat rows dans tab */
+    .tw-cs-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-bottom: 14px; }
+    .tw-cs-item { background: var(--tw-bg); border-radius: 6px; padding: 10px; text-align: center; cursor: pointer; transition: background .15s; }
+    .tw-cs-item:hover { background: var(--tw-teal-light); }
+    .tw-cs-val { font-size: 20px; font-weight: 700; font-family: 'DM Mono', monospace; }
+    .tw-cs-lbl { font-size: 10px; color: var(--tw-muted); text-transform: uppercase; letter-spacing: .4px; margin-top: 3px; }
+    .tw-row-line { display: flex; gap: 10px; margin-bottom: 8px; }
+    .tw-row-box { flex: 1; background: var(--tw-bg); border-radius: 6px; padding: 9px 13px; display: flex; align-items: center; justify-content: space-between; }
+    .tw-row-lbl { font-size: 12px; color: var(--tw-slate); }
+    .tw-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+    .tw-chip { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: #f0f0f0; font-weight: 600; }
+    .tw-pill-green { background: #e8f8f0; color: var(--tw-green); font-size: 12px; padding: 2px 9px; border-radius: 10px; font-weight: 500; }
+    .tw-pill-red   { background: #fdecea; color: var(--tw-red);   font-size: 12px; padding: 2px 9px; border-radius: 10px; font-weight: 500; }
+    /* 2 col stats */
+    .tw-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+    .tw-card { background: white; border: 1px solid var(--tw-border); border-radius: 10px; padding: 18px; box-shadow: 0 1px 3px rgba(0,125,137,.06); }
+    .tw-card-title { font-size: 13px; font-weight: 600; color: var(--tw-ink); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--tw-border); }
+    .tw-prob-row { margin-bottom: 10px; }
+    .tw-prob-hdr { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; }
+    .tw-prob-bar-bg { height: 6px; background: #f0f0f0; border-radius: 3px; overflow: hidden; }
+    .tw-prob-bar-fill { height: 100%; border-radius: 3px; }
+    .tw-age-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f5f5f5; font-size: 12px; }
+    .tw-age-row:last-child { border-bottom: none; }
+    .tw-age-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .tw-age-val { font-family: 'DM Mono', monospace; font-weight: 700; font-size: 15px; }
+    /* Base stats card */
+    .tw-stat-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f8f8f8; font-size: 13px; }
+    .tw-stat-row:last-child { border-bottom: none; }
+    .tw-stat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 7px; flex-shrink: 0; }
+    .tw-stat-val { font-weight: 700; font-family: 'DM Mono', monospace; font-size: 15px; }
   </style>
 </head>
 <body>
@@ -2038,155 +2254,90 @@
       const [globalSearch, setGlobalSearch] = React.useState('');
       const [showResults, setShowResults] = React.useState(false);
       const searchRef = React.useRef(null);
-      
-      // Fermer les résultats si on clique ailleurs
+
       React.useEffect(() => {
-        const handleClickOutside = (event) => {
-          if (searchRef.current && !searchRef.current.contains(event.target)) {
-            setShowResults(false);
-          }
+        const handleClickOutside = (e) => {
+          if (searchRef.current && !searchRef.current.contains(e.target)) setShowResults(false);
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
       }, []);
-      
+
       const filteredProspects = globalSearch.length >= 2 && prospects
-        ? prospects.filter(p => 
+        ? prospects.filter(p =>
             p.name.toLowerCase().includes(globalSearch.toLowerCase()) ||
             (p.contact_name && p.contact_name.toLowerCase().includes(globalSearch.toLowerCase()))
-          ).slice(0, 10) // Limiter à 10 résultats
+          ).slice(0, 10)
         : [];
-      
-      const getStatusColorLocal = (status) => {
-        const colors = {
-          'Prospection': '#999',
-          'Devis': '#12a0dc',
-          'Démo': '#e72c7b',
-          'Négociation': '#d3a002',
-          'Signé': '#3cd6b9',
-          'Perdu': '#e23b63'
-        };
-        return colors[status] || '#666';
-      };
-      
+
+      const initials = (name) => name ? name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) : '?';
+      const isAdmin = ['Christian', 'Frédéric', 'Frederic'].includes(user.name);
+
       return (
-        <div style={styles.header}>
-          <div style={styles.headerLeft}>
-            <img src="texaswin-logo.png" alt="TexasWin" style={{height: '40px', marginRight: '15px', verticalAlign: 'middle'}} />
-            <h1 style={{display: 'inline-block', margin: 0}}>Pipeline TexasWin</h1>
+        <div className="tw-topbar">
+          {/* LOGO */}
+          <div className="tw-logo">
+            <img src="texaswin-logo.png" alt="TexasWin" onError={(e) => { e.target.style.display='none'; }} />
+            <span>Texas</span>Win
           </div>
-          
-          {/* Champ de recherche global + bouton */}
-          <div style={{display: 'flex', gap: '4px', flex: 1, maxWidth: '550px', margin: '0 20px', alignItems: 'center'}}>
-            <div ref={searchRef} style={{position: 'relative', flex: 1}}>
-              <input
-                type="text"
-                placeholder="🔍 Rechercher une société..."
-                value={globalSearch}
-                onChange={(e) => {
-                  setGlobalSearch(e.target.value);
-                  setShowResults(e.target.value.length >= 2);
-                }}
-                onFocus={() => globalSearch.length >= 2 && setShowResults(true)}
-                style={{
-                  width: '100%',
-                  padding: '10px 15px',
-                  border: '1px solid #ccc',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              />
-            
-            {/* Résultats de recherche */}
-            {showResults && filteredProspects.length > 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                backgroundColor: 'white',
-                border: '1px solid #ccc',
-                borderRadius: '6px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                marginTop: '5px',
-                maxHeight: '400px',
-                overflowY: 'auto',
-                zIndex: 1000
-              }}>
-                {filteredProspects.map(prospect => (
-                  <div
-                    key={prospect.id}
-                    onClick={() => {
-                      onSelectProspect(prospect);
-                      setGlobalSearch('');
-                      setShowResults(false);
-                      if (isDashboard) onDashboard(); // Basculer vers le suivi si on est sur le dashboard
-                    }}
-                    style={{
-                      padding: '12px 15px',
-                      borderBottom: '1px solid #eee',
-                      cursor: 'pointer',
-                      transition: 'background-color 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
-                  >
-                    <div style={{fontWeight: 'bold', color: '#333', marginBottom: '4px'}}>
-                      {prospect.name}
-                    </div>
-                    <div style={{fontSize: '12px', color: '#666'}}>
-                      {prospect.contact_name && `${prospect.contact_name} • `}
-                      <span style={{
-                        color: prospect.statut_societe === 'Client' ? '#12a0dc' : 
-                               prospect.statut_societe === 'Prospect' ? '#ff9800' : '#999'
-                      }}>
-                        {prospect.statut_societe || 'Prospect'}
-                      </span>
-                      {' • '}
-                      <span style={{color: getStatusColorLocal(prospect.status)}}>
-                        {prospect.status}
-                      </span>
+
+          {/* NAV */}
+          <nav className="tw-nav">
+            <button className={`tw-nav-btn ${isDashboard ? 'tw-active' : ''}`} onClick={() => { if (!isDashboard) onDashboard(); }}>Dashboard</button>
+            <button className={`tw-nav-btn ${!isDashboard ? 'tw-active' : ''}`} onClick={() => { if (isDashboard) onDashboard(); }}>Prospects</button>
+          </nav>
+
+          {/* SEARCH */}
+          <div className="tw-search-box" ref={searchRef}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--tw-muted)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input
+              type="text"
+              placeholder="Rechercher une société..."
+              value={globalSearch}
+              onChange={(e) => { setGlobalSearch(e.target.value); setShowResults(e.target.value.length >= 2); }}
+              onFocus={() => globalSearch.length >= 2 && setShowResults(true)}
+            />
+            {showResults && (
+              <div className="tw-search-dropdown">
+                {filteredProspects.length > 0 ? filteredProspects.map(p => (
+                  <div key={p.id} className="tw-search-item" onClick={() => {
+                    onSelectProspect(p); setGlobalSearch(''); setShowResults(false);
+                    if (isDashboard) onDashboard();
+                  }}>
+                    <div style={{fontWeight: '600', fontSize: '13px', color: 'var(--tw-ink)'}}>{p.name}</div>
+                    <div style={{fontSize: '11px', color: 'var(--tw-muted)', marginTop: '2px'}}>
+                      {p.contact_name && `${p.contact_name} · `}
+                      <span style={{color: p.statut_societe === 'Client' ? 'var(--tw-teal)' : p.statut_societe === 'Prospect' ? 'var(--tw-orange)' : 'var(--tw-muted)'}}>{p.statut_societe || 'Prospect'}</span>
+                      {p.real_status && <span style={{color: 'var(--tw-slate)'}}> · {p.real_status}</span>}
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <div style={{padding: '16px', textAlign: 'center', color: 'var(--tw-muted)', fontSize: '13px'}}>Aucune société trouvée</div>
+                )}
               </div>
             )}
-            
-            {showResults && globalSearch.length >= 2 && filteredProspects.length === 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                backgroundColor: 'white',
-                border: '1px solid #ccc',
-                borderRadius: '6px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                marginTop: '5px',
-                padding: '20px',
-                textAlign: 'center',
-                color: '#999',
-                zIndex: 1000
-              }}>
-                Aucune société trouvée
-              </div>
-            )}
-            </div>
-            
-            <button onClick={onNewProspect} style={{backgroundColor: '#007d89', color: 'white', border: 'none', padding: '10px 18px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', whiteSpace: 'nowrap'}}>+ Nlle Société</button>
           </div>
-          
-          <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
-            <button onClick={onDashboard} style={{...styles.dashboardBtn, ...(isDashboard ? {backgroundColor: '#10a0dc', color: 'white'} : {})}}>📊 Dashboard</button>
-            {user.name === 'Christian' && (
-              <button onClick={onSettings} style={styles.settingsBtn}>⚙️ Paramètres</button>
-            )}
-            <div style={styles.userInfo}>
-              <span>{user.name}</span>
-              <button onClick={onLogout} style={styles.logoutBtn}>Déconnexion</button>
-            </div>
+
+          {/* BTN NOUVELLE SOCIÉTÉ */}
+          <button className="tw-btn-new" onClick={onNewProspect}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Nlle Société
+          </button>
+
+          {/* SPACER */}
+          <div style={{flex: 1}} />
+
+          {/* PARAMÈTRES */}
+          {isAdmin && (
+            <button className="tw-btn-icon" onClick={onSettings}>⚙ Paramètres</button>
+          )}
+
+          {/* USER + DÉCONNEXION */}
+          <div className="tw-user-chip">
+            <div className="tw-avatar">{initials(user.name)}</div>
+            {user.name}
           </div>
+          <button className="tw-btn-icon" onClick={onLogout} style={{color: 'var(--tw-red)', borderColor: '#fcc'}}>Déconnexion</button>
         </div>
       );
     }
@@ -2669,803 +2820,361 @@
     }
 
     function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo, onShowRecap, setShowCompteurModal, setCompteurModalData }) {
-      const [sortBy, setSortBy] = React.useState('name');
-      const [sortAsc, setSortAsc] = React.useState(true);
-      const [hoveredProspect, setHoveredProspect] = React.useState(null);
-      
-      const stats = {
-        total: prospects.length,
-        prospection: prospects.filter(p => !p.real_status).length, // Pas de devis = Prospection
-        devis: prospects.filter(p => p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status)).length,
-        demo: prospects.filter(p => p.real_status === 'Démo').length,
-        negotiation: prospects.filter(p => p.real_status === 'Négociation').length,
-        signed: prospects.filter(p => p.real_status === 'Gagné').length,
-        lost: prospects.filter(p => p.real_status === 'Perdu').length,
-        totalValue: prospects.reduce((sum, p) => sum + ((p.real_monthly_amount||p.monthly_amount) * 12 + (p.real_annual_amount||p.annual_amount)), 0)
+      const [activeTab, setActiveTab] = React.useState(null);
+      const thisYear = new Date().getFullYear();
+      const today = new Date(); today.setHours(0,0,0,0);
+
+      // ── Stats globales ──
+      const nbSuspects  = prospects.filter(p => p.statut_societe === 'Suspect').length;
+      const nbProspects = prospects.filter(p => p.statut_societe === 'Prospect').length;
+      const nbClients   = prospects.filter(p => p.statut_societe === 'Client').length;
+      const devisEnCours = prospects.filter(p => p.real_status && ['En cours','Envoyé','Discussion','Négociation'].includes(p.real_status)).length;
+      const devisGagnes  = prospects.filter(p => p.real_status === 'Gagné').length;
+      const devisPerdus  = prospects.filter(p => p.real_status === 'Perdu').length;
+
+      const pipeline = prospects.filter(p => p.real_status && ['En cours','Envoyé','Discussion','Négociation'].includes(p.real_status));
+      const pipelineAll = prospects.filter(p => p.real_status && ['En cours','Envoyé','Discussion','Négociation','Gagné'].includes(p.real_status));
+      const gagnes = prospects.filter(p => p.real_status === 'Gagné');
+
+      const aboMensuelBrut = pipeline.reduce((s,p) => s + (parseFloat(p.real_monthly_amount||p.monthly_amount)||0), 0);
+      const aboMensuelPondere = pipeline.reduce((s,p) => s + (parseFloat(p.real_monthly_amount||p.monthly_amount)||0) * ((p.real_probability||0)/100), 0);
+      const setupBrut = pipeline.reduce((s,p) => s + (parseFloat(p.real_setup_amount||p.setup_amount)||0), 0);
+      const setupPondere = pipeline.reduce((s,p) => s + (parseFloat(p.real_setup_amount||p.setup_amount)||0) * ((p.real_probability||0)/100), 0);
+      const aboGagnesMensuel = gagnes.reduce((s,p) => s + (parseFloat(p.real_monthly_amount||p.monthly_amount)||0), 0);
+      const aboGagnesAnnuel  = gagnes.reduce((s,p) => s + (parseFloat(p.real_annual_amount||p.annual_amount)||0), 0);
+      const setupGagnes      = gagnes.reduce((s,p) => s + (parseFloat(p.real_setup_amount||p.setup_amount)||0), 0);
+
+      const fmt = (n) => n.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+      // ── Commerciaux ──
+      const commerciaux = [...new Set(prospects.map(p => p.assigned_to).filter(Boolean))].sort();
+      if (activeTab === null && commerciaux.length > 0) setActiveTab(commerciaux[0]);
+
+      const getCommercialData = (name) => {
+        const mine = prospects.filter(p => p.assigned_to === name);
+        const myPipeline = mine.filter(p => p.real_status && ['En cours','Envoyé','Discussion','Négociation'].includes(p.real_status));
+        const myActions = Object.entries(prospectActionsInfo)
+          .filter(([id]) => mine.some(p => String(p.id) === String(id)));
+        const actives = myActions.filter(([,a]) => a.hasAction).length;
+        const retard  = myActions.filter(([,a]) => a.isLate).length;
+        const encours    = mine.filter(p => p.real_status === 'En cours').length;
+        const envoye     = mine.filter(p => p.real_status === 'Envoyé').length;
+        const discussion = mine.filter(p => p.real_status === 'Discussion').length;
+        const negocie    = mine.filter(p => p.real_status === 'Négociation').length;
+        const gagne      = mine.filter(p => p.real_status === 'Gagné').length;
+        const perdu      = mine.filter(p => p.real_status === 'Perdu').length;
+        return {
+          societes: mine.length,
+          devisCount: myPipeline.length,
+          signes: gagne,
+          aboMensuel: myPipeline.reduce((s,p) => s+(parseFloat(p.real_monthly_amount||p.monthly_amount)||0),0),
+          aboAnnuel:  myPipeline.reduce((s,p) => s+(parseFloat(p.real_annual_amount||p.annual_amount)||0),0),
+          actives, retard,
+          prosp: mine.filter(p => !p.real_status).length,
+          encours, envoye, discussion, negocie, gagne, perdu,
+          devisTotal: encours+envoye+discussion+negocie,
+        };
       };
 
-      // Prospects en Devis ou Négociation seulement
-      const prospectsPipeline = prospects.filter(p => p.real_status && ['En cours', 'Envoyé', 'Discussion', 'Négociation'].includes(p.real_status));
-      // Inclut Gagné uniquement pour les stats probabilité
-      const prospectsPipelineAll = prospects.filter(p => p.real_status && ['En cours', 'Envoyé', 'Discussion', 'Négociation', 'Gagné'].includes(p.real_status));
-      const monthlyAbonnement = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount||p.monthly_amount) || 0), 0);
-      const annualAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_annual_amount||p.annual_amount) || 0), 0);
-      const setupAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_setup_amount||p.setup_amount) || 0), 0);
-      const formationAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_training_amount||p.training_amount) || 0), 0);
-      
-      // Calcul des valeurs pondérées (montant × probabilité)
-      const monthlyPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount||p.monthly_amount) || 0) * ((p.real_probability || 0) / 100), 0);
-      const annualPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_annual_amount||p.annual_amount) || 0) * ((p.real_probability || 0) / 100), 0);
-      const setupPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_setup_amount||p.setup_amount) || 0) * ((p.real_probability || 0) / 100), 0);
-      const formationPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_training_amount||p.training_amount) || 0) * ((p.real_probability || 0) / 100), 0);
+      // ── Par probabilité ──
+      const probRanges = [
+        {label:'80–100%', min:80, max:100, color:'#2ec27e'},
+        {label:'60–80%',  min:60, max:79,  color:'#3498db'},
+        {label:'40–60%',  min:40, max:59,  color:'#f0932b'},
+        {label:'20–40%',  min:20, max:39,  color:'#e74c3c'},
+        {label:'0–20%',   min:0,  max:19,  color:'#bbb'},
+      ];
 
-      const commercials = ['Roger', 'Christian', 'Frédéric'];
-      
-      // Calcul dates pour compteurs
-      const now = new Date();
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
-      startOfWeek.setHours(0, 0, 0, 0);
-      
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      // ── Ancienneté devis ──
+      const ageRanges = [
+        {label:'< 1 mois',  max:30,  color:'#2ec27e', status:'Frais'},
+        {label:'1–2 mois',  min:30,  max:60,  color:'#3498db', status:'OK'},
+        {label:'2–3 mois',  min:60,  max:90,  color:'#f0932b', status:'⚠ Vieux'},
+        {label:'> 3 mois',  min:90,  color:'#e74c3c', status:'🚨 Urgent'},
+      ];
+      const ageCount = (range) => pipeline.filter(p => {
+        if (!p.real_quote_date) return false;
+        const days = (today - new Date(p.real_quote_date)) / 86400000;
+        const ok_min = range.min === undefined || days >= range.min;
+        const ok_max = range.max === undefined || days < range.max;
+        return ok_min && ok_max;
+      }).length;
 
-      // Fonction pour trier la liste
-      const getSortedProspects = (commercialName) => {
-        const filtered = prospects.filter(p => p.assigned_to === commercialName);
-        return filtered.sort((a, b) => {
-          let compareA, compareB;
-          
-          switch(sortBy) {
-            case 'name':
-              compareA = a.name.toLowerCase();
-              compareB = b.name.toLowerCase();
-              return sortAsc ? compareA.localeCompare(compareB) : compareB.localeCompare(compareA);
-            case 'statutSociete':
-              compareA = a.statut_societe || 'Prospect';
-              compareB = b.statut_societe || 'Prospect';
-              return sortAsc ? compareA.localeCompare(compareB) : compareB.localeCompare(compareA);
-            case 'setup':
-              compareA = a.real_setup_amount||a.setup_amount||0;
-              compareB = b.real_setup_amount||b.setup_amount||0;
-              return sortAsc ? compareA - compareB : compareB - compareA;
-            case 'monthly':
-              compareA = a.real_monthly_amount||a.monthly_amount||0;
-              compareB = b.real_monthly_amount||b.monthly_amount||0;
-              return sortAsc ? compareA - compareB : compareB - compareA;
-            case 'annual':
-              compareA = a.real_annual_amount||a.annual_amount||0;
-              compareB = b.real_annual_amount||b.annual_amount||0;
-              return sortAsc ? compareA - compareB : compareB - compareA;
-            case 'formation':
-              compareA = a.real_training_amount||a.training_amount||0;
-              compareB = b.real_training_amount||b.training_amount||0;
-              return sortAsc ? compareA - compareB : compareB - compareA;
-            case 'status':
-              compareA = a.real_status||'';
-              compareB = b.real_status||'';
-              return sortAsc ? compareA.localeCompare(compareB) : compareB.localeCompare(compareA);
-            case 'statusDate':
-              compareA = new Date(a.status_date || '').getTime() || 0;
-              compareB = new Date(b.status_date || '').getTime() || 0;
-              return sortAsc ? compareA - compareB : compareB - compareA;
-            case 'nextActionDate':
-              // Tri par date de prochaine action
-              const getNextActionDate = (prospectId) => {
-                const actions = prospectActionsInfo[prospectId];
-                if (!actions || !actions.hasAction) return 0;
-                // Trouver la prochaine action non complétée
-                const nextAction = prospects.find(p => p.id === prospectId)?.nextActions?.filter(a => !a.completed).sort((x, y) => new Date(x.planned_date) - new Date(y.planned_date))[0];
-                return nextAction ? new Date(nextAction.planned_date).getTime() : 0;
-              };
-              compareA = getNextActionDate(a.id);
-              compareB = getNextActionDate(b.id);
-              return sortAsc ? compareA - compareB : compareB - compareA;
-            default:
-              return 0;
-          }
-        });
-      };
+      const chip = (label, val, color) => (
+        <span key={label} className="tw-chip" style={{color: val>0 ? color : 'var(--tw-muted)', opacity: val>0?1:.4}}>
+          {label} {val}
+        </span>
+      );
 
-      const handleSort = (field) => {
-        if (sortBy === field) {
-          setSortAsc(!sortAsc);
-        } else {
-          setSortBy(field);
-          setSortAsc(true);
-        }
-      };
-      
-      const renderHeader = (label, field) => {
-        let textAlign = 'center';
-        if (field === 'name') textAlign = 'left';
-        return (
-          <th style={{padding: '10px', textAlign: textAlign, fontWeight: 'bold', cursor: 'pointer', userSelect: 'none', backgroundColor: sortBy === field ? '#e0e0e0' : 'transparent'}} onClick={() => handleSort(field)}>
-            {label} {sortBy === field && (sortAsc ? '↑' : '↓')}
-          </th>
-        );
-      };
-      
       return (
-        <div style={{padding: '30px', backgroundColor: '#f9f9f9', overflowY: 'auto', flex: 1}}>
-          <h2 style={{marginBottom: '20px'}}>Dashboard Commerciaux</h2>
-          
-          {/* Compteurs Devis / Prospects / Clients (semaine / mois) */}
-          {(() => {
-            // Devis = prospects avec real_status (En cours, Envoyé, Discussion)
-            const devisWeek = prospects.filter(p => 
-              p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status) &&
-              p.real_quote_date && new Date(p.real_quote_date) >= startOfWeek
-            ).length;
-            
-            const devisMonth = prospects.filter(p => 
-              p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status) &&
-              p.real_quote_date && new Date(p.real_quote_date) >= startOfMonth
-            ).length;
-            
-            // Prospects = statut_societe = Prospect
-            const prospectsWeek = prospects.filter(p => 
-              p.statut_societe === 'Prospect' &&
-              p.created_at && new Date(p.created_at) >= startOfWeek
-            ).length;
-            
-            const prospectsMonth = prospects.filter(p => 
-              p.statut_societe === 'Prospect' &&
-              p.created_at && new Date(p.created_at) >= startOfMonth
-            ).length;
-            
-            // Clients = statut_societe = Client
-            const clientsWeek = prospects.filter(p => 
-              p.statut_societe === 'Client' &&
-              p.created_at && new Date(p.created_at) >= startOfWeek
-            ).length;
-            
-            const clientsMonth = prospects.filter(p => 
-              p.statut_societe === 'Client' &&
-              p.created_at && new Date(p.created_at) >= startOfMonth
-            ).length;
-            
-            return (
-              <div style={{
-                display: 'flex', 
-                gap: '30px', 
-                marginBottom: '30px', 
-                padding: '15px 20px', 
-                backgroundColor: 'white', 
-                borderRadius: '8px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                fontSize: '14px',
-                alignItems: 'center'
-              }}>
-                {/* Texte introductif */}
-                <span style={{color: '#666', fontWeight: '500'}}>Nouveaux cette semaine ou ce mois :</span>
-                
-                {/* Devis */}
-                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                  <span style={{fontWeight: 'bold', color: '#1a9fdb'}}>📊 Devis:</span>
-                  <span 
-                    onClick={() => {
-                      const filtered = prospects.filter(p => 
-                        p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status) &&
-                        p.real_quote_date && new Date(p.real_quote_date) >= startOfWeek
-                      );
-                      setCompteurModalData({ title: '📊 Devis cette semaine', prospects: filtered });
-                      setShowCompteurModal(true);
-                    }}
-                    style={{
-                      padding: '2px 4px',
-                      cursor: 'pointer',
-                      borderRadius: '3px',
-                      transition: 'background-color 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = '#e0f2f7'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                  >
-                    <strong style={{color: '#1a9fdb'}}>{devisWeek}</strong> <span style={{color: '#666'}}>(sem)</span>
-                  </span>
-                  <span style={{color: '#999'}}>;</span>
-                  <span 
-                    onClick={() => {
-                      const filtered = prospects.filter(p => 
-                        p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status) &&
-                        p.real_quote_date && new Date(p.real_quote_date) >= startOfMonth
-                      );
-                      setCompteurModalData({ title: '📊 Devis ce mois', prospects: filtered });
-                      setShowCompteurModal(true);
-                    }}
-                    style={{
-                      padding: '2px 4px',
-                      cursor: 'pointer',
-                      borderRadius: '3px',
-                      transition: 'background-color 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = '#e0f2f7'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                  >
-                    <strong style={{color: '#1a9fdb'}}>{devisMonth}</strong> <span style={{color: '#666'}}>(mois)</span>
-                  </span>
-                </div>
-                
-                {/* Prospects */}
-                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                  <span style={{fontWeight: 'bold', color: '#ff9800'}}>Prospects:</span>
-                  <span 
-                    onClick={() => {
-                      const filtered = prospects.filter(p => 
-                        p.statut_societe === 'Prospect' &&
-                        p.created_at && new Date(p.created_at) >= startOfWeek
-                      );
-                      setCompteurModalData({ title: 'Prospects cette semaine', prospects: filtered });
-                      setShowCompteurModal(true);
-                    }}
-                    style={{
-                      padding: '2px 4px',
-                      cursor: 'pointer',
-                      borderRadius: '3px',
-                      transition: 'background-color 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = '#fff3e0'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                  >
-                    <strong style={{color: '#ff9800'}}>{prospectsWeek}</strong> <span style={{color: '#666'}}>(sem)</span>
-                  </span>
-                  <span style={{color: '#999'}}>;</span>
-                  <span 
-                    onClick={() => {
-                      const filtered = prospects.filter(p => 
-                        p.statut_societe === 'Prospect' &&
-                        p.created_at && new Date(p.created_at) >= startOfMonth
-                      );
-                      setCompteurModalData({ title: 'Prospects ce mois', prospects: filtered });
-                      setShowCompteurModal(true);
-                    }}
-                    style={{
-                      padding: '2px 4px',
-                      cursor: 'pointer',
-                      borderRadius: '3px',
-                      transition: 'background-color 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = '#fff3e0'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                  >
-                    <strong style={{color: '#ff9800'}}>{prospectsMonth}</strong> <span style={{color: '#666'}}>(mois)</span>
-                  </span>
-                </div>
-                
-                {/* Clients */}
-                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                  <span style={{fontWeight: 'bold', color: '#d4a017'}}>Clients:</span>
-                  <span 
-                    onClick={() => {
-                      const filtered = prospects.filter(p => 
-                        p.statut_societe === 'Client' &&
-                        p.created_at && new Date(p.created_at) >= startOfWeek
-                      );
-                      setCompteurModalData({ title: 'Clients cette semaine', prospects: filtered });
-                      setShowCompteurModal(true);
-                    }}
-                    style={{
-                      padding: '2px 4px',
-                      cursor: 'pointer',
-                      borderRadius: '3px',
-                      transition: 'background-color 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = '#fef9e7'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                  >
-                    <strong style={{color: '#d4a017'}}>{clientsWeek}</strong> <span style={{color: '#666'}}>(sem)</span>
-                  </span>
-                  <span style={{color: '#999'}}>;</span>
-                  <span 
-                    onClick={() => {
-                      const filtered = prospects.filter(p => 
-                        p.statut_societe === 'Client' &&
-                        p.created_at && new Date(p.created_at) >= startOfMonth
-                      );
-                      setCompteurModalData({ title: 'Clients ce mois', prospects: filtered });
-                      setShowCompteurModal(true);
-                    }}
-                    style={{
-                      padding: '2px 4px',
-                      cursor: 'pointer',
-                      borderRadius: '3px',
-                      transition: 'background-color 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = '#fef9e7'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                  >
-                    <strong style={{color: '#d4a017'}}>{clientsMonth}</strong> <span style={{color: '#666'}}>(mois)</span>
-                  </span>
-                </div>
-              </div>
-            );
-          })()}
-          
-          {/* Vue d'ensemble - 5 carrés */}
-          <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '20px', marginBottom: '40px'}}>
-            
-            {/* Carré 1: Compteurs prospects */}
-            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📊 Prospects ({stats.prospection + prospectsPipeline.length})</h3>
-              <div style={{fontSize: '15px', lineHeight: '2'}}>
-                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
-                  <span style={{color: '#666'}}>Total Suspect:</span>
-                  <strong style={{color: '#999', fontSize: '16px'}}>{stats.prospection}</strong>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
-                  <span style={{color: '#666'}}>En pipeline:</span>
-                  <strong style={{color: '#10a0dc', fontSize: '16px'}}>{prospectsPipeline.length}</strong>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
-                  <span style={{color: '#666'}}>Signé:</span>
-                  <strong style={{color: '#3cd6b9', fontSize: '16px'}}>{stats.signed}</strong>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                  <span style={{color: '#666'}}>Perdu:</span>
-                  <strong style={{color: '#e23b63', fontSize: '16px'}}>{stats.lost}</strong>
+        <div className="tw-content">
+
+          {/* ── KPI STRIP ── */}
+          <div className="tw-section-title">Vue globale pipeline</div>
+          <div className="tw-kpi-strip">
+
+            {/* Sociétés */}
+            <div className="tw-kpi-card">
+              <div className="tw-kpi-label">Base — {prospects.length} sociétés</div>
+              <div style={{marginTop:'10px'}}>
+                <div style={{fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:'8px'}}>Sociétés</div>
+                {[
+                  {label:'Suspects',  val:nbSuspects,  color:'#999'},
+                  {label:'Prospects', val:nbProspects, color:'var(--tw-teal)'},
+                  {label:'Clients',   val:nbClients,   color:'var(--tw-green)'},
+                ].map(r => (
+                  <div key={r.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:'7px'}}>
+                      <div style={{width:'7px',height:'7px',borderRadius:'50%',background:r.color,flexShrink:0}}></div>
+                      <span style={{fontSize:'13px',color:'var(--tw-slate)'}}>{r.label}</span>
+                    </div>
+                    <span style={{fontSize:'16px',fontWeight:'700',fontFamily:'DM Mono,monospace',color:r.color}}>{r.val}</span>
+                  </div>
+                ))}
+                <div style={{borderTop:'1px solid var(--tw-border)',marginTop:'10px',paddingTop:'10px'}}>
+                  <div style={{fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:'8px'}}>Devis {thisYear}</div>
+                  {[
+                    {label:'En cours', val:devisEnCours, color:'var(--tw-teal)'},
+                    {label:'Gagnés',   val:devisGagnes,  color:'var(--tw-green)'},
+                    {label:'Perdus',   val:devisPerdus,  color:'var(--tw-red)'},
+                  ].map(r => (
+                    <div key={r.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:'7px'}}>
+                        <div style={{width:'7px',height:'7px',borderRadius:'3px',background:r.color,flexShrink:0}}></div>
+                        <span style={{fontSize:'13px',color:'var(--tw-slate)'}}>{r.label}</span>
+                      </div>
+                      <span style={{fontSize:'16px',fontWeight:'700',fontFamily:'DM Mono,monospace',color:r.color}}>{r.val}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
 
-            {/* Carré 2: Abonnements */}
-            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📅 Abonnements</h3>
-              <div style={{fontSize: '14px', lineHeight: '1.6'}}>
-                <div style={{marginBottom: '12px'}}>
-                  <div style={{color: '#666', marginBottom: '6px', fontWeight: 'bold'}}>/mois:</div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '2px'}}>
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>{formatCurrency(monthlyAbonnement)}</span>
-                    <span style={{fontSize: '12px', color: '#999'}}>Brut</span>
-                  </div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc'}}>{formatCurrency(monthlyPondere)}</span>
-                    <span style={{fontSize: '12px', color: '#10a0dc'}}>Pondéré</span>
-                  </div>
-                </div>
+            {/* Potentiel devis en cours */}
+            <div className="tw-kpi-card">
+              <div className="tw-kpi-label">Potentiel devis en cours</div>
+              <div className="tw-kpi-duo">
                 <div>
-                  <div style={{color: '#666', marginBottom: '6px', fontWeight: 'bold'}}>/an:</div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '2px'}}>
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>{formatCurrency(annualAmount)}</span>
-                    <span style={{fontSize: '12px', color: '#999'}}>Brut</span>
-                  </div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc'}}>{formatCurrency(annualPondere)}</span>
-                    <span style={{fontSize: '12px', color: '#10a0dc'}}>Pondéré</span>
-                  </div>
+                  <div className="tw-duo-lbl">Abo</div>
+                  <div className="tw-duo-val" style={{color:'var(--tw-teal)'}}>{fmt(aboMensuelBrut)} €<span style={{fontSize:'11px',color:'var(--tw-slate)',fontWeight:'400'}}>/mois</span></div>
+                  <div className="tw-duo-sub">Pondéré <b style={{color:'var(--tw-teal)'}}>{fmt(aboMensuelPondere)} €</b></div>
                 </div>
-              </div>
-            </div>
-
-            {/* Carré 3: Setup + Formation */}
-            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>💰 Prestations</h3>
-              <div style={{fontSize: '14px', lineHeight: '1.6'}}>
-                <div style={{marginBottom: '12px'}}>
-                  <div style={{color: '#666', marginBottom: '6px', fontWeight: 'bold'}}>Setup:</div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '2px'}}>
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>{formatCurrency(setupAmount)}</span>
-                    <span style={{fontSize: '12px', color: '#999'}}>Brut</span>
-                  </div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc'}}>{formatCurrency(setupPondere)}</span>
-                    <span style={{fontSize: '12px', color: '#10a0dc'}}>Pondéré</span>
-                  </div>
-                </div>
+                <div className="tw-kpi-duo-sep"></div>
                 <div>
-                  <div style={{color: '#666', marginBottom: '6px', fontWeight: 'bold'}}>Formation:</div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '2px'}}>
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#333'}}>{formatCurrency(formationAmount)}</span>
-                    <span style={{fontSize: '12px', color: '#999'}}>Brut</span>
-                  </div>
-                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-                    <span style={{fontSize: '16px', fontWeight: 'bold', color: '#10a0dc'}}>{formatCurrency(formationPondere)}</span>
-                    <span style={{fontSize: '12px', color: '#10a0dc'}}>Pondéré</span>
-                  </div>
+                  <div className="tw-duo-lbl">Setup</div>
+                  <div className="tw-duo-val">{fmt(setupBrut)} €</div>
+                  <div className="tw-duo-sub">Pondéré <b>{fmt(setupPondere)} €</b></div>
                 </div>
               </div>
             </div>
 
-            {/* Carré 4: Répartition par probabilité */}
-            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>📈 Par probabilité</h3>
-              <div style={{fontSize: '12px', lineHeight: '1.8'}}>
-                {(() => {
-                  const ranges = [
-                    {label: '80-100%', min: 80, max: 100, color: '#3cd6b9'},
-                    {label: '60-80%', min: 60, max: 79, color: '#12a0dc'},
-                    {label: '40-60%', min: 40, max: 59, color: '#d3a002'},
-                    {label: '20-40%', min: 20, max: 39, color: '#e72c7b'},
-                    {label: '0-20%', min: 0, max: 19, color: '#e23b63'}
-                  ];
-                  
-                  return ranges.map(range => {
-                    const prospectsInRange = prospectsPipelineAll.filter(p => 
-                      (p.real_probability || 0) >= range.min && (p.real_probability || 0) <= range.max
-                    );
-                    const monthlyValue = prospectsInRange.reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount||p.monthly_amount) || 0), 0);
-                    const barWidth = prospectsPipelineAll.length > 0 ? (prospectsInRange.length / prospectsPipelineAll.length) * 100 : 0;
-                    
-                    return (
-                      <div key={range.label} style={{marginBottom: '8px'}}>
-                        <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '3px'}}>
-                          <span style={{fontSize: '11px', fontWeight: 'bold', color: range.color}}>{range.label}</span>
-                          <span style={{fontSize: '11px', color: '#666'}}>{prospectsInRange.length} • {formatCurrency(monthlyValue)}/m</span>
+            {/* Signé depuis janvier */}
+            <div className="tw-kpi-card">
+              <div className="tw-kpi-label">Signé depuis janvier {thisYear}</div>
+              <div className="tw-kpi-duo">
+                <div>
+                  <div className="tw-duo-lbl">Abo</div>
+                  <div className="tw-duo-val" style={{color:'var(--tw-green)'}}>{fmt(aboGagnesMensuel)} €<span style={{fontSize:'11px',color:'var(--tw-slate)',fontWeight:'400'}}>/mois</span></div>
+                  <div className="tw-duo-sub">+ <b style={{color:'var(--tw-green)'}}>{fmt(aboGagnesAnnuel)} €</b>/an</div>
+                </div>
+                <div className="tw-kpi-duo-sep"></div>
+                <div>
+                  <div className="tw-duo-lbl">Setup</div>
+                  <div className="tw-duo-val" style={{color:'var(--tw-green)'}}>{fmt(setupGagnes)} €</div>
+                  <div className="tw-duo-sub">{gagnes.length} affaire{gagnes.length>1?'s':''} signée{gagnes.length>1?'s':''}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Ancienneté devis */}
+            <div className="tw-kpi-card">
+              <div className="tw-kpi-label">Ancienneté des devis</div>
+              <div style={{marginTop:'8px'}}>
+                {ageRanges.map(r => (
+                  <div key={r.label} className="tw-age-row">
+                    <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                      <div className="tw-age-dot" style={{background:r.color}}></div>
+                      <div>
+                        <div style={{fontSize:'12px',fontWeight:'500'}}>{r.label}</div>
+                        <div style={{fontSize:'10px',fontWeight:'600',color:r.color,textTransform:'uppercase',letterSpacing:'.4px'}}>{r.status}</div>
+                      </div>
+                    </div>
+                    <div className="tw-age-val" style={{color:r.color}}>{ageCount(r)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+
+          {/* ── ONGLETS COMMERCIAUX ── */}
+          <div className="tw-section-title">Par commercial</div>
+          <div className="tw-tab-wrap">
+            <div className="tw-tabs">
+              {commerciaux.map(name => {
+                const d = getCommercialData(name);
+                return (
+                  <button
+                    key={name}
+                    className={`tw-tab ${activeTab===name?'tw-tab-active':''}`}
+                    onClick={() => setActiveTab(name)}
+                  >
+                    {name.split(' ')[0]}
+                    {d.retard > 0 && <span className="tw-tab-badge">{d.retard}</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="tw-tab-body">
+              {activeTab && (() => {
+                const d = getCommercialData(activeTab);
+                const initials = activeTab.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+                return (
+                  <div>
+                    {/* Header commercial */}
+                    <div style={{display:'flex',alignItems:'center',gap:'12px',marginBottom:'16px'}}>
+                      <div className="tw-avatar" style={{width:'40px',height:'40px',fontSize:'14px',background:'var(--tw-teal)'}}>{initials}</div>
+                      <div>
+                        <div style={{fontSize:'15px',fontWeight:'600',color:'var(--tw-ink)'}}>{activeTab}</div>
+                        <div style={{fontSize:'12px',color:'var(--tw-muted)'}}>{d.societes} société{d.societes>1?'s':''} · {d.devisTotal} devis en cours</div>
+                      </div>
+                    </div>
+                    {/* Stats 5 colonnes */}
+                    <div className="tw-cs-grid">
+                      {[
+                        {lbl:'Sociétés',  val:d.societes,   color:'var(--tw-teal)',  filter:{commercial:activeTab, status:'Tous'}},
+                        {lbl:'Devis',     val:d.devisCount, color:'var(--tw-blue)',  filter:{commercial:activeTab, status:'Devis'}},
+                        {lbl:'Signés',    val:d.signes,     color:d.signes>0?'var(--tw-green)':'var(--tw-muted)', filter:{commercial:activeTab, status:'Signé'}},
+                        {lbl:'Abo/mois',  val:fmt(d.aboMensuel)+' €', color:'var(--tw-ink)', noClick:true},
+                        {lbl:'Abo/an',    val:fmt(d.aboAnnuel)+' €',  color:'var(--tw-ink)', noClick:true},
+                      ].map(item => (
+                        <div
+                          key={item.lbl}
+                          className="tw-cs-item"
+                          style={{cursor: item.noClick?'default':'pointer'}}
+                          onClick={() => {
+                            if (item.noClick) return;
+                            onOpenDashboard();
+                          }}
+                        >
+                          <div className="tw-cs-val" style={{color:item.color, fontSize: item.lbl.includes('Abo') ? '14px' : '22px'}}>{item.val}</div>
+                          <div className="tw-cs-lbl">{item.lbl}</div>
                         </div>
-                        <div style={{width: '100%', height: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px', overflow: 'hidden'}}>
-                          <div style={{width: `${barWidth}%`, height: '100%', backgroundColor: range.color, transition: 'width 0.3s'}}></div>
+                      ))}
+                    </div>
+                    {/* Ligne actions + répartition côte à côte */}
+                    <div className="tw-row-line">
+                      <div className="tw-row-box">
+                        <span className="tw-row-lbl">Actions planifiées</span>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                          <span className="tw-pill-green">{d.actives} actives</span>
+                          {d.retard > 0 && <>
+                            <span style={{fontSize:'11px',color:'var(--tw-muted)'}}>dont</span>
+                            <span style={{color:'var(--tw-red)',fontWeight:'600',fontSize:'12px'}}>{d.retard} en retard</span>
+                          </>}
                         </div>
                       </div>
-                    );
-                  });
-                })()}
-              </div>
-            </div>
-
-            {/* Carré 5: Âge des devis */}
-            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-              <h3 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#333', borderBottom: '2px solid #10a0dc', paddingBottom: '8px'}}>⏱️ Ancienneté des devis</h3>
-              <div style={{fontSize: '11px', lineHeight: '1.8'}}>
-                {(() => {
-                  const now = new Date();
-                  const ageRanges = [
-                    {label: '< 1 mois', maxDays: 30, color: '#3cd6b9', status: 'Frais'},
-                    {label: '1-2 mois', minDays: 30, maxDays: 60, color: '#12a0dc', status: 'OK'},
-                    {label: '2-3 mois', minDays: 60, maxDays: 90, color: '#d3a002', status: '⚠️ Vieux'},
-                    {label: '> 3 mois', minDays: 90, maxDays: 9999, color: '#e23b63', status: '🚨 URGENT'}
-                  ];
-                  
-                  const devisOnly = prospectsPipeline.filter(p => p.status === 'Devis');
-                  
-                  return ageRanges.map((range, idx) => {
-                    const prospectsInRange = devisOnly.filter(p => {
-                      // Utiliser quote_date (date du devis) plutôt que status_date
-                      const dateToUse = p.quote_date || p.status_date;
-                      if (!dateToUse) return false;
-                      const quoteDate = new Date(dateToUse);
-                      const daysDiff = Math.floor((now - quoteDate) / (1000 * 60 * 60 * 24));
-                      return (!range.minDays || daysDiff >= range.minDays) && daysDiff < range.maxDays;
-                    });
-                    const barWidth = devisOnly.length > 0 ? Math.max(20, (prospectsInRange.length / devisOnly.length) * 100) : 20;
-                    
-                    return (
-                      <div key={idx} style={{marginBottom: '6px'}}>
-                        <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '2px'}}>
-                          <span style={{color: '#666', fontWeight: 'bold'}}>{range.label}</span>
-                          <span style={{color: '#999', fontSize: '10px'}}>({prospectsInRange.length})</span>
+                      <div className="tw-row-box" style={{flex:2}}>
+                        <span className="tw-row-lbl">Répartition</span>
+                        <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                          <span style={{fontSize:'12px',color:'var(--tw-muted)',whiteSpace:'nowrap'}}>{d.prosp} prosp · 🪙 {d.devisTotal} devis</span>
+                          <div className="tw-chips">
+                            {chip('En cours',   d.encours,    'var(--tw-teal)')}
+                            {chip('Envoyé',     d.envoye,     '#f0932b')}
+                            {chip('Discussion', d.discussion, 'var(--tw-blue)')}
+                            {chip('Gagné',      d.gagne,      'var(--tw-green)')}
+                            {chip('Perdu',      d.perdu,      'var(--tw-red)')}
+                          </div>
                         </div>
-                        <div style={{height: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px', marginBottom: '2px'}}>
-                          <div style={{width: `${barWidth}%`, height: '100%', backgroundColor: range.color, borderRadius: '4px'}}></div>
-                        </div>
-                        <div style={{color: range.color, fontSize: '10px', fontWeight: 'bold'}}>{range.status}</div>
                       </div>
-                    );
-                  });
-                })()}
-              </div>
+                    </div>
+                    {/* Lien voir actions */}
+                    <div style={{textAlign:'right',marginTop:'6px'}}>
+                      <a href="#" style={{fontSize:'12px',color:'var(--tw-teal)',fontWeight:'500',textDecoration:'none'}}
+                        onClick={(e) => { e.preventDefault(); onOpenDashboard(); }}
+                      >Voir toutes les actions →</a>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
-          {/* Par commercial */}
-          <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
-            <h3 style={{marginTop: 0}}>Par commercial</h3>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px'}}>
-              {commercials.map(commercial => {
-                const commercialProspects = prospects.filter(p => p.assigned_to === commercial);
-                const commercialPipeline = commercialProspects.filter(p => p.real_status && ['En cours', 'Envoyé', 'Discussion', 'Négociation'].includes(p.real_status));
-                const signed = commercialProspects.filter(p => p.real_status === 'Gagné').length;
-                const monthlyValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount||p.monthly_amount) || 0), 0);
-                const annualValue = commercialPipeline.reduce((sum, p) => sum + (parseFloat(p.real_annual_amount||p.annual_amount) || 0), 0);
-                
-                // Calculer les actions planifiées et en retard
-                let nbActionsPlannees = 0;
-                let nbActionsEnRetard = 0;
-                let thisWeek = 0;
-                let thisMonth = 0;
-                let beyondMonth = 0;
-                
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const endOfWeek = new Date(today);
-                endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
-                const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                
-                commercialProspects.forEach(prospect => {
-                  const actionInfo = prospectActionsInfo[prospect.id];
-                  if (actionInfo?.hasAction) {
-                    nbActionsPlannees++;
-                    if (actionInfo.isLate) {
-                      nbActionsEnRetard++;
-                    }
-                    
-                    // Calculer cette semaine / ce mois / > 1 mois
-                    if (actionInfo.nextActionDate) {
-                      const actionDate = new Date(actionInfo.nextActionDate);
-                      if (actionDate <= endOfWeek) {
-                        thisWeek++;
-                      } else if (actionDate <= endOfMonth) {
-                        thisMonth++;
-                      } else {
-                        beyondMonth++;
-                      }
-                    }
-                  }
-                });
-                
+          {/* ── PAR PROBABILITÉ ── */}
+          <div className="tw-two-col">
+            <div className="tw-card">
+              <div className="tw-card-title">📈 Par probabilité</div>
+              {probRanges.map(r => {
+                const inRange = pipelineAll.filter(p => (p.real_probability||0) >= r.min && (p.real_probability||0) <= r.max);
+                const mVal = inRange.reduce((s,p) => s+(parseFloat(p.real_monthly_amount||p.monthly_amount)||0),0);
+                const pct = pipelineAll.length > 0 ? (inRange.length/pipelineAll.length)*100 : 0;
                 return (
-                  <div key={commercial} style={{borderLeft: '4px solid #10a0dc', paddingLeft: '15px', cursor: 'pointer', padding: '15px', backgroundColor: selectedCommercial === commercial ? '#e8f4f8' : 'transparent', borderRadius: '6px', transition: 'background-color 0.2s'}} onClick={() => onSelectCommercial(selectedCommercial === commercial ? null : commercial)}>
-                    <h4 style={{margin: '0 0 10px 0', color: selectedCommercial === commercial ? '#10a0dc' : '#333'}}>{commercial}</h4>
-                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Prospects: <strong>{commercialProspects.length}</strong></div>
-                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Signés: <strong style={{color: '#00cc00'}}>{signed}</strong></div>
-                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement mensuel: <strong style={{color: '#10a0dc'}}>{formatNumber(monthlyValue)}</strong></div>
-                    <div style={{fontSize: '13px', color: '#666', marginBottom: '5px'}}>Valeur abonnement annuel: <strong style={{color: '#10a0dc'}}>{formatNumber(annualValue)}</strong></div>
-                    <div style={{fontSize: '13px', color: '#28a745', marginBottom: '5px'}}>
-                      Nb actions planifiées: <strong>{nbActionsPlannees}</strong>
-                      {nbActionsPlannees > 0 && (
-                        <span style={{fontSize: '11px', marginLeft: '8px', color: '#666'}}>
-                          Cette semaine: {thisWeek} • Ce mois: {thisMonth} • &gt; 1 mois: {beyondMonth}
-                        </span>
-                      )}
+                  <div key={r.label} className="tw-prob-row">
+                    <div className="tw-prob-hdr">
+                      <span style={{fontWeight:'600',color:r.color}}>{r.label}</span>
+                      <span style={{color:'var(--tw-slate)',fontFamily:'DM Mono,monospace'}}>{inRange.length} · {fmt(mVal)} €/m</span>
                     </div>
-                    <div style={{fontSize: '13px', color: nbActionsEnRetard > 0 ? '#cc0000' : '#666', marginBottom: '5px'}}>Nb actions en retard: <strong>{nbActionsEnRetard}</strong></div>
-                    <div style={{fontSize: '12px', marginTop: '10px', color: '#999'}}>
-                      {commercialProspects.filter(p => p.status === 'Prospection').length} prospection | {commercialProspects.filter(p => p.status === 'Devis').length} devis | {commercialProspects.filter(p => p.status === 'Négociation').length} négociation
-                    </div>
-                    
-                    {/* Boutons Récap */}
-                    <div style={{marginTop: '12px', display: 'flex', flexDirection: 'row', gap: '6px'}}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onShowRecap(commercial, 'jour');
-                        }}
-                        style={{
-                          padding: '6px 8px',
-                          backgroundColor: '#10a0dc',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          fontSize: '10px',
-                          fontWeight: 'bold',
-                          cursor: 'pointer',
-                          flex: 1
-                        }}
-                      >
-                        Actions Jour
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onShowRecap(commercial, 'semaine');
-                        }}
-                        style={{
-                          padding: '6px 8px',
-                          backgroundColor: '#28a745',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          fontSize: '10px',
-                          fontWeight: 'bold',
-                          cursor: 'pointer',
-                          flex: 1
-                        }}
-                      >
-                        Actions Semaine
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onShowRecap(commercial, 'mois');
-                        }}
-                        style={{
-                          padding: '6px 8px',
-                          backgroundColor: '#ff9800',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          fontSize: '10px',
-                          fontWeight: 'bold',
-                          cursor: 'pointer',
-                          flex: 1
-                        }}
-                      >
-                        Actions Mois
-                      </button>
-                    </div>
+                    <div className="tw-prob-bar-bg"><div className="tw-prob-bar-fill" style={{width:`${pct}%`,background:r.color}}></div></div>
                   </div>
                 );
               })}
             </div>
+
+            {/* Nouveaux cette semaine/mois */}
+            <div className="tw-card">
+              <div className="tw-card-title">📅 Activité récente</div>
+              {(() => {
+                const now = new Date();
+                const startWeek = new Date(now); startWeek.setDate(now.getDate()-now.getDay()); startWeek.setHours(0,0,0,0);
+                const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                const newSem  = prospects.filter(p => p.created_at && new Date(p.created_at) >= startWeek).length;
+                const newMois = prospects.filter(p => p.created_at && new Date(p.created_at) >= startMonth).length;
+                const devisSem  = prospects.filter(p => p.real_status && ['En cours','Envoyé','Discussion'].includes(p.real_status) && p.real_quote_date && new Date(p.real_quote_date) >= startWeek).length;
+                const devisMois = prospects.filter(p => p.real_status && ['En cours','Envoyé','Discussion'].includes(p.real_status) && p.real_quote_date && new Date(p.real_quote_date) >= startMonth).length;
+                return (
+                  <div style={{fontSize:'13px'}}>
+                    {[
+                      {label:'Nouvelles sociétés', sem:newSem,  mois:newMois},
+                      {label:'Devis créés',         sem:devisSem, mois:devisMois},
+                    ].map(row => (
+                      <div key={row.label} className="tw-stat-row">
+                        <span style={{color:'var(--tw-slate)'}}>{row.label}</span>
+                        <div style={{display:'flex',gap:'12px',fontFamily:'DM Mono,monospace'}}>
+                          <span style={{color:'var(--tw-muted)',fontSize:'11px'}}>Sem <b style={{color:'var(--tw-ink)'}}>{row.sem}</b></span>
+                          <span style={{color:'var(--tw-muted)',fontSize:'11px'}}>Mois <b style={{color:'var(--tw-teal)'}}>{row.mois}</b></span>
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{marginTop:'14px',paddingTop:'14px',borderTop:'1px solid var(--tw-border)'}}>
+                      <div style={{fontSize:'11px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:'10px',fontWeight:'600'}}>Actions en retard</div>
+                      {Object.entries(prospectActionsInfo).filter(([,a]) => a.isLate).slice(0,4).map(([id,a]) => {
+                        const p = prospects.find(pr => String(pr.id) === String(id));
+                        if (!p) return null;
+                        return (
+                          <div key={id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px',padding:'6px 10px',background:'#fdecea',borderRadius:'6px',cursor:'pointer'}}
+                            onClick={() => { onSelectProspect(p); onOpenDashboard(); }}
+                          >
+                            <span style={{fontSize:'12px',fontWeight:'600',color:'var(--tw-ink)'}}>{p.name}</span>
+                            <span style={{fontSize:'11px',color:'var(--tw-red)',fontWeight:'500'}}>
+                              {a.nextActionType} · {a.nextActionDate ? new Date(a.nextActionDate).toLocaleDateString('fr-FR') : '—'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {Object.entries(prospectActionsInfo).filter(([,a]) => a.isLate).length === 0 && (
+                        <div style={{fontSize:'12px',color:'var(--tw-muted)',textAlign:'center',padding:'10px'}}>✓ Aucune action en retard</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
 
-          {/* Liste des prospects du commercial sélectionné */}
-          {selectedCommercial && (
-            <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginTop: '30px'}}>
-              <h3 style={{marginTop: 0, marginBottom: '15px'}}>Sociétés gérées par {selectedCommercial}</h3>
-              <div style={{overflow: 'visible'}}>
-                <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '13px'}}>
-                  <thead>
-                    <tr style={{borderBottom: '2px solid #ddd', backgroundColor: '#f9f9f9'}}>
-                      {renderHeader('Nom société', 'name')}
-                      {renderHeader('Statut Société', 'statutSociete')}
-                      <th style={{padding: '10px', textAlign: 'center', fontWeight: 'bold'}}>Contact</th>
-                      {renderHeader('Setup', 'setup')}
-                      {renderHeader('Abonnement mois', 'monthly')}
-                      {renderHeader('Abonnement annuel', 'annual')}
-                      {renderHeader('Formation', 'formation')}
-                      {renderHeader('Statut', 'status')}
-                      {renderHeader('Date statut', 'statusDate')}
-                      <th style={{padding: '10px', textAlign: 'center', fontWeight: 'bold'}}>%</th>
-                      <th style={{padding: '10px', textAlign: 'center', fontWeight: 'bold'}}>Devis</th>
-                      <th style={{padding: '10px', textAlign: 'center', fontWeight: 'bold'}}>Action</th>
-                      {renderHeader('Date action', 'nextActionDate')}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {getSortedProspects(selectedCommercial).map(prospect => {
-                      // Récupérer la date de la prochaine action
-                      const actionInfo = prospectActionsInfo[prospect.id];
-                      const nextActionDate = actionInfo?.nextActionDate || null;
-                      
-                      return (
-                        <tr key={prospect.id} style={{borderBottom: '1px solid #eee', cursor: 'pointer'}} onClick={() => {
-                          onSelectProspect(prospect);
-                          onOpenDashboard();
-                        }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                        <td style={{padding: '10px'}}><strong>{prospect.name}</strong></td>
-                        <td style={{padding: '10px', textAlign: 'center'}}>
-                          <span style={{
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            color: (prospect.statut_societe === 'Client' ? '#12a0dc' : 
-                                   prospect.statut_societe === 'Prospect' ? '#ff9800' : '#999'),
-                            padding: '3px 8px',
-                            borderRadius: '3px',
-                            backgroundColor: (prospect.statut_societe === 'Client' ? '#e3f2fd' : 
-                                            prospect.statut_societe === 'Prospect' ? '#fff3e0' : '#f5f5f5')
-                          }}>
-                            {prospect.statut_societe || 'Prospect'}
-                          </span>
-                        </td>
-                        <td 
-                          style={{padding: '10px', position: 'relative'}}
-                          onMouseEnter={() => setHoveredProspect(prospect.id)}
-                          onMouseLeave={() => setHoveredProspect(null)}
-                        >
-                          {prospect.contact_name || '-'}
-                          {hoveredProspect === prospect.id && (
-                            <div style={{
-                              position: 'absolute',
-                              top: '100%',
-                              left: '10px',
-                              backgroundColor: '#333',
-                              color: 'white',
-                              padding: '10px 15px',
-                              borderRadius: '6px',
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                              zIndex: 1000,
-                              minWidth: '200px',
-                              fontSize: '13px',
-                              lineHeight: '1.6',
-                              marginTop: '5px'
-                            }}>
-                              <div style={{marginBottom: '5px'}}>
-                                <strong>Email:</strong> {prospect.email || 'Non renseigné'}
-                              </div>
-                              <div>
-                                <strong>Tél:</strong> {prospect.phone || 'Non renseigné'}
-                              </div>
-                              <div style={{
-                                position: 'absolute',
-                                top: '-6px',
-                                left: '20px',
-                                width: '0',
-                                height: '0',
-                                borderLeft: '6px solid transparent',
-                                borderRight: '6px solid transparent',
-                                borderBottom: '6px solid #333'
-                              }}></div>
-                            </div>
-                          )}
-                        </td>
-                        <td style={{padding: '10px', textAlign: 'center'}}>{formatNumber(prospect.setup_amount || 0)}</td>
-                        <td style={{padding: '10px', textAlign: 'center'}}>{formatNumber(prospect.monthly_amount || 0)}</td>
-                        <td style={{padding: '10px', textAlign: 'center'}}>{formatNumber(prospect.annual_amount || 0)}</td>
-                        <td style={{padding: '10px', textAlign: 'center'}}>{formatNumber(prospect.training_amount || 0)}</td>
-                        <td style={{padding: '10px', textAlign: 'center'}}><span style={{color: getStatusColor(prospect.status), fontSize: '13px', fontWeight: 'bold'}}>{prospect.status}</span></td>
-                        <td style={{padding: '10px', textAlign: 'center', fontSize: '12px', color: '#666'}}>
-                          {(() => {
-                            let dateToDisplay = null;
-                            if (prospect.status === 'Devis' && prospect.quote_date) {
-                              dateToDisplay = prospect.quote_date;
-                            } else if (prospect.status === 'Prospection' && prospect.created_at) {
-                              dateToDisplay = prospect.created_at;
-                            } else if (prospect.status_date) {
-                              dateToDisplay = prospect.status_date;
-                            }
-                            return dateToDisplay ? new Date(dateToDisplay).toLocaleDateString('fr-FR') : '-';
-                          })()}
-                        </td>
-                        <td style={{padding: '10px', textAlign: 'center'}}>
-                          {prospect.chance_percent && prospect.chance_percent > 0 ? (
-                            <span style={{color: '#10a0dc', fontSize: '13px', fontWeight: 'bold'}}>{prospect.chance_percent}%</span>
-                          ) : (
-                            <span style={{color: '#ccc'}}>-</span>
-                          )}
-                        </td>
-                        <td style={{padding: '10px', textAlign: 'center'}} onClick={(e) => e.stopPropagation()}>
-                          {prospect.pdf_url && (
-                            <button
-                              onClick={async () => {
-                                try {
-                                  const res = await fetch(`${API_URL}/prospects/${prospect.id}/download-pdf`, {
-                                    headers: { 'Authorization': `Bearer ${user.token}` }
-                                  });
-                                  if (res.ok) {
-                                    const blob = await res.blob();
-                                    const url = window.URL.createObjectURL(blob);
-                                    window.open(url, '_blank');
-                                  } else {
-                                    alert('Erreur: ' + (await res.text()));
-                                  }
-                                } catch (err) {
-                                  alert('Erreur: ' + err.message);
-                                }
-                              }}
-                              style={{
-                                backgroundColor: 'transparent',
-                                color: '#12a0dc',
-                                border: 'none',
-                                cursor: 'pointer',
-                                fontSize: '18px',
-                                padding: '0'
-                              }}
-                            >
-                              📄
-                            </button>
-                          )}
-                        </td>
-                        <td style={{padding: '10px', textAlign: 'center'}}>
-                          {prospectActionsInfo[prospect.id]?.hasAction ? (
-                            prospectActionsInfo[prospect.id]?.isLate ? (
-                              <span style={{
-                                color: '#e23b63',
-                                fontSize: '13px',
-                                fontWeight: 'bold'
-                              }}>
-                                ⚠️ Retard
-                              </span>
-                            ) : (
-                              <span style={{
-                                color: '#3cd6b9',
-                                fontSize: '13px',
-                                fontWeight: 'bold'
-                              }}>
-                                ✓ Planifiée
-                              </span>
-                            )
-                          ) : (
-                            <span style={{
-                              color: '#999',
-                              fontSize: '13px',
-                              fontWeight: 'bold'
-                            }}>
-                              - Aucune
-                            </span>
-                          )}
-                        </td>
-                        <td style={{padding: '10px', textAlign: 'center', fontSize: '12px', color: '#666'}}>
-                          {nextActionDate ? new Date(nextActionDate).toLocaleDateString('fr-FR') : '-'}
-                        </td>
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
       );
     }
+
 
     function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
@@ -5330,18 +5039,10 @@
         display: 'flex',
         flexDirection: 'column',
         height: '100vh',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        backgroundColor: '#f5f5f5'
+        fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
+        backgroundColor: '#f4f7f7'
       },
-      header: {
-        backgroundColor: '#002147',
-        color: 'white',
-        padding: '20px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-      },
+      header: { display: 'none' }, // remplacé par tw-topbar CSS
       headerLeft: {
         display: 'flex',
         alignItems: 'center',
