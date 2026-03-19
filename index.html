@@ -55,7 +55,7 @@
         if (actionDate < today) isLate = true;
       }
       
-      return { hasAction: actions.length > 0, isLate, nextActionDate };
+      return { hasAction: incompletedActions.length > 0, isLate, nextActionDate };
     }
 
     function getEmptyProspect() {
@@ -296,7 +296,7 @@
 
       const fetchProspects = async () => {
         try {
-          // UNE SEULE requête optimisée côté backend
+          // UNE SEULE requête optimisée côté backend (devis + actions inclus)
           const res = await fetch(`${API_URL}/prospects/enriched`, {
             headers: { 'Authorization': `Bearer ${user.token}` }
           });
@@ -305,6 +305,17 @@
           console.log('[DEBUG] Prospects enrichis chargés:', data.length, '- avec devis:', data.filter(p => p.real_status).length);
           
           setProspects(data);
+
+          // Pré-alimenter prospectActionsInfo depuis les données enrichies (évite N requêtes)
+          const actionsMap = {};
+          data.forEach(p => {
+            actionsMap[p.id] = {
+              hasAction: !!p.action_has_action,
+              isLate: !!p.action_is_late,
+              nextActionDate: p.action_next_date || null
+            };
+          });
+          setProspectActionsInfo(actionsMap);
         } catch (err) {
           console.error('[ERROR] fetchProspects:', err);
         }
@@ -1591,7 +1602,7 @@
             // Devis créés dans la période
             const devisCreated = prospects.filter(p => {
               if (p.assigned_to !== commercial) return false;
-              if (p.status !== 'Devis') return false;
+              if (!p.real_status || !['En cours', 'Envoyé', 'Discussion'].includes(p.real_status)) return false;
               if (!p.status_date) return false;
               const statusDate = new Date(p.status_date);
               return statusDate >= startDate && statusDate <= endDate;
@@ -2574,12 +2585,12 @@
             }
             
             const cumulMonthly = prospects
-              .filter(p => statusesToInclude.includes(p.status))
-              .reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
+              .filter(p => statusesToInclude.includes(p.real_status))
+              .reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount || p.monthly_amount) || 0), 0);
             
             const cumulAnnual = prospects
-              .filter(p => statusesToInclude.includes(p.status))
-              .reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0), 0);
+              .filter(p => statusesToInclude.includes(p.real_status))
+              .reduce((sum, p) => sum + (parseFloat(p.real_annual_amount || p.annual_amount) || 0), 0);
             
             return (
               <div style={{padding: '15px', backgroundColor: '#f0f0f0', borderRadius: '4px', margin: '0 15px', textAlign: 'center'}}>
@@ -2598,9 +2609,11 @@
                 style={{
                   ...styles.prospectItem,
                   ...(selectedProspect?.id === prospect.id ? styles.prospectItemActive : {}),
-                  ...(prospect.status === 'Perdu' ? { backgroundColor: '#ffe6e6', borderLeft: '4px solid #ff6666' } : {}),
-                  ...(prospect.status === 'Ajourné N+1' ? { backgroundColor: '#fff3e0', borderLeft: '4px solid #ff9800' } : {}),
-                  ...(prospect.status === 'Éliminé par nous' ? { backgroundColor: '#f0f0f0', borderLeft: '4px solid #888' } : {})
+                  ...(prospect.real_status === 'Perdu' ? { backgroundColor: '#ffe6e6', borderLeft: '4px solid #ff6666' } : {}),
+                  ...(prospect.real_status === 'Ajourné N+1' ? { backgroundColor: '#fff3e0', borderLeft: '4px solid #ff9800' } : {}),
+                  ...(prospect.real_status === 'Éliminé par nous' ? { backgroundColor: '#f0f0f0', borderLeft: '4px solid #888' } : {}),
+                  ...(!prospect.real_status && !prospectActionsInfo[prospect.id]?.hasAction ? { borderLeft: '4px solid #cc0000' } : {}),
+                  ...(!prospect.real_status && prospectActionsInfo[prospect.id]?.hasAction ? { borderLeft: '4px solid #28a745' } : {})
                 }}
               >
                 <div style={styles.prospectName}>{prospect.name}</div>
@@ -2623,7 +2636,7 @@
                   {prospectActionsInfo[prospect.id]?.isLate && <span style={{color: '#cc0000', fontWeight: 'bold'}}> - En retard</span>}
                 </div>
                 <div style={styles.prospectAmount}>
-                  {formatCurrency(prospect.monthly_amount)}/mois + {formatCurrency(prospect.annual_amount)}/an
+                  {formatCurrency(prospect.real_monthly_amount || prospect.monthly_amount)}/mois + {formatCurrency(prospect.real_annual_amount || prospect.annual_amount)}/an
                 </div>
               </div>
             ))}
@@ -2645,20 +2658,20 @@
         negotiation: prospects.filter(p => p.real_status === 'Négociation').length,
         signed: prospects.filter(p => p.real_status === 'Gagné').length,
         lost: prospects.filter(p => p.real_status === 'Perdu').length,
-        totalValue: prospects.reduce((sum, p) => sum + (p.monthly_amount * 12 + p.annual_amount), 0)
+        totalValue: prospects.reduce((sum, p) => sum + ((p.real_monthly_amount||p.monthly_amount) * 12 + (p.real_annual_amount||p.annual_amount)), 0)
       };
 
       // Prospects en Devis ou Négociation seulement
       const prospectsPipeline = prospects.filter(p => p.real_status && ['En cours', 'Envoyé', 'Discussion', 'Négociation'].includes(p.real_status));
-      const monthlyAbonnement = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0), 0);
-      const annualAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0), 0);
-      const setupAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.setup_amount) || 0), 0);
+      const monthlyAbonnement = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount||p.monthly_amount) || 0), 0);
+      const annualAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_annual_amount||p.annual_amount) || 0), 0);
+      const setupAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_setup_amount||p.setup_amount) || 0), 0);
       const formationAmount = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.training_amount) || 0), 0);
       
       // Calcul des valeurs pondérées (montant × probabilité)
-      const monthlyPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.monthly_amount) || 0) * ((p.real_probability || 0) / 100), 0);
-      const annualPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.annual_amount) || 0) * ((p.real_probability || 0) / 100), 0);
-      const setupPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.setup_amount) || 0) * ((p.real_probability || 0) / 100), 0);
+      const monthlyPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount||p.monthly_amount) || 0) * ((p.real_probability || 0) / 100), 0);
+      const annualPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_annual_amount||p.annual_amount) || 0) * ((p.real_probability || 0) / 100), 0);
+      const setupPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.real_setup_amount||p.setup_amount) || 0) * ((p.real_probability || 0) / 100), 0);
       const formationPondere = prospectsPipeline.reduce((sum, p) => sum + (parseFloat(p.training_amount) || 0) * ((p.real_probability || 0) / 100), 0);
 
       const commercials = ['Roger', 'Christian', 'Frédéric'];
