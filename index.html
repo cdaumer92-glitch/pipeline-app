@@ -41,17 +41,16 @@
       box-shadow: 0 1px 3px rgba(0,125,137,.06);
     }
     .tw-logo {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--tw-teal);
-      letter-spacing: -.3px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--tw-ink);
+      letter-spacing: -.4px;
       display: flex;
       align-items: center;
       gap: 8px;
       white-space: nowrap;
     }
     .tw-logo img { height: 28px; }
-    .tw-logo span { color: var(--tw-ink); }
     .tw-nav { display: flex; gap: 2px; }
     .tw-nav-btn {
       padding: 5px 12px;
@@ -2278,14 +2277,8 @@
           {/* LOGO */}
           <div className="tw-logo">
             <img src="texaswin-logo.png" alt="TexasWin" onError={(e) => { e.target.style.display='none'; }} />
-            <span>Texas</span>Win
+            TexasWin
           </div>
-
-          {/* NAV */}
-          <nav className="tw-nav">
-            <button className={`tw-nav-btn ${isDashboard ? 'tw-active' : ''}`} onClick={() => { if (!isDashboard) onDashboard(); }}>Dashboard</button>
-            <button className={`tw-nav-btn ${!isDashboard ? 'tw-active' : ''}`} onClick={() => { if (isDashboard) onDashboard(); }}>Prospects</button>
-          </nav>
 
           {/* SEARCH */}
           <div className="tw-search-box" ref={searchRef}>
@@ -2326,6 +2319,12 @@
 
           {/* SPACER */}
           <div style={{flex: 1}} />
+
+          {/* NAV DROITE */}
+          <nav className="tw-nav">
+            <button className={`tw-nav-btn ${isDashboard ? 'tw-active' : ''}`} onClick={() => { if (!isDashboard) onDashboard(); }}>Dashboard</button>
+            <button className={`tw-nav-btn ${!isDashboard ? 'tw-active' : ''}`} onClick={() => { if (isDashboard) onDashboard(); }}>Suivi activités</button>
+          </nav>
 
           {/* PARAMÈTRES */}
           {isAdmin && (
@@ -5228,22 +5227,28 @@
         gap: '10px'
       },
       editBtn: {
-        padding: '8px 12px',
+        padding: '5px 12px',
         backgroundColor: '#17a2b8',
         color: 'white',
         border: 'none',
-        borderRadius: '4px',
+        borderRadius: '6px',
         cursor: 'pointer',
-        fontSize: '13px'
+        fontSize: '13px',
+        fontWeight: '500',
+        fontFamily: "'DM Sans', sans-serif",
+        transition: 'opacity .15s'
       },
       deleteBtn: {
-        padding: '8px 12px',
+        padding: '5px 12px',
         backgroundColor: '#dc3545',
         color: 'white',
         border: 'none',
-        borderRadius: '4px',
+        borderRadius: '6px',
         cursor: 'pointer',
-        fontSize: '13px'
+        fontSize: '13px',
+        fontWeight: '500',
+        fontFamily: "'DM Sans', sans-serif",
+        transition: 'opacity .15s'
       },
       detailRow: {
         display: 'flex',
