@@ -311,8 +311,11 @@
           data.forEach(p => {
             actionsMap[p.id] = {
               hasAction: !!p.action_has_action,
-              isLate: !!p.action_is_late,
-              nextActionDate: p.action_next_date || null
+              isLate: !!p.action_next_is_late,
+              nextActionDate: p.action_next_date || null,
+              nextActionType: p.action_next_type || null,
+              nextActionActor: p.action_next_actor || null,
+              nextActionContact: p.action_next_contact || null
             };
           });
           setProspectActionsInfo(actionsMap);
@@ -2632,8 +2635,21 @@
                   {prospect.real_quote_date && <span style={styles.prospectQuoteDate}>{new Date(prospect.real_quote_date).toLocaleDateString('fr-FR')}</span>}
                 </div>
                 <div style={{fontSize: '12px', marginTop: '6px', color: '#666'}}>
-                  Action planifiée: <strong style={{color: prospectActionsInfo[prospect.id]?.hasAction ? '#28a745' : '#cc0000'}}>{prospectActionsInfo[prospect.id]?.hasAction ? 'Oui' : 'Non'}</strong>
-                  {prospectActionsInfo[prospect.id]?.isLate && <span style={{color: '#cc0000', fontWeight: 'bold'}}> - En retard</span>}
+                  {prospectActionsInfo[prospect.id]?.hasAction ? (() => {
+                    const ai = prospectActionsInfo[prospect.id];
+                    const isLate = ai.isLate || (ai.nextActionDate && new Date(ai.nextActionDate) < new Date(new Date().toDateString()));
+                    const dateStr = ai.nextActionDate ? new Date(ai.nextActionDate).toLocaleDateString('fr-FR') : '';
+                    return (
+                      <span>
+                        <span style={{color: '#28a745', fontWeight: 'bold'}}>⚡ </span>
+                        {ai.nextActionType && <span style={{fontWeight: '600', color: '#1a3535'}}>{ai.nextActionType} </span>}
+                        {dateStr && <span style={{fontWeight: 'bold', color: isLate ? '#cc0000' : '#607a7a'}}>• {dateStr}{isLate ? ' ⚠️' : ''}</span>}
+                        {ai.nextActionActor && <span style={{color: '#888'}}> | {ai.nextActionActor}{ai.nextActionContact ? ' → ' + ai.nextActionContact : ''}</span>}
+                      </span>
+                    );
+                  })() : (
+                    <span style={{color: '#cc0000'}}>✗ Aucune action planifiée</span>
+                  )}
                 </div>
                 <div style={styles.prospectAmount}>
                   {formatCurrency(prospect.real_monthly_amount || prospect.monthly_amount)}/mois + {formatCurrency(prospect.real_annual_amount || prospect.annual_amount)}/an
@@ -4203,6 +4219,28 @@
                           <div style={{flex: 1}}>
                             <div style={{fontWeight: '600', fontSize: '14px', color: '#1a3535'}}>{isOpen ? '▼' : '▶'} {affaire.nom_affaire}</div>
                             <div style={{fontSize: '12px', color: '#607a7a', marginTop: '4px'}}>📄 {affaireDevis.length} devis</div>
+                            {(() => {
+                              const actions = affairesActions[affaire.id] || [];
+                              const nextAction = actions.find(a => !a.completed);
+                              if (!nextAction) return (
+                                <div style={{fontSize: '11px', color: '#cc0000', marginTop: '3px'}}>✗ Aucune action planifiée</div>
+                              );
+                              const today = new Date(); today.setHours(0,0,0,0);
+                              const actionDate = nextAction.planned_date ? new Date(nextAction.planned_date) : null;
+                              if (actionDate) actionDate.setHours(0,0,0,0);
+                              const isLate = actionDate && actionDate < today;
+                              const dateStr = actionDate ? actionDate.toLocaleDateString('fr-FR') : '—';
+                              return (
+                                <div style={{fontSize: '11px', marginTop: '3px', color: '#555'}}>
+                                  <span style={{color: '#28a745', fontWeight: 'bold'}}>⚡ </span>
+                                  <span style={{fontWeight: '600'}}>{nextAction.action_type}</span>
+                                  <span style={{fontWeight: 'bold', color: isLate ? '#cc0000' : '#607a7a'}}> • {dateStr}{isLate ? ' ⚠️' : ''}</span>
+                                  {(nextAction.actor || nextAction.contact) && (
+                                    <span style={{color: '#888'}}> | {nextAction.actor || ''}{nextAction.actor && nextAction.contact ? ' → ' : ''}{nextAction.contact || ''}</span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div style={{display: 'flex', gap: '4px'}} onClick={(e) => e.stopPropagation()}>
                             <button onClick={() => handleEditAffaire(affaire)} style={{padding: '4px 8px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px'}}>✏️</button>

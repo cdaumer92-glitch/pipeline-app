@@ -1351,19 +1351,36 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
         WHERE a.statut_global NOT IN ('Gagné', 'Perdu')
         ORDER BY a.prospect_id, d.quote_date DESC NULLS LAST, d.created_at DESC
       ),
+      actions_next AS (
+        -- Prochaine action non complétée par prospect (la plus proche dans le temps)
+        SELECT DISTINCT ON (na.prospect_id)
+          na.prospect_id,
+          na.action_type,
+          na.planned_date,
+          na.actor,
+          na.contact,
+          na.planned_date < CURRENT_DATE AS is_late
+        FROM next_actions na
+        LEFT JOIN affaires a ON a.id = na.affaire_id
+        WHERE na.completed = 0
+          AND (
+            na.affaire_id IS NULL
+            OR a.statut_global NOT IN ('Gagné', 'Perdu')
+          )
+        ORDER BY na.prospect_id, na.planned_date ASC NULLS LAST
+      ),
       actions_info AS (
-        -- Pour chaque prospect, actions non complétées (prospect-level ou affaire en cours)
+        -- Comptage actions non complétées par prospect
         SELECT 
           na.prospect_id,
           COUNT(*) > 0 AS has_action,
-          MIN(na.planned_date) AS next_action_date,
           BOOL_OR(na.planned_date < CURRENT_DATE) AS is_late
         FROM next_actions na
         LEFT JOIN affaires a ON a.id = na.affaire_id
         WHERE na.completed = 0
           AND (
-            na.affaire_id IS NULL  -- action prospect directe
-            OR a.statut_global NOT IN ('Gagné', 'Perdu')  -- action affaire en cours
+            na.affaire_id IS NULL
+            OR a.statut_global NOT IN ('Gagné', 'Perdu')
           )
         GROUP BY na.prospect_id
       )
@@ -1379,10 +1396,15 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
         dd.devis_training     AS real_training_amount,
         COALESCE(ai.has_action, false)         AS action_has_action,
         COALESCE(ai.is_late, false)            AS action_is_late,
-        ai.next_action_date                    AS action_next_date
+        an.planned_date                        AS action_next_date,
+        an.action_type                         AS action_next_type,
+        an.actor                               AS action_next_actor,
+        an.contact                             AS action_next_contact,
+        COALESCE(an.is_late, false)            AS action_next_is_late
       FROM prospects p
       LEFT JOIN derniers_devis dd ON dd.prospect_id = p.id
       LEFT JOIN actions_info   ai ON ai.prospect_id = p.id
+      LEFT JOIN actions_next   an ON an.prospect_id = p.id
       ORDER BY p.name
     `);
 
