@@ -1351,38 +1351,47 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
         WHERE a.statut_global NOT IN ('Gagné', 'Perdu')
         ORDER BY a.prospect_id, d.quote_date DESC NULLS LAST, d.created_at DESC
       ),
-      actions_next AS (
-        -- Prochaine action non complétée par prospect (la plus proche dans le temps)
-        SELECT DISTINCT ON (na.prospect_id)
-          na.prospect_id,
+      -- Résoudre le prospect_id même quand il est NULL (anciennes actions sans prospect_id)
+      actions_resolved AS (
+        SELECT
+          COALESCE(na.prospect_id, a.prospect_id) AS prospect_id,
           na.action_type,
           na.planned_date,
           na.actor,
           na.contact,
-          na.planned_date < CURRENT_DATE AS is_late
+          na.completed,
+          na.affaire_id,
+          aff.statut_global
         FROM next_actions na
-        LEFT JOIN affaires a ON a.id = na.affaire_id
+        LEFT JOIN affaires aff ON aff.id = na.affaire_id
+        LEFT JOIN affaires a   ON a.id = na.affaire_id
         WHERE na.completed = 0
           AND (
             na.affaire_id IS NULL
-            OR a.statut_global NOT IN ('Gagné', 'Perdu')
+            OR aff.statut_global NOT IN ('Gagné', 'Perdu')
           )
-        ORDER BY na.prospect_id, na.planned_date ASC NULLS LAST
+          AND COALESCE(na.prospect_id, aff.prospect_id) IS NOT NULL
+      ),
+      actions_next AS (
+        -- Prochaine action non complétée par prospect (la plus proche dans le temps)
+        SELECT DISTINCT ON (prospect_id)
+          prospect_id,
+          action_type,
+          planned_date,
+          actor,
+          contact,
+          planned_date < CURRENT_DATE AS is_late
+        FROM actions_resolved
+        ORDER BY prospect_id, planned_date ASC NULLS LAST
       ),
       actions_info AS (
         -- Comptage actions non complétées par prospect
         SELECT 
-          na.prospect_id,
+          prospect_id,
           COUNT(*) > 0 AS has_action,
-          BOOL_OR(na.planned_date < CURRENT_DATE) AS is_late
-        FROM next_actions na
-        LEFT JOIN affaires a ON a.id = na.affaire_id
-        WHERE na.completed = 0
-          AND (
-            na.affaire_id IS NULL
-            OR a.statut_global NOT IN ('Gagné', 'Perdu')
-          )
-        GROUP BY na.prospect_id
+          BOOL_OR(planned_date < CURRENT_DATE) AS is_late
+        FROM actions_resolved
+        GROUP BY prospect_id
       )
       SELECT 
         p.*,
