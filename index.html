@@ -3019,24 +3019,28 @@
       const [activeTab, setActiveTab] = React.useState(null);
       const [recapSending, setRecapSending] = React.useState(false);
       const [recapResult, setRecapResult] = React.useState(null);
+      const [recapTarget, setRecapTarget] = React.useState('Moi (Christian)');
+      const [recapType, setRecapType] = React.useState('actions');
+
+      const commerciaux = [...new Set(prospects.map(p => p.assigned_to).filter(Boolean))].sort();
 
       const sendTestRecap = async () => {
-        const email = prompt('Envoyer le récap test à quelle adresse ?', user.email || 'cdaumer92@gmail.com');
-        if (!email) return;
         setRecapSending(true);
         setRecapResult(null);
         try {
+          // Résoudre le nom réel du destinataire
+          const targetName = recapTarget === 'Moi (Christian)' ? 'Christian' : recapTarget;
           const res = await fetch(`${API_URL}/recap/send-test`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${user.token}`
             },
-            body: JSON.stringify({ email })
+            body: JSON.stringify({ targetName, recapType })
           });
           const data = await res.json();
           if (data.ok) {
-            setRecapResult({ ok: true, msg: `✅ Récap envoyé à ${email}` });
+            setRecapResult({ ok: true, msg: `✅ Récap "${recapType}" envoyé à ${targetName} (${data.email})` });
           } else {
             setRecapResult({ ok: false, msg: `❌ Erreur : ${data.error}` });
           }
@@ -3133,20 +3137,53 @@
       return (
         <div className="tw-content">
 
-          {/* ── BOUTON RECAP TEST (Christian uniquement) ── */}
+          {/* ── PANNEAU RECAP TEST (Christian uniquement) ── */}
           {user.name === 'Christian' && (
-            <div style={{display:'flex',alignItems:'center',gap:'12px',marginBottom:'18px',padding:'12px 16px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
-              <span style={{fontSize:'13px',color:'var(--tw-slate)',flex:1}}>📧 Test récap email hebdo</span>
-              {recapResult && (
-                <span style={{fontSize:'12px',fontWeight:'500',color:recapResult.ok?'var(--tw-green)':'var(--tw-red)'}}>{recapResult.msg}</span>
-              )}
-              <button
-                onClick={sendTestRecap}
-                disabled={recapSending}
-                style={{padding:'6px 16px',background:recapSending?'#ccc':'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'13px',fontWeight:'600',cursor:recapSending?'default':'pointer',fontFamily:"'DM Sans',sans-serif",transition:'opacity .15s'}}
-              >
-                {recapSending ? 'Envoi...' : '📤 Envoyer récap test'}
-              </button>
+            <div style={{marginBottom:'18px',padding:'16px 20px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
+              <div style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)',marginBottom:'14px'}}>📧 Test récap email</div>
+              <div style={{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'flex-end'}}>
+
+                {/* Destinataire */}
+                <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
+                  <label style={{fontSize:'11px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px',fontWeight:'600'}}>Destinataire</label>
+                  <select value={recapTarget} onChange={e=>setRecapTarget(e.target.value)}
+                    style={{padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",color:'var(--tw-ink)',background:'white',cursor:'pointer'}}>
+                    {['Moi (Christian)', ...commerciaux.map(n => n)].map(n => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Type de récap */}
+                <div style={{display:'flex',flexDirection:'column',gap:'4px',flex:1,minWidth:'300px'}}>
+                  <label style={{fontSize:'11px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px',fontWeight:'600'}}>Type de récap</label>
+                  <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
+                    {[
+                      {id:'actions', label:'⚠️ Actions & Devis', desc:'En retard + à venir + sans action', forAll: true},
+                      {id:'modifiees', label:'📝 Actions modifiées', desc:'Complétées ou modifiées cette semaine', forAll: true},
+                      {id:'pipeline', label:'📊 Vue pipeline', desc:'Vue globale du pipeline', forAll: true},
+                    ].map(t => (
+                      <div key={t.id} onClick={() => setRecapType(t.id)}
+                        style={{padding:'6px 12px',borderRadius:'6px',border:`2px solid ${recapType===t.id?'var(--tw-teal)':'var(--tw-border)'}`,background:recapType===t.id?'var(--tw-teal-light)':'white',cursor:'pointer',transition:'all .15s'}}>
+                        <div style={{fontSize:'12px',fontWeight:'600',color:recapType===t.id?'var(--tw-teal)':'var(--tw-ink)'}}>{t.label}</div>
+                        <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'2px'}}>{t.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bouton + résultat */}
+                <div style={{display:'flex',flexDirection:'column',gap:'6px',alignItems:'flex-end'}}>
+                  <button onClick={sendTestRecap} disabled={recapSending}
+                    style={{padding:'8px 18px',background:recapSending?'#ccc':'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'13px',fontWeight:'600',cursor:recapSending?'default':'pointer',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>
+                    {recapSending ? '⏳ Envoi...' : '📤 Envoyer le test'}
+                  </button>
+                  {recapResult && (
+                    <span style={{fontSize:'12px',fontWeight:'500',color:recapResult.ok?'var(--tw-green)':'var(--tw-red)'}}>{recapResult.msg}</span>
+                  )}
+                </div>
+
+              </div>
             </div>
           )}
 

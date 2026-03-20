@@ -1612,30 +1612,259 @@ function buildEmailHTML(data, isGlobal = false) {
   return body;
 }
 
+// ── Recap type 2 : Actions modifiées cette semaine ──
+async function buildRecapModifiees(commercialName) {
+  const startOfWeek = new Date();
+  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+  startOfWeek.setHours(0,0,0,0);
+  const sw = startOfWeek.toISOString();
+
+  // Actions complétées cette semaine
+  const completees = await pool.query(`
+    SELECT na.action_type, na.planned_date, na.completed_date, na.completed_note, na.actor, na.contact,
+           p.name as prospect_name
+    FROM next_actions na
+    LEFT JOIN affaires a ON a.id = na.affaire_id
+    INNER JOIN prospects p ON p.id = COALESCE(na.prospect_id, a.prospect_id)
+    WHERE p.assigned_to = $1
+      AND na.completed = 1
+      AND na.completed_date >= $2
+    ORDER BY na.completed_date DESC
+  `, [commercialName, sw]);
+
+  // Actions créées ou modifiées cette semaine (non complétées)
+  const modifiees = await pool.query(`
+    SELECT na.action_type, na.planned_date, na.actor, na.contact, na.created_at,
+           p.name as prospect_name
+    FROM next_actions na
+    LEFT JOIN affaires a ON a.id = na.affaire_id
+    INNER JOIN prospects p ON p.id = COALESCE(na.prospect_id, a.prospect_id)
+    WHERE p.assigned_to = $1
+      AND na.completed = 0
+      AND na.created_at >= $2
+    ORDER BY na.created_at DESC
+  `, [commercialName, sw]);
+
+  return { commercial: commercialName, completees: completees.rows, modifiees: modifiees.rows };
+}
+
+// ── Recap type 3 : Vue globale pipeline ──
+async function buildRecapPipeline(commercialName) {
+  const prospects = await pool.query(`
+    SELECT p.name, p.contact_name, p.assigned_to,
+           d.devis_status, d.chance_percent, d.monthly_amount, d.setup_amount, d.quote_date,
+           a.nom_affaire
+    FROM prospects p
+    INNER JOIN affaires a ON a.prospect_id = p.id AND a.statut_global NOT IN ('Gagné','Perdu')
+    INNER JOIN devis d ON d.affaire_id = a.id
+    WHERE p.assigned_to = $1
+    ORDER BY d.chance_percent DESC, p.name
+  `, [commercialName]);
+
+  const gagnes = await pool.query(`
+    SELECT p.name, d.monthly_amount, d.setup_amount, d.quote_date
+    FROM prospects p
+    INNER JOIN affaires a ON a.prospect_id = p.id AND a.statut_global = 'Gagné'
+    INNER JOIN devis d ON d.affaire_id = a.id
+    WHERE p.assigned_to = $1
+    ORDER BY d.quote_date DESC
+  `, [commercialName]);
+
+  return { commercial: commercialName, pipeline: prospects.rows, gagnes: gagnes.rows };
+}
+
+// ── HTML pour récap type 2 : Actions modifiées ──
+function buildEmailModifiees(dataList) {
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—';
+  let body = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    body{font-family:'Segoe UI',sans-serif;background:#f4f7f7;margin:0;padding:20px;color:#1a3535}
+    .container{max-width:700px;margin:0 auto;background:white;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,125,137,.1)}
+    .header{background:#007d89;color:white;padding:24px 28px}
+    .header h1{margin:0;font-size:20px;font-weight:600}
+    .header p{margin:6px 0 0;font-size:13px;opacity:.85}
+    .section{padding:20px 28px;border-bottom:1px solid #e0ecec}
+    .section:last-child{border-bottom:none}
+    .stitle{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
+    .commercial-header{background:#e6f4f5;padding:10px 14px;border-radius:6px;margin-bottom:14px;font-weight:600;color:#007d89}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{text-align:left;padding:8px 10px;background:#f4f7f7;color:#607a7a;font-size:11px;font-weight:600;text-transform:uppercase}
+    td{padding:8px 10px;border-bottom:1px solid #f0f0f0}
+    tr:last-child td{border-bottom:none}
+    .empty{color:#9eb5b5;font-style:italic;font-size:13px}
+    .footer{padding:14px 28px;background:#f4f7f7;font-size:12px;color:#9eb5b5;text-align:center}
+  </style></head><body><div class="container">
+  <div class="header">
+    <h1>📝 Actions de la semaine — TexasWin</h1>
+    <p>Semaine du ${new Date().toLocaleDateString('fr-FR', {weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p>
+  </div>`;
+
+  for (const d of dataList) {
+    body += `<div class="section"><div class="commercial-header">👤 ${d.commercial}</div>`;
+    
+    body += `<div class="stitle" style="color:#2ec27e">✅ Actions complétées (${d.completees.length})</div>`;
+    if (d.completees.length === 0) {
+      body += `<p class="empty">Aucune action complétée cette semaine</p>`;
+    } else {
+      body += `<table><tr><th>Société</th><th>Type</th><th>Complétée le</th><th>Note</th></tr>`;
+      for (const a of d.completees) {
+        body += `<tr><td><b>${a.prospect_name}</b></td><td>${a.action_type||'—'}</td><td style="color:#2ec27e">${fmtDate(a.completed_date)}</td><td style="color:#607a7a;font-size:12px">${a.completed_note||'—'}</td></tr>`;
+      }
+      body += `</table>`;
+    }
+
+    body += `<div class="stitle" style="color:#3498db;margin-top:18px">🆕 Actions créées cette semaine (${d.modifiees.length})</div>`;
+    if (d.modifiees.length === 0) {
+      body += `<p class="empty">Aucune action créée cette semaine</p>`;
+    } else {
+      body += `<table><tr><th>Société</th><th>Type</th><th>Date prévue</th><th>De</th><th>Vers</th></tr>`;
+      for (const a of d.modifiees) {
+        body += `<tr><td><b>${a.prospect_name}</b></td><td>${a.action_type||'—'}</td><td>${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
+      }
+      body += `</table>`;
+    }
+    body += `</div>`;
+  }
+  body += `<div class="footer">TexasWin Pipeline · notifications@texaswin.fr</div></div></body></html>`;
+  return body;
+}
+
+// ── HTML pour récap type 3 : Vue pipeline ──
+function buildEmailPipeline(dataList) {
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—';
+  const fmtAmount = (n) => (n||0).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  
+  let body = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    body{font-family:'Segoe UI',sans-serif;background:#f4f7f7;margin:0;padding:20px;color:#1a3535}
+    .container{max-width:750px;margin:0 auto;background:white;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,125,137,.1)}
+    .header{background:#007d89;color:white;padding:24px 28px}
+    .header h1{margin:0;font-size:20px;font-weight:600}
+    .header p{margin:6px 0 0;font-size:13px;opacity:.85}
+    .section{padding:20px 28px;border-bottom:1px solid #e0ecec}
+    .section:last-child{border-bottom:none}
+    .stitle{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
+    .commercial-header{background:#e6f4f5;padding:10px 14px;border-radius:6px;margin-bottom:14px;font-weight:600;color:#007d89}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{text-align:left;padding:7px 10px;background:#f4f7f7;color:#607a7a;font-size:11px;font-weight:600;text-transform:uppercase}
+    td{padding:7px 10px;border-bottom:1px solid #f0f0f0}
+    tr:last-child td{border-bottom:none}
+    .empty{color:#9eb5b5;font-style:italic;font-size:13px}
+    .footer{padding:14px 28px;background:#f4f7f7;font-size:12px;color:#9eb5b5;text-align:center}
+    .pct{font-weight:700;padding:2px 7px;border-radius:8px;font-size:11px}
+  </style></head><body><div class="container">
+  <div class="header">
+    <h1>📊 Vue Pipeline — TexasWin</h1>
+    <p>Semaine du ${new Date().toLocaleDateString('fr-FR', {weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p>
+  </div>`;
+
+  for (const d of dataList) {
+    const totalAbo = d.pipeline.reduce((s,p) => s+(parseFloat(p.monthly_amount)||0), 0);
+    const totalSetup = d.pipeline.reduce((s,p) => s+(parseFloat(p.setup_amount)||0), 0);
+    
+    body += `<div class="section"><div class="commercial-header">👤 ${d.commercial} — ${d.pipeline.length} devis en cours · Abo: ${fmtAmount(totalAbo)} €/m · Setup: ${fmtAmount(totalSetup)} €</div>`;
+    
+    body += `<div class="stitle" style="color:#007d89">🪙 Devis en cours</div>`;
+    if (d.pipeline.length === 0) {
+      body += `<p class="empty">Aucun devis en cours</p>`;
+    } else {
+      body += `<table><tr><th>Société</th><th>Affaire</th><th>Statut</th><th>%</th><th>Abo/mois</th><th>Setup</th><th>Date devis</th></tr>`;
+      for (const p of d.pipeline) {
+        const pctColor = p.chance_percent>=60?'#2ec27e':p.chance_percent>=30?'#f0932b':'#e74c3c';
+        const pctBg = p.chance_percent>=60?'#e8f8f0':p.chance_percent>=30?'#fff8e1':'#fdecea';
+        body += `<tr>
+          <td><b>${p.name}</b><br><span style="color:#9eb5b5;font-size:11px">${p.contact_name||''}</span></td>
+          <td style="color:#607a7a">${p.nom_affaire||'—'}</td>
+          <td>${p.devis_status||'—'}</td>
+          <td><span class="pct" style="color:${pctColor};background:${pctBg}">${p.chance_percent||0}%</span></td>
+          <td style="font-weight:600">${fmtAmount(p.monthly_amount)} €</td>
+          <td>${fmtAmount(p.setup_amount)} €</td>
+          <td style="color:#9eb5b5">${fmtDate(p.quote_date)}</td>
+        </tr>`;
+      }
+      body += `</table>`;
+    }
+
+    if (d.gagnes.length > 0) {
+      body += `<div class="stitle" style="color:#2ec27e;margin-top:18px">✅ Gagnés ${new Date().getFullYear()} (${d.gagnes.length})</div>`;
+      body += `<table><tr><th>Société</th><th>Abo/mois</th><th>Setup</th><th>Date</th></tr>`;
+      for (const p of d.gagnes) {
+        body += `<tr><td><b>${p.name}</b></td><td style="color:#2ec27e;font-weight:600">${fmtAmount(p.monthly_amount)} €</td><td>${fmtAmount(p.setup_amount)} €</td><td>${fmtDate(p.quote_date)}</td></tr>`;
+      }
+      body += `</table>`;
+    }
+    body += `</div>`;
+  }
+  body += `<div class="footer">TexasWin Pipeline · notifications@texaswin.fr</div></div></body></html>`;
+  return body;
+}
+
 // POST /api/recap/send-test - Envoyer un récap test à une adresse donnée (admin uniquement)
 app.post('/api/recap/send-test', auth, async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email requis' });
+    const { targetName, recapType } = req.body;
+    if (!targetName || !recapType) return res.status(400).json({ error: 'targetName et recapType requis' });
 
-    // Construire le récap global de toute l'équipe
-    const usersRes = await pool.query(`SELECT name FROM users ORDER BY name`);
-    const allData = [];
-    for (const u of usersRes.rows) {
-      const data = await buildRecapData(u.name);
-      if (data) allData.push(data);
+    // Récupérer l'email du destinataire (ou admin si 'Christian')
+    const userRes = await pool.query(`SELECT email FROM users WHERE name = $1`, [targetName]);
+    const adminRes = await pool.query(`SELECT email FROM users WHERE name = 'Christian' LIMIT 1`);
+    const toEmail = userRes.rows[0]?.email || adminRes.rows[0]?.email;
+    if (!toEmail) return res.status(404).json({ error: 'Utilisateur non trouvé' });
+
+    let html, subject;
+
+    if (recapType === 'actions') {
+      // Type 1 : pour un commercial spécifique
+      const data = await buildRecapData(targetName);
+      if (!data) return res.status(404).json({ error: 'Aucune donnée pour ce commercial' });
+      html = buildEmailHTML([data], targetName !== 'Christian' && targetName !== 'Frédéric');
+      subject = `[TEST] ⚠️ Récap Actions — ${targetName}`;
+
+    } else if (recapType === 'modifiees') {
+      // Type 2 : selon le destinataire
+      let dataList = [];
+      if (targetName === 'Christian' || targetName === 'Frédéric') {
+        // Global pour les admins
+        const usersRes = await pool.query(`SELECT name FROM users ORDER BY name`);
+        for (const u of usersRes.rows) {
+          const d = await buildRecapModifiees(u.name);
+          if (d.completees.length > 0 || d.modifiees.length > 0) dataList.push(d);
+        }
+      } else {
+        const d = await buildRecapModifiees(targetName);
+        dataList = [d];
+      }
+      html = buildEmailModifiees(dataList);
+      subject = `[TEST] 📝 Actions de la semaine — ${targetName}`;
+
+    } else if (recapType === 'pipeline') {
+      // Type 3 : selon le destinataire
+      let dataList = [];
+      if (targetName === 'Christian' || targetName === 'Frédéric') {
+        const usersRes = await pool.query(`SELECT name FROM users ORDER BY name`);
+        for (const u of usersRes.rows) {
+          const d = await buildRecapPipeline(u.name);
+          if (d.pipeline.length > 0 || d.gagnes.length > 0) dataList.push(d);
+        }
+      } else {
+        const d = await buildRecapPipeline(targetName);
+        dataList = [d];
+      }
+      html = buildEmailPipeline(dataList);
+      subject = `[TEST] 📊 Vue Pipeline — ${targetName}`;
+    } else {
+      return res.status(400).json({ error: 'Type inconnu' });
     }
 
-    const html = buildEmailHTML(allData, true);
     await transporter.sendMail({
       from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
-      to: email,
-      subject: `[TEST] 📊 Récap Global Pipeline — ${new Date().toLocaleDateString('fr-FR')}`,
+      to: toEmail,
+      subject,
       html
     });
 
-    console.log(`✅ Récap test envoyé à ${email}`);
-    res.json({ ok: true });
+    console.log(`✅ Récap test [${recapType}] envoyé à ${targetName} (${toEmail})`);
+    res.json({ ok: true, email: toEmail });
   } catch (err) {
     console.error('Erreur récap test:', err);
     res.status(500).json({ error: err.message });
