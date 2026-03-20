@@ -3075,7 +3075,6 @@
       const fmt = (n) => n.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2});
 
       // ── Commerciaux ──
-      const commerciaux = [...new Set(prospects.map(p => p.assigned_to).filter(Boolean))].sort();
       if (activeTab === null && commerciaux.length > 0) setActiveTab(commerciaux[0]);
 
       const getCommercialData = (name) => {
