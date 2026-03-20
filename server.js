@@ -1808,11 +1808,10 @@ app.post('/api/recap/send-test', auth, async (req, res) => {
     if (!targetName || !recapType) return res.status(400).json({ error: 'targetName et recapType requis' });
 
     // Récupérer l'email du destinataire (ou admin si 'Christian')
-    // En mode test : pipeline → Frédéric, autres → Christian
-    const recipientName = recapType === 'pipeline' ? 'Frédéric' : 'Christian';
-    const adminRes = await pool.query(`SELECT email FROM users WHERE name = $1 LIMIT 1`, [recipientName]);
+    // En mode test : TOUJOURS envoyer à Christian
+    const adminRes = await pool.query(`SELECT email FROM users WHERE name = 'Christian' LIMIT 1`);
     const toEmail = adminRes.rows[0]?.email;
-    if (!toEmail) return res.status(404).json({ error: `Email de ${recipientName} non trouvé` });
+    if (!toEmail) return res.status(404).json({ error: 'Email Christian non trouvé' });
 
     let html, subject;
 
