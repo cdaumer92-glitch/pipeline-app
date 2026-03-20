@@ -2334,9 +2334,7 @@
 
           {/* NAV DROITE */}
           <nav className="tw-nav">
-            {isAdmin && (
-              <button className={`tw-nav-btn ${isDashboard ? 'tw-active' : ''}`} onClick={() => { if (!isDashboard) onDashboard(); }}>Dashboard</button>
-            )}
+            <button className={`tw-nav-btn ${isDashboard ? 'tw-active' : ''}`} onClick={() => { if (!isDashboard) onDashboard(); }}>Dashboard</button>
             <button className={`tw-nav-btn ${!isDashboard ? 'tw-active' : ''}`} onClick={() => { if (isDashboard) onDashboard(); }}>Suivi activités</button>
           </nav>
 
