@@ -1722,6 +1722,41 @@ function buildEmailPipeline(dataList) {
     <p>Semaine du ${new Date().toLocaleDateString('fr-FR', {weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p>
   </div>`;
 
+  // ── KPI globaux calculés sur tous les commerciaux ──
+  const allPipeline = dataList.flatMap(d => d.pipeline);
+  const allGagnes   = dataList.flatMap(d => d.gagnes);
+  const totalSocietes = dataList.reduce((s,d) => s + d.pipeline.length + d.gagnes.length, 0);
+  const nbDevis     = allPipeline.filter(p => p.devis_status !== 'Gagné').length;
+  const nbGagnes    = allGagnes.length;
+  const aboMensuel  = allPipeline.reduce((s,p) => s+(parseFloat(p.monthly_amount)||0), 0);
+  const setupTotal  = allPipeline.reduce((s,p) => s+(parseFloat(p.setup_amount)||0), 0);
+  const aboGagnes   = allGagnes.reduce((s,p) => s+(parseFloat(p.monthly_amount)||0), 0);
+  const setupGagnes = allGagnes.reduce((s,p) => s+(parseFloat(p.setup_amount)||0), 0);
+
+  body += `
+  <div style="display:flex;gap:0;border-bottom:2px solid #e0ecec">
+    <div style="flex:1;padding:16px 20px;border-right:1px solid #e0ecec;text-align:center">
+      <div style="font-size:11px;color:#9eb5b5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Sociétés base</div>
+      <div style="font-size:28px;font-weight:700;color:#007d89">${dataList.reduce((s,d)=>s+d.pipeline.length+d.gagnes.length,0)}</div>
+      <div style="font-size:11px;color:#9eb5b5;margin-top:4px">${dataList.length} commercial${dataList.length>1?'s':''}</div>
+    </div>
+    <div style="flex:1;padding:16px 20px;border-right:1px solid #e0ecec;text-align:center">
+      <div style="font-size:11px;color:#9eb5b5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Devis en cours</div>
+      <div style="font-size:28px;font-weight:700;color:#1a3535">${nbDevis}</div>
+      <div style="font-size:11px;color:#e74c3c;margin-top:4px">${nbGagnes} gagné${nbGagnes>1?'s':''}</div>
+    </div>
+    <div style="flex:1;padding:16px 20px;border-right:1px solid #e0ecec;text-align:center">
+      <div style="font-size:11px;color:#9eb5b5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Potentiel Abo</div>
+      <div style="font-size:22px;font-weight:700;color:#007d89">${fmtAmount(aboMensuel)} €</div>
+      <div style="font-size:11px;color:#9eb5b5;margin-top:4px">Setup ${fmtAmount(setupTotal)} €</div>
+    </div>
+    <div style="flex:1;padding:16px 20px;text-align:center">
+      <div style="font-size:11px;color:#9eb5b5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Signés 2026</div>
+      <div style="font-size:22px;font-weight:700;color:#2ec27e">${fmtAmount(aboGagnes)} €/m</div>
+      <div style="font-size:11px;color:#9eb5b5;margin-top:4px">Setup ${fmtAmount(setupGagnes)} €</div>
+    </div>
+  </div>`;
+
   for (const d of dataList) {
     const totalAbo = d.pipeline.reduce((s,p) => s+(parseFloat(p.monthly_amount)||0), 0);
     const totalSetup = d.pipeline.reduce((s,p) => s+(parseFloat(p.setup_amount)||0), 0);
@@ -1770,10 +1805,10 @@ app.post('/api/recap/send-test', auth, async (req, res) => {
     if (!targetName || !recapType) return res.status(400).json({ error: 'targetName et recapType requis' });
 
     // Récupérer l'email du destinataire (ou admin si 'Christian')
-    const userRes = await pool.query(`SELECT email FROM users WHERE name = $1`, [targetName]);
+    // En mode test : toujours envoyer à Christian (l'admin qui teste)
     const adminRes = await pool.query(`SELECT email FROM users WHERE name = 'Christian' LIMIT 1`);
-    const toEmail = userRes.rows[0]?.email || adminRes.rows[0]?.email;
-    if (!toEmail) return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    const toEmail = adminRes.rows[0]?.email;
+    if (!toEmail) return res.status(404).json({ error: 'Email admin non trouvé' });
 
     let html, subject;
 
