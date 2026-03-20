@@ -1566,20 +1566,8 @@ function buildEmailHTML(data, isGlobal = false) {
       body += `<div class="section">`;
     }
 
-    // Devis sans actions
-    body += `<div class="section-title" style="color:#e74c3c">⚠️ Devis sans action planifiée <span class="badge badge-red">${d.sansActions.length}</span></div>`;
-    if (d.sansActions.length === 0) {
-      body += `<p class="empty">✓ Tous les devis ont une action planifiée</p>`;
-    } else {
-      body += `<table><tr><th>Société</th><th>Contact</th><th>Statut</th><th>%</th><th>Date devis</th></tr>`;
-      for (const p of d.sansActions) {
-        body += `<tr><td>${p.name}</td><td>${p.contact_name||'—'}</td><td>${p.devis_status||'—'}</td><td>${p.chance_percent||0}%</td><td>${fmtDate(p.quote_date)}</td></tr>`;
-      }
-      body += `</table>`;
-    }
-
-    // Actions en retard
-    body += `<div class="section-title" style="color:#f0932b;margin-top:20px">🔴 Actions en retard <span class="badge badge-orange">${d.enRetard.length}</span></div>`;
+    // Actions en retard EN PREMIER
+    body += `<div class="section-title" style="color:#e74c3c">🔴 Actions en retard <span class="badge badge-red">${d.enRetard.length}</span></div>`;
     if (d.enRetard.length === 0) {
       body += `<p class="empty">✓ Aucune action en retard</p>`;
     } else {
@@ -1598,6 +1586,18 @@ function buildEmailHTML(data, isGlobal = false) {
       body += `<table><tr><th>Société</th><th>Type</th><th>Date</th><th>De</th><th>Vers</th></tr>`;
       for (const a of d.aVenir) {
         body += `<tr><td>${a.prospect_name}</td><td>${a.action_type||'—'}</td><td style="color:#2ec27e;font-weight:600">${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
+      }
+      body += `</table>`;
+    }
+
+    // Devis sans actions (en dernier)
+    body += `<div class="section-title" style="color:#607a7a;margin-top:20px">📋 Devis sans action planifiée <span class="badge" style="background:#f0f0f0;color:#607a7a;padding:2px 8px;border-radius:10px;font-size:11px">${d.sansActions.length}</span></div>`;
+    if (d.sansActions.length === 0) {
+      body += `<p class="empty">✓ Tous les devis ont une action planifiée</p>`;
+    } else {
+      body += `<table><tr><th>Société</th><th>Contact</th><th>Statut</th><th>%</th><th>Date devis</th></tr>`;
+      for (const p of d.sansActions) {
+        body += `<tr><td>${p.name}</td><td>${p.contact_name||'—'}</td><td>${p.devis_status||'—'}</td><td>${p.chance_percent||0}%</td><td>${fmtDate(p.quote_date)}</td></tr>`;
       }
       body += `</table>`;
     }
@@ -1622,6 +1622,7 @@ async function buildRecapPipeline(commercialName) {
     INNER JOIN affaires a ON a.prospect_id = p.id AND a.statut_global NOT IN ('Gagné','Perdu')
     INNER JOIN devis d ON d.affaire_id = a.id
     WHERE p.assigned_to = $1
+      AND d.devis_status NOT IN ('Gagné','Perdu')
     ORDER BY d.chance_percent DESC, p.name
   `, [commercialName]);
 
@@ -1734,28 +1735,30 @@ function buildEmailPipeline(dataList) {
   const setupGagnes = allGagnes.reduce((s,p) => s+(parseFloat(p.setup_amount)||0), 0);
 
   body += `
-  <div style="display:flex;gap:0;border-bottom:2px solid #e0ecec">
-    <div style="flex:1;padding:16px 20px;border-right:1px solid #e0ecec;text-align:center">
-      <div style="font-size:11px;color:#9eb5b5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Sociétés base</div>
-      <div style="font-size:28px;font-weight:700;color:#007d89">${dataList.reduce((s,d)=>s+d.pipeline.length+d.gagnes.length,0)}</div>
-      <div style="font-size:11px;color:#9eb5b5;margin-top:4px">${dataList.length} commercial${dataList.length>1?'s':''}</div>
-    </div>
-    <div style="flex:1;padding:16px 20px;border-right:1px solid #e0ecec;text-align:center">
-      <div style="font-size:11px;color:#9eb5b5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Devis en cours</div>
-      <div style="font-size:28px;font-weight:700;color:#1a3535">${nbDevis}</div>
-      <div style="font-size:11px;color:#e74c3c;margin-top:4px">${nbGagnes} gagné${nbGagnes>1?'s':''}</div>
-    </div>
-    <div style="flex:1;padding:16px 20px;border-right:1px solid #e0ecec;text-align:center">
-      <div style="font-size:11px;color:#9eb5b5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Potentiel Abo</div>
-      <div style="font-size:22px;font-weight:700;color:#007d89">${fmtAmount(aboMensuel)} €</div>
-      <div style="font-size:11px;color:#9eb5b5;margin-top:4px">Setup ${fmtAmount(setupTotal)} €</div>
-    </div>
-    <div style="flex:1;padding:16px 20px;text-align:center">
-      <div style="font-size:11px;color:#9eb5b5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Signés 2026</div>
-      <div style="font-size:22px;font-weight:700;color:#2ec27e">${fmtAmount(aboGagnes)} €/m</div>
-      <div style="font-size:11px;color:#9eb5b5;margin-top:4px">Setup ${fmtAmount(setupGagnes)} €</div>
-    </div>
-  </div>`;
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:2px solid #e0ecec">
+    <tr>
+      <td width="25%" style="padding:16px 20px;border-right:1px solid #e0ecec;text-align:center;vertical-align:top">
+        <div style="font-size:11px;color:#9eb5b5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Sociétés base</div>
+        <div style="font-size:28px;font-weight:700;color:#007d89">${dataList.reduce((s,d)=>s+d.pipeline.length+d.gagnes.length,0)}</div>
+        <div style="font-size:11px;color:#9eb5b5;margin-top:4px">${dataList.length} commercial${dataList.length>1?'s':''}</div>
+      </td>
+      <td width="25%" style="padding:16px 20px;border-right:1px solid #e0ecec;text-align:center;vertical-align:top">
+        <div style="font-size:11px;color:#9eb5b5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Devis en cours</div>
+        <div style="font-size:28px;font-weight:700;color:#1a3535">${nbDevis}</div>
+        <div style="font-size:11px;color:#2ec27e;margin-top:4px">${nbGagnes} gagné${nbGagnes>1?'s':''}</div>
+      </td>
+      <td width="25%" style="padding:16px 20px;border-right:1px solid #e0ecec;text-align:center;vertical-align:top">
+        <div style="font-size:11px;color:#9eb5b5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Potentiel Abo/mois</div>
+        <div style="font-size:22px;font-weight:700;color:#007d89">${fmtAmount(aboMensuel)} €</div>
+        <div style="font-size:11px;color:#9eb5b5;margin-top:4px">Setup ${fmtAmount(setupTotal)} €</div>
+      </td>
+      <td width="25%" style="padding:16px 20px;text-align:center;vertical-align:top">
+        <div style="font-size:11px;color:#9eb5b5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Signés 2026</div>
+        <div style="font-size:22px;font-weight:700;color:#2ec27e">${fmtAmount(aboGagnes)} €/m</div>
+        <div style="font-size:11px;color:#9eb5b5;margin-top:4px">Setup ${fmtAmount(setupGagnes)} €</div>
+      </td>
+    </tr>
+  </table>`;
 
   for (const d of dataList) {
     const totalAbo = d.pipeline.reduce((s,p) => s+(parseFloat(p.monthly_amount)||0), 0);
@@ -1805,10 +1808,11 @@ app.post('/api/recap/send-test', auth, async (req, res) => {
     if (!targetName || !recapType) return res.status(400).json({ error: 'targetName et recapType requis' });
 
     // Récupérer l'email du destinataire (ou admin si 'Christian')
-    // En mode test : toujours envoyer à Christian (l'admin qui teste)
-    const adminRes = await pool.query(`SELECT email FROM users WHERE name = 'Christian' LIMIT 1`);
+    // En mode test : pipeline → Frédéric, autres → Christian
+    const recipientName = recapType === 'pipeline' ? 'Frédéric' : 'Christian';
+    const adminRes = await pool.query(`SELECT email FROM users WHERE name = $1 LIMIT 1`, [recipientName]);
     const toEmail = adminRes.rows[0]?.email;
-    if (!toEmail) return res.status(404).json({ error: 'Email admin non trouvé' });
+    if (!toEmail) return res.status(404).json({ error: `Email de ${recipientName} non trouvé` });
 
     let html, subject;
 
@@ -1887,24 +1891,43 @@ app.post('/api/recap/send', async (req, res) => {
       console.log(`✅ Récap envoyé à ${user.name} (${user.email})`);
     }
 
-    // Envoyer récap global aux admins
-    const allData = [];
+    // Envoyer récap Actions & Devis global à Christian
+    const allDataActions = [];
     for (const user of users) {
       const data = await buildRecapData(user.name);
-      if (data) allData.push(data);
+      if (data) allDataActions.push(data);
+    }
+    const christian = users.find(u => u.name === 'Christian');
+    if (allDataActions.length > 0 && christian) {
+      const globalHtml = buildEmailHTML(allDataActions, true);
+      await transporter.sendMail({
+        from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
+        to: christian.email,
+        subject: `📊 Récap Global Actions — ${new Date().toLocaleDateString('fr-FR')}`,
+        html: globalHtml
+      });
+      results.push({ user: 'Christian', email: christian.email, sent: true, type: 'actions-global' });
+      console.log(`✅ Récap global Actions envoyé à Christian (${christian.email})`);
     }
 
-    if (allData.length > 0) {
-      const globalHtml = buildEmailHTML(allData, true);
-      for (const admin of admins) {
+    // Envoyer Vue Pipeline à Frédéric
+    const frederic = users.find(u => ['Frédéric','Frederic'].includes(u.name));
+    if (frederic) {
+      const allDataPipeline = [];
+      for (const user of users) {
+        const data = await buildRecapPipeline(user.name);
+        if (data && (data.pipeline.length > 0 || data.gagnes.length > 0)) allDataPipeline.push(data);
+      }
+      if (allDataPipeline.length > 0) {
+        const pipelineHtml = buildEmailPipeline(allDataPipeline);
         await transporter.sendMail({
           from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
-          to: admin.email,
-          subject: `📊 Récap Global Pipeline — ${new Date().toLocaleDateString('fr-FR')}`,
-          html: globalHtml
+          to: frederic.email,
+          subject: `📊 Vue Pipeline — ${new Date().toLocaleDateString('fr-FR')}`,
+          html: pipelineHtml
         });
-        results.push({ user: admin.name, email: admin.email, sent: true, global: true });
-        console.log(`✅ Récap global envoyé à ${admin.name} (${admin.email})`);
+        results.push({ user: 'Frédéric', email: frederic.email, sent: true, type: 'pipeline' });
+        console.log(`✅ Vue Pipeline envoyée à Frédéric (${frederic.email})`);
       }
     }
 
