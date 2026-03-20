@@ -2833,6 +2833,14 @@
     function DashboardConsultant({ prospects, user, prospectActionsInfo, onSelectProspect, onOpenDashboard, API_URL }) {
       const today = new Date(); today.setHours(0,0,0,0);
       const fmt = (n) => (n||0).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2});
+      const [sortCol, setSortCol] = React.useState('name');
+      const [sortAsc, setSortAsc] = React.useState(true);
+
+      const handleSort = (col) => {
+        if (sortCol === col) setSortAsc(a => !a);
+        else { setSortCol(col); setSortAsc(true); }
+      };
+      const sortArrow = (col) => sortCol === col ? (sortAsc ? ' ↑' : ' ↓') : ' ↕';
 
       const mine = prospects.filter(p => p.assigned_to === user.name);
       const myPipeline = mine.filter(p => p.real_status && ['En cours','Envoyé','Discussion','Négociation'].includes(p.real_status));
@@ -2928,15 +2936,42 @@
           </div>
 
           {/* TABLEAU MES DOSSIERS */}
-          <div className="tw-section-title">Mes dossiers</div>
+          <div className="tw-section-title">Mes dossiers ({mine.length})</div>
           <div style={{background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',overflow:'hidden',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
+            {/* Header triable */}
             <div style={{display:'grid',gridTemplateColumns:'2fr 1.2fr 0.8fr 1.6fr 0.8fr',padding:'9px 16px',background:'var(--tw-bg)',borderBottom:'1px solid var(--tw-border)',fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px'}}>
-              <div>Société</div><div>Statut</div><div>Proba</div><div>Prochaine action</div><div></div>
+              {[
+                {lbl:'Société',          col:'name'},
+                {lbl:'Statut',           col:'status'},
+                {lbl:'Proba',            col:'proba'},
+                {lbl:'Prochaine action', col:'action'},
+              ].map(h => (
+                <div key={h.col} onClick={() => handleSort(h.col)}
+                  style={{cursor:'pointer',userSelect:'none',display:'flex',alignItems:'center',gap:'3px'}}
+                  onMouseEnter={e=>e.currentTarget.style.color='var(--tw-teal)'}
+                  onMouseLeave={e=>e.currentTarget.style.color='var(--tw-muted)'}
+                >
+                  {h.lbl}
+                  <span style={{fontSize:'10px',opacity: sortCol===h.col?1:0.4}}>{sortArrow(h.col)}</span>
+                </div>
+              ))}
+              <div></div>
             </div>
             {mine.length === 0 && (
               <div style={{padding:'30px',textAlign:'center',color:'var(--tw-muted)',fontSize:'13px'}}>Aucune société assignée</div>
             )}
-            {mine.map(p => {
+            {[...mine].sort((a,b) => {
+              let va, vb;
+              if (sortCol==='name')   { va=a.name||''; vb=b.name||''; return sortAsc?va.localeCompare(vb):vb.localeCompare(va); }
+              if (sortCol==='status') { va=a.real_status||''; vb=b.real_status||''; return sortAsc?va.localeCompare(vb):vb.localeCompare(va); }
+              if (sortCol==='proba')  { va=a.real_probability||0; vb=b.real_probability||0; return sortAsc?va-vb:vb-va; }
+              if (sortCol==='action') {
+                const da = prospectActionsInfo[a.id]?.nextActionDate ? new Date(prospectActionsInfo[a.id].nextActionDate).getTime() : Infinity;
+                const db = prospectActionsInfo[b.id]?.nextActionDate ? new Date(prospectActionsInfo[b.id].nextActionDate).getTime() : Infinity;
+                return sortAsc?da-db:db-da;
+              }
+              return 0;
+            }).map(p => {
               const ai = prospectActionsInfo[p.id];
               const hasAction = ai?.hasAction;
               const isLate = ai?.isLate;
