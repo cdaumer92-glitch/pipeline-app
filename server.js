@@ -1551,9 +1551,15 @@ function buildEmailHTML(data, isGlobal = false) {
   </head>
   <body>
   <div class="container">
-    <div class="header">
-      <h1>📊 ${title}</h1>
-      <p>Semaine du ${new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'})}</p>
+    <div style="padding:16px 28px;border-bottom:3px solid #007d89;background:white">
+      <table width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td style="vertical-align:middle">
+          <span style="font-size:17px;font-weight:700;color:#1a3535;letter-spacing:-.3px">TexasWin</span>
+          <span style="font-size:17px;font-weight:300;color:#007d89;letter-spacing:-.3px"> Pipeline</span>
+          <span style="display:inline-block;margin-left:10px;padding:2px 9px;background:#fdecea;color:#e74c3c;font-size:11px;font-weight:600;border-radius:10px;text-transform:uppercase;letter-spacing:.4px">Actions & Devis</span>
+        </td>
+        <td align="right" style="font-size:12px;color:#9eb5b5;vertical-align:middle">${new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'})}</td>
+      </tr></table>
     </div>`;
 
   const sections = Array.isArray(data) ? data : [data];
@@ -1627,10 +1633,10 @@ async function buildRecapPipeline(commercialName) {
   `, [commercialName]);
 
   const gagnes = await pool.query(`
-    SELECT p.name, d.monthly_amount, d.setup_amount, d.quote_date
+    SELECT p.name, p.contact_name, d.monthly_amount, d.annual_amount, d.setup_amount, d.quote_date, a.nom_affaire
     FROM prospects p
-    INNER JOIN affaires a ON a.prospect_id = p.id AND a.statut_global = 'Gagné'
-    INNER JOIN devis d ON d.affaire_id = a.id
+    INNER JOIN affaires a ON a.prospect_id = p.id
+    INNER JOIN devis d ON d.affaire_id = a.id AND d.devis_status = 'Gagné'
     WHERE p.assigned_to = $1
     ORDER BY d.quote_date DESC
   `, [commercialName]);
@@ -1645,9 +1651,7 @@ function buildEmailModifiees(dataList) {
   <style>
     body{font-family:'Segoe UI',sans-serif;background:#f4f7f7;margin:0;padding:20px;color:#1a3535}
     .container{max-width:700px;margin:0 auto;background:white;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,125,137,.1)}
-    .header{background:#007d89;color:white;padding:24px 28px}
-    .header h1{margin:0;font-size:20px;font-weight:600}
-    .header p{margin:6px 0 0;font-size:13px;opacity:.85}
+    /* header remplacé par layout table */
     .section{padding:20px 28px;border-bottom:1px solid #e0ecec}
     .section:last-child{border-bottom:none}
     .stitle{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
@@ -1659,9 +1663,15 @@ function buildEmailModifiees(dataList) {
     .empty{color:#9eb5b5;font-style:italic;font-size:13px}
     .footer{padding:14px 28px;background:#f4f7f7;font-size:12px;color:#9eb5b5;text-align:center}
   </style></head><body><div class="container">
-  <div class="header">
-    <h1>📝 Actions de la semaine — TexasWin</h1>
-    <p>Semaine du ${new Date().toLocaleDateString('fr-FR', {weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p>
+  <div style="padding:16px 28px;border-bottom:3px solid #007d89;background:white">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td style="vertical-align:middle">
+        <span style="font-size:17px;font-weight:700;color:#1a3535;letter-spacing:-.3px">TexasWin</span>
+        <span style="font-size:17px;font-weight:300;color:#007d89;letter-spacing:-.3px"> Pipeline</span>
+        <span style="display:inline-block;margin-left:10px;padding:2px 9px;background:#e8f4fd;color:#3498db;font-size:11px;font-weight:600;border-radius:10px;text-transform:uppercase;letter-spacing:.4px">Actions semaine</span>
+      </td>
+      <td align="right" style="font-size:12px;color:#9eb5b5;vertical-align:middle">${new Date().toLocaleDateString('fr-FR', {weekday:'long',day:'numeric',month:'long',year:'numeric'})}</td>
+    </tr></table>
   </div>`;
 
   for (const d of dataList) {
@@ -1703,9 +1713,7 @@ function buildEmailPipeline(dataList) {
   <style>
     body{font-family:'Segoe UI',sans-serif;background:#f4f7f7;margin:0;padding:20px;color:#1a3535}
     .container{max-width:750px;margin:0 auto;background:white;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,125,137,.1)}
-    .header{background:#007d89;color:white;padding:24px 28px}
-    .header h1{margin:0;font-size:20px;font-weight:600}
-    .header p{margin:6px 0 0;font-size:13px;opacity:.85}
+    /* header remplacé par layout table */
     .section{padding:20px 28px;border-bottom:1px solid #e0ecec}
     .section:last-child{border-bottom:none}
     .stitle{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
@@ -1718,21 +1726,28 @@ function buildEmailPipeline(dataList) {
     .footer{padding:14px 28px;background:#f4f7f7;font-size:12px;color:#9eb5b5;text-align:center}
     .pct{font-weight:700;padding:2px 7px;border-radius:8px;font-size:11px}
   </style></head><body><div class="container">
-  <div class="header">
-    <h1>📊 Vue Pipeline — TexasWin</h1>
-    <p>Semaine du ${new Date().toLocaleDateString('fr-FR', {weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p>
+  <div style="padding:16px 28px;border-bottom:3px solid #007d89;background:white">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td style="vertical-align:middle">
+        <span style="font-size:17px;font-weight:700;color:#1a3535;letter-spacing:-.3px">TexasWin</span>
+        <span style="font-size:17px;font-weight:300;color:#007d89;letter-spacing:-.3px"> Pipeline</span>
+        <span style="display:inline-block;margin-left:10px;padding:2px 9px;background:#e6f4f5;color:#007d89;font-size:11px;font-weight:600;border-radius:10px;text-transform:uppercase;letter-spacing:.4px">Vue Pipeline</span>
+      </td>
+      <td align="right" style="font-size:12px;color:#9eb5b5;vertical-align:middle">${new Date().toLocaleDateString('fr-FR', {weekday:'long',day:'numeric',month:'long',year:'numeric'})}</td>
+    </tr></table>
   </div>`;
 
   // ── KPI globaux calculés sur tous les commerciaux ──
   const allPipeline = dataList.flatMap(d => d.pipeline);
   const allGagnes   = dataList.flatMap(d => d.gagnes);
   const totalSocietes = dataList.reduce((s,d) => s + d.pipeline.length + d.gagnes.length, 0);
-  const nbDevis     = allPipeline.filter(p => p.devis_status !== 'Gagné').length;
+  const nbDevis     = allPipeline.length; // déjà filtré Gagné/Perdu dans la requête
   const nbGagnes    = allGagnes.length;
   const aboMensuel  = allPipeline.reduce((s,p) => s+(parseFloat(p.monthly_amount)||0), 0);
   const setupTotal  = allPipeline.reduce((s,p) => s+(parseFloat(p.setup_amount)||0), 0);
-  const aboGagnes   = allGagnes.reduce((s,p) => s+(parseFloat(p.monthly_amount)||0), 0);
-  const setupGagnes = allGagnes.reduce((s,p) => s+(parseFloat(p.setup_amount)||0), 0);
+  const aboGagnes      = allGagnes.reduce((s,p) => s+(parseFloat(p.monthly_amount)||0), 0);
+  const aboGagnesAnnuel= allGagnes.reduce((s,p) => s+(parseFloat(p.annual_amount)||0), 0);
+  const setupGagnes    = allGagnes.reduce((s,p) => s+(parseFloat(p.setup_amount)||0), 0);
 
   body += `
   <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:2px solid #e0ecec">
@@ -1755,7 +1770,8 @@ function buildEmailPipeline(dataList) {
       <td width="25%" style="padding:16px 20px;text-align:center;vertical-align:top">
         <div style="font-size:11px;color:#9eb5b5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Signés 2026</div>
         <div style="font-size:22px;font-weight:700;color:#2ec27e">${fmtAmount(aboGagnes)} €/m</div>
-        <div style="font-size:11px;color:#9eb5b5;margin-top:4px">Setup ${fmtAmount(setupGagnes)} €</div>
+        <div style="font-size:11px;color:#9eb5b5;margin-top:2px">+ ${fmtAmount(aboGagnesAnnuel)} €/an</div>
+        <div style="font-size:11px;color:#9eb5b5;margin-top:2px">Setup ${fmtAmount(setupGagnes)} €</div>
       </td>
     </tr>
   </table>`;
