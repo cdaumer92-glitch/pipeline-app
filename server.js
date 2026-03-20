@@ -1839,20 +1839,20 @@ app.post('/api/recap/send-test', auth, async (req, res) => {
       subject = `[TEST] ⚠️ Récap Actions — ${targetName}`;
 
     } else if (recapType === 'pipeline') {
-      // Type 3 : selon le destinataire
-      let dataList = [];
-      if (targetName === 'Christian' || targetName === 'Frédéric') {
-        const usersRes = await pool.query(`SELECT name FROM users ORDER BY name`);
-        for (const u of usersRes.rows) {
-          const d = await buildRecapPipeline(u.name);
-          if (d.pipeline.length > 0 || d.gagnes.length > 0) dataList.push(d);
-        }
-      } else {
-        const d = await buildRecapPipeline(targetName);
-        dataList = [d];
+      // Vue Pipeline = TOUJOURS toute l'application (tous utilisateurs avec au moins 1 société)
+      const usersRes = await pool.query(`
+        SELECT DISTINCT u.name 
+        FROM users u
+        INNER JOIN prospects p ON p.assigned_to = u.name
+        ORDER BY u.name
+      `);
+      const dataList = [];
+      for (const u of usersRes.rows) {
+        const d = await buildRecapPipeline(u.name);
+        if (d.pipeline.length > 0 || d.gagnes.length > 0) dataList.push(d);
       }
       html = buildEmailPipeline(dataList);
-      subject = `[TEST] 📊 Vue Pipeline — ${targetName}`;
+      subject = `[TEST] 📊 Vue Pipeline Globale — ${new Date().toLocaleDateString('fr-FR')}`;
     } else {
       return res.status(400).json({ error: 'Type inconnu' });
     }
@@ -1925,12 +1925,17 @@ app.post('/api/recap/send', async (req, res) => {
       console.log(`✅ Récap global Actions envoyé à Christian (${christian.email})`);
     }
 
-    // Envoyer Vue Pipeline à Frédéric
+    // Envoyer Vue Pipeline à Frédéric (tous utilisateurs avec au moins 1 société)
     const frederic = users.find(u => ['Frédéric','Frederic'].includes(u.name));
     if (frederic) {
+      const usersWithProspects = await pool.query(`
+        SELECT DISTINCT u.name FROM users u
+        INNER JOIN prospects p ON p.assigned_to = u.name
+        ORDER BY u.name
+      `);
       const allDataPipeline = [];
-      for (const user of users) {
-        const data = await buildRecapPipeline(user.name);
+      for (const u of usersWithProspects.rows) {
+        const data = await buildRecapPipeline(u.name);
         if (data && (data.pipeline.length > 0 || data.gagnes.length > 0)) allDataPipeline.push(data);
       }
       if (allDataPipeline.length > 0) {
