@@ -4203,7 +4203,7 @@
                               </div>
                             ) : (
                               <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
-                                {affairesActions[affaire.id].map(action => {
+                                {[...affairesActions[affaire.id]].sort((a,b) => new Date(b.planned_date||0) - new Date(a.planned_date||0)).map(action => {
                                   const isExpanded = expandedActionId === action.id;
                                   return (
                                   <div key={action.id} style={{
@@ -4236,6 +4236,13 @@
                                         <div style={{flex: 1}}>
                                           <div style={{fontSize: '12px', fontWeight: '600', color: action.completed ? '#666' : '#1a3535', textDecoration: action.completed ? 'line-through' : 'none'}}>
                                             {action.action_type} • {new Date(action.planned_date).toLocaleDateString('fr-FR')}
+                                            {(action.actor || action.contact) && (
+                                              <span style={{fontWeight:'400', color:'#888', marginLeft:'6px'}}>
+                                                {action.actor && <span>{action.actor}</span>}
+                                                {action.actor && action.contact && <span> → </span>}
+                                                {action.contact && <span style={{color:'var(--tw-teal)'}}>{action.contact}</span>}
+                                              </span>
+                                            )}
                                           </div>
                                         </div>
                                       </div>
