@@ -3158,9 +3158,8 @@
                   <label style={{fontSize:'11px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px',fontWeight:'600'}}>Type de récap</label>
                   <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
                     {[
-                      {id:'actions', label:'⚠️ Actions & Devis', desc:'En retard + à venir + sans action', forAll: true},
-                      {id:'modifiees', label:'📝 Actions modifiées', desc:'Complétées ou modifiées cette semaine', forAll: true},
-                      {id:'pipeline', label:'📊 Vue pipeline', desc:'Vue globale du pipeline', forAll: true},
+                      {id:'actions', label:'⚠️ Actions & Devis', desc:'En retard + à venir + sans action'},
+                      {id:'pipeline', label:'📊 Vue pipeline', desc:'Vue globale du pipeline'},
                     ].map(t => (
                       <div key={t.id} onClick={() => setRecapType(t.id)}
                         style={{padding:'6px 12px',borderRadius:'6px',border:`2px solid ${recapType===t.id?'var(--tw-teal)':'var(--tw-border)'}`,background:recapType===t.id?'var(--tw-teal-light)':'white',cursor:'pointer',transition:'all .15s'}}>
@@ -3245,33 +3244,30 @@
               <div className="tw-kpi-label">Nouvelles sociétés</div>
               {(() => {
                 const now = new Date();
-                const startWeek = new Date(now); startWeek.setDate(now.getDate()-now.getDay()); startWeek.setHours(0,0,0,0);
-                const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-                const types = [
-                  {label:'Suspects',  color:'#999',              filter: p => p.statut_societe === 'Suspect'},
-                  {label:'Prospects', color:'var(--tw-teal)',    filter: p => p.statut_societe === 'Prospect'},
-                  {label:'Clients',   color:'var(--tw-green)',   filter: p => p.statut_societe === 'Client'},
+                const sw = new Date(now); sw.setDate(now.getDate()-now.getDay()); sw.setHours(0,0,0,0);
+                const sm = new Date(now.getFullYear(), now.getMonth(), 1);
+                const newSem  = prospects.filter(p => p.created_at && new Date(p.created_at) >= sw);
+                const newMois = prospects.filter(p => p.created_at && new Date(p.created_at) >= sm);
+                const rows = [
+                  {label:'Suspects',  color:'#999',            sem: newSem.filter(p=>p.statut_societe==='Suspect').length,  mois: newMois.filter(p=>p.statut_societe==='Suspect').length},
+                  {label:'Prospects', color:'var(--tw-teal)',  sem: newSem.filter(p=>p.statut_societe==='Prospect').length, mois: newMois.filter(p=>p.statut_societe==='Prospect').length},
+                  {label:'Clients',   color:'var(--tw-green)', sem: newSem.filter(p=>p.statut_societe==='Client').length,   mois: newMois.filter(p=>p.statut_societe==='Client').length},
                 ];
-                const newSem  = prospects.filter(p => p.created_at && new Date(p.created_at) >= startWeek);
-                const newMois = prospects.filter(p => p.created_at && new Date(p.created_at) >= startMonth);
                 return (
                   <div style={{marginTop:'10px'}}>
                     <div style={{display:'flex',justifyContent:'space-between',fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'8px',paddingBottom:'6px',borderBottom:'1px solid var(--tw-border)'}}>
                       <span>Type</span>
-                      <div style={{display:'flex',gap:'16px'}}>
-                        <span>Sem.</span>
-                        <span>Mois</span>
-                      </div>
+                      <div style={{display:'flex',gap:'16px'}}><span>Sem.</span><span>Mois</span></div>
                     </div>
-                    {types.map(t => (
-                      <div key={t.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'7px'}}>
+                    {rows.map(r => (
+                      <div key={r.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'7px'}}>
                         <div style={{display:'flex',alignItems:'center',gap:'7px'}}>
-                          <div style={{width:'7px',height:'7px',borderRadius:'50%',background:t.color,flexShrink:0}}></div>
-                          <span style={{fontSize:'13px',color:'var(--tw-slate)'}}>{t.label}</span>
+                          <div style={{width:'7px',height:'7px',borderRadius:'50%',background:r.color,flexShrink:0}}></div>
+                          <span style={{fontSize:'13px',color:'var(--tw-slate)'}}>{r.label}</span>
                         </div>
                         <div style={{display:'flex',gap:'16px'}}>
-                          <span style={{fontSize:'14px',fontWeight:'700',color:'var(--tw-ink)',fontVariantNumeric:'tabular-nums',minWidth:'20px',textAlign:'center'}}>{newSem.filter(t.filter).length}</span>
-                          <span style={{fontSize:'14px',fontWeight:'700',color:t.color,fontVariantNumeric:'tabular-nums',minWidth:'20px',textAlign:'center'}}>{newMois.filter(t.filter).length}</span>
+                          <span style={{fontSize:'14px',fontWeight:'700',color:'var(--tw-ink)',fontVariantNumeric:'tabular-nums',minWidth:'20px',textAlign:'center'}}>{r.sem}</span>
+                          <span style={{fontSize:'14px',fontWeight:'700',color:r.color,fontVariantNumeric:'tabular-nums',minWidth:'20px',textAlign:'center'}}>{r.mois}</span>
                         </div>
                       </div>
                     ))}

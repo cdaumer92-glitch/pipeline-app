@@ -1573,7 +1573,7 @@ function buildEmailHTML(data, isGlobal = false) {
     } else {
       body += `<table><tr><th>Société</th><th>Contact</th><th>Statut</th><th>%</th><th>Date devis</th></tr>`;
       for (const p of d.sansActions) {
-        body += `<tr><td><b>${p.name}</b></td><td>${p.contact_name||'—'}</td><td>${p.devis_status||'—'}</td><td>${p.chance_percent||0}%</td><td>${fmtDate(p.quote_date)}</td></tr>`;
+        body += `<tr><td>${p.name}</td><td>${p.contact_name||'—'}</td><td>${p.devis_status||'—'}</td><td>${p.chance_percent||0}%</td><td>${fmtDate(p.quote_date)}</td></tr>`;
       }
       body += `</table>`;
     }
@@ -1585,7 +1585,7 @@ function buildEmailHTML(data, isGlobal = false) {
     } else {
       body += `<table><tr><th>Société</th><th>Type</th><th>Date prévue</th><th>De</th><th>Vers</th></tr>`;
       for (const a of d.enRetard) {
-        body += `<tr><td><b>${a.prospect_name}</b></td><td>${a.action_type||'—'}</td><td style="color:#e74c3c;font-weight:600">${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
+        body += `<tr><td>${a.prospect_name}</td><td>${a.action_type||'—'}</td><td style="color:#e74c3c;font-weight:600">${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
       }
       body += `</table>`;
     }
@@ -1597,7 +1597,7 @@ function buildEmailHTML(data, isGlobal = false) {
     } else {
       body += `<table><tr><th>Société</th><th>Type</th><th>Date</th><th>De</th><th>Vers</th></tr>`;
       for (const a of d.aVenir) {
-        body += `<tr><td><b>${a.prospect_name}</b></td><td>${a.action_type||'—'}</td><td style="color:#2ec27e;font-weight:600">${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
+        body += `<tr><td>${a.prospect_name}</td><td>${a.action_type||'—'}</td><td style="color:#2ec27e;font-weight:600">${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
       }
       body += `</table>`;
     }
@@ -1610,42 +1610,6 @@ function buildEmailHTML(data, isGlobal = false) {
   </div></body></html>`;
 
   return body;
-}
-
-// ── Recap type 2 : Actions modifiées cette semaine ──
-async function buildRecapModifiees(commercialName) {
-  const startOfWeek = new Date();
-  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-  startOfWeek.setHours(0,0,0,0);
-  const sw = startOfWeek.toISOString();
-
-  // Actions complétées cette semaine
-  const completees = await pool.query(`
-    SELECT na.action_type, na.planned_date, na.completed_date, na.completed_note, na.actor, na.contact,
-           p.name as prospect_name
-    FROM next_actions na
-    LEFT JOIN affaires a ON a.id = na.affaire_id
-    INNER JOIN prospects p ON p.id = COALESCE(na.prospect_id, a.prospect_id)
-    WHERE p.assigned_to = $1
-      AND na.completed = 1
-      AND na.completed_date >= $2
-    ORDER BY na.completed_date DESC
-  `, [commercialName, sw]);
-
-  // Actions créées ou modifiées cette semaine (non complétées)
-  const modifiees = await pool.query(`
-    SELECT na.action_type, na.planned_date, na.actor, na.contact, na.created_at,
-           p.name as prospect_name
-    FROM next_actions na
-    LEFT JOIN affaires a ON a.id = na.affaire_id
-    INNER JOIN prospects p ON p.id = COALESCE(na.prospect_id, a.prospect_id)
-    WHERE p.assigned_to = $1
-      AND na.completed = 0
-      AND na.created_at >= $2
-    ORDER BY na.created_at DESC
-  `, [commercialName, sw]);
-
-  return { commercial: commercialName, completees: completees.rows, modifiees: modifiees.rows };
 }
 
 // ── Recap type 3 : Vue globale pipeline ──
@@ -1708,7 +1672,7 @@ function buildEmailModifiees(dataList) {
     } else {
       body += `<table><tr><th>Société</th><th>Type</th><th>Complétée le</th><th>Note</th></tr>`;
       for (const a of d.completees) {
-        body += `<tr><td><b>${a.prospect_name}</b></td><td>${a.action_type||'—'}</td><td style="color:#2ec27e">${fmtDate(a.completed_date)}</td><td style="color:#607a7a;font-size:12px">${a.completed_note||'—'}</td></tr>`;
+        body += `<tr><td>${a.prospect_name}</td><td>${a.action_type||'—'}</td><td style="color:#2ec27e">${fmtDate(a.completed_date)}</td><td style="color:#607a7a;font-size:12px">${a.completed_note||'—'}</td></tr>`;
       }
       body += `</table>`;
     }
@@ -1719,7 +1683,7 @@ function buildEmailModifiees(dataList) {
     } else {
       body += `<table><tr><th>Société</th><th>Type</th><th>Date prévue</th><th>De</th><th>Vers</th></tr>`;
       for (const a of d.modifiees) {
-        body += `<tr><td><b>${a.prospect_name}</b></td><td>${a.action_type||'—'}</td><td>${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
+        body += `<tr><td>${a.prospect_name}</td><td>${a.action_type||'—'}</td><td>${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
       }
       body += `</table>`;
     }
@@ -1773,7 +1737,7 @@ function buildEmailPipeline(dataList) {
         const pctColor = p.chance_percent>=60?'#2ec27e':p.chance_percent>=30?'#f0932b':'#e74c3c';
         const pctBg = p.chance_percent>=60?'#e8f8f0':p.chance_percent>=30?'#fff8e1':'#fdecea';
         body += `<tr>
-          <td><b>${p.name}</b><br><span style="color:#9eb5b5;font-size:11px">${p.contact_name||''}</span></td>
+          <td>${p.name}<br><span style="color:#9eb5b5;font-size:11px">${p.contact_name||''}</span></td>
           <td style="color:#607a7a">${p.nom_affaire||'—'}</td>
           <td>${p.devis_status||'—'}</td>
           <td><span class="pct" style="color:${pctColor};background:${pctBg}">${p.chance_percent||0}%</span></td>
@@ -1789,7 +1753,7 @@ function buildEmailPipeline(dataList) {
       body += `<div class="stitle" style="color:#2ec27e;margin-top:18px">✅ Gagnés ${new Date().getFullYear()} (${d.gagnes.length})</div>`;
       body += `<table><tr><th>Société</th><th>Abo/mois</th><th>Setup</th><th>Date</th></tr>`;
       for (const p of d.gagnes) {
-        body += `<tr><td><b>${p.name}</b></td><td style="color:#2ec27e;font-weight:600">${fmtAmount(p.monthly_amount)} €</td><td>${fmtAmount(p.setup_amount)} €</td><td>${fmtDate(p.quote_date)}</td></tr>`;
+        body += `<tr><td>${p.name}</td><td style="color:#2ec27e;font-weight:600">${fmtAmount(p.monthly_amount)} €</td><td>${fmtAmount(p.setup_amount)} €</td><td>${fmtDate(p.quote_date)}</td></tr>`;
       }
       body += `</table>`;
     }
@@ -1819,23 +1783,6 @@ app.post('/api/recap/send-test', auth, async (req, res) => {
       if (!data) return res.status(404).json({ error: 'Aucune donnée pour ce commercial' });
       html = buildEmailHTML([data], targetName !== 'Christian' && targetName !== 'Frédéric');
       subject = `[TEST] ⚠️ Récap Actions — ${targetName}`;
-
-    } else if (recapType === 'modifiees') {
-      // Type 2 : selon le destinataire
-      let dataList = [];
-      if (targetName === 'Christian' || targetName === 'Frédéric') {
-        // Global pour les admins
-        const usersRes = await pool.query(`SELECT name FROM users ORDER BY name`);
-        for (const u of usersRes.rows) {
-          const d = await buildRecapModifiees(u.name);
-          if (d.completees.length > 0 || d.modifiees.length > 0) dataList.push(d);
-        }
-      } else {
-        const d = await buildRecapModifiees(targetName);
-        dataList = [d];
-      }
-      html = buildEmailModifiees(dataList);
-      subject = `[TEST] 📝 Actions de la semaine — ${targetName}`;
 
     } else if (recapType === 'pipeline') {
       // Type 3 : selon le destinataire
