@@ -3023,26 +3023,30 @@
       const [recapTarget, setRecapTarget] = React.useState('Moi (Christian)');
       const [recapType, setRecapType] = React.useState('actions');
       const [recapOpen, setRecapOpen] = React.useState(false);
+      const [recapConfirm, setRecapConfirm] = React.useState(false);
 
       const commerciaux = [...new Set(prospects.map(p => p.assigned_to).filter(Boolean))].sort();
 
       const sendTestRecap = async () => {
+        setRecapConfirm(true);
+      };
+
+      const doSendTestRecap = async () => {
+        setRecapConfirm(false);
         setRecapSending(true);
         setRecapResult(null);
         try {
-          // Résoudre le nom réel du destinataire
-          const targetName = recapTarget === 'Moi (Christian)' ? 'Christian' : recapTarget;
           const res = await fetch(`${API_URL}/recap/send-test`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${user.token}`
             },
-            body: JSON.stringify({ targetName, recapType })
+            body: JSON.stringify({ targetName: recapTarget === 'Moi (Christian)' ? 'Christian' : recapTarget, recapType })
           });
           const data = await res.json();
           if (data.ok) {
-            setRecapResult({ ok: true, msg: `✅ Récap "${recapType}" envoyé à ${targetName} (${data.email})` });
+            setRecapResult({ ok: true, msg: `✅ Envoyé à ${data.email}` });
           } else {
             setRecapResult({ ok: false, msg: `❌ Erreur : ${data.error}` });
           }
@@ -3135,8 +3139,43 @@
         </span>
       );
 
+      const recapLabels = { actions: '⚠️ Actions & Devis', pipeline: '📊 Vue Pipeline' };
+
       return (
         <div className="tw-content">
+
+          {/* ── MODALE CONFIRMATION RECAP ── */}
+          {recapConfirm && (
+            <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:9999}}>
+              <div style={{background:'white',borderRadius:'12px',padding:'28px 32px',maxWidth:'420px',width:'90%',boxShadow:'0 20px 60px rgba(0,0,0,.2)'}}>
+                <div style={{fontSize:'16px',fontWeight:'700',color:'var(--tw-ink)',marginBottom:'20px'}}>📧 Confirmer l'envoi</div>
+                <div style={{background:'var(--tw-bg)',borderRadius:'8px',padding:'14px 16px',marginBottom:'20px'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:'8px'}}>
+                    <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px'}}>Rapport</span>
+                    <span style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{recapLabels[recapType]}</span>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:'8px'}}>
+                    <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px'}}>Pour</span>
+                    <span style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{recapTarget}</span>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',paddingTop:'8px',borderTop:'1px solid var(--tw-border)'}}>
+                    <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px'}}>Destinataire (test)</span>
+                    <span style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-teal)'}}>Votre adresse email</span>
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:'10px',justifyContent:'flex-end'}}>
+                  <button onClick={() => setRecapConfirm(false)}
+                    style={{padding:'8px 18px',background:'white',color:'var(--tw-slate)',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontWeight:'500',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                    Annuler
+                  </button>
+                  <button onClick={doSendTestRecap}
+                    style={{padding:'8px 18px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'13px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                    📤 Envoyer
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── PANNEAU RECAP TEST (Christian uniquement) ── */}
           {user.name === 'Christian' && (
