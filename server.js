@@ -1,4 +1,5 @@
 import express from 'express';
+import nodemailer from 'nodemailer';
 import pkg from 'pg';
 import cors from 'cors';
 import bcryptjs from 'bcryptjs';
@@ -13,6 +14,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 8080;
 const JWT_SECRET = 'secret-key-2024';
+
+// ===================== MAILER =====================
+const transporter = nodemailer.createTransport({
+  host: 'ssl0.ovh.net',
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.SMTP_USER || 'notifications@texaswin.fr',
+    pass: process.env.SMTP_PASS || ''
+  }
+});
 
 // ===================== Google Cloud Storage =====================
 const storage = new Storage({
@@ -1437,6 +1449,259 @@ app.get('/api/debug/actions', auth, async (req, res) => {
     `);
     res.json(r.rows);
   } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+// ===================== RECAP EMAIL =====================
+// Clé secrète pour le scheduler (Cloud Scheduler l'envoie en header)
+const SCHEDULER_KEY = process.env.SCHEDULER_KEY || 'recap-secret-key';
+
+// Fonction de construction du récap pour un commercial
+async function buildRecapData(commercialName) {
+  const today = new Date().toISOString().split('T')[0];
+
+  // Prospects du commercial
+  const prospectsRes = await pool.query(
+    `SELECT id, name, contact_name FROM prospects WHERE assigned_to = $1`,
+    [commercialName]
+  );
+  const prospectIds = prospectsRes.rows.map(p => p.id);
+  if (prospectIds.length === 0) return null;
+
+  // Devis en cours sans actions planifiées
+  const sansActions = await pool.query(`
+    SELECT DISTINCT p.id, p.name, p.contact_name, d.devis_status, d.chance_percent, d.quote_date
+    FROM prospects p
+    INNER JOIN affaires a ON a.prospect_id = p.id AND a.statut_global NOT IN ('Gagné','Perdu')
+    INNER JOIN devis d ON d.affaire_id = a.id
+    WHERE p.assigned_to = $1
+      AND NOT EXISTS (
+        SELECT 1 FROM next_actions na
+        WHERE na.prospect_id = p.id AND na.completed = 0
+      )
+    ORDER BY p.name
+  `, [commercialName]);
+
+  // Actions en retard
+  const enRetard = await pool.query(`
+    SELECT na.id, na.action_type, na.planned_date, na.actor, na.contact,
+           p.name as prospect_name
+    FROM next_actions na
+    INNER JOIN prospects p ON p.id = COALESCE(na.prospect_id,
+      (SELECT prospect_id FROM affaires WHERE id = na.affaire_id))
+    WHERE p.assigned_to = $1
+      AND na.completed = 0
+      AND na.planned_date < $2
+    ORDER BY na.planned_date ASC
+  `, [commercialName, today]);
+
+  // Actions à venir (7 prochains jours)
+  const in7days = new Date();
+  in7days.setDate(in7days.getDate() + 7);
+  const aVenir = await pool.query(`
+    SELECT na.id, na.action_type, na.planned_date, na.actor, na.contact,
+           p.name as prospect_name
+    FROM next_actions na
+    INNER JOIN prospects p ON p.id = COALESCE(na.prospect_id,
+      (SELECT prospect_id FROM affaires WHERE id = na.affaire_id))
+    WHERE p.assigned_to = $1
+      AND na.completed = 0
+      AND na.planned_date >= $2
+      AND na.planned_date <= $3
+    ORDER BY na.planned_date ASC
+  `, [commercialName, today, in7days.toISOString().split('T')[0]]);
+
+  return {
+    commercial: commercialName,
+    sansActions: sansActions.rows,
+    enRetard: enRetard.rows,
+    aVenir: aVenir.rows
+  };
+}
+
+// Fonction de construction du HTML du mail
+function buildEmailHTML(data, isGlobal = false) {
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—';
+  const title = isGlobal ? 'Récap Pipeline Global — TexasWin' : `Récap Pipeline — ${data[0]?.commercial || ''}`;
+
+  let body = `
+  <!DOCTYPE html>
+  <html>
+  <head><meta charset="UTF-8">
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background:#f4f7f7; margin:0; padding:20px; color:#1a3535; }
+    .container { max-width:700px; margin:0 auto; background:white; border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,125,137,.1); }
+    .header { background:#007d89; color:white; padding:24px 28px; }
+    .header h1 { margin:0; font-size:20px; font-weight:600; }
+    .header p { margin:6px 0 0; font-size:13px; opacity:.85; }
+    .section { padding:20px 28px; border-bottom:1px solid #e0ecec; }
+    .section:last-child { border-bottom:none; }
+    .section-title { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+    .badge { display:inline-block; padding:2px 10px; border-radius:10px; font-size:12px; font-weight:600; margin-left:6px; }
+    .badge-red { background:#fdecea; color:#e74c3c; }
+    .badge-orange { background:#fff8e1; color:#f0932b; }
+    .badge-green { background:#e8f8f0; color:#2ec27e; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th { text-align:left; padding:8px 10px; background:#f4f7f7; color:#607a7a; font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.4px; }
+    td { padding:9px 10px; border-bottom:1px solid #f0f0f0; }
+    tr:last-child td { border-bottom:none; }
+    .empty { color:#9eb5b5; font-style:italic; font-size:13px; padding:10px 0; }
+    .commercial-header { background:#e6f4f5; padding:12px 16px; border-radius:6px; margin-bottom:16px; font-weight:600; color:#007d89; }
+    .footer { padding:16px 28px; background:#f4f7f7; font-size:12px; color:#9eb5b5; text-align:center; }
+  </style>
+  </head>
+  <body>
+  <div class="container">
+    <div class="header">
+      <h1>📊 ${title}</h1>
+      <p>Semaine du ${new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'})}</p>
+    </div>`;
+
+  const sections = Array.isArray(data) ? data : [data];
+  
+  for (const d of sections) {
+    if (!d) continue;
+    if (isGlobal) {
+      body += `<div class="section"><div class="commercial-header">👤 ${d.commercial}</div>`;
+    } else {
+      body += `<div class="section">`;
+    }
+
+    // Devis sans actions
+    body += `<div class="section-title" style="color:#e74c3c">⚠️ Devis sans action planifiée <span class="badge badge-red">${d.sansActions.length}</span></div>`;
+    if (d.sansActions.length === 0) {
+      body += `<p class="empty">✓ Tous les devis ont une action planifiée</p>`;
+    } else {
+      body += `<table><tr><th>Société</th><th>Contact</th><th>Statut</th><th>%</th><th>Date devis</th></tr>`;
+      for (const p of d.sansActions) {
+        body += `<tr><td><b>${p.name}</b></td><td>${p.contact_name||'—'}</td><td>${p.devis_status||'—'}</td><td>${p.chance_percent||0}%</td><td>${fmtDate(p.quote_date)}</td></tr>`;
+      }
+      body += `</table>`;
+    }
+
+    // Actions en retard
+    body += `<div class="section-title" style="color:#f0932b;margin-top:20px">🔴 Actions en retard <span class="badge badge-orange">${d.enRetard.length}</span></div>`;
+    if (d.enRetard.length === 0) {
+      body += `<p class="empty">✓ Aucune action en retard</p>`;
+    } else {
+      body += `<table><tr><th>Société</th><th>Type</th><th>Date prévue</th><th>De</th><th>Vers</th></tr>`;
+      for (const a of d.enRetard) {
+        body += `<tr><td><b>${a.prospect_name}</b></td><td>${a.action_type||'—'}</td><td style="color:#e74c3c;font-weight:600">${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
+      }
+      body += `</table>`;
+    }
+
+    // Actions à venir
+    body += `<div class="section-title" style="color:#2ec27e;margin-top:20px">📅 Actions à venir (7 jours) <span class="badge badge-green">${d.aVenir.length}</span></div>`;
+    if (d.aVenir.length === 0) {
+      body += `<p class="empty">Aucune action planifiée cette semaine</p>`;
+    } else {
+      body += `<table><tr><th>Société</th><th>Type</th><th>Date</th><th>De</th><th>Vers</th></tr>`;
+      for (const a of d.aVenir) {
+        body += `<tr><td><b>${a.prospect_name}</b></td><td>${a.action_type||'—'}</td><td style="color:#2ec27e;font-weight:600">${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
+      }
+      body += `</table>`;
+    }
+
+    body += `</div>`;
+  }
+
+  body += `
+    <div class="footer">TexasWin Pipeline · Récap automatique · notifications@texaswin.fr</div>
+  </div></body></html>`;
+
+  return body;
+}
+
+// POST /api/recap/send-test - Envoyer un récap test à une adresse donnée (admin uniquement)
+app.post('/api/recap/send-test', auth, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email requis' });
+
+    // Construire le récap global de toute l'équipe
+    const usersRes = await pool.query(`SELECT name FROM users ORDER BY name`);
+    const allData = [];
+    for (const u of usersRes.rows) {
+      const data = await buildRecapData(u.name);
+      if (data) allData.push(data);
+    }
+
+    const html = buildEmailHTML(allData, true);
+    await transporter.sendMail({
+      from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
+      to: email,
+      subject: `[TEST] 📊 Récap Global Pipeline — ${new Date().toLocaleDateString('fr-FR')}`,
+      html
+    });
+
+    console.log(`✅ Récap test envoyé à ${email}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Erreur récap test:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/recap/send - Déclenché par Cloud Scheduler ou manuellement
+app.post('/api/recap/send', async (req, res) => {
+  // Vérifier la clé scheduler
+  const key = req.headers['x-scheduler-key'] || req.body?.key;
+  if (key !== SCHEDULER_KEY) {
+    return res.status(401).json({ error: 'Non autorisé' });
+  }
+
+  try {
+    // Récupérer tous les utilisateurs avec leur email
+    const usersRes = await pool.query(`SELECT id, name, email, role FROM users ORDER BY name`);
+    const users = usersRes.rows;
+
+    const admins = users.filter(u => ['Christian', 'Frédéric', 'Frederic'].includes(u.name));
+    const commerciaux = users.filter(u => !['Christian', 'Frédéric', 'Frederic'].includes(u.name));
+
+    const results = [];
+
+    // Envoyer récap individuel à chaque commercial
+    for (const user of commerciaux) {
+      const data = await buildRecapData(user.name);
+      if (!data) continue;
+      
+      const html = buildEmailHTML(data);
+      await transporter.sendMail({
+        from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
+        to: user.email,
+        subject: `📊 Récap Pipeline — ${user.name} — ${new Date().toLocaleDateString('fr-FR')}`,
+        html
+      });
+      results.push({ user: user.name, email: user.email, sent: true });
+      console.log(`✅ Récap envoyé à ${user.name} (${user.email})`);
+    }
+
+    // Envoyer récap global aux admins
+    const allData = [];
+    for (const user of users) {
+      const data = await buildRecapData(user.name);
+      if (data) allData.push(data);
+    }
+
+    if (allData.length > 0) {
+      const globalHtml = buildEmailHTML(allData, true);
+      for (const admin of admins) {
+        await transporter.sendMail({
+          from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
+          to: admin.email,
+          subject: `📊 Récap Global Pipeline — ${new Date().toLocaleDateString('fr-FR')}`,
+          html: globalHtml
+        });
+        results.push({ user: admin.name, email: admin.email, sent: true, global: true });
+        console.log(`✅ Récap global envoyé à ${admin.name} (${admin.email})`);
+      }
+    }
+
+    res.json({ ok: true, sent: results.length, details: results });
+  } catch (err) {
+    console.error('Erreur envoi récap:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ===================== START =====================
