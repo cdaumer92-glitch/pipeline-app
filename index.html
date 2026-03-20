@@ -4076,7 +4076,7 @@
               <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
                 {affairesList.map(affaire => {
                   const isOpen = selectedAffaireId === affaire.id;
-                  const affaireDevis = devisList.filter(d => d.affaire_id === affaire.id);
+                  const affaireDevis = devisList.filter(d => d.affaire_id === affaire.id).sort((a, b) => new Date(b.quote_date || b.created_at || 0) - new Date(a.quote_date || a.created_at || 0));
                   return (
                     <div key={affaire.id} style={{backgroundColor: '#fff', borderRadius: '6px', border: isOpen ? '2px solid #007d89' : '1px solid #c8dede', overflow: 'hidden'}}>
                       <div onClick={() => setSelectedAffaireId(isOpen ? null : affaire.id)} style={{padding: '12px', cursor: 'pointer', backgroundColor: isOpen ? '#e8f4f5' : '#fff'}}>
