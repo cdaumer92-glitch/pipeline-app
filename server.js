@@ -1872,88 +1872,83 @@ app.post('/api/recap/send-test', auth, async (req, res) => {
   }
 });
 
-// POST /api/recap/send - Déclenché par Cloud Scheduler ou manuellement
-app.post('/api/recap/send', async (req, res) => {
-  // Vérifier la clé scheduler
+// ── Helper : vérifier la clé scheduler ──
+const checkSchedulerKey = (req, res) => {
   const key = req.headers['x-scheduler-key'] || req.body?.key;
   if (key !== SCHEDULER_KEY) {
-    return res.status(401).json({ error: 'Non autorisé' });
+    res.status(401).json({ error: 'Non autorisé' });
+    return false;
   }
+  return true;
+};
 
+// POST /api/recap/send-actions
+// ⚠️ Actions & Devis — tous les matins lun-ven à 8h
+// Envoie à chaque commercial (sauf Frédéric) son récap individuel
+// + récap global à Christian
+app.post('/api/recap/send-actions', async (req, res) => {
+  if (!checkSchedulerKey(req, res)) return;
   try {
-    // Récupérer tous les utilisateurs avec leur email
-    const usersRes = await pool.query(`SELECT id, name, email, role FROM users ORDER BY name`);
+    const usersRes = await pool.query(`SELECT id, name, email FROM users ORDER BY name`);
     const users = usersRes.rows;
-
-    const admins = users.filter(u => ['Christian', 'Frédéric', 'Frederic'].includes(u.name));
-    const commerciaux = users.filter(u => !['Christian', 'Frédéric', 'Frederic'].includes(u.name));
-
     const results = [];
 
-    // Envoyer récap individuel à chaque commercial
+    // Récap individuel pour chaque commercial (tous sauf Frédéric)
+    const commerciaux = users.filter(u => !['Frédéric','Frederic'].includes(u.name));
     for (const user of commerciaux) {
       const data = await buildRecapData(user.name);
       if (!data) continue;
-      
-      const html = buildEmailHTML(data);
+      const html = buildEmailHTML([data], false);
       await transporter.sendMail({
         from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
         to: user.email,
-        subject: `📊 Récap Pipeline — ${user.name} — ${new Date().toLocaleDateString('fr-FR')}`,
+        subject: `⚠️ Récap Actions — ${user.name} — ${new Date().toLocaleDateString('fr-FR')}`,
         html
       });
       results.push({ user: user.name, email: user.email, sent: true });
-      console.log(`✅ Récap envoyé à ${user.name} (${user.email})`);
-    }
-
-    // Envoyer récap Actions & Devis global à Christian
-    const allDataActions = [];
-    for (const user of users) {
-      const data = await buildRecapData(user.name);
-      if (data) allDataActions.push(data);
-    }
-    const christian = users.find(u => u.name === 'Christian');
-    if (allDataActions.length > 0 && christian) {
-      const globalHtml = buildEmailHTML(allDataActions, true);
-      await transporter.sendMail({
-        from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
-        to: christian.email,
-        subject: `📊 Récap Global Actions — ${new Date().toLocaleDateString('fr-FR')}`,
-        html: globalHtml
-      });
-      results.push({ user: 'Christian', email: christian.email, sent: true, type: 'actions-global' });
-      console.log(`✅ Récap global Actions envoyé à Christian (${christian.email})`);
-    }
-
-    // Envoyer Vue Pipeline à Frédéric (tous utilisateurs avec au moins 1 société)
-    const frederic = users.find(u => ['Frédéric','Frederic'].includes(u.name));
-    if (frederic) {
-      const usersWithProspects = await pool.query(`
-        SELECT DISTINCT u.name FROM users u
-        INNER JOIN prospects p ON p.assigned_to = u.name
-        ORDER BY u.name
-      `);
-      const allDataPipeline = [];
-      for (const u of usersWithProspects.rows) {
-        const data = await buildRecapPipeline(u.name);
-        if (data && (data.pipeline.length > 0 || data.gagnes.length > 0)) allDataPipeline.push(data);
-      }
-      if (allDataPipeline.length > 0) {
-        const pipelineHtml = buildEmailPipeline(allDataPipeline);
-        await transporter.sendMail({
-          from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
-          to: frederic.email,
-          subject: `📊 Vue Pipeline — ${new Date().toLocaleDateString('fr-FR')}`,
-          html: pipelineHtml
-        });
-        results.push({ user: 'Frédéric', email: frederic.email, sent: true, type: 'pipeline' });
-        console.log(`✅ Vue Pipeline envoyée à Frédéric (${frederic.email})`);
-      }
+      console.log(`✅ Actions envoyé à ${user.name} (${user.email})`);
     }
 
     res.json({ ok: true, sent: results.length, details: results });
   } catch (err) {
-    console.error('Erreur envoi récap:', err);
+    console.error('Erreur send-actions:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/recap/send-pipeline
+// 📊 Vue Pipeline — tous les vendredis à 17h
+// Envoie la vue globale à Frédéric
+app.post('/api/recap/send-pipeline', async (req, res) => {
+  if (!checkSchedulerKey(req, res)) return;
+  try {
+    const fredericRes = await pool.query(`SELECT email FROM users WHERE name IN ('Frédéric','Frederic') LIMIT 1`);
+    const toEmail = fredericRes.rows[0]?.email;
+    if (!toEmail) return res.status(404).json({ error: 'Email Frédéric non trouvé' });
+
+    const usersWithProspects = await pool.query(`
+      SELECT DISTINCT u.name FROM users u
+      INNER JOIN prospects p ON p.assigned_to = u.name
+      ORDER BY u.name
+    `);
+    const dataList = [];
+    for (const u of usersWithProspects.rows) {
+      const data = await buildRecapPipeline(u.name);
+      if (data && (data.pipeline.length > 0 || data.gagnes.length > 0)) dataList.push(data);
+    }
+    if (dataList.length === 0) return res.json({ ok: true, sent: 0, msg: 'Aucune donnée pipeline' });
+
+    const html = buildEmailPipeline(dataList);
+    await transporter.sendMail({
+      from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
+      to: toEmail,
+      subject: `📊 Vue Pipeline — ${new Date().toLocaleDateString('fr-FR')}`,
+      html
+    });
+    console.log(`✅ Vue Pipeline envoyée à Frédéric (${toEmail})`);
+    res.json({ ok: true, sent: 1, details: [{ user: 'Frédéric', email: toEmail }] });
+  } catch (err) {
+    console.error('Erreur send-pipeline:', err);
     res.status(500).json({ error: err.message });
   }
 });
