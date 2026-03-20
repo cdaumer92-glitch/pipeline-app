@@ -1436,7 +1436,10 @@
         setNewActionDate(new Date().toISOString().split('T')[0]);
       };
 
-      const filteredProspects = prospects.filter(p => {
+      // Si non-admin, restreindre aux prospects du user connecté
+      const visibleProspects = isUserAdmin(user) ? prospects : prospects.filter(p => p.assigned_to === user.name);
+
+      const filteredProspects = visibleProspects.filter(p => {
         // Filtre par type de société (Suspect/Prospect/Client)
         let matchSocietyType;
         if (filterSocietyType === 'Tous') {
@@ -1511,7 +1514,7 @@
             onDashboard={() => setIsDashboard(!isDashboard)} 
             isDashboard={isDashboard} 
             onSettings={() => setShowSettings(true)}
-            prospects={prospects}
+            prospects={isUserAdmin(user) ? prospects : prospects.filter(p => p.assigned_to === user.name)}
             onSelectProspect={handleSelectProspect}
             onNewProspect={handleNewProspect}
           />
@@ -1570,7 +1573,7 @@
           <div style={styles.content}>
             <LeftPanel
               prospects={filteredProspects}
-              allProspects={prospects}
+              allProspects={visibleProspects}
               selectedProspect={selectedProspect}
               onSelect={handleSelectProspect}
               filterSocietyType={filterSocietyType}
@@ -1579,6 +1582,7 @@
               onFilterChange={setFilterStatus}
               filterCommercial={filterCommercial}
               onFilterCommercialChange={setFilterCommercial}
+              isAdmin={isUserAdmin(user)}
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
               sortBy={sortBy}
@@ -2618,7 +2622,7 @@
       );
     }
 
-    function LeftPanel({ prospects, allProspects, selectedProspect, onSelect, filterSocietyType, onFilterSocietyTypeChange, filterStatus, onFilterChange, filterCommercial, onFilterCommercialChange, searchTerm, onSearchChange, sortBy, onSortChange, prospectActionsInfo, onNewProspect }) {
+    function LeftPanel({ prospects, allProspects, selectedProspect, onSelect, filterSocietyType, onFilterSocietyTypeChange, filterStatus, onFilterChange, filterCommercial, onFilterCommercialChange, searchTerm, onSearchChange, sortBy, onSortChange, prospectActionsInfo, onNewProspect, isAdmin }) {
       return (
         <div style={styles.leftPanel}>
           
@@ -2678,8 +2682,8 @@
             </select>
           </div>
 
-          {/* Commercial */}
-          <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
+          {/* Commercial - visible admins seulement */}
+          {isAdmin && <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
             <label style={{fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '6px', display: 'block'}}>Commercial:</label>
             <select
               value={filterCommercial}
@@ -2704,7 +2708,7 @@
                 );
               })}
             </select>
-          </div>
+          </div>}
 
           {/* Trier par */}
           <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
