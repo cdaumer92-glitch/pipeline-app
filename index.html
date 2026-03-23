@@ -4241,7 +4241,13 @@
                                             [{new Date(devis.quote_date).toLocaleDateString('fr-FR')}]
                                           </span>
                                         )}
-                                        <span style={{fontSize: '11px', color: '#007d89', marginLeft: '8px'}}>{devis.chance_percent}%</span>
+                                        <span style={{fontSize: '11px', fontWeight: '600', marginLeft: '8px', color:
+                                          devis.devis_status === 'Gagné' ? '#2ec27e' :
+                                          devis.devis_status === 'Perdu' ? '#e74c3c' :
+                                          devis.devis_status === 'Discussion' ? '#3498db' :
+                                          devis.devis_status === 'Envoyé' ? '#f0932b' :
+                                          '#607a7a'
+                                        }}>{devis.chance_percent}%</span>
                                       </div>
                                       <div style={{fontSize: '11px', color: '#666'}}>
                                         <strong>Setup:</strong> {devis.setup_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | <strong>Abo (M):</strong> {devis.monthly_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | <strong>Abo (A):</strong> {devis.annual_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | <strong>Formation:</strong> {devis.training_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T.
