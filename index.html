@@ -4188,7 +4188,13 @@
                       <div onClick={() => setSelectedAffaireId(isOpen ? null : affaire.id)} style={{padding: '12px', cursor: 'pointer', backgroundColor: isOpen ? '#e8f4f5' : '#fff'}}>
                         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                           <div style={{flex: 1}}>
-                            <div style={{fontWeight: '600', fontSize: '14px', color: '#1a3535'}}>{isOpen ? '▼' : '▶'} {affaire.nom_affaire}</div>
+                            <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                              <span style={{fontWeight: '600', fontSize: '14px', color: '#1a3535'}}>{isOpen ? '▼' : '▶'} {affaire.nom_affaire}</span>
+                              <div style={{display: 'flex', gap: '4px'}} onClick={(e) => e.stopPropagation()}>
+                                <button onClick={() => handleEditAffaire(affaire)} title="Modifier l'affaire" style={{padding: '2px 7px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px'}}>✏️</button>
+                                <button onClick={() => handleDeleteAffaire(affaire.id)} title="Supprimer l'affaire" style={{padding: '2px 7px', backgroundColor: '#f79d8d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px'}}>🗑️</button>
+                              </div>
+                            </div>
                             <div style={{fontSize: '12px', color: '#607a7a', marginTop: '4px'}}>📄 {affaireDevis.length} devis</div>
                             {(() => {
                               const actions = affairesActions[affaire.id] || [];
@@ -4213,10 +4219,7 @@
                               );
                             })()}
                           </div>
-                          <div style={{display: 'flex', gap: '4px'}} onClick={(e) => e.stopPropagation()}>
-                            <button onClick={() => handleEditAffaire(affaire)} style={{padding: '4px 8px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px'}}>✏️</button>
-                            <button onClick={() => handleDeleteAffaire(affaire.id)} style={{padding: '4px 8px', backgroundColor: '#f79d8d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px'}}>🗑️</button>
-                          </div>
+
                         </div>
                       </div>
 
