@@ -4814,7 +4814,12 @@
                   {/* Select statut */}
                   <select
                     value={devisFormData.devis_status || 'En cours'}
-                    onChange={(e) => setDevisFormData({...devisFormData, devis_status: e.target.value})}
+                    onChange={(e) => {
+                      const status = e.target.value;
+                      const probMap = {'En cours': 20, 'Envoyé': 30, 'Discussion': 60, 'Gagné': 100, 'Perdu': 0};
+                      const newProb = probMap[status] !== undefined ? probMap[status] : devisFormData.chance_percent;
+                      setDevisFormData({...devisFormData, devis_status: status, chance_percent: newProb});
+                    }}
                     style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%', fontSize: '14px'}}
                   >
                     <option value="En cours">En cours</option>
