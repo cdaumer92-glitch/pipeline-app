@@ -4234,7 +4234,12 @@
                           ) : (
                             <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
                               {affaireDevis.map(devis => (
-                                <div key={devis.id} style={{padding: '10px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #e0e0e0'}}>
+                                <div key={devis.id}
+                                  onClick={() => handleEditDevis(devis)}
+                                  style={{padding: '10px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #e0e0e0', cursor: 'pointer', transition: 'background .15s'}}
+                                  onMouseEnter={e => e.currentTarget.style.background='#e6f4f5'}
+                                  onMouseLeave={e => e.currentTarget.style.background='#fff'}
+                                >
                                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                                     <div style={{flex: 1}}>
                                       <div style={{fontSize: '13px', fontWeight: '600'}}>
@@ -4256,11 +4261,12 @@
                                         <strong>Setup:</strong> {devis.setup_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | <strong>Abo (M):</strong> {devis.monthly_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | <strong>Abo (A):</strong> {devis.annual_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | <strong>Formation:</strong> {devis.training_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T.
                                       </div>
                                     </div>
-                                    <div style={{display: 'flex', gap: '4px'}}>
+                                    <div style={{display: 'flex', gap: '4px'}} onClick={e => e.stopPropagation()}>
                                       {devis.pdf_url && (
                                         <>
                                           <button
-                                            onClick={async () => {
+                                            onClick={async (e) => {
+                                              e.stopPropagation();
                                               try {
                                                 const res = await fetch(`${API_URL}/devis/${devis.id}/download-pdf`, {
                                                   headers: { 'Authorization': `Bearer ${user.token}` }
