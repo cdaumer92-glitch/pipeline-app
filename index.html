@@ -3689,205 +3689,130 @@
       const total = calculateTotal(selectedProspect);
       const expectedValue = total * (selectedProspect.chance_percent / 100);
 
+      // ── Helpers header ──
+      const initials = selectedProspect.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+      const statutColors = {Client:'var(--tw-teal)',Prospect:'#f0932b',Suspect:'#999'};
+      const statutBgs = {Client:'var(--tw-teal-light)',Prospect:'#fff8e1',Suspect:'#f5f5f5'};
+      const realStatus = getProspectRealStatus(affairesList, devisList);
+
       return (
         <div style={styles.rightPanel}>
           <div style={styles.prospectDetail}>
-            {/* Ligne principale: Nom + Statut Société + Statut Prospect + Boutons */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '20px',
-              paddingBottom: '15px',
-              borderBottom: '2px solid #e0e0e0'
-            }}>
-              <div style={{flex: 1}}>
-                <div style={{display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '8px'}}>
-                  <h2 style={{margin: 0, fontSize: '24px', fontWeight: 'bold'}}>{selectedProspect.name}</h2>
-                  <select
-                    value={selectedProspect.statut_societe || 'Prospect'}
-                    onChange={async (e) => {
-                      const newStatut = e.target.value;
-                      try {
-                        await fetch(`${API_URL}/prospects/${selectedProspect.id}`, {
-                          method: 'PUT',
-                          headers: {'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
-                          body: JSON.stringify({...selectedProspect, statut_societe: newStatut})
-                        });
-                        onUpdateProspect({...selectedProspect, statut_societe: newStatut});
-                      } catch(err) { alert('Erreur: '+err.message); }
-                    }}
-                    style={{
-                      fontSize: '14px', fontWeight: '600', cursor: 'pointer',
-                      color: selectedProspect.statut_societe === 'Client' ? '#12a0dc' :
-                             selectedProspect.statut_societe === 'Prospect' ? '#ff9800' : '#999',
-                      padding: '4px 10px', borderRadius: '4px', border: '1px solid #ddd',
-                      backgroundColor: selectedProspect.statut_societe === 'Client' ? '#e3f2fd' :
-                                       selectedProspect.statut_societe === 'Prospect' ? '#fff3e0' : '#f5f5f5',
-                      fontFamily: "'DM Sans', sans-serif"
-                    }}
-                  >
-                    <option value="Suspect">Suspect</option>
-                    <option value="Prospect">Prospect</option>
-                    <option value="Client">Client</option>
-                  </select>
-                  <span style={{fontSize: '15px', color: '#666'}}>
-                    Géré par <strong>{selectedProspect.assigned_to}</strong>
-                  </span>
+
+            {/* ── CLIENT HEADER (style proto) ── */}
+            <div style={{background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',padding:'18px 22px',marginBottom:'16px',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'16px'}}>
+                {/* Avatar */}
+                <div style={{width:'48px',height:'48px',borderRadius:'10px',background:'linear-gradient(135deg,var(--tw-teal),#00a8b8)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'18px',fontWeight:'700',color:'white',flexShrink:0}}>{initials}</div>
+                {/* Infos */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'}}>
+                    <span style={{fontSize:'20px',fontWeight:'700',color:'var(--tw-ink)',letterSpacing:'-.3px'}}>{selectedProspect.name}</span>
+                    {/* Select statut */}
+                    <select value={selectedProspect.statut_societe||'Prospect'}
+                      onChange={async (e) => {
+                        const newStatut = e.target.value;
+                        try {
+                          await fetch(`${API_URL}/prospects/${selectedProspect.id}`, {
+                            method:'PUT', headers:{'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
+                            body: JSON.stringify({...selectedProspect, statut_societe: newStatut})
+                          });
+                          onUpdateProspect({...selectedProspect, statut_societe: newStatut});
+                        } catch(err) { alert('Erreur: '+err.message); }
+                      }}
+                      style={{fontSize:'12px',fontWeight:'600',cursor:'pointer',padding:'3px 8px',borderRadius:'20px',border:'none',
+                        color:statutColors[selectedProspect.statut_societe]||'#999',
+                        background:statutBgs[selectedProspect.statut_societe]||'#f5f5f5',
+                        fontFamily:"'DM Sans',sans-serif"}}>
+                      <option value="Suspect">Suspect</option>
+                      <option value="Prospect">Prospect</option>
+                      <option value="Client">Client</option>
+                    </select>
+                    {/* Badges client */}
+                    {selectedProspect.statut_societe === 'Client' && clientLicences.some(l=>l.licence_type==='perpetuelle') && (
+                      <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'20px',background:'#fff8e1',color:'#f57c00'}}>🔑 Licence perpétuelle</span>
+                    )}
+                    {selectedProspect.statut_societe === 'Client' && clientLicences.some(l=>l.licence_type==='saas') && (
+                      <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'20px',background:'#e8f4fd',color:'var(--tw-blue)'}}>☁️ SaaS</span>
+                    )}
+                    {selectedProspect.statut_societe === 'Client' && clientLicences.some(l=>l.maintenance==='A3') && (
+                      <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'20px',background:'#e8f8f0',color:'var(--tw-green)'}}>✓ Maintenance A3</span>
+                    )}
+                    {selectedProspect.statut_societe === 'Client' && clientLicences.some(l=>l.maintenance==='A2') && !clientLicences.some(l=>l.maintenance==='A3') && (
+                      <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'20px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>✓ Maintenance A2</span>
+                    )}
+                  </div>
+                  <div style={{fontSize:'13px',color:'var(--tw-muted)',marginTop:'4px'}}>
+                    {interlocuteurs.find(i=>i.principal)?.nom && <span>{interlocuteurs.find(i=>i.principal).nom}</span>}
+                    {interlocuteurs.find(i=>i.principal)?.email && <span style={{marginLeft:'8px'}}>· {interlocuteurs.find(i=>i.principal).email}</span>}
+                    {selectedProspect.tel_standard && <span style={{marginLeft:'8px'}}>· {selectedProspect.tel_standard}</span>}
+                  </div>
+                  {/* Affaire en cours */}
+                  {realStatus && (
+                    <div style={{fontSize:'13px',color:'var(--tw-slate)',marginTop:'5px'}}>
+                      Affaire : <strong style={{color:'var(--tw-ink)'}}>{realStatus.affaireName}</strong>
+                      <span style={{marginLeft:'8px',fontWeight:'600',color:realStatus.devisStatus==='Gagné'?'var(--tw-green)':realStatus.devisStatus==='Perdu'?'var(--tw-red)':'var(--tw-teal)'}}>{realStatus.devisStatus}</span>
+                      {realStatus.probability > 0 && <span style={{marginLeft:'6px',color:'var(--tw-teal)',fontWeight:'600'}}>({realStatus.probability}%)</span>}
+                      {realStatus.quoteDate && <span style={{marginLeft:'8px',color:'var(--tw-muted)'}}>depuis le {new Date(realStatus.quoteDate).toLocaleDateString('fr-FR')}</span>}
+                    </div>
+                  )}
                 </div>
-                {/* Ligne 1 : Statut depuis affaires/devis */}
-                {(() => {
-                  const realStatus = getProspectRealStatus(affairesList, devisList);
-                  if (realStatus) {
-                    return (
-                      <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px'}}>
-                        <span style={{fontSize: '15px', color: '#666'}}>Affaire :</span>
-                        <span style={{fontSize: '16px', fontWeight: 'bold', color: '#1a3535'}}>
-                          {realStatus.affaireName}
-                        </span>
-                        <span style={{fontSize: '15px', color: '#666'}}>-</span>
-                        <span style={{fontSize: '16px', fontWeight: 'bold', color: '#007d89'}}>
-                          {realStatus.devisStatus}
-                        </span>
-                        {realStatus.probability && realStatus.probability > 0 && (
-                          <span style={{fontSize: '16px', fontWeight: 'bold', color: '#007d89'}}>
-                            ({realStatus.probability}%)
-                          </span>
-                        )}
-                        {realStatus.quoteDate && (
-                          <span style={{fontSize: '13px', color: '#999'}}>
-                            depuis le {new Date(realStatus.quoteDate).toLocaleDateString('fr-FR')}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-                
-                {/* Ligne 2 : Adresse + Tél + Boutons */}
-                <div style={{display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between'}}>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '15px', flex: 1}}>
-                    {selectedProspect.adresse && (
-                      <span style={{fontSize: '14px', color: '#666'}}>
-                        <strong>Adresse:</strong> {selectedProspect.adresse}
-                      </span>
-                    )}
-                    {selectedProspect.tel_standard && (
-                      <span style={{fontSize: '14px', color: '#666'}}>
-                        <strong>Tél Standard:</strong> {selectedProspect.tel_standard}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{display: 'flex', gap: '10px'}}>
-                    <button onClick={() => onEdit(selectedProspect)} style={styles.editBtn}>🏢 Information Société</button>
-                    <button onClick={() => onDelete(selectedProspect.id)} style={styles.deleteBtn}>🗑️ Supprimer</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Section Contacts */}
-            <div style={{marginBottom: '15px'}}>
-              <h3 style={{fontSize: '16px', color: '#666', marginBottom: '8px', fontWeight: 'bold'}}>Contacts :</h3>
-              {(() => {
-                const contactPrincipal = interlocuteurs.find(i => i.principal);
-                const decideur = interlocuteurs.find(i => i.decideur);
-                const isSamePerson = contactPrincipal && decideur && contactPrincipal.id === decideur.id;
-
-                const ContactLine = ({ personne, badges, bgColor }) => (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    padding: '8px 12px', marginBottom: '5px',
-                    backgroundColor: bgColor || '#f9f9f9', borderRadius: '6px',
-                    fontSize: '14px'
-                  }}>
-                    {badges}
-                    <span style={{fontWeight: 'bold', color: '#333'}}>{personne.nom}</span>
-                    {personne.fonction && <span style={{color: '#888', fontSize: '13px'}}>({personne.fonction})</span>}
-                    <span style={{flex: 1}} />
-                    {personne.telephone && <span style={{color: '#555'}}>📞 {personne.telephone}</span>}
-                    {personne.email && <span style={{color: '#555'}}>✉️ {personne.email}</span>}
-                  </div>
-                );
-
-                const badgePrincipal = <span style={{backgroundColor: '#10a0dc', color: 'white', fontSize: '10px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '3px', whiteSpace: 'nowrap'}}>⭐ PRINCIPAL</span>;
-                const badgeDecideur = <span style={{backgroundColor: '#d3a002', color: 'white', fontSize: '10px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '3px', whiteSpace: 'nowrap'}}>👔 DÉCIDEUR</span>;
-
-                return (
-                  <>
-                    {isSamePerson && contactPrincipal && (
-                      <ContactLine personne={contactPrincipal} badges={<>{badgePrincipal}{badgeDecideur}</>} bgColor="#e8f4f8" />
-                    )}
-                    {!isSamePerson && contactPrincipal && (
-                      <ContactLine personne={contactPrincipal} badges={badgePrincipal} bgColor="#e8f4f8" />
-                    )}
-                    {!isSamePerson && decideur && (
-                      <ContactLine personne={decideur} badges={badgeDecideur} bgColor="#fef9e8" />
-                    )}
-                    {!contactPrincipal && !decideur && (
-                      <span style={{color: '#999', fontSize: '13px'}}>Aucun contact principal ou décideur défini</span>
-                    )}
-                  </>
-                );
-              })()}
-
-            {/* Autres contacts dépliables */}
-            {interlocuteurs.filter(i => !i.principal && !i.decideur).length > 0 && (
-              <div style={{marginTop: '10px'}}>
-                <button
-                  onClick={() => setShowAutresContacts(!showAutresContacts)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: '#10a0dc', fontSize: '13px', fontWeight: 'bold', padding: '4px 0'
-                  }}
-                >
-                  <span style={{
-                    display: 'inline-block',
-                    transform: showAutresContacts ? 'rotate(90deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.2s',
-                    fontSize: '11px'
-                  }}>▶</span>
-                  Autres contacts ({interlocuteurs.filter(i => !i.principal && !i.decideur).length})
-                </button>
-                {showAutresContacts && (
-                  <div style={{marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px'}}>
-                    {interlocuteurs.filter(i => !i.principal && !i.decideur).map(c => (
-                      <div key={c.id} style={{
-                        display: 'flex', alignItems: 'center', gap: '12px',
-                        padding: '10px 14px', backgroundColor: '#f9f9f9',
-                        borderRadius: '6px', border: '1px solid #e0e0e0'
-                      }}>
-                        <div style={{flex: 1}}>
-                          <span style={{fontWeight: 'bold', fontSize: '14px'}}>{c.nom}</span>
-                          {c.fonction && <span style={{color: '#666', fontSize: '13px', marginLeft: '8px'}}>({c.fonction})</span>}
-                        </div>
-                        {c.telephone && (
-                          <span style={{fontSize: '13px', color: '#555'}}>📞 {c.telephone}</span>
-                        )}
-                        {c.email && (
-                          <a href={`mailto:${c.email}`} style={{fontSize: '13px', color: '#10a0dc'}}>✉ {c.email}</a>
-                        )}
+                {/* KPIs client */}
+                {selectedProspect.statut_societe === 'Client' && (
+                  <div style={{display:'flex',gap:'20px',flexShrink:0}}>
+                    {[
+                      {val:clientBoutiques.length, lbl:'Boutiques'},
+                      {val:clientLicences.length,  lbl:'Modules'},
+                      {val:clientMateriel.length,  lbl:'Appareils'},
+                    ].map(k => (
+                      <div key={k.lbl} style={{textAlign:'center'}}>
+                        <div style={{fontSize:'22px',fontWeight:'700',color:'var(--tw-teal)',fontVariantNumeric:'tabular-nums'}}>{k.val}</div>
+                        <div style={{fontSize:'10px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px',marginTop:'2px'}}>{k.lbl}</div>
                       </div>
                     ))}
                   </div>
                 )}
+                {/* Boutons */}
+                <div style={{display:'flex',gap:'8px',flexShrink:0}}>
+                  <button onClick={() => onEdit(selectedProspect)} style={styles.editBtn}>🏢 Modifier</button>
+                  <button onClick={() => onDelete(selectedProspect.id)} style={styles.deleteBtn}>🗑️</button>
+                </div>
               </div>
-            )}
+            </div>
+
+            {/* ── CONTACTS ── */}
+            <div style={{background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',padding:'16px 20px',marginBottom:'16px',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
+                <span style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)'}}>Contacts</span>
+              </div>
+              {interlocuteurs.length === 0 ? (
+                <div style={{fontSize:'13px',color:'var(--tw-muted)',fontStyle:'italic'}}>Aucun contact</div>
+              ) : interlocuteurs.map(c => {
+                const avatarColors = ['var(--tw-teal)','#667eea','#f0932b','#2ec27e','#e74c3c','#9b59b6'];
+                const col = avatarColors[c.id % avatarColors.length];
+                const ini = (c.nom||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+                return (
+                  <div key={c.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'8px 10px',borderRadius:'6px',background:'var(--tw-bg)',marginBottom:'6px'}}>
+                    <div style={{width:'32px',height:'32px',borderRadius:'50%',background:col,color:'white',fontWeight:'600',fontSize:'11px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{ini}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{c.nom}</div>
+                      <div style={{fontSize:'11px',color:'var(--tw-muted)'}}>{[c.fonction,c.email,c.telephone].filter(Boolean).join(' · ')}</div>
+                    </div>
+                    <div style={{display:'flex',gap:'5px',flexShrink:0}}>
+                      {c.principal && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
+                      {c.decideur && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'#fdecea',color:'var(--tw-red)'}}>Décideur</span>}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {selectedProspect.solutions_en_place && (
-              <div style={{marginTop: '15px', marginBottom: '15px', padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '6px', borderLeft: '4px solid #10a0dc'}}>
-                <strong style={{fontSize: '15px', color: '#333', display: 'block', marginBottom: '8px'}}>Solutions en place:</strong>
-                <div style={{fontSize: '14px', color: '#666', whiteSpace: 'pre-line'}}>
-                  {selectedProspect.solutions_en_place}
-                </div>
+              <div style={{marginBottom:'16px',padding:'14px 18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',borderLeft:'3px solid var(--tw-teal)',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
+                <strong style={{fontSize:'12px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',display:'block',marginBottom:'6px'}}>Solutions en place</strong>
+                <div style={{fontSize:'13px',color:'var(--tw-slate)',whiteSpace:'pre-line'}}>{selectedProspect.solutions_en_place}</div>
               </div>
             )}
-
-
-
 
 
           </div>
