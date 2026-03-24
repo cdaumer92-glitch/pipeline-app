@@ -212,6 +212,119 @@ async function initDB() {
       is_active BOOLEAN DEFAULT true
     )`);
 
+    // ============ TABLES CLIENT (licences, boutiques, matériel) ============
+
+    // Référentiel licences
+    await client.query(`CREATE TABLE IF NOT EXISTS licences (
+      id SERIAL PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      nom TEXT NOT NULL,
+      type TEXT DEFAULT 'saas',
+      description TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+
+    // Insérer les licences de base si pas encore présentes
+    await client.query(`
+      INSERT INTO licences (code, nom, type) VALUES
+        ('BIZ',       'Biz',                    'saas'),
+        ('BIZ_FAB',   'Biz + Fab',              'saas'),
+        ('FAB',       'Fab',                    'saas'),
+        ('NET_B2B',   'Net B2B',                'saas'),
+        ('AGENTS',    'Agents',                 'saas'),
+        ('NET_AGENTS','Net B2B + Agents',        'saas'),
+        ('KUB',       'Kub',                    'saas'),
+        ('MAG',       'Mag',                    'saas'),
+        ('VRP',       'VRP',                    'saas'),
+        ('COL',       'Col',                    'saas'),
+        ('LOG',       'Log',                    'saas'),
+        ('JET',       'Jet',                    'saas'),
+        ('FLUX_TIERS','Flux Tiers',             'saas'),
+        ('COMPTA_SAGE','Compta Sage',           'saas'),
+        ('FACT_ELEC', 'Facturation Électronique','saas'),
+        ('PERP_BIZ',  'Perpétuelle Biz',        'perpetuelle'),
+        ('PERP_FAB',  'Perpétuelle Fab',        'perpetuelle'),
+        ('PERP_BIZ_FAB','Perpétuelle Biz+Fab',  'perpetuelle')
+      ON CONFLICT (code) DO NOTHING
+    `);
+
+    // Référentiel types de matériel
+    await client.query(`CREATE TABLE IF NOT EXISTS materiel_types (
+      id SERIAL PRIMARY KEY,
+      nom TEXT UNIQUE NOT NULL,
+      icone TEXT DEFAULT '💻',
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+
+    await client.query(`
+      INSERT INTO materiel_types (nom, icone) VALUES
+        ('PDA',                   '📱'),
+        ('Tablette Windows',      '📊'),
+        ('Caisse',                '🖥️'),
+        ('Serveur',               '🖥️'),
+        ('Imprimante étiquettes', '🖨️'),
+        ('PC',                    '💻'),
+        ('Autre',                 '📦')
+      ON CONFLICT (nom) DO NOTHING
+    `);
+
+    // Boutiques
+    await client.query(`CREATE TABLE IF NOT EXISTS boutiques (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      nom TEXT NOT NULL,
+      adresse TEXT,
+      ville TEXT,
+      cp TEXT,
+      telephone TEXT,
+      responsable_id INTEGER REFERENCES interlocuteurs(id) ON DELETE SET NULL,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+
+    // Licences client
+    await client.query(`CREATE TABLE IF NOT EXISTS client_licences (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      licence_id INTEGER REFERENCES licences(id) ON DELETE CASCADE,
+      nb_utilisateurs INTEGER DEFAULT 0,
+      hebergement TEXT DEFAULT 'cloud',
+      maintenance TEXT DEFAULT 'aucune',
+      date_contrat DATE,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+
+    // Matériel client
+    await client.query(`CREATE TABLE IF NOT EXISTS client_materiel (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      boutique_id INTEGER REFERENCES boutiques(id) ON DELETE SET NULL,
+      materiel_type_id INTEGER REFERENCES materiel_types(id) ON DELETE SET NULL,
+      marque TEXT,
+      modele TEXT,
+      os TEXT,
+      version_os TEXT,
+      nb_unites INTEGER DEFAULT 1,
+      localisation TEXT,
+      date_achat DATE,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+
+    // Version TexasWin installée
+    await client.query(`
+      ALTER TABLE prospects
+      ADD COLUMN IF NOT EXISTS tw_version TEXT
+    `);
+    await client.query(`
+      ALTER TABLE prospects
+      ADD COLUMN IF NOT EXISTS statut_societe TEXT DEFAULT 'Prospect'
+    `);
+
     client.release();
     console.log('✅ Tables créées + Système admin initialisé');
   } catch (err) {
@@ -1450,6 +1563,157 @@ app.get('/api/debug/actions', auth, async (req, res) => {
       ORDER BY na.id DESC LIMIT 20
     `);
     res.json(r.rows);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+// ===================== ROUTES CLIENT =====================
+
+// ── Référentiels ──
+app.get('/api/licences', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT * FROM licences ORDER BY type, nom`);
+    res.json(r.rows);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.get('/api/materiel-types', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT * FROM materiel_types ORDER BY nom`);
+    res.json(r.rows);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+// ── Boutiques ──
+app.get('/api/prospects/:id/boutiques', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT b.*, i.nom as responsable_nom, i.telephone as responsable_tel, i.email as responsable_email
+      FROM boutiques b
+      LEFT JOIN interlocuteurs i ON i.id = b.responsable_id
+      WHERE b.prospect_id = $1
+      ORDER BY b.nom
+    `, [req.params.id]);
+    res.json(r.rows);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.post('/api/prospects/:id/boutiques', auth, async (req, res) => {
+  const { nom, adresse, ville, cp, telephone, responsable_id, notes } = req.body;
+  try {
+    const r = await pool.query(`
+      INSERT INTO boutiques (prospect_id, nom, adresse, ville, cp, telephone, responsable_id, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *
+    `, [req.params.id, nom, adresse||null, ville||null, cp||null, telephone||null, responsable_id||null, notes||null]);
+    res.json(r.rows[0]);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.put('/api/boutiques/:id', auth, async (req, res) => {
+  const { nom, adresse, ville, cp, telephone, responsable_id, notes } = req.body;
+  try {
+    const r = await pool.query(`
+      UPDATE boutiques SET nom=$1, adresse=$2, ville=$3, cp=$4, telephone=$5,
+        responsable_id=$6, notes=$7, updated_at=NOW()
+      WHERE id=$8 RETURNING *
+    `, [nom, adresse||null, ville||null, cp||null, telephone||null, responsable_id||null, notes||null, req.params.id]);
+    res.json(r.rows[0]);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.delete('/api/boutiques/:id', auth, async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM boutiques WHERE id=$1`, [req.params.id]);
+    res.json({ok: true});
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+// ── Licences client ──
+app.get('/api/prospects/:id/licences', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT cl.*, l.code, l.nom as licence_nom, l.type as licence_type
+      FROM client_licences cl
+      INNER JOIN licences l ON l.id = cl.licence_id
+      WHERE cl.prospect_id = $1
+      ORDER BY l.type DESC, l.nom
+    `, [req.params.id]);
+    res.json(r.rows);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.post('/api/prospects/:id/licences', auth, async (req, res) => {
+  const { licence_id, nb_utilisateurs, hebergement, maintenance, date_contrat, notes } = req.body;
+  try {
+    const r = await pool.query(`
+      INSERT INTO client_licences (prospect_id, licence_id, nb_utilisateurs, hebergement, maintenance, date_contrat, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *
+    `, [req.params.id, licence_id, nb_utilisateurs||0, hebergement||'cloud', maintenance||'aucune', date_contrat||null, notes||null]);
+    res.json(r.rows[0]);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.put('/api/licences-client/:id', auth, async (req, res) => {
+  const { licence_id, nb_utilisateurs, hebergement, maintenance, date_contrat, notes } = req.body;
+  try {
+    const r = await pool.query(`
+      UPDATE client_licences SET licence_id=$1, nb_utilisateurs=$2, hebergement=$3,
+        maintenance=$4, date_contrat=$5, notes=$6, updated_at=NOW()
+      WHERE id=$7 RETURNING *
+    `, [licence_id, nb_utilisateurs||0, hebergement||'cloud', maintenance||'aucune', date_contrat||null, notes||null, req.params.id]);
+    res.json(r.rows[0]);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.delete('/api/licences-client/:id', auth, async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM client_licences WHERE id=$1`, [req.params.id]);
+    res.json({ok: true});
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+// ── Matériel client ──
+app.get('/api/prospects/:id/materiel', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT cm.*, mt.nom as type_nom, mt.icone as type_icone,
+             b.nom as boutique_nom
+      FROM client_materiel cm
+      LEFT JOIN materiel_types mt ON mt.id = cm.materiel_type_id
+      LEFT JOIN boutiques b ON b.id = cm.boutique_id
+      WHERE cm.prospect_id = $1
+      ORDER BY mt.nom, cm.marque
+    `, [req.params.id]);
+    res.json(r.rows);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.post('/api/prospects/:id/materiel', auth, async (req, res) => {
+  const { boutique_id, materiel_type_id, marque, modele, os, version_os, nb_unites, localisation, date_achat, notes } = req.body;
+  try {
+    const r = await pool.query(`
+      INSERT INTO client_materiel (prospect_id, boutique_id, materiel_type_id, marque, modele, os, version_os, nb_unites, localisation, date_achat, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *
+    `, [req.params.id, boutique_id||null, materiel_type_id||null, marque||null, modele||null, os||null, version_os||null, nb_unites||1, localisation||null, date_achat||null, notes||null]);
+    res.json(r.rows[0]);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.put('/api/materiel-client/:id', auth, async (req, res) => {
+  const { boutique_id, materiel_type_id, marque, modele, os, version_os, nb_unites, localisation, date_achat, notes } = req.body;
+  try {
+    const r = await pool.query(`
+      UPDATE client_materiel SET boutique_id=$1, materiel_type_id=$2, marque=$3, modele=$4,
+        os=$5, version_os=$6, nb_unites=$7, localisation=$8, date_achat=$9, notes=$10, updated_at=NOW()
+      WHERE id=$11 RETURNING *
+    `, [boutique_id||null, materiel_type_id||null, marque||null, modele||null, os||null, version_os||null, nb_unites||1, localisation||null, date_achat||null, notes||null, req.params.id]);
+    res.json(r.rows[0]);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.delete('/api/materiel-client/:id', auth, async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM client_materiel WHERE id=$1`, [req.params.id]);
+    res.json({ok: true});
   } catch(err) { res.status(500).json({error: err.message}); }
 });
 
