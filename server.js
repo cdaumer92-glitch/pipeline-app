@@ -1362,6 +1362,8 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
         INNER JOIN devis d ON d.affaire_id = a.id
         ORDER BY a.prospect_id, 
           CASE a.statut_global WHEN 'Gagné' THEN 1 WHEN 'Perdu' THEN 2 ELSE 0 END,
+          -- Prioriser les devis actifs (non Perdu/Gagné) sur les anciens
+          CASE d.devis_status WHEN 'Perdu' THEN 1 WHEN 'Gagné' THEN 1 ELSE 0 END,
           d.quote_date DESC NULLS LAST, d.created_at DESC
       ),
       -- Résoudre le prospect_id même quand il est NULL (anciennes actions sans prospect_id)
