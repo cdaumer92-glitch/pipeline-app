@@ -3700,18 +3700,33 @@
               <div style={{flex: 1}}>
                 <div style={{display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '8px'}}>
                   <h2 style={{margin: 0, fontSize: '24px', fontWeight: 'bold'}}>{selectedProspect.name}</h2>
-                  <span style={{
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    color: selectedProspect.statut_societe === 'Client' ? '#12a0dc' : 
-                           selectedProspect.statut_societe === 'Prospect' ? '#ff9800' : '#999',
-                    padding: '4px 12px',
-                    borderRadius: '4px',
-                    backgroundColor: selectedProspect.statut_societe === 'Client' ? '#e3f2fd' : 
-                                    selectedProspect.statut_societe === 'Prospect' ? '#fff3e0' : '#f5f5f5'
-                  }}>
-                    {selectedProspect.statut_societe || 'Prospect'}
-                  </span>
+                  <select
+                    value={selectedProspect.statut_societe || 'Prospect'}
+                    onChange={async (e) => {
+                      const newStatut = e.target.value;
+                      try {
+                        await fetch(`${API_URL}/prospects/${selectedProspect.id}`, {
+                          method: 'PUT',
+                          headers: {'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
+                          body: JSON.stringify({...selectedProspect, statut_societe: newStatut})
+                        });
+                        onEdit({...selectedProspect, statut_societe: newStatut});
+                      } catch(err) { alert('Erreur: '+err.message); }
+                    }}
+                    style={{
+                      fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+                      color: selectedProspect.statut_societe === 'Client' ? '#12a0dc' :
+                             selectedProspect.statut_societe === 'Prospect' ? '#ff9800' : '#999',
+                      padding: '4px 10px', borderRadius: '4px', border: '1px solid #ddd',
+                      backgroundColor: selectedProspect.statut_societe === 'Client' ? '#e3f2fd' :
+                                       selectedProspect.statut_societe === 'Prospect' ? '#fff3e0' : '#f5f5f5',
+                      fontFamily: "'DM Sans', sans-serif"
+                    }}
+                  >
+                    <option value="Suspect">Suspect</option>
+                    <option value="Prospect">Prospect</option>
+                    <option value="Client">Client</option>
+                  </select>
                   <span style={{fontSize: '15px', color: '#666'}}>
                     Géré par <strong>{selectedProspect.assigned_to}</strong>
                   </span>
