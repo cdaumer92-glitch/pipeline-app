@@ -3603,7 +3603,7 @@
       }, [selectedProspect?.id]);
 
       React.useEffect(() => {
-        if (selectedProspect?.statut_societe === 'Client' && clientTab !== 'infos') {
+        if (selectedProspect?.statut_societe === 'Client') {
           loadClientData(selectedProspect.id);
         }
       }, [clientTab, selectedProspect?.id]);
@@ -3840,6 +3840,36 @@
               </div>
 
               <div style={{padding:'18px 20px'}}>
+
+                {/* ── Onglet Infos ── */}
+                {clientTab === 'infos' && (
+                  <div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px',marginBottom:'18px'}}>
+                      {[
+                        {lbl:'Adresse siège', val:selectedProspect.adresse||'—'},
+                        {lbl:'Téléphone standard', val:selectedProspect.tel_standard||'—'},
+                        {lbl:'Site web', val:selectedProspect.website||'—', link:true},
+                        {lbl:'Commercial assigné', val:selectedProspect.assigned_to||'—'},
+                        {lbl:'Date entrée en relation', val:selectedProspect.created_at?new Date(selectedProspect.created_at).toLocaleDateString('fr-FR'):'—'},
+                        {lbl:'Version TexasWin', val:selectedProspect.tw_version||'—'},
+                      ].map(f => (
+                        <div key={f.lbl}>
+                          <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>{f.lbl}</div>
+                          {f.link && f.val !== '—'
+                            ? <a href={f.val.startsWith('http')?f.val:'https://'+f.val} target="_blank" style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-teal)'}}>{f.val}</a>
+                            : <div style={{fontSize:'13px',fontWeight:'500',color:f.val==='—'?'var(--tw-muted)':'var(--tw-ink)'}}>{f.val}</div>
+                          }
+                        </div>
+                      ))}
+                    </div>
+                    {selectedProspect.notes && (
+                      <div>
+                        <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>Notes</div>
+                        <div style={{fontSize:'13px',color:'var(--tw-slate)',background:'var(--tw-bg)',padding:'12px 14px',borderRadius:'6px',lineHeight:'1.6'}}>{selectedProspect.notes}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* ── Onglet Licences ── */}
                 {clientTab === 'licences' && (
