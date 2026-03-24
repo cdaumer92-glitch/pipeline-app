@@ -3548,6 +3548,125 @@
       const [showAutresContacts, setShowAutresContacts] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
 
+      // ── Onglets fiche client ──
+      const [clientTab, setClientTab] = React.useState('infos');
+      const [clientLicences, setClientLicences] = React.useState([]);
+      const [clientBoutiques, setClientBoutiques] = React.useState([]);
+      const [clientMateriel, setClientMateriel] = React.useState([]);
+      const [refLicences, setRefLicences] = React.useState([]);
+      const [refMaterielTypes, setRefMaterielTypes] = React.useState([]);
+      const [clientDataLoaded, setClientDataLoaded] = React.useState(false);
+
+      // Modale ajout/modif licence
+      const [showLicenceForm, setShowLicenceForm] = React.useState(false);
+      const [editingLicence, setEditingLicence] = React.useState(null);
+      const [licenceForm, setLicenceForm] = React.useState({licence_id:'',nb_utilisateurs:0,hebergement:'cloud',maintenance:'aucune',date_contrat:'',notes:''});
+
+      // Modale ajout/modif boutique
+      const [showBoutiqueForm, setShowBoutiqueForm] = React.useState(false);
+      const [editingBoutique, setEditingBoutique] = React.useState(null);
+      const [boutiqueForm, setBoutiqueForm] = React.useState({nom:'',adresse:'',ville:'',cp:'',telephone:'',responsable_id:'',notes:''});
+
+      // Modale ajout/modif matériel
+      const [showMaterielForm, setShowMaterielForm] = React.useState(false);
+      const [editingMateriel, setEditingMateriel] = React.useState(null);
+      const [materielForm, setMaterielForm] = React.useState({boutique_id:'',materiel_type_id:'',marque:'',modele:'',os:'',version_os:'',nb_unites:1,localisation:'',date_achat:'',notes:''});
+
+      const loadClientData = async (pid) => {
+        if (!pid || clientDataLoaded) return;
+        try {
+          const headers = { 'Authorization': `Bearer ${user.token}` };
+          const [lics, bouts, mats, refL, refM] = await Promise.all([
+            fetch(`${API_URL}/prospects/${pid}/licences`, {headers}).then(r=>r.json()),
+            fetch(`${API_URL}/prospects/${pid}/boutiques`, {headers}).then(r=>r.json()),
+            fetch(`${API_URL}/prospects/${pid}/materiel`, {headers}).then(r=>r.json()),
+            fetch(`${API_URL}/licences`, {headers}).then(r=>r.json()),
+            fetch(`${API_URL}/materiel-types`, {headers}).then(r=>r.json()),
+          ]);
+          setClientLicences(Array.isArray(lics)?lics:[]);
+          setClientBoutiques(Array.isArray(bouts)?bouts:[]);
+          setClientMateriel(Array.isArray(mats)?mats:[]);
+          setRefLicences(Array.isArray(refL)?refL:[]);
+          setRefMaterielTypes(Array.isArray(refM)?refM:[]);
+          setClientDataLoaded(true);
+        } catch(err) { console.error('Erreur loadClientData:', err); }
+      };
+
+      // Charger quand on arrive sur un client
+      React.useEffect(() => {
+        setClientDataLoaded(false);
+        setClientTab('infos');
+      }, [selectedProspect?.id]);
+
+      React.useEffect(() => {
+        if (selectedProspect?.statut_societe === 'Client' && clientTab !== 'infos') {
+          loadClientData(selectedProspect.id);
+        }
+      }, [clientTab, selectedProspect?.id]);
+
+      // Sauvegarder licence
+      const handleSaveLicence = async () => {
+        try {
+          const headers = {'Content-Type':'application/json','Authorization':`Bearer ${user.token}`};
+          const pid = selectedProspect.id;
+          if (editingLicence) {
+            await fetch(`${API_URL}/licences-client/${editingLicence.id}`, {method:'PUT',headers,body:JSON.stringify(licenceForm)});
+          } else {
+            await fetch(`${API_URL}/prospects/${pid}/licences`, {method:'POST',headers,body:JSON.stringify(licenceForm)});
+          }
+          setShowLicenceForm(false); setEditingLicence(null);
+          setClientDataLoaded(false); loadClientData(pid);
+        } catch(err) { alert('Erreur: '+err.message); }
+      };
+
+      const handleDeleteLicence = async (id) => {
+        if (!window.confirm('Supprimer cette licence ?')) return;
+        await fetch(`${API_URL}/licences-client/${id}`, {method:'DELETE',headers:{'Authorization':`Bearer ${user.token}`}});
+        setClientDataLoaded(false); loadClientData(selectedProspect.id);
+      };
+
+      // Sauvegarder boutique
+      const handleSaveBoutique = async () => {
+        try {
+          const headers = {'Content-Type':'application/json','Authorization':`Bearer ${user.token}`};
+          const pid = selectedProspect.id;
+          if (editingBoutique) {
+            await fetch(`${API_URL}/boutiques/${editingBoutique.id}`, {method:'PUT',headers,body:JSON.stringify(boutiqueForm)});
+          } else {
+            await fetch(`${API_URL}/prospects/${pid}/boutiques`, {method:'POST',headers,body:JSON.stringify(boutiqueForm)});
+          }
+          setShowBoutiqueForm(false); setEditingBoutique(null);
+          setClientDataLoaded(false); loadClientData(pid);
+        } catch(err) { alert('Erreur: '+err.message); }
+      };
+
+      const handleDeleteBoutique = async (id) => {
+        if (!window.confirm('Supprimer cette boutique ?')) return;
+        await fetch(`${API_URL}/boutiques/${id}`, {method:'DELETE',headers:{'Authorization':`Bearer ${user.token}`}});
+        setClientDataLoaded(false); loadClientData(selectedProspect.id);
+      };
+
+      // Sauvegarder matériel
+      const handleSaveMateriel = async () => {
+        try {
+          const headers = {'Content-Type':'application/json','Authorization':`Bearer ${user.token}`};
+          const pid = selectedProspect.id;
+          if (editingMateriel) {
+            await fetch(`${API_URL}/materiel-client/${editingMateriel.id}`, {method:'PUT',headers,body:JSON.stringify(materielForm)});
+          } else {
+            await fetch(`${API_URL}/prospects/${pid}/materiel`, {method:'POST',headers,body:JSON.stringify(materielForm)});
+          }
+          setShowMaterielForm(false); setEditingMateriel(null);
+          setClientDataLoaded(false); loadClientData(pid);
+        } catch(err) { alert('Erreur: '+err.message); }
+      };
+
+      const handleDeleteMateriel = async (id) => {
+        if (!window.confirm('Supprimer ce matériel ?')) return;
+        await fetch(`${API_URL}/materiel-client/${id}`, {method:'DELETE',headers:{'Authorization':`Bearer ${user.token}`}});
+        setClientDataLoaded(false); loadClientData(selectedProspect.id);
+      };
+
       const handleAddActivity = () => {
         if (newActivityDesc.trim()) {
           onAddActivity(selectedProspect.id, newActivityType, newActivityDesc);
@@ -3753,6 +3872,338 @@
 
 
           </div>
+
+          {/* ── ONGLETS CLIENT (Licences, Boutiques, Matériel) ── */}
+          {selectedProspect.statut_societe === 'Client' && (
+            <div style={{marginBottom:'20px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)',overflow:'hidden'}}>
+              {/* Nav onglets */}
+              <div style={{display:'flex',borderBottom:'1px solid var(--tw-border)',background:'var(--tw-bg)',overflowX:'auto'}}>
+                {[
+                  {id:'infos',    lbl:'📋 Infos'},
+                  {id:'licences', lbl:`🔑 Licences${clientLicences.length>0?' ('+clientLicences.length+')':''}`},
+                  {id:'boutiques',lbl:`🏪 Boutiques${clientBoutiques.length>0?' ('+clientBoutiques.length+')':''}`},
+                  {id:'materiel', lbl:`💻 Matériel${clientMateriel.length>0?' ('+clientMateriel.length+')':''}`},
+                ].map(t => (
+                  <button key={t.id}
+                    onClick={() => setClientTab(t.id)}
+                    style={{padding:'10px 16px',fontFamily:"'DM Sans',sans-serif",fontSize:'13px',fontWeight:clientTab===t.id?'600':'500',
+                      border:'none',background:clientTab===t.id?'white':'transparent',
+                      color:clientTab===t.id?'var(--tw-teal)':'var(--tw-slate)',
+                      borderBottom:clientTab===t.id?'2px solid var(--tw-teal)':'2px solid transparent',
+                      cursor:'pointer',whiteSpace:'nowrap',transition:'all .15s'}}
+                  >{t.lbl}</button>
+                ))}
+              </div>
+
+              <div style={{padding:'18px 20px'}}>
+
+                {/* ── Onglet Licences ── */}
+                {clientTab === 'licences' && (
+                  <div>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
+                      <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px'}}>Licences actives</span>
+                      <button onClick={() => { setEditingLicence(null); setLicenceForm({licence_id:'',nb_utilisateurs:0,hebergement:'cloud',maintenance:'aucune',date_contrat:'',notes:''}); setShowLicenceForm(true); }}
+                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                        + Licence
+                      </button>
+                    </div>
+
+                    {showLicenceForm && (
+                      <div style={{background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'16px',marginBottom:'14px'}}>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Module</label>
+                            <select value={licenceForm.licence_id} onChange={e=>setLicenceForm({...licenceForm,licence_id:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              <option value="">— Choisir —</option>
+                              {refLicences.map(l => <option key={l.id} value={l.id}>[{l.type==='perpetuelle'?'Perp.':'SaaS'}] {l.nom}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Nb utilisateurs</label>
+                            <input type="number" value={licenceForm.nb_utilisateurs} onChange={e=>setLicenceForm({...licenceForm,nb_utilisateurs:parseInt(e.target.value)||0})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                          </div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Hébergement</label>
+                            <select value={licenceForm.hebergement} onChange={e=>setLicenceForm({...licenceForm,hebergement:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              <option value="cloud">☁️ Cloud ASTI</option>
+                              <option value="onpremise">🏢 On-premise</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Maintenance</label>
+                            <select value={licenceForm.maintenance} onChange={e=>setLicenceForm({...licenceForm,maintenance:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              <option value="aucune">Aucune</option>
+                              <option value="A2">A2 — Support technique</option>
+                              <option value="A3">A3 — Support + Évolutions</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Date contrat</label>
+                            <input type="date" value={licenceForm.date_contrat} onChange={e=>setLicenceForm({...licenceForm,date_contrat:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                          </div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Notes</label>
+                            <input type="text" value={licenceForm.notes} onChange={e=>setLicenceForm({...licenceForm,notes:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} placeholder="Optionnel" />
+                          </div>
+                        </div>
+                        <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
+                          <button onClick={() => setShowLicenceForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
+                          <button onClick={handleSaveLicence} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'DM Sans',sans-serif"}}>Enregistrer</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {clientLicences.length === 0 ? (
+                      <div style={{textAlign:'center',padding:'20px',color:'var(--tw-muted)',fontStyle:'italic',fontSize:'13px'}}>Aucune licence enregistrée</div>
+                    ) : (
+                      <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
+                        <thead>
+                          <tr style={{background:'var(--tw-bg)'}}>
+                            {['Module','Type','Nb users','Hébergement','Maintenance','Depuis',''].map(h => (
+                              <th key={h} style={{textAlign:'left',padding:'7px 10px',fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px'}}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {clientLicences.map(l => (
+                            <tr key={l.id} style={{borderBottom:'1px solid #f5f5f5'}}>
+                              <td style={{padding:'8px 10px',fontWeight:'600'}}>{l.licence_nom}</td>
+                              <td style={{padding:'8px 10px'}}>
+                                <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 8px',borderRadius:'8px',
+                                  background:l.licence_type==='perpetuelle'?'#fff8e1':'#e8f4fd',
+                                  color:l.licence_type==='perpetuelle'?'#f57c00':'var(--tw-blue)'}}>
+                                  {l.licence_type==='perpetuelle'?'Perpétuelle':'SaaS'}
+                                </span>
+                              </td>
+                              <td style={{padding:'8px 10px',fontVariantNumeric:'tabular-nums'}}>{l.nb_utilisateurs||'—'}</td>
+                              <td style={{padding:'8px 10px',fontSize:'12px',color:'var(--tw-slate)'}}>{l.hebergement==='cloud'?'☁️ Cloud':'🏢 On-premise'}</td>
+                              <td style={{padding:'8px 10px'}}>
+                                <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 7px',borderRadius:'6px',
+                                  background:l.maintenance==='A3'?'#e8f8f0':l.maintenance==='A2'?'var(--tw-teal-light)':'#f5f5f5',
+                                  color:l.maintenance==='A3'?'var(--tw-green)':l.maintenance==='A2'?'var(--tw-teal)':'var(--tw-muted)'}}>
+                                  {l.maintenance==='aucune'?'—':l.maintenance}
+                                </span>
+                              </td>
+                              <td style={{padding:'8px 10px',fontSize:'12px',color:'var(--tw-muted)'}}>{l.date_contrat?new Date(l.date_contrat).toLocaleDateString('fr-FR'):'—'}</td>
+                              <td style={{padding:'8px 10px'}}>
+                                <div style={{display:'flex',gap:'4px'}}>
+                                  <button onClick={() => { setEditingLicence(l); setLicenceForm({licence_id:l.licence_id,nb_utilisateurs:l.nb_utilisateurs||0,hebergement:l.hebergement||'cloud',maintenance:l.maintenance||'aucune',date_contrat:l.date_contrat?l.date_contrat.split('T')[0]:'',notes:l.notes||''}); setShowLicenceForm(true); }}
+                                    style={{padding:'3px 7px',border:'1px solid var(--tw-border)',borderRadius:'4px',background:'white',cursor:'pointer',fontSize:'11px'}}>✏️</button>
+                                  <button onClick={() => handleDeleteLicence(l.id)}
+                                    style={{padding:'3px 7px',border:'none',borderRadius:'4px',background:'#f79d8d',color:'white',cursor:'pointer',fontSize:'11px'}}>🗑️</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Onglet Boutiques ── */}
+                {clientTab === 'boutiques' && (
+                  <div>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
+                      <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px'}}>Boutiques</span>
+                      <button onClick={() => { setEditingBoutique(null); setBoutiqueForm({nom:'',adresse:'',ville:'',cp:'',telephone:'',responsable_id:'',notes:''}); setShowBoutiqueForm(true); }}
+                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                        + Boutique
+                      </button>
+                    </div>
+
+                    {showBoutiqueForm && (
+                      <div style={{background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'16px',marginBottom:'14px'}}>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                          {[
+                            {lbl:'Nom boutique',field:'nom',placeholder:'Ex: Paris - Etienne Marcel'},
+                            {lbl:'Adresse',field:'adresse',placeholder:'Numéro et rue'},
+                            {lbl:'Ville',field:'ville',placeholder:'Ville'},
+                            {lbl:'Code postal',field:'cp',placeholder:'75001'},
+                            {lbl:'Téléphone',field:'telephone',placeholder:'+33 1 ...'},
+                          ].map(({lbl,field,placeholder}) => (
+                            <div key={field}>
+                              <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>{lbl}</label>
+                              <input type="text" value={boutiqueForm[field]} onChange={e=>setBoutiqueForm({...boutiqueForm,[field]:e.target.value})}
+                                placeholder={placeholder}
+                                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                            </div>
+                          ))}
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Responsable</label>
+                            <select value={boutiqueForm.responsable_id} onChange={e=>setBoutiqueForm({...boutiqueForm,responsable_id:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              <option value="">— Aucun —</option>
+                              {interlocuteurs.map(i => <option key={i.id} value={i.id}>{i.nom}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{marginBottom:'10px'}}>
+                          <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Notes</label>
+                          <input type="text" value={boutiqueForm.notes} onChange={e=>setBoutiqueForm({...boutiqueForm,notes:e.target.value})}
+                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} placeholder="Optionnel" />
+                        </div>
+                        <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
+                          <button onClick={() => setShowBoutiqueForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
+                          <button onClick={handleSaveBoutique} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'DM Sans',sans-serif"}}>Enregistrer</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {clientBoutiques.length === 0 ? (
+                      <div style={{textAlign:'center',padding:'20px',color:'var(--tw-muted)',fontStyle:'italic',fontSize:'13px'}}>Aucune boutique enregistrée</div>
+                    ) : clientBoutiques.map(b => {
+                      const matsB = clientMateriel.filter(m => m.boutique_id === b.id);
+                      return (
+                        <div key={b.id} style={{border:'1px solid var(--tw-border)',borderRadius:'8px',overflow:'hidden',marginBottom:'10px'}}>
+                          <div style={{padding:'10px 14px',background:'var(--tw-teal-light)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                            <div>
+                              <div style={{fontWeight:'600',fontSize:'13px',color:'var(--tw-teal)'}}>🏪 {b.nom}</div>
+                              <div style={{fontSize:'12px',color:'var(--tw-teal)',opacity:.8,marginTop:'2px'}}>{[b.adresse,b.ville,b.cp].filter(Boolean).join(', ')||'Adresse non renseignée'}</div>
+                            </div>
+                            <div style={{display:'flex',gap:'5px'}}>
+                              <button onClick={() => { setEditingBoutique(b); setBoutiqueForm({nom:b.nom,adresse:b.adresse||'',ville:b.ville||'',cp:b.cp||'',telephone:b.telephone||'',responsable_id:b.responsable_id||'',notes:b.notes||''}); setShowBoutiqueForm(true); }}
+                                style={{padding:'3px 8px',border:'1px solid var(--tw-teal)',borderRadius:'4px',background:'white',color:'var(--tw-teal)',cursor:'pointer',fontSize:'12px'}}>✏️</button>
+                              <button onClick={() => handleDeleteBoutique(b.id)}
+                                style={{padding:'3px 8px',border:'none',borderRadius:'4px',background:'#f79d8d',color:'white',cursor:'pointer',fontSize:'12px'}}>🗑️</button>
+                            </div>
+                          </div>
+                          <div style={{padding:'12px 14px',background:'white'}}>
+                            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'10px',fontSize:'12px'}}>
+                              <div><span style={{color:'var(--tw-muted)'}}>Responsable : </span><span style={{fontWeight:'500'}}>{b.responsable_nom||'—'}</span></div>
+                              <div><span style={{color:'var(--tw-muted)'}}>Tél : </span><span style={{fontWeight:'500'}}>{b.telephone||'—'}</span></div>
+                            </div>
+                            {matsB.length > 0 && (
+                              <div>
+                                <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>Matériel</div>
+                                <div style={{display:'flex',flexWrap:'wrap',gap:'6px'}}>
+                                  {matsB.map(m => (
+                                    <span key={m.id} style={{display:'inline-flex',alignItems:'center',gap:'4px',padding:'3px 9px',background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'12px',fontSize:'12px',color:'var(--tw-slate)'}}>
+                                      {m.type_icone} {m.type_nom} <strong style={{color:'var(--tw-ink)'}}>×{m.nb_unites}</strong> <span style={{color:'var(--tw-muted)',fontSize:'11px'}}>{m.marque} {m.modele}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ── Onglet Matériel ── */}
+                {clientTab === 'materiel' && (
+                  <div>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
+                      <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px'}}>Parc matériel</span>
+                      <button onClick={() => { setEditingMateriel(null); setMaterielForm({boutique_id:'',materiel_type_id:'',marque:'',modele:'',os:'',version_os:'',nb_unites:1,localisation:'',date_achat:'',notes:''}); setShowMaterielForm(true); }}
+                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                        + Appareil
+                      </button>
+                    </div>
+
+                    {showMaterielForm && (
+                      <div style={{background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'16px',marginBottom:'14px'}}>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Type</label>
+                            <select value={materielForm.materiel_type_id} onChange={e=>setMaterielForm({...materielForm,materiel_type_id:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              <option value="">— Choisir —</option>
+                              {refMaterielTypes.map(t => <option key={t.id} value={t.id}>{t.icone} {t.nom}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Boutique</label>
+                            <select value={materielForm.boutique_id} onChange={e=>setMaterielForm({...materielForm,boutique_id:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              <option value="">Siège / Non défini</option>
+                              {clientBoutiques.map(b => <option key={b.id} value={b.id}>{b.nom}</option>)}
+                            </select>
+                          </div>
+                          {[
+                            {lbl:'Marque',field:'marque',placeholder:'Ex: Honeywell'},
+                            {lbl:'Modèle',field:'modele',placeholder:'Ex: CT45'},
+                            {lbl:'OS',field:'os',placeholder:'Ex: Android'},
+                            {lbl:'Version OS',field:'version_os',placeholder:'Ex: 12'},
+                            {lbl:'Localisation',field:'localisation',placeholder:'Ex: Entrepôt Paris'},
+                          ].map(({lbl,field,placeholder}) => (
+                            <div key={field}>
+                              <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>{lbl}</label>
+                              <input type="text" value={materielForm[field]} onChange={e=>setMaterielForm({...materielForm,[field]:e.target.value})}
+                                placeholder={placeholder}
+                                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                            </div>
+                          ))}
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Nb unités</label>
+                            <input type="number" value={materielForm.nb_unites} onChange={e=>setMaterielForm({...materielForm,nb_unites:parseInt(e.target.value)||1})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                          </div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Date achat</label>
+                            <input type="date" value={materielForm.date_achat} onChange={e=>setMaterielForm({...materielForm,date_achat:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                          </div>
+                        </div>
+                        <div style={{marginBottom:'10px'}}>
+                          <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Notes</label>
+                          <input type="text" value={materielForm.notes} onChange={e=>setMaterielForm({...materielForm,notes:e.target.value})}
+                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} placeholder="Optionnel" />
+                        </div>
+                        <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
+                          <button onClick={() => setShowMaterielForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
+                          <button onClick={handleSaveMateriel} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'DM Sans',sans-serif"}}>Enregistrer</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {clientMateriel.length === 0 ? (
+                      <div style={{textAlign:'center',padding:'20px',color:'var(--tw-muted)',fontStyle:'italic',fontSize:'13px'}}>Aucun matériel enregistré</div>
+                    ) : (
+                      <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
+                        <thead>
+                          <tr style={{background:'var(--tw-bg)'}}>
+                            {['Type','Marque / Modèle','OS','Qté','Localisation','Date achat',''].map(h => (
+                              <th key={h} style={{textAlign:'left',padding:'7px 10px',fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px'}}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {clientMateriel.map(m => (
+                            <tr key={m.id} style={{borderBottom:'1px solid #f5f5f5'}}>
+                              <td style={{padding:'8px 10px'}}><span style={{fontSize:'16px'}}>{m.type_icone||'💻'}</span> {m.type_nom||'—'}</td>
+                              <td style={{padding:'8px 10px',fontWeight:'600'}}>{m.marque||'—'} <span style={{fontWeight:'400',color:'var(--tw-slate)'}}>{m.modele||''}</span></td>
+                              <td style={{padding:'8px 10px'}}><span style={{fontSize:'11px',padding:'2px 7px',borderRadius:'6px',background:'#f0f0f0',color:'var(--tw-slate)',fontWeight:'500'}}>{[m.os,m.version_os].filter(Boolean).join(' ')||'—'}</span></td>
+                              <td style={{padding:'8px 10px',fontWeight:'700',fontVariantNumeric:'tabular-nums'}}>{m.nb_unites}</td>
+                              <td style={{padding:'8px 10px',fontSize:'12px',color:'var(--tw-slate)'}}>{m.boutique_nom||m.localisation||'Siège'}</td>
+                              <td style={{padding:'8px 10px',fontSize:'12px',color:'var(--tw-muted)'}}>{m.date_achat?new Date(m.date_achat).toLocaleDateString('fr-FR'):'—'}</td>
+                              <td style={{padding:'8px 10px'}}>
+                                <div style={{display:'flex',gap:'4px'}}>
+                                  <button onClick={() => { setEditingMateriel(m); setMaterielForm({boutique_id:m.boutique_id||'',materiel_type_id:m.materiel_type_id||'',marque:m.marque||'',modele:m.modele||'',os:m.os||'',version_os:m.version_os||'',nb_unites:m.nb_unites||1,localisation:m.localisation||'',date_achat:m.date_achat?m.date_achat.split('T')[0]:'',notes:m.notes||''}); setShowMaterielForm(true); }}
+                                    style={{padding:'3px 7px',border:'1px solid var(--tw-border)',borderRadius:'4px',background:'white',cursor:'pointer',fontSize:'11px'}}>✏️</button>
+                                  <button onClick={() => handleDeleteMateriel(m.id)}
+                                    style={{padding:'3px 7px',border:'none',borderRadius:'4px',background:'#f79d8d',color:'white',cursor:'pointer',fontSize:'11px'}}>🗑️</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
+
+              </div>
+            </div>
+          )}
 
           <ActivitiesSection
             nextActions={nextActions}
