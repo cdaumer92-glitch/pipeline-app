@@ -3018,6 +3018,7 @@
 
     function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo, onShowRecap, setShowCompteurModal, setCompteurModalData }) {
       const [activeTab, setActiveTab] = React.useState(null);
+      const [showSocietes, setShowSocietes] = React.useState(false);
       const [recapSending, setRecapSending] = React.useState(false);
       const [recapResult, setRecapResult] = React.useState(null);
       const [recapTarget, setRecapTarget] = React.useState('Moi (Christian)');
@@ -3345,7 +3346,7 @@
                   <button
                     key={name}
                     className={`tw-tab ${activeTab===name?'tw-tab-active':''}`}
-                    onClick={() => setActiveTab(name)}
+                    onClick={() => { setActiveTab(name); setShowSocietes(false); }}
                   >
                     {name.split(' ')[0]}
                     {d.retard > 0 && <span className="tw-tab-badge">{d.retard}</span>}
@@ -3416,12 +3417,66 @@
                         </div>
                       </div>
                     </div>
-                    {/* Lien voir actions */}
+                    {/* Lien voir sociétés */}
                     <div style={{textAlign:'right',marginTop:'6px'}}>
                       <a href="#" style={{fontSize:'12px',color:'var(--tw-teal)',fontWeight:'500',textDecoration:'none'}}
-                        onClick={(e) => { e.preventDefault(); onOpenDashboard(); }}
-                      >Voir toutes les actions →</a>
+                        onClick={(e) => { e.preventDefault(); setShowSocietes(s => !s); }}
+                      >{showSocietes ? 'Masquer ▲' : `Voir toutes les sociétés de ${activeTab} ▼`}</a>
                     </div>
+
+                    {/* Liste des sociétés dépliable */}
+                    {showSocietes && (() => {
+                      const mine = prospects.filter(p => p.assigned_to === activeTab);
+                      const today2 = new Date(); today2.setHours(0,0,0,0);
+                      return (
+                        <div style={{marginTop:'14px',borderTop:'1px solid var(--tw-border)',paddingTop:'14px'}}>
+                          {/* Header tableau */}
+                          <div style={{display:'grid',gridTemplateColumns:'2fr 1.2fr 0.8fr 1.6fr 0.8fr',padding:'7px 10px',background:'var(--tw-bg)',borderRadius:'6px 6px 0 0',fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px'}}>
+                            <div>Société</div><div>Statut</div><div>Proba</div><div>Prochaine action</div><div></div>
+                          </div>
+                          {mine.map(p => {
+                            const ai = prospectActionsInfo[p.id];
+                            const isLate = ai?.isLate;
+                            const actionDate = ai?.nextActionDate ? new Date(ai.nextActionDate) : null;
+                            const dateStr = actionDate ? actionDate.toLocaleDateString('fr-FR') : null;
+                            const statusColors = {'Gagné':'var(--tw-green)','Perdu':'var(--tw-red)','Discussion':'var(--tw-blue)','Envoyé':'#f0932b','Négociation':'#9b59b6'};
+                            const statusBgs = {'Gagné':'#e8f8f0','Perdu':'#fdecea','Discussion':'#e8f4fd','Envoyé':'#fff8e1','Négociation':'#f5eef8'};
+                            const sColor = statusColors[p.real_status] || 'var(--tw-muted)';
+                            const sBg = statusBgs[p.real_status] || '#f5f5f5';
+                            return (
+                              <div key={p.id}
+                                style={{display:'grid',gridTemplateColumns:'2fr 1.2fr 0.8fr 1.6fr 0.8fr',padding:'9px 10px',borderBottom:'1px solid #f5f5f5',alignItems:'center',fontSize:'13px',cursor:'pointer',transition:'background .12s',background:'white'}}
+                                onMouseEnter={e=>e.currentTarget.style.background='var(--tw-teal-light)'}
+                                onMouseLeave={e=>e.currentTarget.style.background='white'}
+                                onClick={() => { onSelectProspect(p); onOpenDashboard(); }}
+                              >
+                                <div>
+                                  <div style={{fontWeight:'600',fontSize:'13px',color:'var(--tw-ink)'}}>{p.name}</div>
+                                  <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'1px'}}>{p.contact_name||'—'}</div>
+                                </div>
+                                <div><span style={{fontSize:'11px',fontWeight:'600',padding:'2px 8px',borderRadius:'10px',color:sColor,background:sBg}}>{p.real_status||'Prospection'}</span></div>
+                                <div style={{fontSize:'13px',fontWeight:'700',color:sColor}}>{p.real_probability||0}%</div>
+                                <div style={{fontSize:'12px'}}>
+                                  {ai?.hasAction ? (
+                                    <span style={{color:isLate?'var(--tw-red)':'var(--tw-slate)',fontWeight:isLate?'600':'400'}}>
+                                      ⚡ {ai.nextActionType} · {dateStr}{isLate?' ⚠️':''}
+                                    </span>
+                                  ) : (
+                                    <span style={{color:'var(--tw-muted)',fontStyle:'italic'}}>Aucune action</span>
+                                  )}
+                                </div>
+                                <div>
+                                  <button style={{padding:'3px 10px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'11px',fontWeight:'500',cursor:'pointer'}}
+                                    onClick={e=>{e.stopPropagation();onSelectProspect(p);onOpenDashboard();}}>
+                                    Ouvrir →
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
