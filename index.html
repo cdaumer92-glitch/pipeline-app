@@ -3019,6 +3019,8 @@
     function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo, onShowRecap, setShowCompteurModal, setCompteurModalData }) {
       const [activeTab, setActiveTab] = React.useState(null);
       const [showSocietes, setShowSocietes] = React.useState(false);
+      const [societesSortCol, setSocietesSortCol] = React.useState('name');
+      const [societesSortAsc, setSocietesSortAsc] = React.useState(true);
       const [recapSending, setRecapSending] = React.useState(false);
       const [recapResult, setRecapResult] = React.useState(null);
       const [recapTarget, setRecapTarget] = React.useState('Moi (Christian)');
@@ -3430,11 +3432,37 @@
                       const today2 = new Date(); today2.setHours(0,0,0,0);
                       return (
                         <div style={{marginTop:'14px',borderTop:'1px solid var(--tw-border)',paddingTop:'14px'}}>
-                          {/* Header tableau */}
+                          {/* Header triable */}
                           <div style={{display:'grid',gridTemplateColumns:'2fr 1.2fr 0.8fr 1.6fr 0.8fr',padding:'7px 10px',background:'var(--tw-bg)',borderRadius:'6px 6px 0 0',fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px'}}>
-                            <div>Société</div><div>Statut</div><div>Proba</div><div>Prochaine action</div><div></div>
+                            {[
+                              {lbl:'Société', col:'name'},
+                              {lbl:'Statut',  col:'status'},
+                              {lbl:'Proba',   col:'proba'},
+                              {lbl:'Prochaine action', col:'action'},
+                            ].map(h => (
+                              <div key={h.col}
+                                onClick={() => { if(societesSortCol===h.col) setSocietesSortAsc(a=>!a); else {setSocietesSortCol(h.col);setSocietesSortAsc(true);} }}
+                                style={{cursor:'pointer',userSelect:'none',display:'flex',alignItems:'center',gap:'3px'}}
+                                onMouseEnter={e=>e.currentTarget.style.color='var(--tw-teal)'}
+                                onMouseLeave={e=>e.currentTarget.style.color='var(--tw-muted)'}
+                              >
+                                {h.lbl}
+                                <span style={{fontSize:'10px',opacity:societesSortCol===h.col?1:0.35}}>{societesSortCol===h.col?(societesSortAsc?'↑':'↓'):'↕'}</span>
+                              </div>
+                            ))}
+                            <div></div>
                           </div>
-                          {mine.map(p => {
+                          {[...mine].sort((a,b) => {
+                            if(societesSortCol==='name')   { const r=a.name.localeCompare(b.name); return societesSortAsc?r:-r; }
+                            if(societesSortCol==='status') { const r=(a.real_status||'').localeCompare(b.real_status||''); return societesSortAsc?r:-r; }
+                            if(societesSortCol==='proba')  { const r=(a.real_probability||0)-(b.real_probability||0); return societesSortAsc?r:-r; }
+                            if(societesSortCol==='action') {
+                              const da = prospectActionsInfo[a.id]?.nextActionDate ? new Date(prospectActionsInfo[a.id].nextActionDate).getTime() : Infinity;
+                              const db = prospectActionsInfo[b.id]?.nextActionDate ? new Date(prospectActionsInfo[b.id].nextActionDate).getTime() : Infinity;
+                              return societesSortAsc?da-db:db-da;
+                            }
+                            return 0;
+                          }).map(p => {
                             const ai = prospectActionsInfo[p.id];
                             const isLate = ai?.isLate;
                             const actionDate = ai?.nextActionDate ? new Date(ai.nextActionDate) : null;
