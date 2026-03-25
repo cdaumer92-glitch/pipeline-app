@@ -3774,7 +3774,9 @@
                 )}
                 {/* Boutons */}
                 <div style={{display:'flex',gap:'8px',flexShrink:0}}>
-                  <button onClick={() => onEdit(selectedProspect)} style={styles.editBtn}>🏢 Modifier</button>
+                  {selectedProspect.statut_societe !== 'Client' && (
+                    <button onClick={() => onEdit(selectedProspect)} style={styles.editBtn}>🏢 Modifier</button>
+                  )}
                   <button onClick={() => onDelete(selectedProspect.id)} style={styles.deleteBtn}>🗑️</button>
                 </div>
               </div>
@@ -3819,35 +3821,85 @@
               <div style={{padding:'18px 20px'}}>
 
                 {/* ── Onglet Infos ── */}
-                {clientTab === 'infos' && (
+                {clientTab === 'infos' && (() => {
+                  const [infoEdit, setInfoEdit] = React.useState(false);
+                  const [infoForm, setInfoForm] = React.useState({
+                    name: selectedProspect.name||'',
+                    adresse: selectedProspect.adresse||'',
+                    website: selectedProspect.website||'',
+                    tel_standard: selectedProspect.tel_standard||'',
+                    assigned_to: selectedProspect.assigned_to||'',
+                    notes: selectedProspect.notes||'',
+                  });
+
+                  const saveInfos = async () => {
+                    try {
+                      await fetch(`${API_URL}/prospects/${selectedProspect.id}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
+                        body: JSON.stringify({...selectedProspect, ...infoForm})
+                      });
+                      onUpdateProspect({...selectedProspect, ...infoForm});
+                      setInfoEdit(false);
+                    } catch(err) { alert('Erreur: '+err.message); }
+                  };
+
+                  const inputStyle = {width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",background:'white'};
+                  const labelStyle = {fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px',display:'block'};
+
+                  return (
                   <div>
                     {/* Coordonnées */}
-                    <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)',marginBottom:'12px'}}>Coordonnées société</div>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
+                      <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)'}}>Coordonnées société</div>
+                      {!infoEdit
+                        ? <button onClick={() => setInfoEdit(true)} style={{padding:'4px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',fontSize:'12px',cursor:'pointer',color:'var(--tw-slate)',fontFamily:"'DM Sans',sans-serif"}}>✏️ Modifier</button>
+                        : <div style={{display:'flex',gap:'8px'}}>
+                            <button onClick={() => setInfoEdit(false)} style={{padding:'4px 12px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',fontSize:'12px',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
+                            <button onClick={saveInfos} style={{padding:'4px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>✓ Enregistrer</button>
+                          </div>
+                      }
+                    </div>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px',marginBottom:'20px'}}>
                       {[
-                        {lbl:'Raison sociale', val:selectedProspect.name},
-                        {lbl:'Adresse siège', val:selectedProspect.adresse||'—'},
-                        {lbl:'Site web', val:selectedProspect.website||'—', link:true},
-                        {lbl:'Téléphone standard', val:selectedProspect.tel_standard||'—'},
-                        {lbl:'Commercial assigné', val:selectedProspect.assigned_to||'—'},
-                        {lbl:'Date entrée en relation', val:selectedProspect.created_at?new Date(selectedProspect.created_at).toLocaleDateString('fr-FR'):'—'},
+                        {lbl:'Raison sociale', field:'name'},
+                        {lbl:'Adresse siège', field:'adresse'},
+                        {lbl:'Site web', field:'website'},
+                        {lbl:'Téléphone standard', field:'tel_standard'},
+                        {lbl:'Commercial assigné', field:'assigned_to'},
                       ].map(f => (
-                        <div key={f.lbl}>
-                          <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>{f.lbl}</div>
-                          {f.link && f.val !== '—'
-                            ? <a href={f.val.startsWith('http')?f.val:'https://'+f.val} target="_blank" style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-teal)'}}>{f.val}</a>
-                            : <div style={{fontSize:'13px',fontWeight:'500',color:f.val==='—'?'var(--tw-muted)':'var(--tw-ink)'}}>{f.val}</div>
+                        <div key={f.field}>
+                          <label style={labelStyle}>{f.lbl}</label>
+                          {infoEdit
+                            ? <input type="text" value={infoForm[f.field]} onChange={e=>setInfoForm({...infoForm,[f.field]:e.target.value})} style={inputStyle} />
+                            : f.field==='website' && infoForm[f.field]
+                              ? <a href={infoForm[f.field].startsWith('http')?infoForm[f.field]:'https://'+infoForm[f.field]} target="_blank" style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-teal)'}}>{infoForm[f.field]}</a>
+                              : <div style={{fontSize:'13px',fontWeight:'500',color:infoForm[f.field]?'var(--tw-ink)':'var(--tw-muted)'}}>{infoForm[f.field]||'—'}</div>
                           }
                         </div>
                       ))}
+                      <div>
+                        <label style={labelStyle}>Date entrée en relation</label>
+                        <div style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-ink)'}}>{selectedProspect.created_at?new Date(selectedProspect.created_at).toLocaleDateString('fr-FR'):'—'}</div>
+                      </div>
                     </div>
 
-                    {/* Installation TexasWin */}
+                    {/* Notes */}
+                    <div style={{marginBottom:'20px'}}>
+                      <label style={labelStyle}>Notes</label>
+                      {infoEdit
+                        ? <textarea value={infoForm.notes} onChange={e=>setInfoForm({...infoForm,notes:e.target.value})}
+                            style={{...inputStyle,minHeight:'80px',resize:'vertical'}} />
+                        : <div style={{fontSize:'13px',color:infoForm.notes?'var(--tw-slate)':'var(--tw-muted)',background:'var(--tw-bg)',padding:'10px 12px',borderRadius:'6px',lineHeight:'1.6',fontStyle:infoForm.notes?'normal':'italic'}}>{infoForm.notes||'Aucune note'}</div>
+                      }
+                    </div>
+
+                    {/* Installation TexasWin — données depuis licences */}
                     <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)',marginBottom:'12px'}}>Installation TexasWin</div>
                     <div style={{background:'linear-gradient(135deg,var(--tw-ink) 0%,#2a5555 100%)',borderRadius:'10px',padding:'18px 22px',color:'white',marginBottom:'20px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                       <div>
                         <div style={{fontSize:'11px',color:'rgba(255,255,255,.5)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:'4px'}}>Version installée</div>
-                        <div style={{fontSize:'22px',fontWeight:'700'}}>{selectedProspect.tw_version||'Non renseignée'}</div>
+                        <div style={{fontSize:'22px',fontWeight:'700'}}>{selectedProspect.tw_version||<span style={{fontSize:'14px',opacity:.5}}>Non renseignée — voir onglet Licences</span>}</div>
                         <div style={{fontSize:'12px',color:'rgba(255,255,255,.4)',marginTop:'3px'}}>
                           {clientLicences.some(l=>l.hebergement==='cloud')?'Hébergement cloud ASTI':'Hébergement on-premise'}
                         </div>
@@ -3869,7 +3921,7 @@
                     {/* Contacts */}
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
                       <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)'}}>Contacts</div>
-                      <button style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Contact</button>
+                      <button onClick={() => setShowInterlocuteurForm(true)} style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Contact</button>
                     </div>
                     {interlocuteurs.length === 0 ? (
                       <div style={{fontSize:'13px',color:'var(--tw-muted)',fontStyle:'italic',padding:'10px 0'}}>Aucun contact</div>
@@ -3884,27 +3936,43 @@
                             <div style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{c.nom}</div>
                             <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'1px'}}>{[c.fonction,c.email,c.telephone].filter(Boolean).join(' · ')}</div>
                           </div>
-                          <div style={{display:'flex',gap:'5px',flexShrink:0}}>
+                          <div style={{display:'flex',gap:'5px',alignItems:'center',flexShrink:0}}>
                             {c.decideur && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'#fdecea',color:'var(--tw-red)'}}>Décideur</span>}
                             {c.principal && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
+                            <button onClick={() => handleDeleteInterlocuteur(c.id)} style={{padding:'2px 6px',border:'none',borderRadius:'4px',background:'#f79d8d',color:'white',cursor:'pointer',fontSize:'10px',marginLeft:'4px'}}>🗑️</button>
                           </div>
                         </div>
                       );
                     })}
-
-                    {/* Notes */}
-                    {selectedProspect.notes && (
-                      <div style={{marginTop:'20px'}}>
-                        <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)',marginBottom:'8px'}}>Notes</div>
-                        <div style={{fontSize:'13px',color:'var(--tw-slate)',background:'var(--tw-bg)',padding:'12px 14px',borderRadius:'6px',lineHeight:'1.6'}}>{selectedProspect.notes}</div>
-                      </div>
-                    )}
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* ── Onglet Licences ── */}
                 {clientTab === 'licences' && (
                   <div>
+                    {/* Version TexasWin dans Licences */}
+                    <div style={{display:'flex',alignItems:'center',gap:'12px',background:'var(--tw-bg)',borderRadius:'8px',padding:'10px 14px',marginBottom:'16px'}}>
+                      <span style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',flexShrink:0}}>Version TexasWin</span>
+                      <input type="text"
+                        value={selectedProspect.tw_version||''}
+                        placeholder="Ex: 12.4.2"
+                        onChange={async (e) => {
+                          const v = e.target.value;
+                          onUpdateProspect({...selectedProspect, tw_version: v});
+                        }}
+                        onBlur={async (e) => {
+                          try {
+                            await fetch(`${API_URL}/prospects/${selectedProspect.id}`, {
+                              method:'PUT', headers:{'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
+                              body: JSON.stringify({...selectedProspect, tw_version: e.target.value})
+                            });
+                          } catch(err) { console.error(err); }
+                        }}
+                        style={{flex:1,padding:'5px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",background:'white'}}
+                      />
+                    </div>
+
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
                       <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px'}}>Licences actives</span>
                       <button onClick={() => { setEditingLicence(null); setLicenceForm({licence_id:'',nb_utilisateurs:0,hebergement:'cloud',maintenance:'aucune',date_contrat:'',notes:''}); setShowLicenceForm(true); }}
