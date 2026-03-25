@@ -459,7 +459,7 @@ app.put('/api/prospects/:id', auth, async (req, res) => {
     name, contact_name, email, phone, adresse, website, tel_standard, statut_societe,
     status, setup_amount, monthly_amount, annual_amount, 
     training_amount, chance_percent, assigned_to, quote_date, 
-    decision_maker, solutions_en_place, notes, pdf_url 
+    decision_maker, solutions_en_place, notes, pdf_url, tw_version
   } = req.body;
   
   try {
@@ -468,14 +468,15 @@ app.put('/api/prospects/:id', auth, async (req, res) => {
         name=$1, contact_name=$2, email=$3, phone=$4, adresse=$5, website=$6, tel_standard=$7, statut_societe=$8,
         status=$9, setup_amount=$10, monthly_amount=$11, annual_amount=$12, 
         training_amount=$13, chance_percent=$14, assigned_to=$15, quote_date=$16, 
-        decision_maker=$17, solutions_en_place=$18, notes=$19, pdf_url=$20, 
-        updated_at=NOW() 
-      WHERE id=$21`,
+        decision_maker=$17, solutions_en_place=$18, notes=$19, pdf_url=$20,
+        tw_version=$21, updated_at=NOW() 
+      WHERE id=$22`,
       [
         name, contact_name, email || null, phone || null, adresse || null, website || null, tel_standard || null, statut_societe || 'Prospect',
         status, setup_amount || 0, monthly_amount || 0, annual_amount || 0, 
         training_amount || 0, chance_percent || 20, assigned_to, quote_date || null, 
-        decision_maker || null, solutions_en_place || null, notes || null, pdf_url || null, 
+        decision_maker || null, solutions_en_place || null, notes || null, pdf_url || null,
+        tw_version || null,
         id
       ]
     );

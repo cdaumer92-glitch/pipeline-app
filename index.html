@@ -4516,7 +4516,16 @@
                 />
               </div>
               
-              {/* Ligne 3 : Solutions en place */}
+              {/* Ligne 3 : Version TexasWin + Solutions en place */}
+              <div style={{display:'flex', gap:'10px'}}>
+                <input
+                  type="text"
+                  placeholder="Version TexasWin installée (ex: 12.4.2)"
+                  value={formData.tw_version || ''}
+                  onChange={(e) => handleChange('tw_version', e.target.value)}
+                  style={{...styles.formInput, flex: 1}}
+                />
+              </div>
               <div>
                 <textarea
                   placeholder="Solutions en place (une par ligne: FastMag, Shopify, Sage...)"
