@@ -3026,6 +3026,8 @@
       const [societesSortCol, setSocietesSortCol] = React.useState('name');
       const [societesSortAsc, setSocietesSortAsc] = React.useState(true);
       const [recapSending, setRecapSending] = React.useState(false);
+      const [infoEdit, setInfoEdit] = React.useState(false);
+      const [infoForm, setInfoForm] = React.useState({name:'',adresse:'',website:'',tel_standard:'',assigned_to:'',notes:''});
       const [recapResult, setRecapResult] = React.useState(null);
       const [recapTarget, setRecapTarget] = React.useState('Moi (Christian)');
       const [recapType, setRecapType] = React.useState('actions');
@@ -3600,6 +3602,15 @@
       React.useEffect(() => {
         setClientDataLoaded(false);
         setClientTab('infos');
+        setInfoEdit(false);
+        setInfoForm({
+          name: selectedProspect?.name||'',
+          adresse: selectedProspect?.adresse||'',
+          website: selectedProspect?.website||'',
+          tel_standard: selectedProspect?.tel_standard||'',
+          assigned_to: selectedProspect?.assigned_to||'',
+          notes: selectedProspect?.notes||'',
+        });
       }, [selectedProspect?.id]);
 
       React.useEffect(() => {
@@ -3669,6 +3680,18 @@
         if (!window.confirm('Supprimer ce matériel ?')) return;
         await fetch(`${API_URL}/materiel-client/${id}`, {method:'DELETE',headers:{'Authorization':`Bearer ${user.token}`}});
         setClientDataLoaded(false); loadClientData(selectedProspect.id);
+      };
+
+      const saveInfos = async () => {
+        try {
+          await fetch(`${API_URL}/prospects/${selectedProspect.id}`, {
+            method: 'PUT',
+            headers: {'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
+            body: JSON.stringify({...selectedProspect, ...infoForm})
+          });
+          onUpdateProspect({...selectedProspect, ...infoForm});
+          setInfoEdit(false);
+        } catch(err) { alert('Erreur: '+err.message); }
       };
 
       const handleAddActivity = () => {
@@ -3828,33 +3851,7 @@
               <div style={{padding:'18px 20px'}}>
 
                 {/* ── Onglet Infos ── */}
-                {clientTab === 'infos' && (() => {
-                  const [infoEdit, setInfoEdit] = React.useState(false);
-                  const [infoForm, setInfoForm] = React.useState({
-                    name: selectedProspect.name||'',
-                    adresse: selectedProspect.adresse||'',
-                    website: selectedProspect.website||'',
-                    tel_standard: selectedProspect.tel_standard||'',
-                    assigned_to: selectedProspect.assigned_to||'',
-                    notes: selectedProspect.notes||'',
-                  });
-
-                  const saveInfos = async () => {
-                    try {
-                      await fetch(`${API_URL}/prospects/${selectedProspect.id}`, {
-                        method: 'PUT',
-                        headers: {'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
-                        body: JSON.stringify({...selectedProspect, ...infoForm})
-                      });
-                      onUpdateProspect({...selectedProspect, ...infoForm});
-                      setInfoEdit(false);
-                    } catch(err) { alert('Erreur: '+err.message); }
-                  };
-
-                  const inputStyle = {width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",background:'white'};
-                  const labelStyle = {fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px',display:'block'};
-
-                  return (
+                {clientTab === 'infos' && (
                   <div>
                     {/* Coordonnées */}
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
@@ -3876,9 +3873,10 @@
                         {lbl:'Commercial assigné', field:'assigned_to'},
                       ].map(f => (
                         <div key={f.field}>
-                          <label style={labelStyle}>{f.lbl}</label>
+                          <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>{f.lbl}</div>
                           {infoEdit
-                            ? <input type="text" value={infoForm[f.field]} onChange={e=>setInfoForm({...infoForm,[f.field]:e.target.value})} style={inputStyle} />
+                            ? <input type="text" value={infoForm[f.field]||''} onChange={e=>setInfoForm({...infoForm,[f.field]:e.target.value})}
+                                style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
                             : f.field==='website' && infoForm[f.field]
                               ? <a href={infoForm[f.field].startsWith('http')?infoForm[f.field]:'https://'+infoForm[f.field]} target="_blank" style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-teal)'}}>{infoForm[f.field]}</a>
                               : <div style={{fontSize:'13px',fontWeight:'500',color:infoForm[f.field]?'var(--tw-ink)':'var(--tw-muted)'}}>{infoForm[f.field]||'—'}</div>
@@ -3886,22 +3884,22 @@
                         </div>
                       ))}
                       <div>
-                        <label style={labelStyle}>Date entrée en relation</label>
+                        <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>Date entrée en relation</div>
                         <div style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-ink)'}}>{selectedProspect.created_at?new Date(selectedProspect.created_at).toLocaleDateString('fr-FR'):'—'}</div>
                       </div>
                     </div>
 
                     {/* Notes */}
                     <div style={{marginBottom:'20px'}}>
-                      <label style={labelStyle}>Notes</label>
+                      <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>Notes</div>
                       {infoEdit
-                        ? <textarea value={infoForm.notes} onChange={e=>setInfoForm({...infoForm,notes:e.target.value})}
-                            style={{...inputStyle,minHeight:'80px',resize:'vertical'}} />
+                        ? <textarea value={infoForm.notes||''} onChange={e=>setInfoForm({...infoForm,notes:e.target.value})}
+                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",minHeight:'80px',resize:'vertical'}} />
                         : <div style={{fontSize:'13px',color:infoForm.notes?'var(--tw-slate)':'var(--tw-muted)',background:'var(--tw-bg)',padding:'10px 12px',borderRadius:'6px',lineHeight:'1.6',fontStyle:infoForm.notes?'normal':'italic'}}>{infoForm.notes||'Aucune note'}</div>
                       }
                     </div>
 
-                    {/* Installation TexasWin — données depuis licences */}
+                    {/* Installation TexasWin */}
                     <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)',marginBottom:'12px'}}>Installation TexasWin</div>
                     <div style={{background:'linear-gradient(135deg,var(--tw-ink) 0%,#2a5555 100%)',borderRadius:'10px',padding:'18px 22px',color:'white',marginBottom:'20px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                       <div>
@@ -3952,10 +3950,9 @@
                       );
                     })}
                   </div>
-                  );
-                })()}
+                )}
 
-                {/* ── Onglet Licences ── */}
+                                {/* ── Onglet Licences ── */}
                 {clientTab === 'licences' && (
                   <div>
                     {/* Version TexasWin dans Licences */}
