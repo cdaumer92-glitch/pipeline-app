@@ -3799,14 +3799,17 @@
             <div style={{marginBottom:'20px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)',overflow:'hidden'}}>
               {/* Nav onglets */}
               <div style={{display:'flex',borderBottom:'1px solid var(--tw-border)',background:'var(--tw-bg)',overflowX:'auto'}}>
-                {[
-                  {id:'infos',       lbl:'📋 Informations'},
-                  {id:'licences',    lbl:`🔑 Licences${clientLicences.length>0?' ('+clientLicences.length+')':''}`},
-                  {id:'boutiques',   lbl:`🏪 Boutiques${clientBoutiques.length>0?' ('+clientBoutiques.length+')':''}`},
-                  {id:'materiel',    lbl:`💻 Matériel${clientMateriel.length>0?' ('+clientMateriel.length+')':''}`},
-                  {id:'affaires',    lbl:'📁 Affaires'},
-                  {id:'communication',lbl:'💬 Communication'},
-                ].map(t => (
+                {(() => {
+                  const nbAffaires = affairesList.filter(a => a.statut_global !== 'Perdu').length;
+                  return [
+                    {id:'infos',       lbl:'📋 Informations'},
+                    {id:'licences',    lbl:`🔑 Licences${clientLicences.length>0?' ('+clientLicences.length+')':''}`},
+                    {id:'boutiques',   lbl:`🏪 Boutiques${clientBoutiques.length>0?' ('+clientBoutiques.length+')':''}`},
+                    {id:'materiel',    lbl:`💻 Matériel${clientMateriel.length>0?' ('+clientMateriel.length+')':''}`},
+                    {id:'affaires',    lbl: nbAffaires>0 ? `🟢 Affaires (${nbAffaires})` : '📁 Affaires'},
+                    {id:'communication',lbl:'💬 Communication'},
+                  ];
+                })().map(t => (
                   <button key={t.id}
                     onClick={() => setClientTab(t.id)}
                     style={{padding:'10px 16px',fontFamily:"'DM Sans',sans-serif",fontSize:'13px',fontWeight:clientTab===t.id?'600':'500',
@@ -4339,7 +4342,6 @@
                     handleDeleteDevisPDF={handleDeleteDevisPDF}
                     handleRattacherDevisAffaire={handleRattacherDevisAffaire}
                     selectedProspect={selectedProspect}
-                    affairesOnly={true}
                   />
                 )}
 
