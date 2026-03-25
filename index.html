@@ -3806,7 +3806,7 @@
                     {id:'licences',    lbl:`🔑 Licences${clientLicences.length>0?' ('+clientLicences.length+')':''}`},
                     {id:'boutiques',   lbl:`🏪 Boutiques${clientBoutiques.length>0?' ('+clientBoutiques.length+')':''}`},
                     {id:'materiel',    lbl:`💻 Matériel${clientMateriel.length>0?' ('+clientMateriel.length+')':''}`},
-                    {id:'affaires',    lbl: nbAffaires>0 ? `🟢 Affaires (${nbAffaires})` : '📁 Affaires'},
+                    {id:'affaires',    lbl: `📁 Affaires${nbAffaires>0?' ('+nbAffaires+')':''}`, badge: nbAffaires>0},
                     {id:'communication',lbl:'💬 Communication'},
                   ];
                 })().map(t => (
@@ -3816,8 +3816,12 @@
                       border:'none',background:clientTab===t.id?'white':'transparent',
                       color:clientTab===t.id?'var(--tw-teal)':'var(--tw-slate)',
                       borderBottom:clientTab===t.id?'2px solid var(--tw-teal)':'2px solid transparent',
-                      cursor:'pointer',whiteSpace:'nowrap',transition:'all .15s'}}
-                  >{t.lbl}</button>
+                      cursor:'pointer',whiteSpace:'nowrap',transition:'all .15s',
+                      display:'flex',alignItems:'center',gap:'5px'}}
+                  >
+                    {t.lbl}
+                    {t.badge && <span style={{fontSize:'10px',fontWeight:'700',padding:'1px 5px',borderRadius:'8px',background:'var(--tw-teal)',color:'white'}}>{affairesList.filter(a=>a.statut_global!=='Perdu').length}</span>}
+                  </button>
                 ))}
               </div>
 
@@ -3902,7 +3906,7 @@
                     <div style={{background:'linear-gradient(135deg,var(--tw-ink) 0%,#2a5555 100%)',borderRadius:'10px',padding:'18px 22px',color:'white',marginBottom:'20px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                       <div>
                         <div style={{fontSize:'11px',color:'rgba(255,255,255,.5)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:'4px'}}>Version installée</div>
-                        <div style={{fontSize:'22px',fontWeight:'700'}}>{selectedProspect.tw_version||<span style={{fontSize:'14px',opacity:.5}}>Non renseignée — voir onglet Licences</span>}</div>
+                        <div style={{fontSize:'22px',fontWeight:'700',opacity:selectedProspect.tw_version?1:.5}}>{selectedProspect.tw_version||'Non renseignée — voir onglet Licences'}</div>
                         <div style={{fontSize:'12px',color:'rgba(255,255,255,.4)',marginTop:'3px'}}>
                           {clientLicences.some(l=>l.hebergement==='cloud')?'Hébergement cloud ASTI':'Hébergement on-premise'}
                         </div>
