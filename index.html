@@ -3927,8 +3927,43 @@
                     {/* Contacts */}
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
                       <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)'}}>Contacts</div>
-                      <button onClick={() => setShowInterlocuteurForm(true)} style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Contact</button>
+                      <button onClick={() => { setInterlocuteurForm({nom:'',fonction:'',email:'',telephone:'',principal:false,decideur:false}); setShowInterlocuteurForm(true); }}
+                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Contact</button>
                     </div>
+
+                    {/* Formulaire contact inline */}
+                    {showInterlocuteurForm && (
+                      <div style={{background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'16px',marginBottom:'12px'}}>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                          {[
+                            {ph:'Nom *', field:'nom'},
+                            {ph:'Fonction', field:'fonction'},
+                            {ph:'Email', field:'email', type:'email'},
+                            {ph:'Téléphone', field:'telephone', type:'tel'},
+                          ].map(({ph,field,type='text'}) => (
+                            <input key={field} type={type} placeholder={ph}
+                              value={interlocuteurForm[field]||''}
+                              onChange={e=>setInterlocuteurForm({...interlocuteurForm,[field]:e.target.value})}
+                              style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                          ))}
+                        </div>
+                        <div style={{display:'flex',gap:'16px',marginBottom:'12px'}}>
+                          <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',cursor:'pointer'}}>
+                            <input type="checkbox" checked={!!interlocuteurForm.principal} onChange={e=>setInterlocuteurForm({...interlocuteurForm,principal:e.target.checked})} />
+                            Contact principal
+                          </label>
+                          <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',cursor:'pointer'}}>
+                            <input type="checkbox" checked={!!interlocuteurForm.decideur} onChange={e=>setInterlocuteurForm({...interlocuteurForm,decideur:e.target.checked})} />
+                            Décideur
+                          </label>
+                        </div>
+                        <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
+                          <button onClick={() => setShowInterlocuteurForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
+                          <button onClick={handleSaveInterlocuteur} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'DM Sans',sans-serif"}}>Enregistrer</button>
+                        </div>
+                      </div>
+                    )}
+
                     {interlocuteurs.length === 0 ? (
                       <div style={{fontSize:'13px',color:'var(--tw-muted)',fontStyle:'italic',padding:'10px 0'}}>Aucun contact</div>
                     ) : interlocuteurs.map(c => {
@@ -3945,7 +3980,10 @@
                           <div style={{display:'flex',gap:'5px',alignItems:'center',flexShrink:0}}>
                             {c.decideur && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'#fdecea',color:'var(--tw-red)'}}>Décideur</span>}
                             {c.principal && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
-                            <button onClick={() => handleDeleteInterlocuteur(c.id)} style={{padding:'2px 6px',border:'none',borderRadius:'4px',background:'#f79d8d',color:'white',cursor:'pointer',fontSize:'10px',marginLeft:'4px'}}>🗑️</button>
+                            <button onClick={() => { setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',principal:!!c.principal,decideur:!!c.decideur}); setShowInterlocuteurForm(true); }}
+                              style={{padding:'2px 7px',border:'1px solid var(--tw-border)',borderRadius:'4px',background:'white',cursor:'pointer',fontSize:'11px'}}>✏️</button>
+                            <button onClick={() => handleDeleteInterlocuteur(c.id)}
+                              style={{padding:'2px 6px',border:'none',borderRadius:'4px',background:'#f79d8d',color:'white',cursor:'pointer',fontSize:'10px'}}>🗑️</button>
                           </div>
                         </div>
                       );
