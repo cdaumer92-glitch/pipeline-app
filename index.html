@@ -3556,6 +3556,8 @@
       const [showAutresContacts, setShowAutresContacts] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
       const [infoEdit, setInfoEdit] = React.useState(false);
+      const [showCommForm, setShowCommForm] = React.useState(false);
+      const [commForm, setCommForm] = React.useState({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:''});
       const [infoForm, setInfoForm] = React.useState({name:'',adresse:'',website:'',tel_standard:'',assigned_to:'',notes:''});
 
       // ── Onglets fiche client ──
@@ -4394,11 +4396,63 @@
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
                       <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px'}}>Historique des échanges</span>
                       <button
-                        onClick={() => onAddNextAction && onAddNextAction()}
+                        onClick={() => setShowCommForm(s => !s)}
                         style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
                         + Nouvelle activité
                       </button>
                     </div>
+
+                    {showCommForm && (
+                      <div style={{background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'16px',marginBottom:'14px'}}>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Type</label>
+                            <select value={commForm.action_type} onChange={e=>setCommForm({...commForm,action_type:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              {['Appel','Relance','Email','A faire','Point technique','Demo','Negociation','Signature'].map(t=><option key={t}>{t}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Date</label>
+                            <input type="date" value={commForm.planned_date} onChange={e=>setCommForm({...commForm,planned_date:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                          </div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>De (Acteur)</label>
+                            <select value={commForm.actor} onChange={e=>setCommForm({...commForm,actor:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              <option value="">-- Acteur --</option>
+                              {['Christian','Roger','Frederic'].map(n=><option key={n}>{n}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Vers (Contact)</label>
+                            <select value={commForm.contact} onChange={e=>setCommForm({...commForm,contact:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              <option value="">-- Contact --</option>
+                              <option value="Interne">Interne</option>
+                              {interlocuteurs.map(i=><option key={i.id} value={i.nom}>{i.nom}{i.fonction?' ('+i.fonction+')':''}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{marginBottom:'10px'}}>
+                          <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Commentaire</label>
+                          <textarea value={commForm.comment} onChange={e=>setCommForm({...commForm,comment:e.target.value})}
+                            placeholder="Optionnel"
+                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",minHeight:'60px',resize:'vertical'}} />
+                        </div>
+                        <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
+                          <button onClick={() => setShowCommForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
+                          <button onClick={async () => {
+                            if (!commForm.action_type) return;
+                            await onAddNextAction(selectedProspect.id, commForm.action_type, commForm.comment, commForm.planned_date, commForm.actor, commForm.contact);
+                            setCommForm({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:''});
+                            setShowCommForm(false);
+                          }} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'DM Sans',sans-serif"}}>Enregistrer</button>
+                        </div>
+                      </div>
+                    )}
+
                     {nextActions.filter(a => !a.affaire_id).length === 0 ? (
                       <div style={{textAlign:'center',padding:'20px',color:'var(--tw-muted)',fontStyle:'italic',fontSize:'13px'}}>Aucune communication enregistrée</div>
                     ) : nextActions.filter(a => !a.affaire_id).sort((a,b) => new Date(b.planned_date)-new Date(a.planned_date)).map(a => {
