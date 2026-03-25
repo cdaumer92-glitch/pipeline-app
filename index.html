@@ -1611,6 +1611,9 @@
               onUpdateProspect={(updated) => {
                 setSelectedProspect(updated);
                 setProspects(prev => prev.map(p => p.id === updated.id ? {...p, ...updated} : p));
+                // Recharger les prospects enrichis pour sync complète
+                fetch(`${API_URL}/prospects/enriched`, {headers:{'Authorization':`Bearer ${user?.token}`}})
+                  .then(r=>r.json()).then(data => { if(Array.isArray(data)) setProspects(data); });
               }}
               onDelete={handleDeleteProspect}
               onAddActivity={handleAddActivity}
