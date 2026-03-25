@@ -3577,7 +3577,7 @@
       const [materielForm, setMaterielForm] = React.useState({boutique_id:'',materiel_type_id:'',marque:'',modele:'',os:'',version_os:'',nb_unites:1,localisation:'',date_achat:'',notes:''});
 
       const loadClientData = async (pid) => {
-        if (!pid || clientDataLoaded) return;
+        if (!pid) return;
         try {
           const headers = { 'Authorization': `Bearer ${user.token}` };
           const [lics, bouts, mats, refL, refM] = await Promise.all([
@@ -3619,7 +3619,7 @@
             await fetch(`${API_URL}/prospects/${pid}/licences`, {method:'POST',headers,body:JSON.stringify(licenceForm)});
           }
           setShowLicenceForm(false); setEditingLicence(null);
-          setClientDataLoaded(false); loadClientData(pid);
+          setClientLicences([]); setClientDataLoaded(false); loadClientData(pid);
         } catch(err) { alert('Erreur: '+err.message); }
       };
 
@@ -3640,7 +3640,7 @@
             await fetch(`${API_URL}/prospects/${pid}/boutiques`, {method:'POST',headers,body:JSON.stringify(boutiqueForm)});
           }
           setShowBoutiqueForm(false); setEditingBoutique(null);
-          setClientDataLoaded(false); loadClientData(pid);
+          setClientBoutiques([]); setClientDataLoaded(false); loadClientData(pid);
         } catch(err) { alert('Erreur: '+err.message); }
       };
 
@@ -3661,7 +3661,7 @@
             await fetch(`${API_URL}/prospects/${pid}/materiel`, {method:'POST',headers,body:JSON.stringify(materielForm)});
           }
           setShowMaterielForm(false); setEditingMateriel(null);
-          setClientDataLoaded(false); loadClientData(pid);
+          setClientMateriel([]); setClientDataLoaded(false); loadClientData(pid);
         } catch(err) { alert('Erreur: '+err.message); }
       };
 
