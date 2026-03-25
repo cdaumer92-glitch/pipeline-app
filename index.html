@@ -2796,7 +2796,13 @@
                   ...(!prospect.real_status && prospectActionsInfo[prospect.id]?.hasAction ? { borderLeft: '4px solid #28a745' } : {})
                 }}
               >
-                <div style={styles.prospectName}>{prospect.name}</div>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px'}}>
+                  <div style={styles.prospectName}>{prospect.name}</div>
+                  <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 8px',borderRadius:'10px',flexShrink:0,
+                    color: (prospect.statut_societe||'Prospect')==='Client'?'var(--tw-teal)':(prospect.statut_societe||'Prospect')==='Suspect'?'#999':'#f0932b',
+                    background: (prospect.statut_societe||'Prospect')==='Client'?'var(--tw-teal-light)':(prospect.statut_societe||'Prospect')==='Suspect'?'#f5f5f5':'#fff8e1'
+                  }}>{prospect.statut_societe||'Prospect'}</span>
+                </div>
                 <div style={styles.prospectSubtitle}>{prospect.contact_name}</div>
                 <div style={styles.prospectStatusRow}>
                   {prospect.real_status ? (
