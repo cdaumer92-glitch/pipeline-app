@@ -2789,7 +2789,7 @@
                 style={{
                   ...styles.prospectItem,
                   ...(selectedProspect?.id === prospect.id ? styles.prospectItemActive : {}),
-                  ...(prospect.real_status === 'Perdu' && prospect.statut_societe !== 'Client' ? { backgroundColor: '#ffe6e6', borderLeft: '4px solid #ff6666' } : {}),
+
                   ...(prospect.real_status === 'Ajourné N+1' ? { backgroundColor: '#fff3e0', borderLeft: '4px solid #ff9800' } : {}),
                   ...(prospect.real_status === 'Éliminé par nous' ? { backgroundColor: '#f0f0f0', borderLeft: '4px solid #888' } : {}),
                   ...(!prospect.real_status && !prospectActionsInfo[prospect.id]?.hasAction ? { borderLeft: '4px solid #cc0000' } : {}),
