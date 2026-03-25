@@ -2789,7 +2789,7 @@
                 style={{
                   ...styles.prospectItem,
                   ...(selectedProspect?.id === prospect.id ? styles.prospectItemActive : {}),
-                  ...(prospect.real_status === 'Perdu' ? { backgroundColor: '#ffe6e6', borderLeft: '4px solid #ff6666' } : {}),
+                  ...(prospect.real_status === 'Perdu' && (prospect.statut_societe === 'Prospect' || prospect.statut_societe === 'Suspect') ? { backgroundColor: '#ffe6e6', borderLeft: '4px solid #ff6666' } : {}),
                   ...(prospect.real_status === 'Ajourné N+1' ? { backgroundColor: '#fff3e0', borderLeft: '4px solid #ff9800' } : {}),
                   ...(prospect.real_status === 'Éliminé par nous' ? { backgroundColor: '#f0f0f0', borderLeft: '4px solid #888' } : {}),
                   ...(!prospect.real_status && !prospectActionsInfo[prospect.id]?.hasAction ? { borderLeft: '4px solid #cc0000' } : {}),
@@ -2800,10 +2800,15 @@
                 <div style={styles.prospectSubtitle}>{prospect.contact_name}</div>
                 <div style={styles.prospectStatusRow}>
                   {prospect.real_status ? (
-                    <span style={styles.prospectStatus}>
+                    <span style={{...styles.prospectStatus,
+                      color: prospect.real_status==='Perdu'?'var(--tw-red)':
+                             prospect.real_status==='Gagné'?'var(--tw-green)':
+                             prospect.real_status==='Discussion'?'var(--tw-blue)':
+                             prospect.real_status==='Envoyé'?'#f0932b':
+                             'var(--tw-teal)'}}>
                       {prospect.real_status}
                       {prospect.real_probability && prospect.real_probability > 0 && (
-                        <span style={{fontWeight: 'bold', color: '#007d89', marginLeft: '5px'}}>({prospect.real_probability}%)</span>
+                        <span style={{fontWeight: 'bold', marginLeft: '5px'}}>({prospect.real_probability}%)</span>
                       )}
                     </span>
                   ) : (
