@@ -3831,11 +3831,11 @@
                 {(() => {
                   const nbAffaires = affairesList.filter(a => a.statut_global !== 'Perdu').length;
                   return [
-                    {id:'infos',       lbl:'📋 Informations'},
-                    {id:'licences',    lbl:`🔑 Licences${clientLicences.length>0?' ('+clientLicences.length+')':''}`},
-                    {id:'boutiques',   lbl:`🏪 Boutiques${clientBoutiques.length>0?' ('+clientBoutiques.length+')':''}`},
-                    {id:'materiel',    lbl:`💻 Matériel${clientMateriel.length>0?' ('+clientMateriel.length+')':''}`},
-                    {id:'affaires',    lbl: `📁 Affaires${nbAffaires>0?' ('+nbAffaires+')':''}`, badge: nbAffaires>0},
+                    {id:'infos',        lbl:'📋 Informations'},
+                    {id:'licences',     lbl:'🔑 Licences',     count: clientLicences.length},
+                    {id:'boutiques',    lbl:'🏪 Boutiques',    count: clientBoutiques.length},
+                    {id:'materiel',     lbl:'💻 Matériel',     count: clientMateriel.length},
+                    {id:'affaires',     lbl:'📁 Affaires',     count: nbAffaires},
                     {id:'communication',lbl:'💬 Communication'},
                   ];
                 })().map(t => (
@@ -3849,7 +3849,7 @@
                       display:'flex',alignItems:'center',gap:'5px'}}
                   >
                     {t.lbl}
-                    {t.badge && <span style={{fontSize:'10px',fontWeight:'700',padding:'1px 5px',borderRadius:'8px',background:'var(--tw-teal)',color:'white'}}>{affairesList.filter(a=>a.statut_global!=='Perdu').length}</span>}
+                    {t.count > 0 && <span style={{fontSize:'10px',fontWeight:'700',padding:'1px 6px',borderRadius:'10px',background:'var(--tw-teal)',color:'white',marginLeft:'2px'}}>{t.count}</span>}
                   </button>
                 ))}
               </div>
