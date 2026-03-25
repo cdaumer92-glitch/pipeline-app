@@ -3026,8 +3026,7 @@
       const [societesSortCol, setSocietesSortCol] = React.useState('name');
       const [societesSortAsc, setSocietesSortAsc] = React.useState(true);
       const [recapSending, setRecapSending] = React.useState(false);
-      const [infoEdit, setInfoEdit] = React.useState(false);
-      const [infoForm, setInfoForm] = React.useState({name:'',adresse:'',website:'',tel_standard:'',assigned_to:'',notes:''});
+
       const [recapResult, setRecapResult] = React.useState(null);
       const [recapTarget, setRecapTarget] = React.useState('Moi (Christian)');
       const [recapType, setRecapType] = React.useState('actions');
@@ -3553,6 +3552,8 @@
       const [newActivityActor, setNewActivityActor] = React.useState('');
       const [showAutresContacts, setShowAutresContacts] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
+      const [infoEdit, setInfoEdit] = React.useState(false);
+      const [infoForm, setInfoForm] = React.useState({name:'',adresse:'',website:'',tel_standard:'',assigned_to:'',notes:''});
 
       // ── Onglets fiche client ──
       const [clientTab, setClientTab] = React.useState('infos');
