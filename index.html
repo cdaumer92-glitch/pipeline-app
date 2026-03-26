@@ -404,6 +404,7 @@
       const [recapPeriod, setRecapPeriod] = React.useState('jour'); // 'jour', 'semaine', 'mois'
       const [recapDate, setRecapDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [prospects, setProspects] = React.useState([]);
+      const [appUsers, setAppUsers] = React.useState([]);
       const [activities, setActivities] = React.useState({});
       const [nextActions, setNextActions] = React.useState([]);
       const [statusHistory, setStatusHistory] = React.useState([]);
@@ -500,6 +501,8 @@
       React.useEffect(() => {
         if (user) {
           fetchProspects();
+          fetch(`${API_URL}/users`, { headers: { 'Authorization': `Bearer ${user.token}` } })
+            .then(r => r.json()).then(data => { if (Array.isArray(data)) setAppUsers(data); });
         }
       }, [user]);
 
@@ -1709,7 +1712,7 @@
               setActionAffaireFormData={setActionAffaireFormData}
               handleSaveActionAffaire={handleSaveActionAffaire}
               interlocuteurs={interlocuteurs}
-              users={users}
+              users={appUsers}
             />
           </div>
           )}
