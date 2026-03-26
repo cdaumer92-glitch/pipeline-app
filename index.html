@@ -3582,6 +3582,7 @@
 
       // Modale ajout/modif licence
       const [showLicenceForm, setShowLicenceForm] = React.useState(false);
+      const [showModuleDropdown, setShowModuleDropdown] = React.useState(false);
       const [editingLicence, setEditingLicence] = React.useState(null);
       const [licenceForm, setLicenceForm] = React.useState({licence_id:'',nb_utilisateurs:0,facturation:'saas_mensuel',hebergement:'cloud',maintenance:'aucune',date_contrat:'',notes:''});
 
@@ -4046,15 +4047,47 @@
 
                     {showLicenceForm && (
                       <div style={{background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'16px',marginBottom:'14px'}}>
-                        {/* Ligne 1 : Module + Facturation + Nb users */}
-                        <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                        {/* Ligne 1 : tous les champs sauf Notes */}
+                        <div style={{display:'grid',gridTemplateColumns:'2fr 1fr auto 1fr 1fr 1fr',gap:'8px',marginBottom:'10px',alignItems:'end'}}>
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Module</label>
-                            <select value={licenceForm.licence_id} onChange={e=>setLicenceForm({...licenceForm,licence_id:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
-                              <option value="">— Choisir —</option>
-                              {refLicences.map(l => <option key={l.id} value={l.id}>{l.nom}</option>)}
-                            </select>
+                            <div style={{position:'relative'}}>
+                              <div onClick={() => setShowModuleDropdown(s=>!s)}
+                                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",background:'white',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                                <span style={{color:licenceForm.licence_id?'var(--tw-ink)':'var(--tw-muted)'}}>
+                                  {licenceForm.licence_id ? (refLicences.find(l=>String(l.id)===String(licenceForm.licence_id))?.nom||'— Choisir —') : '— Choisir —'}
+                                </span>
+                                <span style={{fontSize:'10px',color:'var(--tw-muted)'}}>▼</span>
+                              </div>
+                              {showModuleDropdown && (
+                                <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:999,background:'white',border:'1px solid var(--tw-border)',borderRadius:'6px',boxShadow:'0 4px 16px rgba(0,0,0,.12)',maxHeight:'280px',overflowY:'auto',marginTop:'2px'}}>
+                                  {[
+                                    {groupe:'Famille Biz/Fab', modules:['Biz','Biz + Fab','Fab']},
+                                    {groupe:'Famille Net', modules:['Net B2B','Net Agents seuls','Net B2B + Agents']},
+                                    {groupe:'Famille Commerce', modules:['Mag','VRP','Col']},
+                                    {groupe:'Famille Logistique', modules:['Log','Jet']},
+                                    {groupe:'Standalone', modules:['Kub','Flux','Facturation Électronique','Compta SAGE']},
+                                  ].map((g, gi) => (
+                                    <div key={g.groupe}>
+                                      {gi > 0 && <div style={{height:'1px',background:'var(--tw-border)',margin:'4px 0'}}></div>}
+                                      <div style={{padding:'6px 12px 3px',fontSize:'11px',fontWeight:'700',color:'var(--tw-ink)',textTransform:'uppercase',letterSpacing:'.4px',pointerEvents:'none'}}>{g.groupe}</div>
+                                      {g.modules.map(nom => {
+                                        const l = refLicences.find(r => r.nom === nom);
+                                        if (!l) return null;
+                                        return (
+                                          <div key={l.id}
+                                            onClick={() => { setLicenceForm({...licenceForm,licence_id:String(l.id)}); setShowModuleDropdown(false); }}
+                                            style={{padding:'7px 12px 7px 22px',fontSize:'13px',color:'var(--tw-slate)',cursor:'pointer',background:String(licenceForm.licence_id)===String(l.id)?'var(--tw-teal-light)':'white'}}
+                                            onMouseEnter={e=>e.currentTarget.style.background='var(--tw-teal-light)'}
+                                            onMouseLeave={e=>e.currentTarget.style.background=String(licenceForm.licence_id)===String(l.id)?'var(--tw-teal-light)':'white'}
+                                          >{l.nom}</div>
+                                        );
+                                      })}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Facturation</label>
@@ -4070,9 +4103,6 @@
                             <input type="number" value={licenceForm.nb_utilisateurs} onChange={e=>setLicenceForm({...licenceForm,nb_utilisateurs:parseInt(e.target.value)||0})}
                               style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
                           </div>
-                        </div>
-                        {/* Ligne 2 : Hébergement + Maintenance + Date + Notes */}
-                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:'10px',marginBottom:'10px'}}>
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Hébergement</label>
                             <select value={licenceForm.hebergement} onChange={e=>setLicenceForm({...licenceForm,hebergement:e.target.value})}
@@ -4100,11 +4130,13 @@
                             <input type="date" value={licenceForm.date_contrat} onChange={e=>setLicenceForm({...licenceForm,date_contrat:e.target.value})}
                               style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
                           </div>
-                          <div>
-                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Notes</label>
-                            <input type="text" value={licenceForm.notes} onChange={e=>setLicenceForm({...licenceForm,notes:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} placeholder="Optionnel" />
-                          </div>
+                        </div>
+                        {/* Notes sur ligne séparée */}
+                        <div style={{marginBottom:'10px'}}>
+                          <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Notes</label>
+                          <textarea value={licenceForm.notes} onChange={e=>setLicenceForm({...licenceForm,notes:e.target.value})}
+                            placeholder="Optionnel" rows={2}
+                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",resize:'vertical'}} />
                         </div>
                         <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
                           <button onClick={() => setShowLicenceForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
