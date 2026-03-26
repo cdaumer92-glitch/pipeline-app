@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fileUpload from 'express-fileupload';
 import { Storage } from '@google-cloud/storage';
+import XLSX from 'xlsx';
 
 const { Pool } = pkg;
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -2262,7 +2263,6 @@ app.post('/api/import', auth, async (req, res) => {
       return res.status(400).json({ error: 'Fichier Excel manquant' });
     }
 
-    const XLSX = (await import('xlsx')).default;
     const workbook = XLSX.read(req.files.file.data, { type: 'buffer' });
 
     // ── Onglet Societes ──
