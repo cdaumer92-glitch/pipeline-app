@@ -321,6 +321,10 @@ async function initDB() {
       ADD COLUMN IF NOT EXISTS tw_version TEXT
     `);
     await client.query(`
+      ALTER TABLE client_licences
+      ADD COLUMN IF NOT EXISTS facturation TEXT DEFAULT 'saas_mensuel'
+    `);
+    await client.query(`
       ALTER TABLE prospects
       ADD COLUMN IF NOT EXISTS statut_societe TEXT DEFAULT 'Prospect'
     `);
@@ -1646,24 +1650,24 @@ app.get('/api/prospects/:id/licences', auth, async (req, res) => {
 });
 
 app.post('/api/prospects/:id/licences', auth, async (req, res) => {
-  const { licence_id, nb_utilisateurs, hebergement, maintenance, date_contrat, notes } = req.body;
+  const { licence_id, nb_utilisateurs, facturation, hebergement, maintenance, date_contrat, notes } = req.body;
   try {
     const r = await pool.query(`
-      INSERT INTO client_licences (prospect_id, licence_id, nb_utilisateurs, hebergement, maintenance, date_contrat, notes)
-      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *
-    `, [req.params.id, licence_id, nb_utilisateurs||0, hebergement||'cloud', maintenance||'aucune', date_contrat||null, notes||null]);
+      INSERT INTO client_licences (prospect_id, licence_id, nb_utilisateurs, facturation, hebergement, maintenance, date_contrat, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *
+    `, [req.params.id, licence_id, nb_utilisateurs||0, facturation||'saas_mensuel', hebergement||'cloud', maintenance||'aucune', date_contrat||null, notes||null]);
     res.json(r.rows[0]);
   } catch(err) { res.status(500).json({error: err.message}); }
 });
 
 app.put('/api/licences-client/:id', auth, async (req, res) => {
-  const { licence_id, nb_utilisateurs, hebergement, maintenance, date_contrat, notes } = req.body;
+  const { licence_id, nb_utilisateurs, facturation, hebergement, maintenance, date_contrat, notes } = req.body;
   try {
     const r = await pool.query(`
-      UPDATE client_licences SET licence_id=$1, nb_utilisateurs=$2, hebergement=$3,
-        maintenance=$4, date_contrat=$5, notes=$6, updated_at=NOW()
-      WHERE id=$7 RETURNING *
-    `, [licence_id, nb_utilisateurs||0, hebergement||'cloud', maintenance||'aucune', date_contrat||null, notes||null, req.params.id]);
+      UPDATE client_licences SET licence_id=$1, nb_utilisateurs=$2, facturation=$3, hebergement=$4,
+        maintenance=$5, date_contrat=$6, notes=$7, updated_at=NOW()
+      WHERE id=$8 RETURNING *
+    `, [licence_id, nb_utilisateurs||0, facturation||'saas_mensuel', hebergement||'cloud', maintenance||'aucune', date_contrat||null, notes||null, req.params.id]);
     res.json(r.rows[0]);
   } catch(err) { res.status(500).json({error: err.message}); }
 });

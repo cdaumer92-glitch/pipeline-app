@@ -3583,7 +3583,7 @@
       // Modale ajout/modif licence
       const [showLicenceForm, setShowLicenceForm] = React.useState(false);
       const [editingLicence, setEditingLicence] = React.useState(null);
-      const [licenceForm, setLicenceForm] = React.useState({licence_id:'',nb_utilisateurs:0,hebergement:'cloud',maintenance:'aucune',date_contrat:'',notes:''});
+      const [licenceForm, setLicenceForm] = React.useState({licence_id:'',nb_utilisateurs:0,facturation:'saas_mensuel',hebergement:'cloud',maintenance:'aucune',date_contrat:'',notes:''});
 
       // Modale ajout/modif boutique
       const [showBoutiqueForm, setShowBoutiqueForm] = React.useState(false);
@@ -4038,7 +4038,7 @@
 
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
                       <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px'}}>Licences actives</span>
-                      <button onClick={() => { setEditingLicence(null); setLicenceForm({licence_id:'',nb_utilisateurs:0,hebergement:'cloud',maintenance:'aucune',date_contrat:'',notes:''}); setShowLicenceForm(true); }}
+                      <button onClick={() => { setEditingLicence(null); setLicenceForm({licence_id:'',nb_utilisateurs:0,facturation:'saas_mensuel',hebergement:'cloud',maintenance:'aucune',date_contrat:'',notes:''}); setShowLicenceForm(true); }}
                         style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
                         + Licence
                       </button>
@@ -4061,6 +4061,15 @@
                               style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
                           </div>
                           <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Facturation</label>
+                            <select value={licenceForm.facturation||'saas_mensuel'} onChange={e=>setLicenceForm({...licenceForm,facturation:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              <option value="perpetuelle">🔑 Perpétuelle</option>
+                              <option value="saas_mensuel">📅 SaaS mensuel</option>
+                              <option value="saas_annuel">📆 SaaS annuel</option>
+                            </select>
+                          </div>
+                                                    <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Hébergement</label>
                             <select value={licenceForm.hebergement} onChange={e=>setLicenceForm({...licenceForm,hebergement:e.target.value})}
                               style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
@@ -4101,7 +4110,7 @@
                       <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
                         <thead>
                           <tr style={{background:'var(--tw-bg)'}}>
-                            {['Module','Type','Nb users','Hébergement','Maintenance','Depuis',''].map(h => (
+                            {['Module','Facturation','Nb users','Hébergement','Maintenance','Depuis',''].map(h => (
                               <th key={h} style={{textAlign:'left',padding:'7px 10px',fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px'}}>{h}</th>
                             ))}
                           </tr>
@@ -4112,9 +4121,9 @@
                               <td style={{padding:'8px 10px',fontWeight:'600'}}>{l.licence_nom}</td>
                               <td style={{padding:'8px 10px'}}>
                                 <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 8px',borderRadius:'8px',
-                                  background:l.licence_type==='perpetuelle'?'#fff8e1':'#e8f4fd',
-                                  color:l.licence_type==='perpetuelle'?'#f57c00':'var(--tw-blue)'}}>
-                                  {l.licence_type==='perpetuelle'?'Perpétuelle':'SaaS'}
+                                  background:l.facturation==='perpetuelle'?'#fff8e1':l.facturation==='saas_annuel'?'#e8f8f0':'#e8f4fd',
+                                  color:l.facturation==='perpetuelle'?'#f57c00':l.facturation==='saas_annuel'?'var(--tw-green)':'var(--tw-blue)'}}>
+                                  {l.facturation==='perpetuelle'?'🔑 Perpétuelle':l.facturation==='saas_annuel'?'📆 SaaS annuel':'📅 SaaS mensuel'}
                                 </span>
                               </td>
                               <td style={{padding:'8px 10px',fontVariantNumeric:'tabular-nums'}}>{l.nb_utilisateurs||'—'}</td>
@@ -4129,7 +4138,7 @@
                               <td style={{padding:'8px 10px',fontSize:'12px',color:'var(--tw-muted)'}}>{l.date_contrat?new Date(l.date_contrat).toLocaleDateString('fr-FR'):'—'}</td>
                               <td style={{padding:'8px 10px'}}>
                                 <div style={{display:'flex',gap:'4px'}}>
-                                  <button onClick={() => { setEditingLicence(l); setLicenceForm({licence_id:l.licence_id,nb_utilisateurs:l.nb_utilisateurs||0,hebergement:l.hebergement||'cloud',maintenance:l.maintenance||'aucune',date_contrat:l.date_contrat?l.date_contrat.split('T')[0]:'',notes:l.notes||''}); setShowLicenceForm(true); }}
+                                  <button onClick={() => { setEditingLicence(l); setLicenceForm({licence_id:l.licence_id,nb_utilisateurs:l.nb_utilisateurs||0,facturation:l.facturation||'saas_mensuel',hebergement:l.hebergement||'cloud',maintenance:l.maintenance||'aucune',date_contrat:l.date_contrat?l.date_contrat.split('T')[0]:'',notes:l.notes||''}); setShowLicenceForm(true); }}
                                     style={{padding:'3px 7px',border:'1px solid var(--tw-border)',borderRadius:'4px',background:'white',cursor:'pointer',fontSize:'11px'}}>✏️</button>
                                   <button onClick={() => handleDeleteLicence(l.id)}
                                     style={{padding:'3px 7px',border:'none',borderRadius:'4px',background:'#f79d8d',color:'white',cursor:'pointer',fontSize:'11px'}}>🗑️</button>
