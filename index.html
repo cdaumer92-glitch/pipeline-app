@@ -4046,19 +4046,15 @@
 
                     {showLicenceForm && (
                       <div style={{background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'16px',marginBottom:'14px'}}>
-                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                        {/* Ligne 1 : Module + Facturation + Nb users */}
+                        <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr',gap:'10px',marginBottom:'10px'}}>
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Module</label>
                             <select value={licenceForm.licence_id} onChange={e=>setLicenceForm({...licenceForm,licence_id:e.target.value})}
                               style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
                               <option value="">— Choisir —</option>
-                              {refLicences.map(l => <option key={l.id} value={l.id}>[{l.type==='perpetuelle'?'Perp.':'SaaS'}] {l.nom}</option>)}
+                              {refLicences.map(l => <option key={l.id} value={l.id}>{l.nom}</option>)}
                             </select>
-                          </div>
-                          <div>
-                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Nb utilisateurs</label>
-                            <input type="number" value={licenceForm.nb_utilisateurs} onChange={e=>setLicenceForm({...licenceForm,nb_utilisateurs:parseInt(e.target.value)||0})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
                           </div>
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Facturation</label>
@@ -4069,7 +4065,15 @@
                               <option value="saas_annuel">📆 SaaS annuel</option>
                             </select>
                           </div>
-                                                    <div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Nb utilisateurs</label>
+                            <input type="number" value={licenceForm.nb_utilisateurs} onChange={e=>setLicenceForm({...licenceForm,nb_utilisateurs:parseInt(e.target.value)||0})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                          </div>
+                        </div>
+                        {/* Ligne 2 : Hébergement + Maintenance + Date + Notes */}
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                          <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Hébergement</label>
                             <select value={licenceForm.hebergement} onChange={e=>setLicenceForm({...licenceForm,hebergement:e.target.value})}
                               style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
@@ -4078,9 +4082,14 @@
                             </select>
                           </div>
                           <div>
-                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Maintenance</label>
-                            <select value={licenceForm.maintenance} onChange={e=>setLicenceForm({...licenceForm,maintenance:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                            <label style={{fontSize:'11px',color:(licenceForm.facturation||'saas_mensuel')!=='perpetuelle'?'#ccc':'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Maintenance</label>
+                            <select value={licenceForm.maintenance}
+                              disabled={(licenceForm.facturation||'saas_mensuel')!=='perpetuelle'}
+                              onChange={e=>setLicenceForm({...licenceForm,maintenance:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",
+                                background:(licenceForm.facturation||'saas_mensuel')!=='perpetuelle'?'#f5f5f5':'white',
+                                color:(licenceForm.facturation||'saas_mensuel')!=='perpetuelle'?'#ccc':'var(--tw-ink)',
+                                cursor:(licenceForm.facturation||'saas_mensuel')!=='perpetuelle'?'not-allowed':'pointer'}}>
                               <option value="aucune">Aucune</option>
                               <option value="A2">A2 — Support technique</option>
                               <option value="A3">A3 — Support + Évolutions</option>
