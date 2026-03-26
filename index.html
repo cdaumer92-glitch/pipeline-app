@@ -1477,7 +1477,9 @@
           matchStatus = p.real_status === filterStatus;
         }
         
-        const matchCommercial = filterCommercial === 'Tous' || p.assigned_to === filterCommercial;
+        const matchCommercial = (filterAttribution === 'Mes' || filterAttribution === 'NonAttribuees')
+          ? true
+          : (filterCommercial === 'Tous' || p.assigned_to === filterCommercial || (!p.assigned_to && filterCommercial === 'Tous'));
         const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (p.contact_name && p.contact_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
                            (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase()));
