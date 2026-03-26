@@ -2268,11 +2268,13 @@ app.post('/api/import', auth, async (req, res) => {
     // ── Onglet Societes ──
     const sheetSoc = workbook.Sheets['Societes'] || workbook.Sheets[workbook.SheetNames[0]];
     if (!sheetSoc) return res.status(400).json({ error: 'Onglet "Societes" introuvable' });
-    const societes = XLSX.utils.sheet_to_json(sheetSoc, { defval: '' });
+    const rawSocietes = XLSX.utils.sheet_to_json(sheetSoc, { defval: '' });
+    const societes = rawSocietes.map(r => Object.fromEntries(Object.entries(r).map(([k,v]) => [k.replace(/\*/g,'').trim(), v])));
 
     // ── Onglet Contacts ──
     const sheetCont = workbook.Sheets['Contacts'] || workbook.Sheets[workbook.SheetNames[1]];
-    const contacts = sheetCont ? XLSX.utils.sheet_to_json(sheetCont, { defval: '' }) : [];
+    const rawContacts = sheetCont ? XLSX.utils.sheet_to_json(sheetCont, { defval: '' }) : [];
+    const contacts = rawContacts.map(r => Object.fromEntries(Object.entries(r).map(([k,v]) => [k.replace(/\*/g,'').trim(), v])));
 
     const statutsValides = ['Suspect', 'Prospect', 'Client'];
 
