@@ -225,27 +225,30 @@ async function initDB() {
     )`);
 
     // Insérer les licences de base si pas encore présentes
+    // Mettre à jour les noms des licences existantes et en ajouter de nouvelles
     await client.query(`
       INSERT INTO licences (code, nom, type) VALUES
-        ('BIZ',       'Biz',                    'saas'),
-        ('BIZ_FAB',   'Biz + Fab',              'saas'),
-        ('FAB',       'Fab',                    'saas'),
-        ('NET_B2B',   'Net B2B',                'saas'),
-        ('AGENTS',    'Agents',                 'saas'),
-        ('NET_AGENTS','Net B2B + Agents',        'saas'),
-        ('KUB',       'Kub',                    'saas'),
-        ('MAG',       'Mag',                    'saas'),
-        ('VRP',       'VRP',                    'saas'),
-        ('COL',       'Col',                    'saas'),
-        ('LOG',       'Log',                    'saas'),
-        ('JET',       'Jet',                    'saas'),
-        ('FLUX_TIERS','Flux Tiers',             'saas'),
-        ('COMPTA_SAGE','Compta Sage',           'saas'),
-        ('FACT_ELEC', 'Facturation Électronique','saas'),
-        ('PERP_BIZ',  'Perpétuelle Biz',        'perpetuelle'),
-        ('PERP_FAB',  'Perpétuelle Fab',        'perpetuelle'),
-        ('PERP_BIZ_FAB','Perpétuelle Biz+Fab',  'perpetuelle')
-      ON CONFLICT (code) DO NOTHING
+        ('BIZ',        'Biz',                     'saas'),
+        ('BIZ_FAB',    'Biz + Fab',               'saas'),
+        ('FAB',        'Fab',                     'saas'),
+        ('NET_B2B',    'Net B2B',                 'saas'),
+        ('NET_AGENTS', 'Net Agents seuls',         'saas'),
+        ('NET_B2B_AG', 'Net B2B + Agents',        'saas'),
+        ('MAG',        'Mag',                     'saas'),
+        ('VRP',        'VRP',                     'saas'),
+        ('COL',        'Col',                     'saas'),
+        ('LOG',        'Log',                     'saas'),
+        ('JET',        'Jet',                     'saas'),
+        ('KUB',        'Kub',                     'saas'),
+        ('FLUX',       'Flux',                    'saas'),
+        ('FACT_ELEC',  'Facturation Électronique','saas'),
+        ('COMPTA_SAGE','Compta SAGE',             'saas')
+      ON CONFLICT (code) DO UPDATE SET nom = EXCLUDED.nom, type = EXCLUDED.type
+    `);
+    // Supprimer les anciens codes inutilisés
+    await client.query(`
+      DELETE FROM licences WHERE code IN ('AGENTS','FLUX_TIERS','PERP_BIZ','PERP_FAB','PERP_BIZ_FAB')
+        AND id NOT IN (SELECT DISTINCT licence_id FROM client_licences WHERE licence_id IS NOT NULL)
     `);
 
     // Référentiel types de matériel
