@@ -1567,6 +1567,9 @@ app.get('/api/debug/actions', auth, async (req, res) => {
   } catch(err) { res.status(500).json({error: err.message}); }
 });
 
+// Health check - pour warm-up Cloud Run
+app.get('/api/health', (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
+
 // ===================== ROUTES CLIENT =====================
 
 // ── Référentiels ──
