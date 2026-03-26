@@ -1709,6 +1709,7 @@
               setActionAffaireFormData={setActionAffaireFormData}
               handleSaveActionAffaire={handleSaveActionAffaire}
               interlocuteurs={interlocuteurs}
+              users={users}
             />
           </div>
           )}
@@ -3707,7 +3708,7 @@
     }
 
 
-    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire }) {
+    function RightPanel({ selectedProspect, activities, nextActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
@@ -3860,6 +3861,32 @@
           onUpdateProspect({...selectedProspect, ...infoForm});
           setInfoEdit(false);
         } catch(err) { alert('Erreur: '+err.message); }
+      };
+
+      // ── Attribution commercial ──
+      const [attribCommercial, setAttribCommercial] = React.useState(selectedProspect?.assigned_to || '');
+      const [attribLoading, setAttribLoading] = React.useState(false);
+      const [attribResult, setAttribResult] = React.useState(null);
+
+      const handleAttribuer = async () => {
+        if (!attribCommercial) return;
+        setAttribLoading(true);
+        setAttribResult(null);
+        try {
+          const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/attribuer`, {
+            method: 'PUT',
+            headers: {'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
+            body: JSON.stringify({ commercial_name: attribCommercial })
+          });
+          if (!res.ok) throw new Error('Erreur serveur');
+          onUpdateProspect({...selectedProspect, assigned_to: attribCommercial});
+          setInfoForm(f => ({...f, assigned_to: attribCommercial}));
+          setAttribResult({ ok: true, msg: `✅ Attribué à ${attribCommercial} — mail envoyé` });
+        } catch(e) {
+          setAttribResult({ ok: false, msg: '❌ ' + e.message });
+        } finally {
+          setAttribLoading(false);
+        }
       };
 
       const handleAddActivity = () => {
@@ -4038,7 +4065,6 @@
                         {lbl:'Adresse siège', field:'adresse'},
                         {lbl:'Site web', field:'website'},
                         {lbl:'Téléphone standard', field:'tel_standard'},
-                        {lbl:'Commercial assigné', field:'assigned_to'},
                       ].map(f => (
                         <div key={f.field}>
                           <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>{f.lbl}</div>
@@ -4051,6 +4077,26 @@
                           }
                         </div>
                       ))}
+                      {/* Commercial — bloc attribution dédié */}
+                      <div style={{gridColumn:'1/-1',background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'12px 14px'}}>
+                        <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'8px'}}>Commercial assigné</div>
+                        <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
+                          <select value={attribCommercial} onChange={e => { setAttribCommercial(e.target.value); setAttribResult(null); }}
+                            style={{padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",background:'white',minWidth:'160px'}}>
+                            <option value="">— Non attribué —</option>
+                            {(users||[]).filter(u => !['Frédéric','Frederic'].includes(u.name)).map(u => (
+                              <option key={u.id} value={u.name}>{u.name}</option>
+                            ))}
+                          </select>
+                          <button onClick={handleAttribuer} disabled={attribLoading || !attribCommercial || attribCommercial === selectedProspect.assigned_to}
+                            style={{padding:'6px 16px',background:(attribLoading||!attribCommercial||attribCommercial===selectedProspect.assigned_to)?'#ccc':'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'13px',fontWeight:'600',cursor:(attribLoading||!attribCommercial||attribCommercial===selectedProspect.assigned_to)?'default':'pointer',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>
+                            {attribLoading ? '⏳...' : '🎯 Attribuer'}
+                          </button>
+                          {attribResult && (
+                            <span style={{fontSize:'12px',fontWeight:'500',color:attribResult.ok?'var(--tw-green)':'var(--tw-red)'}}>{attribResult.msg}</span>
+                          )}
+                        </div>
+                      </div>
                       <div>
                         <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>Date entrée en relation</div>
                         <div style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-ink)'}}>{selectedProspect.created_at?new Date(selectedProspect.created_at).toLocaleDateString('fr-FR'):'—'}</div>
