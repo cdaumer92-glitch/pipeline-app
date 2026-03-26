@@ -2272,6 +2272,7 @@
     function Header({ user, onLogout, onDashboard, isDashboard, onSettings, prospects, onSelectProspect, onNewProspect }) {
       const [globalSearch, setGlobalSearch] = React.useState('');
       const [showResults, setShowResults] = React.useState(false);
+      const [searchIndex, setSearchIndex] = React.useState(-1);
       const searchRef = React.useRef(null);
 
       React.useEffect(() => {
@@ -2307,14 +2308,26 @@
               type="text"
               placeholder="Rechercher une société..."
               value={globalSearch}
-              onChange={(e) => { setGlobalSearch(e.target.value); setShowResults(e.target.value.length >= 2); }}
+              onChange={(e) => { setGlobalSearch(e.target.value); setShowResults(e.target.value.length >= 2); setSearchIndex(-1); }}
               onFocus={() => globalSearch.length >= 2 && setShowResults(true)}
+              onKeyDown={(e) => {
+                if (!showResults || filteredProspects.length === 0) return;
+                if (e.key === 'ArrowDown') { e.preventDefault(); setSearchIndex(i => Math.min(i+1, filteredProspects.length-1)); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchIndex(i => Math.max(i-1, 0)); }
+                else if (e.key === 'Enter' && searchIndex >= 0) {
+                  const p = filteredProspects[searchIndex];
+                  onSelectProspect(p); setGlobalSearch(''); setShowResults(false); setSearchIndex(-1);
+                  if (isDashboard) onDashboard();
+                } else if (e.key === 'Escape') { setShowResults(false); setSearchIndex(-1); }
+              }}
             />
             {showResults && (
               <div className="tw-search-dropdown">
-                {filteredProspects.length > 0 ? filteredProspects.map(p => (
-                  <div key={p.id} className="tw-search-item" onClick={() => {
-                    onSelectProspect(p); setGlobalSearch(''); setShowResults(false);
+                {filteredProspects.length > 0 ? filteredProspects.map((p, idx) => (
+                  <div key={p.id} className="tw-search-item"
+                    style={{background: idx === searchIndex ? 'var(--tw-teal-light)' : 'white'}}
+                    onClick={() => {
+                    onSelectProspect(p); setGlobalSearch(''); setShowResults(false); setSearchIndex(-1);
                     if (isDashboard) onDashboard();
                   }}>
                     <div style={{fontWeight: '600', fontSize: '13px', color: 'var(--tw-ink)'}}>{p.name}</div>
