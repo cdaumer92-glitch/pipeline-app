@@ -1580,7 +1580,8 @@ app.get('/api/health', (req, res) => res.json({ ok: true, ts: new Date().toISOSt
 // Nettoyage licences obsolètes (one-shot)
 app.get('/api/admin/clean-licences', auth, async (req, res) => {
   try {
-    await pool.query(`DELETE FROM licences WHERE code IN ('AGENTS','FLUX_TIERS','PERP_BIZ','PERP_FAB','PERP_BIZ_FAB') AND id NOT IN (SELECT DISTINCT licence_id FROM client_licences WHERE licence_id IS NOT NULL)`);
+    await pool.query(`DELETE FROM licences WHERE nom ILIKE '%Perpétuelle%'`);
+    await pool.query(`DELETE FROM licences WHERE code IN ('AGENTS','FLUX_TIERS','PERP_BIZ','PERP_FAB','PERP_BIZ_FAB')`);
     const r = await pool.query(`SELECT id, code, nom, type FROM licences ORDER BY nom`);
     res.json({ ok: true, licences: r.rows });
   } catch(err) { res.status(500).json({ error: err.message }); }
