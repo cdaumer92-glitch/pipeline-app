@@ -2200,7 +2200,6 @@ app.post('/api/recap/send-actions', async (req, res) => {
       await transporter.sendMail({
         from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
         to: user.email,
-        cc: 'cdaumer92@gmail.com', // CC Christian jusqu'au 27/03/2026
         subject: `⚠️ Récap Actions — ${user.name} — ${new Date().toLocaleDateString('fr-FR')}`,
         html
       });
@@ -2241,7 +2240,6 @@ app.post('/api/recap/send-pipeline', async (req, res) => {
     await transporter.sendMail({
       from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
       to: toEmail,
-      cc: 'cdaumer92@gmail.com', // CC Christian jusqu'au 27/03/2026
       subject: `📊 Vue Pipeline — ${new Date().toLocaleDateString('fr-FR')}`,
       html
     });
@@ -2478,7 +2476,6 @@ app.put('/api/prospects/:id/attribuer', auth, async (req, res) => {
       await transporter.sendMail({
         from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
         to: commercial.email,
-        cc: 'cdaumer92@gmail.com',
         subject: `🎯 Nouvelle société attribuée : ${prospect.name}`,
         html
       });
