@@ -4191,7 +4191,7 @@
                 {(() => {
                   const nbAffaires = affairesList.filter(a => a.statut_global !== 'Perdu').length;
                   return [
-                    {id:'infos',        lbl:'📋 Informations'},
+                    {id:'infos',        lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'iconeinfo.png',style:{width:'13px',height:'13px',objectFit:'contain'}}),'Informations')},
                     {id:'licences',     lbl:'🔑 Licences',     count: clientLicences.length},
                     {id:'boutiques',    lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'IconeBag.png',style:{width:'13px',height:'13px',objectFit:'contain'}}),'Boutiques'),    count: clientBoutiques.length},
                     {id:'materiel',     lbl:'💻 Matériel',     count: clientMateriel.length},
