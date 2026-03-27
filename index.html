@@ -2438,7 +2438,7 @@
         setResult(null);
         try {
           const attributions = toSend.map(p => ({ id: p.id, commercial_name: selections[p.id] }));
-          const res = await fetch(`${API_URL}/prospects/attribuer-bulk`, {
+          const res = await fetch(`${API_URL}/attributions/bulk`, {
             method: 'PUT',
             headers: {'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
             body: JSON.stringify({ attributions })

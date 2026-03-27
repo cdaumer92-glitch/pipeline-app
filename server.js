@@ -2408,91 +2408,9 @@ app.post('/api/import', auth, async (req, res) => {
 });
 
 // ===================== ATTRIBUTION COMMERCIAL =====================
-// PUT /api/prospects/:id/attribuer
-// Attribue un commercial à une société + envoie un mail de notification
-app.put('/api/prospects/:id/attribuer', auth, async (req, res) => {
-  try {
-    const { commercial_name } = req.body;
-    if (!commercial_name) return res.status(400).json({ error: 'commercial_name requis' });
-
-    const prospectRes = await pool.query(`SELECT name, statut_societe, ville FROM prospects WHERE id = $1`, [req.params.id]);
-    if (prospectRes.rows.length === 0) return res.status(404).json({ error: 'Société introuvable' });
-    const prospect = prospectRes.rows[0];
-
-    // Mettre à jour assigned_to
-    await pool.query(
-      `UPDATE prospects SET assigned_to = $1, updated_at = NOW() WHERE id = $2`,
-      [commercial_name, req.params.id]
-    );
-
-    // Récupérer l'email du commercial
-    const userRes = await pool.query(`SELECT email, name FROM users WHERE name = $1 LIMIT 1`, [commercial_name]);
-    if (userRes.rows.length > 0) {
-      const commercial = userRes.rows[0];
-      const appUrl = process.env.APP_URL || 'https://pipeline-app-702707858708.europe-west9.run.app';
-      const ficheUrl = `${appUrl}/#prospect-${req.params.id}`;
-
-      const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f0f4f4;font-family:Arial,sans-serif">
-<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr>
-      <td style="background:#007d89;padding:20px 28px">
-        <span style="color:#fff;font-size:18px;font-weight:700">TexasWin Pipeline</span>
-        <span style="float:right;background:#2ec27e;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;margin-top:2px">Nouvelle attribution</span>
-      </td>
-    </tr>
-    <tr>
-      <td style="padding:28px">
-        <p style="margin:0 0 16px;font-size:15px;color:#1a3535">Bonjour <strong>${commercial.name}</strong>,</p>
-        <p style="margin:0 0 20px;font-size:14px;color:#444">Une nouvelle société vous a été attribuée :</p>
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f8f8;border-radius:6px;border:1px solid #cde8e8;margin-bottom:24px">
-          <tr>
-            <td style="padding:16px 20px">
-              <div style="font-size:18px;font-weight:700;color:#007d89;margin-bottom:4px">${prospect.name}</div>
-              <div style="font-size:13px;color:#607a7a">${prospect.statut_societe || 'Prospect'}${prospect.ville ? ' · ' + prospect.ville : ''}</div>
-            </td>
-          </tr>
-        </table>
-        <table width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td align="center">
-              <a href="${ficheUrl}" style="display:inline-block;background:#007d89;color:#fff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:14px;font-weight:700">Ouvrir la fiche →</a>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-    <tr>
-      <td style="padding:16px 28px;background:#f0f4f4;border-top:1px solid #e0ecec">
-        <p style="margin:0;font-size:11px;color:#9eb5b5;text-align:center">TexasWin Pipeline · notifications@texaswin.fr</p>
-      </td>
-    </tr>
-  </table>
-</div>
-</body></html>`;
-
-      await transporter.sendMail({
-        from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
-        to: commercial.email,
-        subject: `🎯 Nouvelle société attribuée : ${prospect.name}`,
-        html
-      });
-
-      console.log(`✅ Mail attribution envoyé à ${commercial.name} (${commercial.email})`);
-    }
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('Erreur attribution:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // PUT /api/prospects/attribuer-bulk
 // Attribue plusieurs sociétés à des commerciaux + envoie UN mail par commercial
-app.put('/api/prospects/attribuer-bulk', auth, async (req, res) => {
+app.put('/api/attributions/bulk', auth, async (req, res) => {
   try {
     const { attributions } = req.body; // [{ id, commercial_name }, ...]
     if (!Array.isArray(attributions) || attributions.length === 0)
@@ -2589,6 +2507,88 @@ app.put('/api/prospects/attribuer-bulk', auth, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('Erreur attribution bulk:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/prospects/:id/attribuer
+// Attribue un commercial à une société + envoie un mail de notification
+app.put('/api/prospects/:id/attribuer', auth, async (req, res) => {
+  try {
+    const { commercial_name } = req.body;
+    if (!commercial_name) return res.status(400).json({ error: 'commercial_name requis' });
+
+    const prospectRes = await pool.query(`SELECT name, statut_societe, ville FROM prospects WHERE id = $1`, [req.params.id]);
+    if (prospectRes.rows.length === 0) return res.status(404).json({ error: 'Société introuvable' });
+    const prospect = prospectRes.rows[0];
+
+    // Mettre à jour assigned_to
+    await pool.query(
+      `UPDATE prospects SET assigned_to = $1, updated_at = NOW() WHERE id = $2`,
+      [commercial_name, req.params.id]
+    );
+
+    // Récupérer l'email du commercial
+    const userRes = await pool.query(`SELECT email, name FROM users WHERE name = $1 LIMIT 1`, [commercial_name]);
+    if (userRes.rows.length > 0) {
+      const commercial = userRes.rows[0];
+      const appUrl = process.env.APP_URL || 'https://pipeline-app-702707858708.europe-west9.run.app';
+      const ficheUrl = `${appUrl}/#prospect-${req.params.id}`;
+
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f0f4f4;font-family:Arial,sans-serif">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td style="background:#007d89;padding:20px 28px">
+        <span style="color:#fff;font-size:18px;font-weight:700">TexasWin Pipeline</span>
+        <span style="float:right;background:#2ec27e;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;margin-top:2px">Nouvelle attribution</span>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:28px">
+        <p style="margin:0 0 16px;font-size:15px;color:#1a3535">Bonjour <strong>${commercial.name}</strong>,</p>
+        <p style="margin:0 0 20px;font-size:14px;color:#444">Une nouvelle société vous a été attribuée :</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f8f8;border-radius:6px;border:1px solid #cde8e8;margin-bottom:24px">
+          <tr>
+            <td style="padding:16px 20px">
+              <div style="font-size:18px;font-weight:700;color:#007d89;margin-bottom:4px">${prospect.name}</div>
+              <div style="font-size:13px;color:#607a7a">${prospect.statut_societe || 'Prospect'}${prospect.ville ? ' · ' + prospect.ville : ''}</div>
+            </td>
+          </tr>
+        </table>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td align="center">
+              <a href="${ficheUrl}" style="display:inline-block;background:#007d89;color:#fff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:14px;font-weight:700">Ouvrir la fiche →</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 28px;background:#f0f4f4;border-top:1px solid #e0ecec">
+        <p style="margin:0;font-size:11px;color:#9eb5b5;text-align:center">TexasWin Pipeline · notifications@texaswin.fr</p>
+      </td>
+    </tr>
+  </table>
+</div>
+</body></html>`;
+
+      await transporter.sendMail({
+        from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
+        to: commercial.email,
+        subject: `🎯 Nouvelle société attribuée : ${prospect.name}`,
+        html
+      });
+
+      console.log(`✅ Mail attribution envoyé à ${commercial.name} (${commercial.email})`);
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Erreur attribution:', err);
     res.status(500).json({ error: err.message });
   }
 });
