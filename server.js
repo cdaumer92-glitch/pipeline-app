@@ -2490,6 +2490,109 @@ app.put('/api/prospects/:id/attribuer', auth, async (req, res) => {
   }
 });
 
+// PUT /api/prospects/attribuer-bulk
+// Attribue plusieurs sociétés à des commerciaux + envoie UN mail par commercial
+app.put('/api/prospects/attribuer-bulk', auth, async (req, res) => {
+  try {
+    const { attributions } = req.body; // [{ id, commercial_name }, ...]
+    if (!Array.isArray(attributions) || attributions.length === 0)
+      return res.status(400).json({ error: 'attributions[] requis' });
+
+    // 1. Mise à jour en BDD de chaque société
+    for (const { id, commercial_name } of attributions) {
+      await pool.query(
+        `UPDATE prospects SET assigned_to = $1, updated_at = NOW() WHERE id = $2`,
+        [commercial_name, id]
+      );
+    }
+
+    // 2. Récupérer les détails des sociétés mises à jour
+    const ids = attributions.map(a => a.id);
+    const prospectsRes = await pool.query(
+      `SELECT id, name, statut_societe, ville FROM prospects WHERE id = ANY($1)`,
+      [ids]
+    );
+    const prospectsMap = {};
+    prospectsRes.rows.forEach(p => { prospectsMap[p.id] = p; });
+
+    // 3. Grouper par commercial
+    const byCommercial = {};
+    for (const { id, commercial_name } of attributions) {
+      if (!byCommercial[commercial_name]) byCommercial[commercial_name] = [];
+      if (prospectsMap[id]) byCommercial[commercial_name].push({ ...prospectsMap[id] });
+    }
+
+    const appUrl = process.env.APP_URL || 'https://pipeline-app-702707858708.europe-west9.run.app';
+
+    // 4. Un seul mail par commercial
+    for (const [commercial_name, societes] of Object.entries(byCommercial)) {
+      const userRes = await pool.query(`SELECT email, name FROM users WHERE name = $1 LIMIT 1`, [commercial_name]);
+      if (userRes.rows.length === 0) continue;
+      const commercial = userRes.rows[0];
+
+      const n = societes.length;
+      const lignesSocietes = societes.map(p => {
+        const ficheUrl = `${appUrl}/#prospect-${p.id}`;
+        return `
+          <tr>
+            <td style="padding:12px 16px;border-bottom:1px solid #e0ecec">
+              <div style="font-size:15px;font-weight:700;color:#007d89">${p.name}</div>
+              <div style="font-size:12px;color:#607a7a;margin-top:2px">${p.statut_societe || 'Prospect'}${p.ville ? ' · ' + p.ville : ''}</div>
+            </td>
+            <td style="padding:12px 16px;border-bottom:1px solid #e0ecec;text-align:right;white-space:nowrap">
+              <a href="${ficheUrl}" style="display:inline-block;background:#007d89;color:#fff;text-decoration:none;padding:7px 16px;border-radius:5px;font-size:12px;font-weight:700">Voir la fiche →</a>
+            </td>
+          </tr>`;
+      }).join('');
+
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f0f4f4;font-family:Arial,sans-serif">
+<div style="max-width:600px;margin:32px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td style="background:#007d89;padding:20px 28px">
+        <span style="color:#fff;font-size:18px;font-weight:700">TexasWin Pipeline</span>
+        <span style="float:right;background:#2ec27e;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;margin-top:2px">Nouvelle attribution</span>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:28px">
+        <p style="margin:0 0 16px;font-size:15px;color:#1a3535">Bonjour <strong>${commercial.name}</strong>,</p>
+        <p style="margin:0 0 20px;font-size:14px;color:#444">${n} société${n > 1 ? 's vous ont été attribuées' : ' vous a été attribuée'} :</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f8f8;border-radius:6px;border:1px solid #cde8e8;margin-bottom:24px">
+          ${lignesSocietes}
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 28px;background:#f0f4f4;border-top:1px solid #e0ecec">
+        <p style="margin:0;font-size:11px;color:#9eb5b5;text-align:center">TexasWin Pipeline · notifications@texaswin.fr</p>
+      </td>
+    </tr>
+  </table>
+</div>
+</body></html>`;
+
+      await transporter.sendMail({
+        from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
+        to: commercial.email,
+        subject: n > 1
+          ? `🎯 ${n} nouvelles sociétés attribuées`
+          : `🎯 Nouvelle société attribuée : ${societes[0].name}`,
+        html
+      });
+
+      console.log(`✅ Mail attribution envoyé à ${commercial.name} (${commercial.email}) — ${n} société(s)`);
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Erreur attribution bulk:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/prospects/non-attribues — liste des sociétés sans commercial (admin)
 app.get('/api/prospects/non-attribues', auth, async (req, res) => {
   try {

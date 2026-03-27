@@ -2436,23 +2436,20 @@
         if (toSend.length === 0) return;
         setSending(true);
         setResult(null);
-        let ok = 0, errors = [];
-        for (const p of toSend) {
-          try {
-            const res = await fetch(`${API_URL}/prospects/${p.id}/attribuer`, {
-              method: 'PUT',
-              headers: {'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
-              body: JSON.stringify({ commercial_name: selections[p.id] })
-            });
-            if (!res.ok) throw new Error('Erreur');
-            onUpdateProspect({...p, assigned_to: selections[p.id]});
-            ok++;
-          } catch(e) {
-            errors.push(p.name);
-          }
+        try {
+          const attributions = toSend.map(p => ({ id: p.id, commercial_name: selections[p.id] }));
+          const res = await fetch(`${API_URL}/prospects/attribuer-bulk`, {
+            method: 'PUT',
+            headers: {'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
+            body: JSON.stringify({ attributions })
+          });
+          if (!res.ok) throw new Error('Erreur serveur');
+          toSend.forEach(p => onUpdateProspect({...p, assigned_to: selections[p.id]}));
+          setResult({ ok: toSend.length, errors: [] });
+        } catch(e) {
+          setResult({ ok: 0, errors: toSend.map(p => p.name) });
         }
         setSending(false);
-        setResult({ ok, errors });
       };
 
       const nbSelectionnes = nonAttribues.filter(p => selections[p.id]).length;
