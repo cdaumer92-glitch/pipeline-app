@@ -4250,7 +4250,7 @@
                       ))}
                       {/* Commercial — affichage seul */}
                       <div style={{gridColumn:'1/-1',background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'12px 14px'}}>
-                        <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>👤 Commercial assigné</div>
+                        <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px',display:'flex',alignItems:'center',gap:'5px'}}><img src="IconeSales.png" style={{width:'13px',height:'13px',objectFit:'contain'}} alt=""/>Commercial assigné</div>
                         <div style={{fontSize:'13px',fontWeight:'500',color:selectedProspect.assigned_to?'var(--tw-ink)':'var(--tw-muted)'}}>
                           {selectedProspect.assigned_to || '— Non attribué —'}
                         </div>
