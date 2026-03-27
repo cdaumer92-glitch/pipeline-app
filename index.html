@@ -4174,75 +4174,30 @@
 
 
 
-            {/* ── SECTION CONTACTS (Suspect / Prospect) ── */}
-            {selectedProspect.statut_societe !== 'Client' && interlocuteurs.length > 0 && (() => {
-              const sorted = [...interlocuteurs].sort((a, b) => {
-                if (a.contact_principal && !b.contact_principal) return -1;
-                if (!a.contact_principal && b.contact_principal) return 1;
-                return 0;
-              });
-              const principaux = sorted.slice(0, 2);
-              const autres = sorted.slice(2);
-              const renderContact = (c) => (
-                <div key={c.id} style={{display:'flex',alignItems:'flex-start',gap:'10px',padding:'10px 0',borderBottom:'1px solid var(--tw-border)'}}>
-                  <div style={{width:'30px',height:'30px',borderRadius:'50%',background:'var(--tw-teal-light)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'12px',fontWeight:'700',color:'var(--tw-teal)',flexShrink:0}}>
-                    {((c.prenom?.[0]||'')+(c.nom?.[0]||'')).toUpperCase()||'?'}
-                  </div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:'flex',alignItems:'center',gap:'6px',flexWrap:'wrap'}}>
-                      <span style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{[c.prenom,c.nom].filter(Boolean).join(' ')||'—'}</span>
-                      {c.contact_principal && <span style={{fontSize:'10px',fontWeight:'700',padding:'1px 7px',borderRadius:'10px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
-                    </div>
-                    {c.fonction && <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'1px'}}>{c.fonction}</div>}
-                    <div style={{display:'flex',gap:'12px',flexWrap:'wrap',marginTop:'3px'}}>
-                      {c.email && <a href={`mailto:${c.email}`} style={{fontSize:'12px',color:'var(--tw-teal)',textDecoration:'none'}}>{c.email}</a>}
-                      {c.telephone && <span style={{fontSize:'12px',color:'var(--tw-slate)'}}>{c.telephone}</span>}
-                    </div>
-                  </div>
-                </div>
-              );
-              return (
-                <div style={{background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',padding:'14px 18px',marginBottom:'16px',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
-                  <div style={{fontSize:'11px',fontWeight:'700',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:'8px'}}>Contacts</div>
-                  {principaux.map(renderContact)}
-                  {autres.length > 0 && (
-                    <>
-                      <button onClick={() => setShowAllContacts(v => !v)}
-                        style={{marginTop:'8px',background:'none',border:'none',cursor:'pointer',fontSize:'12px',color:'var(--tw-teal)',fontWeight:'600',padding:'0',fontFamily:"'DM Sans',sans-serif"}}>
-                        {showAllContacts ? '▲ Masquer' : `▼ ${autres.length} autre${autres.length>1?'s':''} contact${autres.length>1?'s':''}`}
-                      </button>
-                      {showAllContacts && autres.map(renderContact)}
-                    </>
-                  )}
-                </div>
-              );
-            })()}
-
-            {selectedProspect.solutions_en_place && selectedProspect.statut_societe !== 'Client' && (
-              <div style={{marginBottom:'16px',padding:'14px 18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',borderLeft:'3px solid var(--tw-teal)',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
-                <strong style={{fontSize:'12px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',display:'block',marginBottom:'6px'}}>Solutions en place</strong>
-                <div style={{fontSize:'13px',color:'var(--tw-slate)',whiteSpace:'pre-line'}}>{selectedProspect.solutions_en_place}</div>
-              </div>
-            )}
 
 
           </div>
 
-          {/* ── ONGLETS CLIENT (Licences, Boutiques, Matériel) ── */}
-          {selectedProspect.statut_societe === 'Client' && (
+          {/* ── ONGLETS (Infos, Affaires, Communication + Client: Licences, Boutiques, Matériel) ── */}
+          {(() => {
+            const isClient = selectedProspect.statut_societe === 'Client';
+            return (
             <div style={{marginBottom:'20px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)',overflow:'hidden'}}>
               {/* Nav onglets */}
               <div style={{display:'flex',borderBottom:'1px solid var(--tw-border)',background:'var(--tw-bg)',overflowX:'auto'}}>
                 {(() => {
                   const nbAffaires = affairesList.filter(a => a.statut_global !== 'Perdu').length;
-                  return [
+                  const tabs = [
                     {id:'infos',        lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'Iconeinfo2.png',style:{width:'13px',height:'13px',objectFit:'contain'}}),'Informations')},
-                    {id:'licences',     lbl:'🔑 Licences',     count: clientLicences.length},
-                    {id:'boutiques',    lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'IconeBag.png',style:{width:'13px',height:'13px',objectFit:'contain'}}),'Boutiques'),    count: clientBoutiques.length},
-                    {id:'materiel',     lbl:'💻 Matériel',     count: clientMateriel.length},
+                    ...(isClient ? [
+                      {id:'licences',     lbl:'🔑 Licences',     count: clientLicences.length},
+                      {id:'boutiques',    lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'IconeBag.png',style:{width:'13px',height:'13px',objectFit:'contain'}}),'Boutiques'),    count: clientBoutiques.length},
+                      {id:'materiel',     lbl:'💻 Matériel',     count: clientMateriel.length},
+                    ] : []),
                     {id:'affaires',     lbl:'📁 Affaires',     count: nbAffaires},
                     {id:'communication',lbl:'💬 Communication'},
                   ];
+                  return tabs;
                 })().map(t => (
                   <button key={t.id}
                     onClick={() => setClientTab(t.id)}
@@ -4316,6 +4271,7 @@
                       }
                     </div>
 
+                    {isClient && (<>
                     {/* Installation TexasWin */}
                     <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)',marginBottom:'12px'}}>Installation TexasWin</div>
                     <div style={{background:'linear-gradient(135deg,var(--tw-ink) 0%,#2a5555 100%)',borderRadius:'10px',padding:'18px 22px',color:'white',marginBottom:'20px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -4339,6 +4295,15 @@
                         ))}
                       </div>
                     </div>
+                    </>)}
+
+                    {/* Solutions en place — Suspect/Prospect */}
+                    {!isClient && selectedProspect.solutions_en_place && (
+                      <div style={{marginBottom:'20px'}}>
+                        <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>Solutions en place</div>
+                        <div style={{fontSize:'13px',color:'var(--tw-slate)',background:'var(--tw-bg)',padding:'10px 12px',borderRadius:'6px',lineHeight:'1.6',whiteSpace:'pre-line'}}>{selectedProspect.solutions_en_place}</div>
+                      </div>
+                    )}
 
                     {/* Contacts */}
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
@@ -4951,72 +4916,9 @@
 
               </div>
             </div>
-          )}
+            );
+          })()}
 
-          {selectedProspect.statut_societe !== 'Client' && <ActivitiesSection
-            nextActions={nextActions}
-            statusHistory={statusHistory}
-            onAddNextAction={onAddNextAction}
-            onToggleNextAction={onToggleNextAction}
-            onDeleteNextAction={onDeleteNextAction}
-            newActionType={newActionType}
-            onActionTypeChange={onActionTypeChange}
-            newActionDate={newActionDate}
-            onActionDateChange={onActionDateChange}
-            newActionActor={newActionActor}
-            onActionActorChange={onActionActorChange}
-            newActionContact={newActionContact}
-            onActionContactChange={onActionContactChange}
-            newActionComment={newActionComment}
-            onActionCommentChange={onActionCommentChange}
-            user={user}
-            API_URL={API_URL}
-            interlocuteurs={interlocuteurs}
-            affairesList={affairesList}
-            selectedAffaireId={selectedAffaireId}
-            setSelectedAffaireId={setSelectedAffaireId}
-            expandedActionId={expandedActionId}
-            setExpandedActionId={setExpandedActionId}
-            handleAddAffaire={handleAddAffaire}
-            handleEditAffaire={handleEditAffaire}
-            handleSaveAffaire={handleSaveAffaire}
-            handleDeleteAffaire={handleDeleteAffaire}
-            showAffaireForm={showAffaireForm}
-            setShowAffaireForm={setShowAffaireForm}
-            editingAffaireId={editingAffaireId}
-            setEditingAffaireId={setEditingAffaireId}
-            affaireFormData={affaireFormData}
-            setAffaireFormData={setAffaireFormData}
-            affairesActions={affairesActions}
-            handleOpenActionAffaireForm={handleOpenActionAffaireForm}
-            handleToggleActionAffaire={handleToggleActionAffaire}
-            handleDeleteActionAffaire={handleDeleteActionAffaire}
-            showActionAffaireForm={showActionAffaireForm}
-            setShowActionAffaireForm={setShowActionAffaireForm}
-            actionAffaireFormData={actionAffaireFormData}
-            setActionAffaireFormData={setActionAffaireFormData}
-            handleSaveActionAffaire={handleSaveActionAffaire}
-            devisList={devisList}
-            onEdit={onEdit}
-            showDevisForm={showDevisForm}
-            setShowDevisForm={setShowDevisForm}
-            editingDevisId={editingDevisId}
-            setEditingDevisId={setEditingDevisId}
-            editingDevis={editingDevis}
-            setEditingDevis={setEditingDevis}
-            devisFormData={devisFormData}
-            setDevisFormData={setDevisFormData}
-            devisPdfFile={devisPdfFile}
-            setDevisPdfFile={setDevisPdfFile}
-            isUploadingDevisPdf={isUploadingDevisPdf}
-            handleAddDevis={handleAddDevis}
-            handleEditDevis={handleEditDevis}
-            handleSaveDevis={handleSaveDevis}
-            handleDeleteDevis={handleDeleteDevis}
-            handleDeleteDevisPDF={handleDeleteDevisPDF}
-            handleRattacherDevisAffaire={handleRattacherDevisAffaire}
-            selectedProspect={selectedProspect}
-          />}
         </div>
       );
     }
