@@ -4012,6 +4012,29 @@
               </div>
             )}
 
+            {/* ── Bloc attribution (prospect/suspect) ── */}
+            {selectedProspect.statut_societe !== 'Client' && (
+              <div style={{marginBottom:'16px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',padding:'14px 18px',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
+                <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'8px'}}>Commercial assigné</div>
+                <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
+                  <select value={attribCommercial} onChange={e => { setAttribCommercial(e.target.value); setAttribResult(null); }}
+                    style={{padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",background:'white',minWidth:'160px'}}>
+                    <option value="">— Non attribué —</option>
+                    {(users||[]).filter(u => !['Frédéric','Frederic'].includes(u.name)).map(u => (
+                      <option key={u.id} value={u.name}>{u.name}</option>
+                    ))}
+                  </select>
+                  <button onClick={handleAttribuer} disabled={attribLoading || !attribCommercial || attribCommercial === selectedProspect.assigned_to}
+                    style={{padding:'6px 16px',background:(attribLoading||!attribCommercial||attribCommercial===selectedProspect.assigned_to)?'#ccc':'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'13px',fontWeight:'600',cursor:(attribLoading||!attribCommercial||attribCommercial===selectedProspect.assigned_to)?'default':'pointer',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>
+                    {attribLoading ? '⏳...' : '🎯 Attribuer'}
+                  </button>
+                  {attribResult && (
+                    <span style={{fontSize:'12px',fontWeight:'500',color:attribResult.ok?'var(--tw-green)':'var(--tw-red)'}}>{attribResult.msg}</span>
+                  )}
+                </div>
+              </div>
+            )}
+
 
           </div>
 
