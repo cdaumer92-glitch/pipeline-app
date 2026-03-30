@@ -4854,7 +4854,7 @@
 
                     {showCommForm && (
                       <div style={{background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'16px',marginBottom:'14px'}}>
-                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1.5fr',gap:'10px',marginBottom:'10px'}}>
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Type</label>
                             <select value={commForm.action_type} onChange={e=>setCommForm({...commForm,action_type:e.target.value})}
@@ -4867,8 +4867,8 @@
                             <input type="date" value={commForm.planned_date} onChange={e=>setCommForm({...commForm,planned_date:e.target.value})}
                               style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
                           </div>
-                          <div style={{gridColumn:'1/-1'}}>
-                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Contexte</label>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Affaire / Marketing</label>
                             <select value={commForm.contexte_val} onChange={e=>setCommForm({...commForm,contexte_val:e.target.value})}
                               style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
                               <option value="">-- Aucun --</option>
