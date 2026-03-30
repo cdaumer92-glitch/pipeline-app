@@ -4216,7 +4216,7 @@
                       {id:'materiel',     lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'caisse-boutik2.png',style:{width:'13px',height:'13px',objectFit:'contain'}}),'Matériel'),     count: clientMateriel.length},
                     ] : []),
                     {id:'affaires',     lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src: nbAffaires > 0 ? 'iconefolderplein.png' : 'iconefoldervide.png',style:{width:'14px',height:'14px',objectFit:'contain'}}),'Affaires'),     count: nbAffaires},
-                    {id:'communication',lbl:'📋 Actions/Tâches'},
+                    {id:'communication',lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'iconeaction.png',style:{width:'13px',height:'13px',objectFit:'contain'}}),'Actions/Tâches')},
                   ];
                   return tabs;
                 })().map(t => (
