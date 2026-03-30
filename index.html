@@ -3911,7 +3911,7 @@
       const [showAllDevis, setShowAllDevis] = React.useState(false);
       const [infoEdit, setInfoEdit] = React.useState(false);
       const [showCommForm, setShowCommForm] = React.useState(false);
-      const [commForm, setCommForm] = React.useState({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:''});
+      const [commForm, setCommForm] = React.useState({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:'',contexte_val:''});
       const [infoForm, setInfoForm] = React.useState({name:'',adresse:'',website:'',tel_standard:'',assigned_to:'',notes:''});
 
       // ── Onglets fiche client ──
@@ -4867,6 +4867,16 @@
                             <input type="date" value={commForm.planned_date} onChange={e=>setCommForm({...commForm,planned_date:e.target.value})}
                               style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
                           </div>
+                          <div style={{gridColumn:'1/-1'}}>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Contexte</label>
+                            <select value={commForm.contexte_val} onChange={e=>setCommForm({...commForm,contexte_val:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              <option value="">-- Aucun --</option>
+                              <option value="marketing">Marketing</option>
+                              {affairesList.length > 0 && <option disabled>──────────</option>}
+                              {affairesList.map(a=><option key={a.id} value={`affaire_${a.id}`}>{a.nom_affaire}</option>)}
+                            </select>
+                          </div>
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>De (Acteur)</label>
                             <select value={commForm.actor} onChange={e=>setCommForm({...commForm,actor:e.target.value})}
@@ -4895,8 +4905,17 @@
                           <button onClick={() => setShowCommForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
                           <button onClick={async () => {
                             if (!commForm.action_type) return;
-                            await onAddNextAction(selectedProspect.id, commForm.action_type, commForm.comment, commForm.planned_date, commForm.actor, commForm.contact);
-                            setCommForm({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:''});
+                            const isAffaire = commForm.contexte_val.startsWith('affaire_');
+                            const affaire_id = isAffaire ? parseInt(commForm.contexte_val.replace('affaire_','')) : null;
+                            const contexte = commForm.contexte_val === 'marketing' ? 'Marketing' : null;
+                            await fetch(`${API_URL}/prospects/${selectedProspect.id}/next_actions`, {
+                              method:'POST',
+                              headers:{'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
+                              body: JSON.stringify({action_type:commForm.action_type, planned_date:commForm.planned_date, actor:commForm.actor, contact:commForm.contact, completed_note:commForm.comment, affaire_id, contexte})
+                            });
+                            fetchAllActions(selectedProspect.id);
+                            fetchNextActions(selectedProspect.id);
+                            setCommForm({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:'',contexte_val:''});
                             setShowCommForm(false);
                           }} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'DM Sans',sans-serif"}}>Enregistrer</button>
                         </div>
@@ -4921,6 +4940,11 @@
                               {a.nom_affaire && (
                                 <span style={{fontSize:'11px',padding:'1px 8px',borderRadius:'10px',background:'var(--tw-teal-light)',color:'var(--tw-teal)',fontWeight:'600',whiteSpace:'nowrap'}}>
                                   {a.nom_affaire}
+                                </span>
+                              )}
+                              {!a.nom_affaire && a.contexte === 'Marketing' && (
+                                <span style={{fontSize:'11px',padding:'1px 8px',borderRadius:'10px',background:'#fff3e0',color:'#e65100',fontWeight:'600',whiteSpace:'nowrap'}}>
+                                  Marketing
                                 </span>
                               )}
                             </div>

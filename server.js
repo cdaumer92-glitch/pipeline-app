@@ -107,8 +107,14 @@ async function initDB() {
 
     // Migration: Ajouter affaire_id dans next_actions si elle n'existe pas
     await client.query(`
-      ALTER TABLE next_actions 
+      ALTER TABLE next_actions
       ADD COLUMN IF NOT EXISTS affaire_id INTEGER REFERENCES affaires(id) ON DELETE CASCADE
+    `);
+
+    // Migration: Ajouter contexte dans next_actions si elle n'existe pas
+    await client.query(`
+      ALTER TABLE next_actions
+      ADD COLUMN IF NOT EXISTS contexte VARCHAR(50)
     `);
 
     // Table affaires (doit exister avant next_actions pour la FK)
@@ -554,11 +560,11 @@ app.get('/api/affaires/:id/next_actions', auth, async (req, res) => {
 });
 
 app.post('/api/prospects/:id/next_actions', auth, async (req, res) => {
-  const { action_type, planned_date, actor, contact, completed_note, affaire_id } = req.body;
+  const { action_type, planned_date, actor, contact, completed_note, affaire_id, contexte } = req.body;
   try {
     const result = await pool.query(
-      'INSERT INTO next_actions (prospect_id, affaire_id, action_type, planned_date, actor, contact, completed_note, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
-      [req.params.id, affaire_id || null, action_type, planned_date || null, actor, contact || null, completed_note || null, req.userId]
+      'INSERT INTO next_actions (prospect_id, affaire_id, action_type, planned_date, actor, contact, completed_note, contexte, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
+      [req.params.id, affaire_id || null, action_type, planned_date || null, actor, contact || null, completed_note || null, contexte || null, req.userId]
     );
     res.json({ id: result.rows[0].id });
   } catch (err) {
