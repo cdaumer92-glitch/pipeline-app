@@ -4207,7 +4207,7 @@
               {/* Nav onglets */}
               <div style={{display:'flex',borderBottom:'1px solid var(--tw-border)',background:'var(--tw-bg)',overflowX:'auto'}}>
                 {(() => {
-                  const nbAffaires = affairesList.filter(a => a.statut_global !== 'Perdu').length;
+                  const nbAffaires = affairesList.filter(a => a.statut_global !== 'Perdu' && a.statut_global !== 'Gagné').length;
                   const tabs = [
                     {id:'infos',        lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'Iconeinfo2.png',style:{width:'13px',height:'13px',objectFit:'contain'}}),'Informations')},
                     ...(isClient ? [
@@ -4215,7 +4215,7 @@
                       {id:'boutiques',    lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'IconeBag.png',style:{width:'13px',height:'13px',objectFit:'contain'}}),'Boutiques'),    count: clientBoutiques.length},
                       {id:'materiel',     lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'caisse-boutik2.png',style:{width:'13px',height:'13px',objectFit:'contain'}}),'Matériel'),     count: clientMateriel.length},
                     ] : []),
-                    {id:'affaires',     lbl:'📁 Affaires',     count: nbAffaires},
+                    {id:'affaires',     lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src: nbAffaires > 0 ? 'iconefolderplein.png' : 'iconefoldervide.png',style:{width:'14px',height:'14px',objectFit:'contain'}}),'Affaires'),     count: nbAffaires},
                     {id:'communication',lbl:'📋 Actions/Tâches'},
                   ];
                   return tabs;
