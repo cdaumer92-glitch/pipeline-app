@@ -408,6 +408,7 @@
       const [appUsers, setAppUsers] = React.useState([]);
       const [activities, setActivities] = React.useState({});
       const [nextActions, setNextActions] = React.useState([]);
+      const [allActions, setAllActions] = React.useState([]);
       const [statusHistory, setStatusHistory] = React.useState([]);
       const [actionNotes, setActionNotes] = React.useState({});
       const [prospectActionsInfo, setProspectActionsInfo] = React.useState({});
@@ -578,6 +579,18 @@
           });
         } catch (err) {
           console.error('Erreur:', err);
+        }
+      };
+
+      const fetchAllActions = async (prospectId) => {
+        try {
+          const res = await fetch(`${API_URL}/prospects/${prospectId}/actions-all`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          const data = await res.json();
+          setAllActions(Array.isArray(data) ? data : []);
+        } catch (err) {
+          console.error('Erreur fetchAllActions:', err);
         }
       };
 
@@ -1056,6 +1069,7 @@
 
           if (res.ok) {
             await fetchAffaires(selectedProspect.id);
+            fetchAllActions(selectedProspect.id);
             setShowActionAffaireForm(false);
             setSelectedAffaireForAction(null);
             setActionAffaireFormData({
@@ -1087,6 +1101,7 @@
 
           if (res.ok) {
             await fetchAffaires(selectedProspect.id);
+            fetchAllActions(selectedProspect.id);
           }
         } catch (err) {
           console.error('Erreur handleToggleActionAffaire:', err);
@@ -1104,6 +1119,7 @@
 
           if (res.ok) {
             await fetchAffaires(selectedProspect.id);
+            fetchAllActions(selectedProspect.id);
           }
         } catch (err) {
           console.error('Erreur handleDeleteActionAffaire:', err);
@@ -1344,6 +1360,7 @@
           });
           if (res.ok) {
             fetchNextActions(selectedProspect.id);
+            fetchAllActions(selectedProspect.id);
             setNewActionType('Appel');
             setNewActionDate(new Date().toISOString().split('T')[0]);
             setNewActionActor('');
@@ -1367,6 +1384,7 @@
           });
           if (res.ok) {
             fetchNextActions(selectedProspect.id);
+            fetchAllActions(selectedProspect.id);
             setActionNotes({...actionNotes, [actionId]: ''});
           }
         } catch (err) {
@@ -1383,6 +1401,7 @@
             });
             if (res.ok) {
               fetchNextActions(selectedProspect.id);
+              fetchAllActions(selectedProspect.id);
             }
           } catch (err) {
             alert('Erreur: ' + err.message);
@@ -1430,6 +1449,7 @@
           fetchActivities(prospect.id);
         }
         fetchNextActions(prospect.id);
+        fetchAllActions(prospect.id);
         fetchStatusHistory(prospect.id);
         fetchInterlocuteurs(prospect.id);
         fetchDevis(prospect.id);
@@ -4195,7 +4215,7 @@
                       {id:'materiel',     lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'caisse-boutik2.png',style:{width:'13px',height:'13px',objectFit:'contain'}}),'Matériel'),     count: clientMateriel.length},
                     ] : []),
                     {id:'affaires',     lbl:'📁 Affaires',     count: nbAffaires},
-                    {id:'communication',lbl:'💬 Communication'},
+                    {id:'communication',lbl:'📋 Actions/Tâches'},
                   ];
                   return tabs;
                 })().map(t => (
@@ -4819,15 +4839,15 @@
                   />
                 )}
 
-                {/* ── Onglet Communication ── */}
+                {/* ── Onglet Actions/Tâches ── */}
                 {clientTab === 'communication' && (
                   <div>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
-                      <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px'}}>Historique des échanges</span>
+                      <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px'}}>Toutes les actions</span>
                       <button
                         onClick={() => setShowCommForm(s => !s)}
                         style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
-                        + Nouvelle activité
+                        + Nouvelle action
                       </button>
                     </div>
 
@@ -4882,27 +4902,33 @@
                       </div>
                     )}
 
-                    {nextActions.filter(a => !a.affaire_id).length === 0 ? (
-                      <div style={{textAlign:'center',padding:'20px',color:'var(--tw-muted)',fontStyle:'italic',fontSize:'13px'}}>Aucune communication enregistrée</div>
-                    ) : nextActions.filter(a => !a.affaire_id).sort((a,b) => new Date(b.planned_date)-new Date(a.planned_date)).map(a => {
+                    {allActions.length === 0 ? (
+                      <div style={{textAlign:'center',padding:'20px',color:'var(--tw-muted)',fontStyle:'italic',fontSize:'13px'}}>Aucune action enregistrée</div>
+                    ) : allActions.map(a => {
                       const today = new Date(); today.setHours(0,0,0,0);
                       const d = a.planned_date ? new Date(a.planned_date) : null;
                       const isLate = d && d < today && !a.completed;
                       return (
-                        <div key={a.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',borderRadius:'6px',background:a.completed?'var(--tw-bg)':'white',border:'1px solid var(--tw-border)',marginBottom:'6px',opacity:a.completed?.7:1}}>
+                        <div key={a.id} style={{display:'flex',alignItems:'flex-start',gap:'12px',padding:'10px 14px',borderRadius:'6px',background:a.completed?'var(--tw-bg)':'white',border:'1px solid var(--tw-border)',marginBottom:'6px',opacity:a.completed?.7:1}}>
                           <input type="checkbox" checked={!!a.completed} onChange={() => onToggleNextAction(a.id)}
-                            style={{width:'16px',height:'16px',cursor:'pointer',accentColor:'var(--tw-teal)',flexShrink:0}} />
+                            style={{width:'16px',height:'16px',cursor:'pointer',accentColor:'var(--tw-teal)',flexShrink:0,marginTop:'2px'}} />
                           <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:'13px',fontWeight:'600',color:a.completed?'var(--tw-muted)':'var(--tw-ink)',textDecoration:a.completed?'line-through':'none'}}>
-                              {a.action_type}
-                            </div>
-                            <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'2px'}}>
-                              <span style={{color:isLate?'var(--tw-red)':a.completed?'var(--tw-green)':'var(--tw-slate)',fontWeight:isLate?'600':'400'}}>
-                                {d?d.toLocaleDateString('fr-FR'):'—'}
-                                {isLate?' ⚠️':''}
+                            <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+                              <span style={{fontSize:'13px',fontWeight:'600',color:a.completed?'var(--tw-muted)':'var(--tw-ink)',textDecoration:a.completed?'line-through':'none'}}>
+                                {a.action_type}
                               </span>
-                              {a.actor && <span style={{marginLeft:'8px'}}>{a.actor}</span>}
-                              {a.contact && <span style={{marginLeft:'4px'}}>→ {a.contact}</span>}
+                              {a.nom_affaire && (
+                                <span style={{fontSize:'11px',padding:'1px 8px',borderRadius:'10px',background:'var(--tw-teal-light)',color:'var(--tw-teal)',fontWeight:'600',whiteSpace:'nowrap'}}>
+                                  {a.nom_affaire}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'3px',display:'flex',gap:'10px',flexWrap:'wrap'}}>
+                              <span style={{color:isLate?'var(--tw-red)':a.completed?'var(--tw-green)':'var(--tw-slate)',fontWeight:isLate?'600':'400'}}>
+                                {d?d.toLocaleDateString('fr-FR'):'—'}{isLate?' ⚠️':''}
+                              </span>
+                              {a.actor && <span>{a.actor}</span>}
+                              {a.contact && <span>→ {a.contact}</span>}
                             </div>
                             {a.completed_note && <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'3px',fontStyle:'italic'}}>{a.completed_note}</div>}
                           </div>

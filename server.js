@@ -523,6 +523,23 @@ app.get('/api/prospects/:id/next_actions', auth, async (req, res) => {
   }
 });
 
+// GET /api/prospects/:id/actions-all — toutes les actions de l'entreprise (flottantes + liées aux affaires)
+app.get('/api/prospects/:id/actions-all', auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT na.*, a.nom_affaire
+       FROM next_actions na
+       LEFT JOIN affaires a ON na.affaire_id = a.id
+       WHERE na.prospect_id = $1
+       ORDER BY na.planned_date DESC NULLS LAST`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/affaires/:id/next_actions - Récupérer les actions d'une affaire
 app.get('/api/affaires/:id/next_actions', auth, async (req, res) => {
   try {
