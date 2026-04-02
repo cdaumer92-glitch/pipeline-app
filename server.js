@@ -345,6 +345,14 @@ async function initDB() {
     await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS secteur TEXT`);
     await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS email_societe TEXT`);
     await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS siren VARCHAR(9)`);
+    await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS code_naf VARCHAR(6)`);
+
+    // Migration: table codes_naf
+    await client.query(`CREATE TABLE IF NOT EXISTS codes_naf (
+      code VARCHAR(6) PRIMARY KEY,
+      libelle TEXT,
+      categorie TEXT
+    )`);
 
     // Migration: colonnes interlocuteurs (prénom séparé du nom)
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS prenom TEXT`);
@@ -447,12 +455,21 @@ app.get('/api/prospects', auth, async (req, res) => {
   }
 });
 
+app.get('/api/codes-naf', auth, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT code, libelle, categorie FROM codes_naf ORDER BY code');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/prospects', auth, async (req, res) => {
   const {
     name, contact_name, email, phone, adresse, website, tel_standard, statut_societe,
     status, setup_amount, monthly_amount, annual_amount,
     training_amount, chance_percent, assigned_to, quote_date,
-    decision_maker, solutions_en_place, notes, siren
+    decision_maker, solutions_en_place, notes, siren, code_naf
   } = req.body;
 
   try {
@@ -461,15 +478,15 @@ app.post('/api/prospects', auth, async (req, res) => {
         name, contact_name, email, phone, adresse, website, tel_standard, statut_societe,
         status, setup_amount, monthly_amount, annual_amount,
         training_amount, chance_percent, assigned_to, quote_date,
-        decision_maker, solutions_en_place, notes, siren, user_id, status_date
+        decision_maker, solutions_en_place, notes, siren, code_naf, user_id, status_date
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, CURRENT_DATE)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, CURRENT_DATE)
       RETURNING id`,
       [
         name, contact_name, email || null, phone || null, adresse || null, website || null, tel_standard || null, statut_societe || 'Prospect',
         status || 'Prospection', setup_amount || 0, monthly_amount || 0, annual_amount || 0,
         training_amount || 0, chance_percent || 20, assigned_to, quote_date || null,
-        decision_maker || null, solutions_en_place || null, notes || null, siren || null, req.userId
+        decision_maker || null, solutions_en_place || null, notes || null, siren || null, code_naf || null, req.userId
       ]
     );
     res.json({ id: result.rows[0].id });
@@ -484,7 +501,7 @@ app.put('/api/prospects/:id', auth, async (req, res) => {
     name, contact_name, email, phone, adresse, website, tel_standard, statut_societe,
     status, setup_amount, monthly_amount, annual_amount,
     training_amount, chance_percent, assigned_to, quote_date,
-    decision_maker, solutions_en_place, notes, pdf_url, tw_version, siren
+    decision_maker, solutions_en_place, notes, pdf_url, tw_version, siren, code_naf
   } = req.body;
 
   try {
@@ -494,14 +511,14 @@ app.put('/api/prospects/:id', auth, async (req, res) => {
         status=$9, setup_amount=$10, monthly_amount=$11, annual_amount=$12,
         training_amount=$13, chance_percent=$14, assigned_to=$15, quote_date=$16,
         decision_maker=$17, solutions_en_place=$18, notes=$19, pdf_url=$20,
-        tw_version=$21, siren=$22, updated_at=NOW()
-      WHERE id=$23`,
+        tw_version=$21, siren=$22, code_naf=$23, updated_at=NOW()
+      WHERE id=$24`,
       [
         name, contact_name, email || null, phone || null, adresse || null, website || null, tel_standard || null, statut_societe || 'Prospect',
         status, setup_amount || 0, monthly_amount || 0, annual_amount || 0,
         training_amount || 0, chance_percent || 20, assigned_to, quote_date || null,
         decision_maker || null, solutions_en_place || null, notes || null, pdf_url || null,
-        tw_version || null, siren || null,
+        tw_version || null, siren || null, code_naf || null,
         id
       ]
     );
