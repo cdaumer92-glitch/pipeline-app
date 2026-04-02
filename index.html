@@ -298,6 +298,7 @@
         decision_maker: '',
         solutions_en_place: '',
         notes: '',
+        siren: '',
         pdf_url: null,
         // Modules
         module_biz: 0,
@@ -2847,6 +2848,81 @@
     }
 
     // ══════════════════════════════════════════════════
+    // COMPOSANT : SuspectsNonAttribuesPanel
+    // ══════════════════════════════════════════════════
+    function SuspectsNonAttribuesPanel({ API_URL, token }) {
+      const [loading, setLoading] = React.useState(false);
+      const [msg, setMsg] = React.useState(null);
+      const [isError, setIsError] = React.useState(false);
+
+      const handleDelete = async () => {
+        setMsg(null);
+        setIsError(false);
+        setLoading(true);
+        try {
+          // 1. Compter d'abord
+          const countRes = await fetch(API_URL + '/societes/suspects-non-attribues/count', {
+            headers: { Authorization: 'Bearer ' + token }
+          });
+          const countData = await countRes.json();
+          if (!countRes.ok) throw new Error(countData.error || 'Erreur serveur');
+          const count = countData.count;
+
+          if (count === 0) {
+            setMsg('Aucune société suspect non attribuée trouvée.');
+            setLoading(false);
+            return;
+          }
+
+          // 2. Demander confirmation
+          const confirmed = window.confirm(
+            `${count} société${count > 1 ? 's' : ''} suspect${count > 1 ? 's' : ''} non attribuée${count > 1 ? 's' : ''} vont être supprimée${count > 1 ? 's' : ''} définitivement.\n\nCette action est irréversible. Confirmer ?`
+          );
+          if (!confirmed) {
+            setLoading(false);
+            return;
+          }
+
+          // 3. Supprimer
+          const delRes = await fetch(API_URL + '/societes/suspects-non-attribues', {
+            method: 'DELETE',
+            headers: { Authorization: 'Bearer ' + token }
+          });
+          const delData = await delRes.json();
+          if (!delRes.ok) throw new Error(delData.error || 'Erreur serveur');
+          setMsg(`✅ ${delData.deleted} société${delData.deleted > 1 ? 's' : ''} supprimée${delData.deleted > 1 ? 's' : ''}.`);
+        } catch (e) {
+          setIsError(true);
+          setMsg('❌ ' + e.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div style={{marginBottom:'18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)',overflow:'hidden'}}>
+          <div style={{padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <span style={{fontSize:'13px',fontWeight:'600',color:'#c0392b'}}>🗑️ Gestion des suspects non attribués</span>
+            <button
+              onClick={handleDelete}
+              disabled={loading}
+              style={{padding:'7px 16px',background:loading?'#ccc':'#e74c3c',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:loading?'default':'pointer',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}
+            >
+              {loading ? '⏳ Vérification...' : '🗑️ Supprimer les suspects non attribués'}
+            </button>
+          </div>
+          {msg && (
+            <div style={{padding:'8px 16px 12px',borderTop:'1px solid var(--tw-border)'}}>
+              <div style={{fontSize:'13px',fontWeight:'500',color:isError?'#c0392b':'#2e7d32',background:isError?'#fdecea':'#e8f8f0',border:`1px solid ${isError?'#f5c6c2':'#a8dfc0'}`,borderRadius:'6px',padding:'8px 12px'}}>
+                {msg}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════
     // COMPOSANT : ImportPanel
     // ══════════════════════════════════════════════════
     function ImportPanel({ API_URL, token }) {
@@ -3912,7 +3988,7 @@
       const [infoEdit, setInfoEdit] = React.useState(false);
       const [showCommForm, setShowCommForm] = React.useState(false);
       const [commForm, setCommForm] = React.useState({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:'',contexte_val:''});
-      const [infoForm, setInfoForm] = React.useState({name:'',adresse:'',website:'',tel_standard:'',assigned_to:'',notes:''});
+      const [infoForm, setInfoForm] = React.useState({name:'',adresse:'',website:'',tel_standard:'',assigned_to:'',notes:'',siren:''});
 
       // ── Onglets fiche client ──
       const [clientTab, setClientTab] = React.useState('infos');
@@ -3971,6 +4047,7 @@
           tel_standard: selectedProspect?.tel_standard||'',
           assigned_to: selectedProspect?.assigned_to||'',
           notes: selectedProspect?.notes||'',
+          siren: selectedProspect?.siren||'',
         });
       }, [selectedProspect?.id]);
 
@@ -4254,6 +4331,7 @@
                     <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px',marginBottom:'20px'}}>
                       {[
                         {lbl:'Raison sociale', field:'name'},
+                        {lbl:'N° SIREN', field:'siren'},
                         {lbl:'Adresse siège', field:'adresse'},
                         {lbl:'Site web', field:'website'},
                         {lbl:'Téléphone standard', field:'tel_standard'},
@@ -5075,8 +5153,15 @@
                 </select>
               </div>
               
-              {/* Ligne 2 : Adresse | Tél Standard | Site Web */}
+              {/* Ligne 2 : SIREN | Adresse | Tél Standard | Site Web */}
               <div style={{display: 'flex', gap: '15px', marginBottom: '15px'}}>
+                <input
+                  type="text"
+                  placeholder="N° SIREN (9 chiffres)"
+                  value={formData.siren || ''}
+                  onChange={(e) => handleChange('siren', e.target.value.replace(/\D/g, '').slice(0, 9))}
+                  style={{...styles.formInput, flex: 1, maxWidth: '140px'}}
+                />
                 <input
                   type="text"
                   placeholder="Adresse de la société"
@@ -5409,8 +5494,6 @@
       
       return (
         <div style={styles.activitiesSection}>
-          <h3>📋 Suivi des activités</h3>
-          
           {/* ========== SECTION AFFAIRES AVEC ACCORDÉON ========== */}
           <div style={{backgroundColor: '#f2f8f8', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #c8dede'}}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>

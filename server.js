@@ -344,6 +344,7 @@ async function initDB() {
     await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS ville TEXT`);
     await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS secteur TEXT`);
     await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS email_societe TEXT`);
+    await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS siren VARCHAR(9)`);
 
     // Migration: colonnes interlocuteurs (prénom séparé du nom)
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS prenom TEXT`);
@@ -447,28 +448,28 @@ app.get('/api/prospects', auth, async (req, res) => {
 });
 
 app.post('/api/prospects', auth, async (req, res) => {
-  const { 
+  const {
     name, contact_name, email, phone, adresse, website, tel_standard, statut_societe,
-    status, setup_amount, monthly_amount, annual_amount, 
-    training_amount, chance_percent, assigned_to, quote_date, 
-    decision_maker, solutions_en_place, notes 
+    status, setup_amount, monthly_amount, annual_amount,
+    training_amount, chance_percent, assigned_to, quote_date,
+    decision_maker, solutions_en_place, notes, siren
   } = req.body;
-  
+
   try {
     const result = await pool.query(
       `INSERT INTO prospects (
         name, contact_name, email, phone, adresse, website, tel_standard, statut_societe,
-        status, setup_amount, monthly_amount, annual_amount, 
-        training_amount, chance_percent, assigned_to, quote_date, 
-        decision_maker, solutions_en_place, notes, user_id, status_date
+        status, setup_amount, monthly_amount, annual_amount,
+        training_amount, chance_percent, assigned_to, quote_date,
+        decision_maker, solutions_en_place, notes, siren, user_id, status_date
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, CURRENT_DATE) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, CURRENT_DATE)
       RETURNING id`,
       [
         name, contact_name, email || null, phone || null, adresse || null, website || null, tel_standard || null, statut_societe || 'Prospect',
-        status || 'Prospection', setup_amount || 0, monthly_amount || 0, annual_amount || 0, 
-        training_amount || 0, chance_percent || 20, assigned_to, quote_date || null, 
-        decision_maker || null, solutions_en_place || null, notes || null, req.userId
+        status || 'Prospection', setup_amount || 0, monthly_amount || 0, annual_amount || 0,
+        training_amount || 0, chance_percent || 20, assigned_to, quote_date || null,
+        decision_maker || null, solutions_en_place || null, notes || null, siren || null, req.userId
       ]
     );
     res.json({ id: result.rows[0].id });
@@ -479,28 +480,28 @@ app.post('/api/prospects', auth, async (req, res) => {
 
 app.put('/api/prospects/:id', auth, async (req, res) => {
   const { id } = req.params;
-  const { 
+  const {
     name, contact_name, email, phone, adresse, website, tel_standard, statut_societe,
-    status, setup_amount, monthly_amount, annual_amount, 
-    training_amount, chance_percent, assigned_to, quote_date, 
-    decision_maker, solutions_en_place, notes, pdf_url, tw_version
+    status, setup_amount, monthly_amount, annual_amount,
+    training_amount, chance_percent, assigned_to, quote_date,
+    decision_maker, solutions_en_place, notes, pdf_url, tw_version, siren
   } = req.body;
-  
+
   try {
     await pool.query(
-      `UPDATE prospects SET 
+      `UPDATE prospects SET
         name=$1, contact_name=$2, email=$3, phone=$4, adresse=$5, website=$6, tel_standard=$7, statut_societe=$8,
-        status=$9, setup_amount=$10, monthly_amount=$11, annual_amount=$12, 
-        training_amount=$13, chance_percent=$14, assigned_to=$15, quote_date=$16, 
+        status=$9, setup_amount=$10, monthly_amount=$11, annual_amount=$12,
+        training_amount=$13, chance_percent=$14, assigned_to=$15, quote_date=$16,
         decision_maker=$17, solutions_en_place=$18, notes=$19, pdf_url=$20,
-        tw_version=$21, updated_at=NOW() 
-      WHERE id=$22`,
+        tw_version=$21, siren=$22, updated_at=NOW()
+      WHERE id=$23`,
       [
         name, contact_name, email || null, phone || null, adresse || null, website || null, tel_standard || null, statut_societe || 'Prospect',
-        status, setup_amount || 0, monthly_amount || 0, annual_amount || 0, 
-        training_amount || 0, chance_percent || 20, assigned_to, quote_date || null, 
+        status, setup_amount || 0, monthly_amount || 0, annual_amount || 0,
+        training_amount || 0, chance_percent || 20, assigned_to, quote_date || null,
         decision_maker || null, solutions_en_place || null, notes || null, pdf_url || null,
-        tw_version || null,
+        tw_version || null, siren || null,
         id
       ]
     );
@@ -2623,6 +2624,30 @@ app.get('/api/prospects/non-attribues', auth, async (req, res) => {
       `SELECT * FROM prospects WHERE assigned_to IS NULL OR assigned_to = '' ORDER BY created_at DESC`
     );
     res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/societes/suspects-non-attribues/count — compte les suspects sans commercial
+app.get('/api/societes/suspects-non-attribues/count', auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*) FROM prospects WHERE statut_societe = 'Suspect' AND (assigned_to IS NULL OR assigned_to = '')`
+    );
+    res.json({ count: parseInt(result.rows[0].count, 10) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/societes/suspects-non-attribues — supprime tous les suspects sans commercial
+app.delete('/api/societes/suspects-non-attribues', auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `DELETE FROM prospects WHERE statut_societe = 'Suspect' AND (assigned_to IS NULL OR assigned_to = '') RETURNING id`
+    );
+    res.json({ deleted: result.rowCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
