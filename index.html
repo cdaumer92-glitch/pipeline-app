@@ -276,7 +276,7 @@
 
     function prospectDisplayName(p) {
       if (!p) return '';
-      if (p.nom_commercial && p.nom_commercial.trim()) return p.name + ' (' + p.nom_commercial.trim() + ')';
+      if (p.marques && p.marques.length > 0) return p.name + ' (' + p.marques.join(' / ') + ')';
       return p.name;
     }
 
@@ -284,7 +284,6 @@
       return {
         id: null,
         name: '',
-        nom_commercial: '',
         marques: [],
         contact_name: '',
         email: '',
@@ -4001,7 +4000,7 @@
       const [infoEdit, setInfoEdit] = React.useState(false);
       const [showCommForm, setShowCommForm] = React.useState(false);
       const [commForm, setCommForm] = React.useState({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:'',contexte_val:''});
-      const [infoForm, setInfoForm] = React.useState({name:'',adresse:'',website:'',tel_standard:'',assigned_to:'',notes:'',siren:'',code_naf:'',created_at:'',nom_commercial:'',marques:[]});
+      const [infoForm, setInfoForm] = React.useState({name:'',adresse:'',website:'',tel_standard:'',assigned_to:'',notes:'',siren:'',code_naf:'',created_at:'',marques:[]});
 
       // ── Onglets fiche client ──
       const [clientTab, setClientTab] = React.useState('infos');
@@ -4063,7 +4062,6 @@
           siren: selectedProspect?.siren||'',
           code_naf: selectedProspect?.code_naf||'',
           created_at: selectedProspect?.created_at ? new Date(selectedProspect.created_at).toISOString().split('T')[0] : '',
-          nom_commercial: selectedProspect?.nom_commercial||'',
           marques: selectedProspect?.marques||[],
         });
       }, [selectedProspect?.id]);
@@ -4401,17 +4399,8 @@
                       </div>
                     </div>
 
-                    {/* Nom commercial + Marques */}
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 2fr',gap:'16px',marginBottom:'20px'}}>
-                      <div>
-                        <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>Nom commercial</div>
-                        {infoEdit
-                          ? <input type="text" value={infoForm.nom_commercial||''} onChange={e=>setInfoForm({...infoForm,nom_commercial:e.target.value})}
-                              placeholder="ex: GERARD DAREL"
-                              style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
-                          : <div style={{fontSize:'13px',fontWeight:'500',color:infoForm.nom_commercial?'var(--tw-ink)':'var(--tw-muted)'}}>{infoForm.nom_commercial||'—'}</div>
-                        }
-                      </div>
+                    {/* Marques */}
+                    <div style={{marginBottom:'20px'}}>
                       <div>
                         <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>Marques</div>
                         {infoEdit
@@ -5296,18 +5285,9 @@
                 />
               </div>
               
-              {/* Ligne 3 : Nom commercial + Marques */}
-              <div style={{display:'flex', gap:'15px', marginBottom:'15px'}}>
-                <div style={{flex:1}}>
-                  <input
-                    type="text"
-                    placeholder="Nom commercial (ex: GERARD DAREL)"
-                    value={formData.nom_commercial || ''}
-                    onChange={(e) => handleChange('nom_commercial', e.target.value)}
-                    style={{...styles.formInput, width:'100%'}}
-                  />
-                </div>
-                <div style={{flex:2}}>
+              {/* Ligne 3 : Marques */}
+              <div style={{marginBottom:'15px'}}>
+                <div>
                   <div style={{display:'flex', flexWrap:'wrap', gap:'6px', padding:'6px 10px', border:'1px solid #ccc', borderRadius:'6px', minHeight:'36px', alignItems:'center', background:'white'}}>
                     {(formData.marques||[]).map((m,i) => (
                       <span key={i} style={{background:'var(--tw-teal-light)',color:'var(--tw-teal)',padding:'2px 8px',borderRadius:'12px',fontSize:'12px',fontWeight:'600',display:'flex',alignItems:'center',gap:'4px'}}>
