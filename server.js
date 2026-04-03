@@ -1616,7 +1616,8 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
       ORDER BY p.name
     `);
 
-    res.json(result.rows);
+    const rows = result.rows.map(r => ({ ...r, marques: Array.isArray(r.marques) ? r.marques : [] }));
+    res.json(rows);
   } catch (err) {
     console.error('Erreur GET /api/prospects/enriched:', err);
     res.status(500).json({ error: err.message });

@@ -4001,7 +4001,18 @@
       const [infoEdit, setInfoEdit] = React.useState(false);
       const [showCommForm, setShowCommForm] = React.useState(false);
       const [commForm, setCommForm] = React.useState({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:'',contexte_val:''});
-      const [infoForm, setInfoForm] = React.useState({name:'',adresse:'',website:'',tel_standard:'',assigned_to:'',notes:'',siren:'',code_naf:'',created_at:'',marques:[]});
+      const [infoForm, setInfoForm] = React.useState({
+        name: selectedProspect?.name||'',
+        adresse: selectedProspect?.adresse||'',
+        website: selectedProspect?.website||'',
+        tel_standard: selectedProspect?.tel_standard||'',
+        assigned_to: selectedProspect?.assigned_to||'',
+        notes: selectedProspect?.notes||'',
+        siren: selectedProspect?.siren||'',
+        code_naf: selectedProspect?.code_naf||'',
+        created_at: selectedProspect?.created_at ? new Date(selectedProspect.created_at).toISOString().split('T')[0] : '',
+        marques: Array.isArray(selectedProspect?.marques) ? selectedProspect.marques : [],
+      });
 
       // ── Onglets fiche client ──
       const [clientTab, setClientTab] = React.useState('infos');
