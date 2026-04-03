@@ -308,8 +308,6 @@
         notes: '',
         siren: '',
         code_naf: '',
-        nom_commercial: '',
-        marques: [],
         pdf_url: null,
         // Modules
         module_biz: 0,
@@ -4185,7 +4183,7 @@
         }
       };
 
-      if (showForm) {
+      if (showForm && !formData.id) {
         return <ProspectForm formData={formData} onFormChange={onFormChange} onSave={onSave} onCancel={onCancel} selectedProspect={selectedProspect} user={user} API_URL={API_URL} interlocuteurs={interlocuteurs} showInterlocuteurForm={showInterlocuteurForm} setShowInterlocuteurForm={setShowInterlocuteurForm} interlocuteurForm={interlocuteurForm} setInterlocuteurForm={setInterlocuteurForm} handleSaveInterlocuteur={handleSaveInterlocuteur} handleDeleteInterlocuteur={handleDeleteInterlocuteur} devisList={devisList} showDevisForm={showDevisForm} setShowDevisForm={setShowDevisForm} editingDevisId={editingDevisId} setEditingDevisId={setEditingDevisId} editingDevis={editingDevis} setEditingDevis={setEditingDevis} devisFormData={devisFormData} setDevisFormData={setDevisFormData} devisPdfFile={devisPdfFile} setDevisPdfFile={setDevisPdfFile} isUploadingDevisPdf={isUploadingDevisPdf} handleAddDevis={handleAddDevis} handleEditDevis={handleEditDevis} handleSaveDevis={handleSaveDevis} handleDeleteDevis={handleDeleteDevis} handleUploadDevisPdf={handleUploadDevisPdf} handleDeleteDevisPDF={handleDeleteDevisPDF} codesNaf={codesNaf} />;
       }
 
@@ -4281,9 +4279,6 @@
                 )}
                 {/* Boutons */}
                 <div style={{display:'flex',gap:'8px',flexShrink:0}}>
-                  {selectedProspect.statut_societe !== 'Client' && (
-                    <button onClick={() => onEdit(selectedProspect)} style={styles.editBtn}>🏢 Modifier</button>
-                  )}
                   <button onClick={() => onDelete(selectedProspect.id)} style={styles.deleteBtn}>🗑️</button>
                 </div>
               </div>
