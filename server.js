@@ -456,7 +456,8 @@ app.get('/api/prospects', auth, async (req, res) => {
       return res.json(result.rows);
     }
     const result = await pool.query('SELECT * FROM prospects ORDER BY created_at DESC');
-    res.json(result.rows);
+    const rows = result.rows.map(r => ({ ...r, marques: Array.isArray(r.marques) ? r.marques : (r.marques ? r.marques : []) }));
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

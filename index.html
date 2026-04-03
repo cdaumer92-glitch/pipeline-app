@@ -276,7 +276,8 @@
 
     function prospectDisplayName(p) {
       if (!p) return '';
-      if (p.marques && p.marques.length > 0) return p.name + ' (' + p.marques.join(' / ') + ')';
+      const ms = Array.isArray(p.marques) ? p.marques : [];
+      if (ms.length > 0) return p.name + ' (' + ms.join(' / ') + ')';
       return p.name;
     }
 
@@ -4062,7 +4063,7 @@
           siren: selectedProspect?.siren||'',
           code_naf: selectedProspect?.code_naf||'',
           created_at: selectedProspect?.created_at ? new Date(selectedProspect.created_at).toISOString().split('T')[0] : '',
-          marques: selectedProspect?.marques||[],
+          marques: Array.isArray(selectedProspect?.marques) ? selectedProspect.marques : [],
         });
       }, [selectedProspect?.id]);
 
