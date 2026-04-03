@@ -274,10 +274,18 @@
       return { hasAction: incompletedActions.length > 0, isLate, nextActionDate };
     }
 
+    function prospectDisplayName(p) {
+      if (!p) return '';
+      if (p.nom_commercial && p.nom_commercial.trim()) return p.name + ' (' + p.nom_commercial.trim() + ')';
+      return p.name;
+    }
+
     function getEmptyProspect() {
       return {
         id: null,
         name: '',
+        nom_commercial: '',
+        marques: [],
         contact_name: '',
         email: '',
         phone: '',
@@ -300,6 +308,8 @@
         notes: '',
         siren: '',
         code_naf: '',
+        nom_commercial: '',
+        marques: [],
         pdf_url: null,
         // Modules
         module_biz: 0,
@@ -2389,7 +2399,7 @@
                     onSelectProspect(p); setGlobalSearch(''); setShowResults(false); setSearchIndex(-1);
                     if (isDashboard) onDashboard();
                   }}>
-                    <div style={{fontWeight: '600', fontSize: '13px', color: 'var(--tw-ink)'}}>{p.name}</div>
+                    <div style={{fontWeight: '600', fontSize: '13px', color: 'var(--tw-ink)'}}>{prospectDisplayName(p)}</div>
                     <div style={{fontSize: '11px', color: 'var(--tw-muted)', marginTop: '2px'}}>
                       {p.contact_name && `${p.contact_name} · `}
                       <span style={{color: p.statut_societe === 'Client' ? 'var(--tw-teal)' : p.statut_societe === 'Prospect' ? 'var(--tw-orange)' : 'var(--tw-muted)'}}>{p.statut_societe || 'Prospect'}</span>
@@ -2528,7 +2538,7 @@
                   <tbody>
                     {nonAttribues.map((p, idx) => (
                       <tr key={p.id} style={{borderBottom:'1px solid var(--tw-border)',background:idx%2===0?'white':'var(--tw-bg)'}}>
-                        <td style={{padding:'10px 8px',fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{p.name}</td>
+                        <td style={{padding:'10px 8px',fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{prospectDisplayName(p)}</td>
                         <td style={{padding:'10px 8px'}}>
                           <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 8px',borderRadius:'10px',
                             background:p.statut_societe==='Client'?'var(--tw-teal-light)':p.statut_societe==='Prospect'?'#fff8e1':'#f5f5f5',
@@ -3216,7 +3226,7 @@
                 }}
               >
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px'}}>
-                  <div style={styles.prospectName}>{prospect.name}</div>
+                  <div style={styles.prospectName}>{prospectDisplayName(prospect)}</div>
                   <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 8px',borderRadius:'10px',flexShrink:0,
                     color: (prospect.statut_societe||'Prospect')==='Client'?'var(--tw-teal)':(prospect.statut_societe||'Prospect')==='Suspect'?'#999':'#f0932b',
                     background: (prospect.statut_societe||'Prospect')==='Client'?'var(--tw-teal-light)':(prospect.statut_societe||'Prospect')==='Suspect'?'#f5f5f5':'#fff8e1'
@@ -3422,7 +3432,7 @@
                   onClick={() => { onSelectProspect(p); onOpenDashboard(); }}
                 >
                   <div>
-                    <div style={{fontWeight:'600',fontSize:'13px',color:'var(--tw-ink)'}}>{p.name}</div>
+                    <div style={{fontWeight:'600',fontSize:'13px',color:'var(--tw-ink)'}}>{prospectDisplayName(p)}</div>
                     <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'2px'}}>{p.contact_name||'—'}</div>
                   </div>
                   <div>{statusChip(p.real_status)}</div>
@@ -3922,7 +3932,7 @@
                                 onClick={() => { onSelectProspect(p); onOpenDashboard(); }}
                               >
                                 <div>
-                                  <div style={{fontWeight:'600',fontSize:'13px',color:'var(--tw-ink)'}}>{p.name}</div>
+                                  <div style={{fontWeight:'600',fontSize:'13px',color:'var(--tw-ink)'}}>{prospectDisplayName(p)}</div>
                                   <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'1px'}}>{p.contact_name||'—'}</div>
                                 </div>
                                 <div><span style={{fontSize:'11px',fontWeight:'600',padding:'2px 8px',borderRadius:'10px',color:sColor,background:sBg}}>{p.real_status||'Prospection'}</span></div>
@@ -3993,7 +4003,7 @@
       const [infoEdit, setInfoEdit] = React.useState(false);
       const [showCommForm, setShowCommForm] = React.useState(false);
       const [commForm, setCommForm] = React.useState({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:'',contexte_val:''});
-      const [infoForm, setInfoForm] = React.useState({name:'',adresse:'',website:'',tel_standard:'',assigned_to:'',notes:'',siren:'',code_naf:'',created_at:''});
+      const [infoForm, setInfoForm] = React.useState({name:'',adresse:'',website:'',tel_standard:'',assigned_to:'',notes:'',siren:'',code_naf:'',created_at:'',nom_commercial:'',marques:[]});
 
       // ── Onglets fiche client ──
       const [clientTab, setClientTab] = React.useState('infos');
@@ -4055,6 +4065,8 @@
           siren: selectedProspect?.siren||'',
           code_naf: selectedProspect?.code_naf||'',
           created_at: selectedProspect?.created_at ? new Date(selectedProspect.created_at).toISOString().split('T')[0] : '',
+          nom_commercial: selectedProspect?.nom_commercial||'',
+          marques: selectedProspect?.marques||[],
         });
       }, [selectedProspect?.id]);
 
@@ -4202,7 +4214,7 @@
                 {/* Infos */}
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'}}>
-                    <span style={{fontSize:'20px',fontWeight:'700',color:'var(--tw-ink)',letterSpacing:'-.3px'}}>{selectedProspect.name}</span>
+                    <span style={{fontSize:'20px',fontWeight:'700',color:'var(--tw-ink)',letterSpacing:'-.3px'}}>{prospectDisplayName(selectedProspect)}</span>
                     {/* Select statut */}
                     <select value={selectedProspect.statut_societe||'Prospect'}
                       onChange={async (e) => {
@@ -4390,6 +4402,54 @@
                           ? <input type="date" value={infoForm.created_at||''} onChange={e=>setInfoForm({...infoForm,created_at:e.target.value})}
                               style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
                           : <div style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-ink)'}}>{infoForm.created_at?new Date(infoForm.created_at).toLocaleDateString('fr-FR'):'—'}</div>
+                        }
+                      </div>
+                    </div>
+
+                    {/* Nom commercial + Marques */}
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 2fr',gap:'16px',marginBottom:'20px'}}>
+                      <div>
+                        <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>Nom commercial</div>
+                        {infoEdit
+                          ? <input type="text" value={infoForm.nom_commercial||''} onChange={e=>setInfoForm({...infoForm,nom_commercial:e.target.value})}
+                              placeholder="ex: GERARD DAREL"
+                              style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                          : <div style={{fontSize:'13px',fontWeight:'500',color:infoForm.nom_commercial?'var(--tw-ink)':'var(--tw-muted)'}}>{infoForm.nom_commercial||'—'}</div>
+                        }
+                      </div>
+                      <div>
+                        <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>Marques</div>
+                        {infoEdit
+                          ? <div>
+                              <div style={{display:'flex',flexWrap:'wrap',gap:'6px',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',minHeight:'36px',alignItems:'center',background:'white'}}>
+                                {(infoForm.marques||[]).map((m,i) => (
+                                  <span key={i} style={{background:'var(--tw-teal-light)',color:'var(--tw-teal)',padding:'2px 8px',borderRadius:'12px',fontSize:'12px',fontWeight:'600',display:'flex',alignItems:'center',gap:'4px'}}>
+                                    {m}
+                                    <span onClick={()=>setInfoForm({...infoForm,marques:(infoForm.marques||[]).filter((_,j)=>j!==i)})} style={{cursor:'pointer',fontWeight:'700',fontSize:'14px',lineHeight:1}}>×</span>
+                                  </span>
+                                ))}
+                                <input type="text"
+                                  placeholder={infoForm.marques?.length?'Ajouter…':'ex: PABLO, GERARD DAREL'}
+                                  style={{border:'none',outline:'none',fontSize:'13px',minWidth:'120px',flex:1,fontFamily:"'DM Sans',sans-serif"}}
+                                  onKeyDown={e=>{
+                                    if((e.key==='Enter'||e.key===',')&&e.target.value.trim()){
+                                      e.preventDefault();
+                                      const val=e.target.value.trim().replace(/,$/,'');
+                                      if(val&&!(infoForm.marques||[]).includes(val)) setInfoForm({...infoForm,marques:[...(infoForm.marques||[]),val]});
+                                      e.target.value='';
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div style={{fontSize:'10px',color:'#999',marginTop:'2px'}}>Entrée ou virgule pour ajouter</div>
+                            </div>
+                          : (infoForm.marques||[]).length > 0
+                            ? <div style={{display:'flex',flexWrap:'wrap',gap:'6px'}}>
+                                {(infoForm.marques||[]).map((m,i)=>(
+                                  <span key={i} style={{background:'var(--tw-teal-light)',color:'var(--tw-teal)',padding:'2px 10px',borderRadius:'12px',fontSize:'12px',fontWeight:'600'}}>{m}</span>
+                                ))}
+                              </div>
+                            : <div style={{fontSize:'13px',color:'var(--tw-muted)'}}>—</div>
                         }
                       </div>
                     </div>
@@ -5241,7 +5301,46 @@
                 />
               </div>
               
-              {/* Ligne 3 : Version TexasWin + Solutions en place */}
+              {/* Ligne 3 : Nom commercial + Marques */}
+              <div style={{display:'flex', gap:'15px', marginBottom:'15px'}}>
+                <div style={{flex:1}}>
+                  <input
+                    type="text"
+                    placeholder="Nom commercial (ex: GERARD DAREL)"
+                    value={formData.nom_commercial || ''}
+                    onChange={(e) => handleChange('nom_commercial', e.target.value)}
+                    style={{...styles.formInput, width:'100%'}}
+                  />
+                </div>
+                <div style={{flex:2}}>
+                  <div style={{display:'flex', flexWrap:'wrap', gap:'6px', padding:'6px 10px', border:'1px solid #ccc', borderRadius:'6px', minHeight:'36px', alignItems:'center', background:'white'}}>
+                    {(formData.marques||[]).map((m,i) => (
+                      <span key={i} style={{background:'var(--tw-teal-light)',color:'var(--tw-teal)',padding:'2px 8px',borderRadius:'12px',fontSize:'12px',fontWeight:'600',display:'flex',alignItems:'center',gap:'4px'}}>
+                        {m}
+                        <span onClick={()=>handleChange('marques',(formData.marques||[]).filter((_,j)=>j!==i))} style={{cursor:'pointer',fontWeight:'700',fontSize:'14px',lineHeight:1}}>×</span>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      placeholder={formData.marques?.length ? 'Ajouter une marque…' : 'Marques (ex: PABLO, GERARD DAREL)'}
+                      style={{border:'none',outline:'none',fontSize:'13px',minWidth:'160px',flex:1,fontFamily:"'DM Sans',sans-serif"}}
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Enter' || e.key === ',') && e.target.value.trim()) {
+                          e.preventDefault();
+                          const val = e.target.value.trim().replace(/,$/, '');
+                          if (val && !(formData.marques||[]).includes(val)) {
+                            handleChange('marques', [...(formData.marques||[]), val]);
+                          }
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                  </div>
+                  <div style={{fontSize:'10px',color:'#999',marginTop:'2px'}}>Appuyer sur Entrée ou virgule pour ajouter</div>
+                </div>
+              </div>
+
+              {/* Ligne 4 : Version TexasWin + Solutions en place */}
               <div style={{display:'flex', gap:'10px'}}>
                 <input
                   type="text"
