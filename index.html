@@ -1517,9 +1517,11 @@
         const matchCommercial = (filterAttribution === 'Mes' || filterAttribution === 'NonAttribuees')
           ? true
           : (filterCommercial === 'Tous' || p.assigned_to === filterCommercial || (!p.assigned_to && filterCommercial === 'Tous'));
-        const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           (p.contact_name && p.contact_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                           (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase()));
+        const q = searchTerm.toLowerCase();
+        const matchSearch = p.name.toLowerCase().includes(q) ||
+                           (p.contact_name && p.contact_name.toLowerCase().includes(q)) ||
+                           (p.email && p.email.toLowerCase().includes(q)) ||
+                           (Array.isArray(p.marques) && p.marques.some(m => m.toLowerCase().includes(q)));
         return matchSocietyType && matchStatus && matchCommercial && matchSearch;
       }).sort((a, b) => {
         if (sortBy === 'name') {
@@ -2353,7 +2355,8 @@
       const filteredProspects = globalSearch.length >= 2 && prospects
         ? prospects.filter(p =>
             p.name.toLowerCase().includes(globalSearch.toLowerCase()) ||
-            (p.contact_name && p.contact_name.toLowerCase().includes(globalSearch.toLowerCase()))
+            (p.contact_name && p.contact_name.toLowerCase().includes(globalSearch.toLowerCase())) ||
+            (Array.isArray(p.marques) && p.marques.some(m => m.toLowerCase().includes(globalSearch.toLowerCase())))
           ).slice(0, 10)
         : [];
 
