@@ -468,7 +468,7 @@ app.get('/api/public/companies/search', async (req, res) => {
         p.name                                    AS societe,
         COALESCE(p.adresse, '')                   AS adresse,
         COALESCE(p.ville, '')                     AS ville,
-        COALESCE(p.code_postal, '')               AS code_postal,
+        COALESCE(p.cp, '')                        AS code_postal,
         COALESCE(
           NULLIF(TRIM(COALESCE(i.prenom,'') || ' ' || COALESCE(i.nom,'')), ''),
           p.contact_name,
