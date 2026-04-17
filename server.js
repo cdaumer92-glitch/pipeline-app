@@ -462,34 +462,57 @@ app.get('/api/public/companies/search', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(`
+    const compResult = await pool.query(`
       SELECT
         p.id,
-        p.name                                    AS societe,
-        COALESCE(p.adresse, '')                   AS adresse,
-        COALESCE(p.ville, '')                     AS ville,
-        COALESCE(p.cp, '')                        AS code_postal,
-        COALESCE(
-          NULLIF(TRIM(COALESCE(i.prenom,'') || ' ' || COALESCE(i.nom,'')), ''),
-          p.contact_name,
-          ''
-        )                                         AS contact,
-        COALESCE(i.fonction, '')                  AS fonction
+        p.name                          AS societe,
+        COALESCE(p.adresse, '')         AS adresse,
+        COALESCE(p.ville, '')           AS ville,
+        COALESCE(p.cp, '')              AS code_postal,
+        COALESCE(p.contact_name, '')    AS contact_name_fallback
       FROM prospects p
-      LEFT JOIN interlocuteurs i
-        ON i.prospect_id = p.id AND i.principal = true
       WHERE p.name ILIKE $1
       ORDER BY p.name ASC
       LIMIT 10
     `, [`%${q}%`]);
 
-    const rows = result.rows.map(r => ({
-      id:       r.id,
-      societe:  r.societe,
-      contact:  r.contact,
-      fonction: r.fonction,
-      adresse:  [r.adresse, r.code_postal, r.ville].filter(Boolean).join(', ')
-    }));
+    if (!compResult.rows.length) return res.json([]);
+
+    const ids = compResult.rows.map(r => r.id);
+
+    const interResult = await pool.query(`
+      SELECT
+        prospect_id,
+        TRIM(COALESCE(prenom,'') || ' ' || COALESCE(nom,'')) AS nom_complet,
+        COALESCE(fonction, '')                                AS fonction,
+        principal
+      FROM interlocuteurs
+      WHERE prospect_id = ANY($1)
+      ORDER BY prospect_id, principal DESC, nom ASC
+    `, [ids]);
+
+    const interByProspect = {};
+    interResult.rows.forEach(i => {
+      if (!interByProspect[i.prospect_id]) interByProspect[i.prospect_id] = [];
+      interByProspect[i.prospect_id].push({
+        nom: i.nom_complet.trim(),
+        fonction: i.fonction,
+        principal: i.principal
+      });
+    });
+
+    const rows = compResult.rows.map(r => {
+      const inters = interByProspect[r.id] || [];
+      if (!inters.length && r.contact_name_fallback) {
+        inters.push({ nom: r.contact_name_fallback, fonction: '', principal: true });
+      }
+      return {
+        id:             r.id,
+        societe:        r.societe,
+        adresse:        [r.adresse, r.code_postal, r.ville].filter(Boolean).join(', '),
+        interlocuteurs: inters
+      };
+    });
 
     res.json(rows);
   } catch (err) {
