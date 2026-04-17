@@ -5,7 +5,7 @@ import cors from 'cors';
 import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { fileURLToPath } from 'url';
-import { dirname, join as path_join } from 'path';
+import { dirname, join } from 'path';
 import fileUpload from 'express-fileupload';
 import { Storage } from '@google-cloud/storage';
 import XLSX from 'xlsx';
@@ -449,13 +449,6 @@ app.post('/api/auth/logout', auth, async (req, res) => {
 
 // ===================== PROSPECTS =====================
 // =====================================================================
-// ROUTE CONFIGURATEUR DEVIS
-// =====================================================================
-app.get('/configurateur', (req, res) => {
-  res.sendFile(path_join(__dirname, 'configurateur.html'));
-});
-
-// =====================================================================
 // ROUTE PUBLIQUE — Recherche société pour le Configurateur TexasWin
 // Sans auth JWT — retourne uniquement : nom, contact principal, adresse
 // =====================================================================
@@ -469,57 +462,34 @@ app.get('/api/public/companies/search', async (req, res) => {
   }
 
   try {
-    const compResult = await pool.query(`
+    const result = await pool.query(`
       SELECT
         p.id,
-        p.name                          AS societe,
-        COALESCE(p.adresse, '')         AS adresse,
-        COALESCE(p.ville, '')           AS ville,
-        COALESCE(p.cp, '')              AS code_postal,
-        COALESCE(p.contact_name, '')    AS contact_name_fallback
+        p.name                                    AS societe,
+        COALESCE(p.adresse, '')                   AS adresse,
+        COALESCE(p.ville, '')                     AS ville,
+        COALESCE(p.code_postal, '')               AS code_postal,
+        COALESCE(
+          NULLIF(TRIM(COALESCE(i.prenom,'') || ' ' || COALESCE(i.nom,'')), ''),
+          p.contact_name,
+          ''
+        )                                         AS contact,
+        COALESCE(i.fonction, '')                  AS fonction
       FROM prospects p
+      LEFT JOIN interlocuteurs i
+        ON i.prospect_id = p.id AND i.principal = true
       WHERE p.name ILIKE $1
       ORDER BY p.name ASC
       LIMIT 10
     `, [`%${q}%`]);
 
-    if (!compResult.rows.length) return res.json([]);
-
-    const ids = compResult.rows.map(r => r.id);
-
-    const interResult = await pool.query(`
-      SELECT
-        prospect_id,
-        TRIM(COALESCE(prenom,'') || ' ' || COALESCE(nom,'')) AS nom_complet,
-        COALESCE(fonction, '')                                AS fonction,
-        principal
-      FROM interlocuteurs
-      WHERE prospect_id = ANY($1)
-      ORDER BY prospect_id, principal DESC, nom ASC
-    `, [ids]);
-
-    const interByProspect = {};
-    interResult.rows.forEach(i => {
-      if (!interByProspect[i.prospect_id]) interByProspect[i.prospect_id] = [];
-      interByProspect[i.prospect_id].push({
-        nom: i.nom_complet.trim(),
-        fonction: i.fonction,
-        principal: i.principal
-      });
-    });
-
-    const rows = compResult.rows.map(r => {
-      const inters = interByProspect[r.id] || [];
-      if (!inters.length && r.contact_name_fallback) {
-        inters.push({ nom: r.contact_name_fallback, fonction: '', principal: true });
-      }
-      return {
-        id:             r.id,
-        societe:        r.societe,
-        adresse:        [r.adresse, r.code_postal, r.ville].filter(Boolean).join(', '),
-        interlocuteurs: inters
-      };
-    });
+    const rows = result.rows.map(r => ({
+      id:       r.id,
+      societe:  r.societe,
+      contact:  r.contact,
+      fonction: r.fonction,
+      adresse:  [r.adresse, r.code_postal, r.ville].filter(Boolean).join(', ')
+    }));
 
     res.json(rows);
   } catch (err) {
