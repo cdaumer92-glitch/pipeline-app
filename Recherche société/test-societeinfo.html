@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Test API SocieteInfo</title></head>
+<body>
+<h2>Test API SocieteInfo</h2>
+<button onclick="test1()">Test 1: Recherche "gerard darel"</button><br><br>
+<button onclick="test2()">Test 2: SIREN 814116794</button><br><br>
+<button onclick="test3()">Test 3: Autocomplete "gerard darel"</button><br><br>
+<pre id="result" style="background:#eee;padding:10px;white-space:pre-wrap;font-size:11px;max-height:600px;overflow:auto;"></pre>
+<script>
+const KEY = 'ao8e6ivfppqtvmh6n4sroqfiqkv1er14rcsgnf72nkqjgeb4fji';
+
+async function test1() {
+  const r = await fetch(`https://societeinfo.com/app/rest/api/v2/companies.json?query=gerard+darel&key=${KEY}&limit=5`);
+  const txt = await r.text();
+  document.getElementById('result').textContent = 'Status: ' + r.status + '\n' + txt;
+}
+
+async function test2() {
+  const r = await fetch(`https://societeinfo.com/app/rest/api/v2/company.json/814116794?key=${KEY}`);
+  const txt = await r.text();
+  document.getElementById('result').textContent = 'Status: ' + r.status + '\n' + txt;
+}
+
+async function test3() {
+  const r = await fetch(`https://societeinfo.com/app/rest/api/v2/autocomplete.json?query=gerard+darel&key=${KEY}`);
+  const txt = await r.text();
+  document.getElementById('result').textContent = 'Status: ' + r.status + '\n' + txt;
+}
+</script>
+</body>
+</html>

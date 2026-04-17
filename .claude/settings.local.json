@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"/c/Users/Admin/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/gcloud\" run deploy pipeline-texaswin --source . --region europe-west1 --allow-unauthenticated --set-env-vars DB_HOST=51.159.24.123,DB_USER=Pipeline_Texaswin,DB_PASSWORD=Connect@pipeline2026,DB_NAME=rdb,DB_PORT=3035,JWT_SECRET=votre_secret_jwt_ultra_securise_2024)",
+      "Bash(powershell -Command \"& 'C:\\\\Users\\\\Admin\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd' builds list --limit=3 --format='table\\(id,status,createTime\\)'\" 2>&1)",
+      "Bash(powershell -Command \"& 'C:\\\\Users\\\\Admin\\\\AppData\\\\Local\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd' builds log 209f996a-e331-43f0-a1c6-90f59fc85a16 2>&1 | Select-Object -Last 20\" 2>&1)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(python3:*)",
+      "Bash(node:*)",
+      "Skill(update-config)",
+      "Bash(ls:*)",
+      "Bash(psql --version)",
+      "Bash(awk 'NR>=200 && NR<=320')"
+    ]
+  }
+}

@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipeline TexasWin — Dashboard Prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --teal:       #007d89;
+    --teal-light: #e6f4f5;
+    --teal-mid:   #c8dede;
+    --ink:        #1a3535;
+    --slate:      #607a7a;
+    --muted:      #9eb5b5;
+    --bg:         #f4f7f7;
+    --white:      #ffffff;
+    --green:      #2ec27e;
+    --orange:     #f0932b;
+    --red:        #e74c3c;
+    --blue:       #3498db;
+    --gold:       #f1c40f;
+    --border:     #e0ecec;
+    --shadow:     0 1px 3px rgba(0,125,137,.08), 0 4px 16px rgba(0,125,137,.06);
+    --shadow-lg:  0 8px 32px rgba(0,125,137,.12);
+    --radius:     10px;
+    --radius-sm:  6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* ── TOGGLE DE VUE ── */
+  .view-toggle {
+    position: fixed;
+    top: 16px; right: 20px;
+    z-index: 100;
+    display: flex;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .view-toggle button {
+    padding: 7px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    border: none;
+    background: transparent;
+    color: var(--slate);
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .view-toggle button.active {
+    background: var(--teal);
+    color: white;
+  }
+
+  /* ── LAYOUT ── */
+  .shell {
+    display: none;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  .shell.visible { display: flex; }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    height: 52px;
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 24px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .topbar-logo {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--teal);
+    letter-spacing: -.3px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .topbar-logo span { color: var(--ink); }
+  .topbar-nav {
+    display: flex;
+    gap: 2px;
+    margin-left: 16px;
+  }
+  .nav-btn {
+    padding: 5px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--slate);
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    transition: all .15s;
+  }
+  .nav-btn:hover { background: var(--teal-light); color: var(--teal); }
+  .nav-btn.active { background: var(--teal-light); color: var(--teal); }
+  .topbar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .user-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px 4px 4px;
+    background: var(--teal-light);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--teal);
+  }
+  .user-avatar {
+    width: 26px; height: 26px;
+    background: var(--teal);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: white;
+    font-weight: 600;
+  }
+  .role-badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .role-admin { background: #fff3cd; color: #856404; }
+  .role-user  { background: #d1ecf1; color: #0c5460; }
+
+  /* ── CONTENT ── */
+  .content { flex: 1; padding: 24px; }
+
+  /* ── SECTION HEADER ── */
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  /* ── KPI STRIP (vue admin) ── */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .kpi-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .kpi-label {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .kpi-value {
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1;
+    font-family: 'DM Mono', monospace;
+  }
+  .kpi-value.teal  { color: var(--teal); }
+  .kpi-value.green { color: var(--green); }
+  .kpi-value.red   { color: var(--red); }
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--slate);
+    margin-top: 4px;
+  }
+  .kpi-sub b { color: var(--ink); }
+
+  /* ── DEUX COLONNES ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .three-col {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title-icon {
+    width: 22px; height: 22px;
+    background: var(--teal-light);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+  }
+
+  /* ── STAT ROWS ── */
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid #f5f5f5;
+    font-size: 13px;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { color: var(--slate); }
+  .stat-val { font-weight: 600; font-family: 'DM Mono', monospace; font-size: 14px; }
+  .stat-val.teal  { color: var(--teal); }
+  .stat-val.green { color: var(--green); }
+  .stat-val.red   { color: var(--red); }
+  .stat-val.blue  { color: var(--blue); }
+  .stat-val.orange{ color: var(--orange); }
+
+  /* ── COMMERCIAL CARDS ── */
+  .commercial-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .commercial-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .commercial-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .commercial-avatar {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: var(--teal);
+    color: white;
+    font-weight: 600;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .commercial-name { font-size: 14px; font-weight: 600; }
+  .commercial-role { font-size: 11px; color: var(--muted); }
+  .commercial-body { padding: 14px 16px; }
+  .commercial-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .cs-item {
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    text-align: center;
+  }
+  .cs-val { font-size: 18px; font-weight: 600; font-family: 'DM Mono', monospace; color: var(--ink); }
+  .cs-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+  .commercial-amounts {
+    font-size: 12px;
+    color: var(--slate);
+    margin-bottom: 12px;
+    line-height: 1.7;
+  }
+  .commercial-amounts b { color: var(--teal); font-family: 'DM Mono', monospace; }
+  .action-line {
+    font-size: 12px;
+    padding: 5px 0;
+    display: flex;
+    justify-content: space-between;
+  }
+  .pill {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+  .pill-red   { background: #fdecea; color: var(--red); }
+  .pill-green { background: #e8f8f0; color: var(--green); }
+  .pill-blue  { background: #e8f4fd; color: var(--blue); }
+  .commercial-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .btn-sm {
+    flex: 1;
+    padding: 6px 0;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: opacity .15s;
+  }
+  .btn-sm:hover { opacity: .85; }
+  .btn-day   { background: var(--teal); color: white; }
+  .btn-week  { background: var(--green); color: white; }
+  .btn-month { background: var(--orange); color: white; }
+
+  /* ── PROB BARS ── */
+  .prob-row { margin-bottom: 10px; }
+  .prob-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+  .prob-label { font-weight: 600; }
+  .prob-count { color: var(--slate); font-family: 'DM Mono', monospace; }
+  .prob-bar-bg {
+    height: 6px;
+    background: #f0f0f0;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .prob-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width .4s ease;
+  }
+
+  /* ── AGE ROWS ── */
+  .age-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f5f5f5;
+    font-size: 12px;
+  }
+  .age-row:last-child { border-bottom: none; }
+  .age-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .age-label-wrap { display: flex; align-items: center; gap: 8px; }
+  .age-status {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+  }
+  .age-count {
+    font-family: 'DM Mono', monospace;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  /* ────────────────────────────
+     VUE CONSULTANT
+  ──────────────────────────── */
+  .consultant-header {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    box-shadow: var(--shadow);
+  }
+  .consultant-avatar-lg {
+    width: 50px; height: 50px;
+    background: linear-gradient(135deg, var(--teal), #00a8b8);
+    border-radius: 50%;
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .consultant-info h2 { font-size: 17px; font-weight: 600; }
+  .consultant-info p  { font-size: 13px; color: var(--slate); margin-top: 2px; }
+  .consultant-kpis {
+    margin-left: auto;
+    display: flex;
+    gap: 24px;
+  }
+  .ckpi { text-align: center; }
+  .ckpi-val { font-size: 22px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--teal); }
+  .ckpi-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+
+  .prospect-table {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .pt-header {
+    display: grid;
+    grid-template-columns: 2fr 1.2fr 1fr 1.4fr 1fr;
+    padding: 10px 16px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .pt-row {
+    display: grid;
+    grid-template-columns: 2fr 1.2fr 1fr 1.4fr 1fr;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f5f5f5;
+    align-items: center;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .pt-row:last-child { border-bottom: none; }
+  .pt-row:hover { background: var(--teal-light); }
+  .pt-name { font-weight: 600; color: var(--ink); }
+  .pt-contact { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .chip-discussion { background: #e8f4fd; color: var(--blue); }
+  .chip-envoye     { background: #fff8e1; color: #f57c00; }
+  .chip-encours    { background: var(--teal-light); color: var(--teal); }
+  .chip-none       { background: #f5f5f5; color: var(--muted); }
+  .chip-gagne      { background: #e8f8f0; color: var(--green); }
+  .chip-perdu      { background: #fdecea; color: var(--red); }
+
+  .action-chip {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--slate);
+  }
+  .action-chip.late { color: var(--red); font-weight: 600; }
+  .action-chip.ok   { color: var(--green); }
+  .action-chip.none { color: var(--muted); font-style: italic; }
+
+  .btn-access {
+    padding: 5px 12px;
+    background: var(--teal);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .notice-box {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #795548;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 1100px) {
+    .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+    .commercial-grid { grid-template-columns: 1fr 1fr; }
+    .two-col, .three-col { grid-template-columns: 1fr; }
+  }
+
+  /* ── ONGLETS COMMERCIAUX ── */
+  .tab-btn {
+    padding: 12px 18px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    background: transparent;
+    color: var(--slate);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all .15s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab-btn:hover { color: var(--teal); background: var(--teal-light); }
+  .tab-btn.tab-active { color: var(--teal); border-bottom-color: var(--teal); background: var(--white); font-weight: 600; }
+  .tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px; height: 18px;
+    background: var(--red);
+    color: white;
+    border-radius: 50%;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  /* ── TOPBAR SEARCH + BTN ── */
+  .topbar-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 5px 10px;
+    min-width: 200px;
+    transition: border-color .15s;
+  }
+  .topbar-search:focus-within {
+    border-color: var(--teal);
+    background: white;
+  }
+  .topbar-search input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--ink);
+    width: 100%;
+  }
+  .topbar-search input::placeholder { color: var(--muted); }
+  .btn-new {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: var(--teal);
+    color: white;
+    border: none;
+    border-radius: 7px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity .15s;
+  }
+  .btn-new:hover { opacity: .88; }
+</style>
+</head>
+<body>
+
+<!-- TOGGLE PROTOTYPE -->
+<div class="view-toggle">
+  <button class="active" onclick="showView('admin')">👤 Admin (Christian/Frédéric)</button>
+  <button onclick="showView('consultant')">🔒 Consultant externe</button>
+</div>
+
+<!-- ══════════════════════════════════════
+     VUE ADMIN
+══════════════════════════════════════ -->
+<div class="shell visible" id="view-admin">
+  <div class="topbar">
+    <div class="topbar-logo">🧩 <span>Texas</span>Win Pipeline</div>
+    <nav class="topbar-nav">
+      <button class="nav-btn active">Dashboard</button>
+      <button class="nav-btn">Prospects</button>
+      <button class="nav-btn">Devis</button>
+    </nav>
+    <div class="topbar-search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="Rechercher une société...">
+    </div>
+    <button class="btn-new">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      Nlle Société
+    </button>
+    <div class="topbar-right">
+      <div class="user-chip">
+        <div class="user-avatar">CD</div>
+        Christian Daumer
+        <span class="role-badge role-admin">Admin</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- KPI STRIP -->
+    <div class="section-title">Vue globale pipeline</div>
+    <div class="kpi-strip">
+      <div class="kpi-card">
+        <div class="kpi-label">Sociétés en base</div>
+        <div class="kpi-value teal">42</div>
+        <div class="kpi-sub"><b>18</b> suspects · <b>18</b> prospects · <b>6</b> clients</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Devis en cours</div>
+        <div class="kpi-value">23</div>
+        <div class="kpi-sub"><b>1</b> gagné · <b>8</b> perdus en 2026</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Potentiel devis en cours</div>
+        <div style="display:flex;gap:20px;margin-top:10px;margin-bottom:6px">
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Abo</div>
+            <div style="font-size:20px;font-weight:600;font-family:'DM Mono',monospace;color:var(--teal)">20 576 €<span style="font-size:11px;font-weight:400;color:var(--slate)">/mois</span></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Pondéré <b style="color:var(--teal)">5 055 €</b></div>
+          </div>
+          <div style="width:1px;background:var(--border);align-self:stretch"></div>
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Setup</div>
+            <div style="font-size:20px;font-weight:600;font-family:'DM Mono',monospace;color:var(--ink)">133 789 €</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Pondéré <b style="color:var(--ink)">32 083 €</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Signé depuis janvier 2026</div>
+        <div style="display:flex;gap:20px;margin-top:10px;margin-bottom:6px">
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Abo</div>
+            <div style="font-size:20px;font-weight:600;font-family:'DM Mono',monospace;color:var(--green)">1 835 €<span style="font-size:11px;font-weight:400;color:var(--slate)">/mois</span></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">+ <b style="color:var(--green)">3 901 €</b>/an</div>
+          </div>
+          <div style="width:1px;background:var(--border);align-self:stretch"></div>
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Setup</div>
+            <div style="font-size:20px;font-weight:600;font-family:'DM Mono',monospace;color:var(--green)">13 294 €</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">1 affaire signée</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- PAR COMMERCIAL (ONGLETS) -->
+    <div class="section-title">Par commercial</div>
+    <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:28px;overflow:hidden">
+
+      <!-- Barre d'onglets -->
+      <div style="display:flex;border-bottom:1px solid var(--border);background:var(--bg);overflow-x:auto">
+        <button class="tab-btn tab-active" onclick="switchTab('roger')" id="tab-roger">RB Roger<span class="tab-badge">12</span></button>
+<button class="tab-btn " onclick="switchTab('christian')" id="tab-christian">CD Christian<span class="tab-badge">1</span></button>
+<button class="tab-btn " onclick="switchTab('frederic')" id="tab-frederic">FD Frédéric<span class="tab-badge">1</span></button>
+<button class="tab-btn " onclick="switchTab('martin')" id="tab-martin">PM Pierre<span class="tab-badge">2</span></button>
+<button class="tab-btn " onclick="switchTab('dubois')" id="tab-dubois">SD Sophie</button>
+
+      </div>
+
+      <!-- Contenu -->
+      <div style="padding:20px 24px">
+        
+      <div id="panel-roger" style="display:block">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+          <div class="commercial-avatar" style="width:42px;height:42px;font-size:15px;background:var(--teal)">RB</div>
+          <div>
+            <div style="font-size:16px;font-weight:600;color:var(--ink)">Roger</div>
+            <div style="font-size:12px;color:var(--muted)">Commercial senior</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px">
+          <div class="cs-item" style="cursor:pointer" title="Voir les sociétés">
+            <div class="cs-val" style="color:var(--teal)">35</div>
+            <div class="cs-lbl">Sociétés</div>
+          </div>
+          <div class="cs-item" style="cursor:pointer" title="Voir les devis">
+            <div class="cs-val" style="color:var(--blue)">21</div>
+            <div class="cs-lbl">Devis</div>
+          </div>
+          <div class="cs-item" style="cursor:pointer" title="Voir les signés">
+            <div class="cs-val" style="color:var(--green)">1</div>
+            <div class="cs-lbl">Signés</div>
+          </div>
+          <div class="cs-item">
+            <div class="cs-val" style="color:var(--ink);font-size:14px">17 442 €</div>
+            <div class="cs-lbl">Abo /mois</div>
+          </div>
+          <div class="cs-item">
+            <div class="cs-val" style="color:var(--ink);font-size:14px">2 322 €</div>
+            <div class="cs-lbl">Abo /an</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:10px">
+          <div style="flex:1;background:var(--bg);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;color:var(--slate)">Actions planifiées</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="pill pill-green">18 actives</span>
+              <span style="font-size:11px;color:var(--muted)">dont</span> <span style="color:var(--red);font-weight:600;font-size:12px">12 en retard</span>
+            </div>
+          </div>
+          <div style="flex:2;background:var(--bg);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:center;gap:14px">
+            <span style="font-size:12px;color:var(--slate);white-space:nowrap">Répartition</span>
+            <span style="font-size:12px;color:var(--muted);white-space:nowrap">9 prosp · 🪙 11 devis</span>
+            <div style="display:flex;gap:5px;flex-wrap:wrap"><span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--teal);font-weight:600;opacity:1">En cours 5</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:#f0932b;font-weight:600;opacity:1">Envoyé 3</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--blue);font-weight:600;opacity:1">Discussion 2</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--green);font-weight:600;opacity:1">Gagné 1</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--red);font-weight:600;opacity:1">Perdu 8</span></div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <a href="#" style="font-size:12px;color:var(--teal);font-weight:500;text-decoration:none">Voir toutes les actions →</a>
+        </div>
+      </div>
+      <div id="panel-christian" style="display:none">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+          <div class="commercial-avatar" style="width:42px;height:42px;font-size:15px;background:linear-gradient(135deg,#667eea,#764ba2)">CD</div>
+          <div>
+            <div style="font-size:16px;font-weight:600;color:var(--ink)">Christian</div>
+            <div style="font-size:12px;color:var(--muted)">Directeur Commercial</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px">
+          <div class="cs-item" style="cursor:pointer" title="Voir les sociétés">
+            <div class="cs-val" style="color:var(--teal)">6</div>
+            <div class="cs-lbl">Sociétés</div>
+          </div>
+          <div class="cs-item" style="cursor:pointer" title="Voir les devis">
+            <div class="cs-val" style="color:var(--blue)">1</div>
+            <div class="cs-lbl">Devis</div>
+          </div>
+          <div class="cs-item" style="cursor:pointer" title="Voir les signés">
+            <div class="cs-val" style="color:var(--muted)">0</div>
+            <div class="cs-lbl">Signés</div>
+          </div>
+          <div class="cs-item">
+            <div class="cs-val" style="color:var(--ink);font-size:14px">1 299 €</div>
+            <div class="cs-lbl">Abo /mois</div>
+          </div>
+          <div class="cs-item">
+            <div class="cs-val" style="color:var(--ink);font-size:14px">0 €</div>
+            <div class="cs-lbl">Abo /an</div>
+          </div>
+        </div>
+                <div style="display:flex;gap:10px;margin-bottom:10px">
+          <div style="flex:1;background:var(--bg);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;color:var(--slate)">Actions planifiées</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="pill pill-green">5 actives</span>
+              <span style="font-size:11px;color:var(--muted)">dont</span> <span style="color:var(--red);font-weight:600;font-size:12px">1 en retard</span>
+            </div>
+          </div>
+          <div style="flex:2;background:var(--bg);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:center;gap:14px">
+            <span style="font-size:12px;color:var(--slate);white-space:nowrap">Répartition</span>
+            <span style="font-size:12px;color:var(--muted);white-space:nowrap">5 prosp · 🪙 1 devis</span>
+            <div style="display:flex;gap:5px;flex-wrap:wrap"><span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--teal);font-weight:600;opacity:1">En cours 1</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:#f0932b;font-weight:600;opacity:0.35">Envoyé 0</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--blue);font-weight:600;opacity:0.35">Discussion 0</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--green);font-weight:600;opacity:0.35">Gagné 0</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--red);font-weight:600;opacity:0.35">Perdu 0</span></div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <a href="#" style="font-size:12px;color:var(--teal);font-weight:500;text-decoration:none">Voir toutes les actions →</a>
+        </div>
+      </div>
+      <div id="panel-frederic" style="display:none">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+          <div class="commercial-avatar" style="width:42px;height:42px;font-size:15px;background:linear-gradient(135deg,#f093fb,#f5576c)">FD</div>
+          <div>
+            <div style="font-size:16px;font-weight:600;color:var(--ink)">Frédéric</div>
+            <div style="font-size:12px;color:var(--muted)">Directeur Technique</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px">
+          <div class="cs-item" style="cursor:pointer" title="Voir les sociétés">
+            <div class="cs-val" style="color:var(--teal)">1</div>
+            <div class="cs-lbl">Sociétés</div>
+          </div>
+          <div class="cs-item" style="cursor:pointer" title="Voir les devis">
+            <div class="cs-val" style="color:var(--blue)">1</div>
+            <div class="cs-lbl">Devis</div>
+          </div>
+          <div class="cs-item" style="cursor:pointer" title="Voir les signés">
+            <div class="cs-val" style="color:var(--muted)">0</div>
+            <div class="cs-lbl">Signés</div>
+          </div>
+          <div class="cs-item">
+            <div class="cs-val" style="color:var(--ink);font-size:14px">1 835 €</div>
+            <div class="cs-lbl">Abo /mois</div>
+          </div>
+          <div class="cs-item">
+            <div class="cs-val" style="color:var(--ink);font-size:14px">3 901 €</div>
+            <div class="cs-lbl">Abo /an</div>
+          </div>
+        </div>
+                <div style="display:flex;gap:10px;margin-bottom:10px">
+          <div style="flex:1;background:var(--bg);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;color:var(--slate)">Actions planifiées</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="pill pill-green">1 active</span>
+              <span style="font-size:11px;color:var(--muted)">dont</span> <span style="color:var(--red);font-weight:600;font-size:12px">1 en retard</span>
+            </div>
+          </div>
+          <div style="flex:2;background:var(--bg);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:center;gap:14px">
+            <span style="font-size:12px;color:var(--slate);white-space:nowrap">Répartition</span>
+            <span style="font-size:12px;color:var(--muted);white-space:nowrap">0 prosp · 🪙 1 devis</span>
+            <div style="display:flex;gap:5px;flex-wrap:wrap"><span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--teal);font-weight:600;opacity:1">En cours 1</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:#f0932b;font-weight:600;opacity:0.35">Envoyé 0</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--blue);font-weight:600;opacity:0.35">Discussion 0</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--green);font-weight:600;opacity:0.35">Gagné 0</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--red);font-weight:600;opacity:0.35">Perdu 0</span></div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <a href="#" style="font-size:12px;color:var(--teal);font-weight:500;text-decoration:none">Voir toutes les actions →</a>
+        </div>
+      </div>
+      <div id="panel-martin" style="display:none">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+          <div class="commercial-avatar" style="width:42px;height:42px;font-size:15px;background:linear-gradient(135deg,#43e97b,#38f9d7)">PM</div>
+          <div>
+            <div style="font-size:16px;font-weight:600;color:var(--ink)">Pierre Martin</div>
+            <div style="font-size:12px;color:var(--muted)">Consultant externe</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px">
+          <div class="cs-item" style="cursor:pointer" title="Voir les sociétés">
+            <div class="cs-val" style="color:var(--teal)">4</div>
+            <div class="cs-lbl">Sociétés</div>
+          </div>
+          <div class="cs-item" style="cursor:pointer" title="Voir les devis">
+            <div class="cs-val" style="color:var(--blue)">2</div>
+            <div class="cs-lbl">Devis</div>
+          </div>
+          <div class="cs-item" style="cursor:pointer" title="Voir les signés">
+            <div class="cs-val" style="color:var(--muted)">0</div>
+            <div class="cs-lbl">Signés</div>
+          </div>
+          <div class="cs-item">
+            <div class="cs-val" style="color:var(--ink);font-size:14px">890 €</div>
+            <div class="cs-lbl">Abo /mois</div>
+          </div>
+          <div class="cs-item">
+            <div class="cs-val" style="color:var(--ink);font-size:14px">0 €</div>
+            <div class="cs-lbl">Abo /an</div>
+          </div>
+        </div>
+                <div style="display:flex;gap:10px;margin-bottom:10px">
+          <div style="flex:1;background:var(--bg);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;color:var(--slate)">Actions planifiées</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="pill pill-green">3 actives</span>
+              <span style="font-size:11px;color:var(--muted)">dont</span> <span style="color:var(--red);font-weight:600;font-size:12px">2 en retard</span>
+            </div>
+          </div>
+          <div style="flex:2;background:var(--bg);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:center;gap:14px">
+            <span style="font-size:12px;color:var(--slate);white-space:nowrap">Répartition</span>
+            <span style="font-size:12px;color:var(--muted);white-space:nowrap">2 prosp · 🪙 2 devis</span>
+            <div style="display:flex;gap:5px;flex-wrap:wrap"><span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--teal);font-weight:600;opacity:1">En cours 1</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:#f0932b;font-weight:600;opacity:1">Envoyé 1</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--blue);font-weight:600;opacity:0.35">Discussion 0</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--green);font-weight:600;opacity:0.35">Gagné 0</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--red);font-weight:600;opacity:1">Perdu 1</span></div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <a href="#" style="font-size:12px;color:var(--teal);font-weight:500;text-decoration:none">Voir toutes les actions →</a>
+        </div>
+      </div>
+      <div id="panel-dubois" style="display:none">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+          <div class="commercial-avatar" style="width:42px;height:42px;font-size:15px;background:linear-gradient(135deg,#fa709a,#fee140)">SD</div>
+          <div>
+            <div style="font-size:16px;font-weight:600;color:var(--ink)">Sophie Dubois</div>
+            <div style="font-size:12px;color:var(--muted)">Consultant externe</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px">
+          <div class="cs-item" style="cursor:pointer" title="Voir les sociétés">
+            <div class="cs-val" style="color:var(--teal)">3</div>
+            <div class="cs-lbl">Sociétés</div>
+          </div>
+          <div class="cs-item" style="cursor:pointer" title="Voir les devis">
+            <div class="cs-val" style="color:var(--blue)">1</div>
+            <div class="cs-lbl">Devis</div>
+          </div>
+          <div class="cs-item" style="cursor:pointer" title="Voir les signés">
+            <div class="cs-val" style="color:var(--muted)">0</div>
+            <div class="cs-lbl">Signés</div>
+          </div>
+          <div class="cs-item">
+            <div class="cs-val" style="color:var(--ink);font-size:14px">450 €</div>
+            <div class="cs-lbl">Abo /mois</div>
+          </div>
+          <div class="cs-item">
+            <div class="cs-val" style="color:var(--ink);font-size:14px">0 €</div>
+            <div class="cs-lbl">Abo /an</div>
+          </div>
+        </div>
+                <div style="display:flex;gap:10px;margin-bottom:10px">
+          <div style="flex:1;background:var(--bg);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;color:var(--slate)">Actions planifiées</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="pill pill-green">2 actives</span>
+              <span style="font-size:11px;color:var(--muted)">aucun retard</span>
+            </div>
+          </div>
+          <div style="flex:2;background:var(--bg);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:center;gap:14px">
+            <span style="font-size:12px;color:var(--slate);white-space:nowrap">Répartition</span>
+            <span style="font-size:12px;color:var(--muted);white-space:nowrap">2 prosp · 🪙 1 devis</span>
+            <div style="display:flex;gap:5px;flex-wrap:wrap"><span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--teal);font-weight:600;opacity:1">En cours 1</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:#f0932b;font-weight:600;opacity:0.35">Envoyé 0</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--blue);font-weight:600;opacity:0.35">Discussion 0</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--green);font-weight:600;opacity:0.35">Gagné 0</span> <span style="font-size:11px;padding:3px 8px;border-radius:8px;background:#f0f0f0;color:var(--red);font-weight:600;opacity:0.35">Perdu 0</span></div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <a href="#" style="font-size:12px;color:var(--teal);font-weight:500;text-decoration:none">Voir toutes les actions →</a>
+        </div>
+      </div>
+      </div>
+    </div>
+
+
+
+    <!-- STATS SECONDAIRES -->
+    <div class="two-col">
+      <!-- PAR PROBABILITÉ -->
+      <div class="card">
+        <div class="card-title"><div class="card-title-icon">📈</div>Par probabilité</div>
+        <div class="prob-row">
+          <div class="prob-header">
+            <span class="prob-label" style="color:#2ec27e">80–100%</span>
+            <span class="prob-count">1 société · 3 504 €/m</span>
+          </div>
+          <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:4%;background:#2ec27e"></div></div>
+        </div>
+        <div class="prob-row">
+          <div class="prob-header">
+            <span class="prob-label" style="color:#3498db">60–80%</span>
+            <span class="prob-count">1 société · 0 €/m</span>
+          </div>
+          <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:4%;background:#3498db"></div></div>
+        </div>
+        <div class="prob-row">
+          <div class="prob-header">
+            <span class="prob-label" style="color:#f0932b">40–60%</span>
+            <span class="prob-count">2 sociétés · 3 708 €/m</span>
+          </div>
+          <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:8%;background:#f0932b"></div></div>
+        </div>
+        <div class="prob-row">
+          <div class="prob-header">
+            <span class="prob-label" style="color:#e74c3c">20–40%</span>
+            <span class="prob-count">19 sociétés · 16 868 €/m</span>
+          </div>
+          <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:76%;background:#e74c3c"></div></div>
+        </div>
+        <div class="prob-row">
+          <div class="prob-header">
+            <span class="prob-label" style="color:#bbb">0–20%</span>
+            <span class="prob-count">0 · —</span>
+          </div>
+          <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:0%;background:#bbb"></div></div>
+        </div>
+      </div>
+
+      <!-- ANCIENNETÉ DEVIS -->
+      <div class="card">
+        <div class="card-title"><div class="card-title-icon">⏱️</div>Ancienneté des devis</div>
+        <div class="age-row">
+          <div class="age-label-wrap">
+            <div class="age-dot" style="background:#2ec27e"></div>
+            <div>
+              <div style="font-size:13px;font-weight:500">&lt; 1 mois</div>
+              <div class="age-status" style="color:#2ec27e">Frais</div>
+            </div>
+          </div>
+          <div class="age-count" style="color:#2ec27e">1</div>
+        </div>
+        <div class="age-row">
+          <div class="age-label-wrap">
+            <div class="age-dot" style="background:#3498db"></div>
+            <div>
+              <div style="font-size:13px;font-weight:500">1–2 mois</div>
+              <div class="age-status" style="color:#3498db">OK</div>
+            </div>
+          </div>
+          <div class="age-count" style="color:#3498db">1</div>
+        </div>
+        <div class="age-row">
+          <div class="age-label-wrap">
+            <div class="age-dot" style="background:#f0932b"></div>
+            <div>
+              <div style="font-size:13px;font-weight:500">2–3 mois</div>
+              <div class="age-status" style="color:#f0932b">⚠ Vieux</div>
+            </div>
+          </div>
+          <div class="age-count" style="color:#f0932b">0</div>
+        </div>
+        <div class="age-row">
+          <div class="age-label-wrap">
+            <div class="age-dot" style="background:#e74c3c"></div>
+            <div>
+              <div style="font-size:13px;font-weight:500">&gt; 3 mois</div>
+              <div class="age-status" style="color:#e74c3c">🚨 Urgent</div>
+            </div>
+          </div>
+          <div class="age-count" style="color:#e74c3c">9</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     VUE CONSULTANT
+══════════════════════════════════════ -->
+<div class="shell" id="view-consultant">
+  <div class="topbar">
+    <div class="topbar-logo">🧩 <span>Texas</span>Win Pipeline</div>
+    <nav class="topbar-nav">
+      <button class="nav-btn active">Mes prospects</button>
+    </nav>
+    <div class="topbar-right">
+      <div class="user-chip">
+        <div class="user-avatar" style="background:#667eea">JD</div>
+        Jean Dupont
+        <span class="role-badge role-user">Consultant</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <div class="notice-box">
+      ℹ️ Vous avez accès uniquement à vos propres dossiers. Pour toute question sur le pipeline global, contactez votre responsable.
+    </div>
+
+    <!-- HEADER CONSULTANT -->
+    <div class="consultant-header">
+      <div class="consultant-avatar-lg">JD</div>
+      <div class="consultant-info">
+        <h2>Jean Dupont</h2>
+        <p>Consultant externe · Accès restreint à vos dossiers</p>
+      </div>
+      <div class="consultant-kpis">
+        <div class="ckpi">
+          <div class="ckpi-val">7</div>
+          <div class="ckpi-lbl">Sociétés</div>
+        </div>
+        <div class="ckpi">
+          <div class="ckpi-val">4</div>
+          <div class="ckpi-lbl">Devis actifs</div>
+        </div>
+        <div class="ckpi" style="--teal:#e74c3c">
+          <div class="ckpi-val" style="color:#e74c3c">3</div>
+          <div class="ckpi-lbl">En retard</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RÉSUMÉ FINANCIER CONSULTANT -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+
+      <div class="kpi-card">
+        <div class="kpi-label">Potentiel de mes devis en cours</div>
+        <div style="display:flex;gap:20px;margin-top:10px">
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Abo</div>
+            <div style="font-size:18px;font-weight:600;font-family:'DM Mono',monospace;color:var(--teal)">2 134 €<span style="font-size:11px;font-weight:400;color:var(--slate)">/mois</span></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Pondéré <b style="color:var(--teal)">854 €</b></div>
+          </div>
+          <div style="width:1px;background:var(--border);align-self:stretch"></div>
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Setup</div>
+            <div style="font-size:18px;font-weight:600;font-family:'DM Mono',monospace;color:var(--ink)">27 450 €</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Pondéré <b style="color:var(--ink)">9 608 €</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">Mes signés depuis janvier 2026</div>
+        <div style="display:flex;gap:20px;margin-top:10px">
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Abo</div>
+            <div style="font-size:18px;font-weight:600;font-family:'DM Mono',monospace;color:var(--green)">1 835 €<span style="font-size:11px;font-weight:400;color:var(--slate)">/mois</span></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">+ <b style="color:var(--green)">3 901 €</b>/an</div>
+          </div>
+          <div style="width:1px;background:var(--border);align-self:stretch"></div>
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Setup</div>
+            <div style="font-size:18px;font-weight:600;font-family:'DM Mono',monospace;color:var(--green)">13 294 €</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">1 affaire signée</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TABLEAU PROSPECTS -->
+    <div class="section-title">Mes dossiers</div>
+    <div class="prospect-table">
+      <div class="pt-header">
+        <div>Société</div>
+        <div>Statut devis</div>
+        <div>Proba</div>
+        <div>Prochaine action</div>
+        <div></div>
+      </div>
+
+      <div class="pt-row">
+        <div>
+          <div class="pt-name">CUIRCO DIFFUSION</div>
+          <div class="pt-contact">Yossi Arditi</div>
+        </div>
+        <div><span class="status-chip chip-discussion">Discussion</span></div>
+        <div style="font-family:'DM Mono',monospace;font-weight:600;color:var(--orange)">60%</div>
+        <div class="action-chip late">⚡ A faire · 19/03/2026 ⚠️</div>
+        <div><button class="btn-access">Ouvrir →</button></div>
+      </div>
+
+      <div class="pt-row">
+        <div>
+          <div class="pt-name">GRACE & MILA</div>
+          <div class="pt-contact">Sarah Cohen</div>
+        </div>
+        <div><span class="status-chip chip-envoye">Envoyé</span></div>
+        <div style="font-family:'DM Mono',monospace;font-weight:600;color:var(--blue)">40%</div>
+        <div class="action-chip ok">⚡ Relance · 25/03/2026</div>
+        <div><button class="btn-access">Ouvrir →</button></div>
+      </div>
+
+      <div class="pt-row">
+        <div>
+          <div class="pt-name">JACK GOMME</div>
+          <div class="pt-contact">Marc Bernstein</div>
+        </div>
+        <div><span class="status-chip chip-encours">En cours</span></div>
+        <div style="font-family:'DM Mono',monospace;font-weight:600;color:var(--teal)">30%</div>
+        <div class="action-chip late">⚡ RDV · 10/02/2026 ⚠️</div>
+        <div><button class="btn-access">Ouvrir →</button></div>
+      </div>
+
+      <div class="pt-row">
+        <div>
+          <div class="pt-name">ATELIER TROPÉZIEN</div>
+          <div class="pt-contact">—</div>
+        </div>
+        <div><span class="status-chip chip-none">Prospection</span></div>
+        <div style="font-family:'DM Mono',monospace;font-weight:600;color:var(--muted)">20%</div>
+        <div class="action-chip none">Aucune action</div>
+        <div><button class="btn-access">Ouvrir →</button></div>
+      </div>
+
+      <div class="pt-row">
+        <div>
+          <div class="pt-name">BARBARA BUI</div>
+          <div class="pt-contact">Isabelle Martin</div>
+        </div>
+        <div><span class="status-chip chip-gagne">Gagné</span></div>
+        <div style="font-family:'DM Mono',monospace;font-weight:600;color:var(--green)">100%</div>
+        <div class="action-chip ok">✓ Signé</div>
+        <div><button class="btn-access">Ouvrir →</button></div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function showView(view) {
+    document.querySelectorAll('.shell').forEach(s => s.classList.remove('visible'));
+    document.getElementById('view-' + view).classList.add('visible');
+    document.querySelectorAll('.view-toggle button').forEach((b, i) => {
+      b.classList.toggle('active', (view === 'admin' && i === 0) || (view === 'consultant' && i === 1));
+    });
+  }
+
+  function switchTab(id) {
+    document.querySelectorAll('[id^="panel-"]').forEach(p => p.style.display = 'none');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-active'));
+    document.getElementById('panel-' + id).style.display = 'block';
+    document.getElementById('tab-' + id).classList.add('tab-active');
+  }
+</script>
+</body>
+</html>

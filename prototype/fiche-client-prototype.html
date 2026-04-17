@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fiche Client — TexasWin Prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --teal:       #007d89;
+  --teal-light: #e6f4f5;
+  --teal-mid:   #c8dede;
+  --ink:        #1a3535;
+  --slate:      #607a7a;
+  --muted:      #9eb5b5;
+  --bg:         #f4f7f7;
+  --white:      #ffffff;
+  --green:      #2ec27e;
+  --orange:     #f0932b;
+  --red:        #e74c3c;
+  --blue:       #3498db;
+  --border:     #e0ecec;
+  --shadow:     0 1px 3px rgba(0,125,137,.08), 0 4px 16px rgba(0,125,137,.06);
+  --radius:     10px;
+  --radius-sm:  6px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--ink); }
+
+/* ── TOPBAR ── */
+.topbar {
+  height: 52px; background: white; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 24px; gap: 16px;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 1px 3px rgba(0,125,137,.06);
+}
+.topbar-logo { font-size: 16px; font-weight: 700; color: var(--ink); letter-spacing: -.4px; }
+.topbar-logo span { color: var(--teal); font-weight: 300; }
+.back-btn {
+  display: flex; align-items: center; gap: 6px; padding: 5px 12px;
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--slate);
+  border: 1px solid var(--border); background: white; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; transition: all .15s;
+}
+.back-btn:hover { background: var(--teal-light); color: var(--teal); border-color: var(--teal); }
+
+/* ── LAYOUT ── */
+.page { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+/* ── CLIENT HEADER ── */
+.client-header {
+  background: white; border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px 24px; margin-bottom: 20px; box-shadow: var(--shadow);
+  display: flex; align-items: center; gap: 20px;
+}
+.client-avatar {
+  width: 52px; height: 52px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--teal), #00a8b8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700; color: white; flex-shrink: 0;
+}
+.client-info { flex: 1; }
+.client-name { font-size: 20px; font-weight: 700; color: var(--ink); letter-spacing: -.3px; }
+.client-meta { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.client-badges { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+}
+.badge-client { background: var(--teal-light); color: var(--teal); }
+.badge-perpetuel { background: #fff8e1; color: #f57c00; }
+.badge-saas { background: #e8f4fd; color: var(--blue); }
+.badge-hybrid { background: #f5eef8; color: #9b59b6; }
+.client-kpis { display: flex; gap: 24px; flex-shrink: 0; }
+.ckpi { text-align: center; }
+.ckpi-val { font-size: 22px; font-weight: 700; color: var(--teal); font-variant-numeric: tabular-nums; }
+.ckpi-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+
+/* ── ONGLETS ── */
+.tabs-wrap { background: white; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.tabs-nav { display: flex; border-bottom: 1px solid var(--border); background: var(--bg); }
+.tab-btn {
+  padding: 12px 20px; font-family: 'DM Sans', sans-serif; font-size: 13px;
+  font-weight: 500; border: none; background: transparent; color: var(--slate);
+  cursor: pointer; border-bottom: 3px solid transparent; transition: all .15s;
+  white-space: nowrap; display: flex; align-items: center; gap: 7px;
+}
+.tab-btn:hover { color: var(--teal); background: var(--teal-light); }
+.tab-btn.active { color: var(--teal); border-bottom-color: var(--teal); background: white; font-weight: 600; }
+.tab-badge-count {
+  background: var(--teal); color: white; border-radius: 10px;
+  font-size: 10px; font-weight: 700; padding: 1px 6px;
+}
+.tab-content { padding: 22px; display: none; }
+.tab-content.active { display: block; }
+
+/* ── SECTIONS ── */
+.section-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--muted); margin-bottom: 14px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.btn-add {
+  padding: 5px 12px; background: var(--teal); color: white; border: none;
+  border-radius: var(--radius-sm); font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: 'DM Sans', sans-serif; display: flex;
+  align-items: center; gap: 5px; transition: opacity .15s;
+}
+.btn-add:hover { opacity: .88; }
+
+/* ── GRID INFO ── */
+.info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+.info-field { display: flex; flex-direction: column; gap: 4px; }
+.info-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+.info-value { font-size: 14px; color: var(--ink); font-weight: 500; }
+.info-value.empty { color: var(--muted); font-style: italic; font-weight: 400; }
+
+/* ── CONTACTS ── */
+.contact-card {
+  background: var(--bg); border-radius: var(--radius-sm); padding: 12px 14px;
+  display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+}
+.contact-avatar {
+  width: 34px; height: 34px; border-radius: 50%; background: var(--teal);
+  color: white; font-weight: 600; font-size: 12px; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+}
+.contact-info { flex: 1; }
+.contact-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.contact-role { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.contact-badges { display: flex; gap: 5px; }
+.tag { font-size: 10px; padding: 2px 7px; border-radius: 8px; font-weight: 600; }
+.tag-decideur { background: #fdecea; color: var(--red); }
+.tag-principal { background: var(--teal-light); color: var(--teal); }
+.tag-boutique { background: #fff8e1; color: #f57c00; }
+
+/* ── LICENCES ── */
+.licence-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.licence-table th {
+  text-align: left; padding: 8px 12px; background: var(--bg);
+  color: var(--muted); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.licence-table td { padding: 10px 12px; border-bottom: 1px solid #f5f5f5; vertical-align: middle; }
+.licence-table tr:last-child td { border-bottom: none; }
+.licence-table tr:hover td { background: var(--teal-light); }
+.module-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+}
+.chip-saas { background: #e8f4fd; color: var(--blue); }
+.chip-perp { background: #fff8e1; color: #f57c00; }
+.maintenance-badge { font-size: 11px; padding: 2px 8px; border-radius: 8px; font-weight: 600; }
+.maint-a2 { background: var(--teal-light); color: var(--teal); }
+.maint-a3 { background: #e8f8f0; color: var(--green); }
+.maint-none { background: #f5f5f5; color: var(--muted); }
+.hosting-badge { font-size: 11px; }
+
+/* ── BOUTIQUES ── */
+.boutique-card {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  overflow: hidden; margin-bottom: 12px;
+}
+.boutique-header {
+  padding: 12px 16px; background: var(--teal-light); display: flex;
+  align-items: center; justify-content: space-between;
+}
+.boutique-name { font-size: 14px; font-weight: 600; color: var(--teal); }
+.boutique-body { padding: 14px 16px; background: white; }
+.boutique-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.materiel-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.materiel-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; background: var(--bg); border-radius: 20px;
+  font-size: 12px; font-weight: 500; color: var(--slate);
+  border: 1px solid var(--border);
+}
+.materiel-chip .qty { font-weight: 700; color: var(--ink); }
+
+/* ── MATERIEL ── */
+.materiel-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.materiel-table th {
+  text-align: left; padding: 8px 12px; background: var(--bg);
+  color: var(--muted); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.materiel-table td { padding: 10px 12px; border-bottom: 1px solid #f5f5f5; vertical-align: middle; }
+.materiel-table tr:last-child td { border-bottom: none; }
+.materiel-table tr:hover td { background: var(--teal-light); }
+.type-icon { font-size: 18px; }
+.os-badge { font-size: 11px; padding: 2px 7px; border-radius: 6px; background: #f0f0f0; color: var(--slate); font-weight: 500; }
+
+/* ── AFFAIRES ── */
+.affaire-item {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 14px 16px; margin-bottom: 10px; background: white;
+}
+.affaire-row { display: flex; justify-content: space-between; align-items: center; }
+.affaire-name { font-size: 14px; font-weight: 600; color: var(--ink); }
+.affaire-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.status-pill {
+  font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 10px;
+}
+.pill-gagne { background: #e8f8f0; color: var(--green); }
+.pill-encours { background: var(--teal-light); color: var(--teal); }
+.pill-perdu { background: #fdecea; color: var(--red); }
+
+/* ── TEXASWIN VERSION ── */
+.version-card {
+  background: linear-gradient(135deg, var(--ink) 0%, #2a5555 100%);
+  border-radius: var(--radius); padding: 18px 22px; color: white; margin-bottom: 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.version-label { font-size: 11px; color: rgba(255,255,255,.6); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.version-val { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.version-sub { font-size: 12px; color: rgba(255,255,255,.5); margin-top: 3px; }
+.version-kpis { display: flex; gap: 24px; }
+.vkpi { text-align: center; }
+.vkpi-val { font-size: 18px; font-weight: 700; color: #4dd9e6; }
+.vkpi-lbl { font-size: 10px; color: rgba(255,255,255,.5); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  text-align: center; padding: 30px; color: var(--muted);
+  font-size: 13px; font-style: italic;
+}
+
+/* ── DIVIDER ── */
+.divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-logo">Texas<span>Win</span> Pipeline</div>
+  <button class="back-btn">← Retour à la liste</button>
+  <div style="margin-left:auto;font-size:12px;color:var(--muted)">🔧 Prototype — Fiche Client</div>
+</div>
+
+<div class="page">
+
+  <!-- CLIENT HEADER -->
+  <div class="client-header">
+    <div class="client-avatar">BB</div>
+    <div class="client-info">
+      <div class="client-name">Barbara Bui</div>
+      <div class="client-meta">Paul-Louis Michel · p.michel@barbarabui.com · +33 1 42 36 74 00</div>
+      <div class="client-badges">
+        <span class="badge badge-client">🏢 Client</span>
+        <span class="badge badge-perpetuel">🔑 Licence perpétuelle</span>
+        <span class="badge badge-saas">☁️ Module SaaS</span>
+        <span class="badge" style="background:#e8f8f0;color:var(--green)">✓ Maintenance A3</span>
+      </div>
+    </div>
+    <div class="client-kpis">
+      <div class="ckpi">
+        <div class="ckpi-val">3</div>
+        <div class="ckpi-lbl">Boutiques</div>
+      </div>
+      <div class="ckpi">
+        <div class="ckpi-val">5</div>
+        <div class="ckpi-lbl">Modules</div>
+      </div>
+      <div class="ckpi">
+        <div class="ckpi-val">12</div>
+        <div class="ckpi-lbl">Appareils</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ONGLETS -->
+  <div class="tabs-wrap">
+    <nav class="tabs-nav">
+      <button class="tab-btn active" onclick="showTab('infos')">📋 Informations</button>
+      <button class="tab-btn" onclick="showTab('licences')">🔑 Licences <span class="tab-badge-count">5</span></button>
+      <button class="tab-btn" onclick="showTab('boutiques')">🏪 Boutiques <span class="tab-badge-count">3</span></button>
+      <button class="tab-btn" onclick="showTab('materiel')">💻 Matériel <span class="tab-badge-count">12</span></button>
+      <button class="tab-btn" onclick="showTab('affaires')">📁 Affaires</button>
+    </nav>
+
+    <!-- ══ ONGLET INFORMATIONS ══ -->
+    <div class="tab-content active" id="tab-infos">
+      
+      <div class="section-title">Coordonnées société</div>
+      <div class="info-grid">
+        <div class="info-field">
+          <span class="info-label">Raison sociale</span>
+          <span class="info-value">Barbara Bui SAS</span>
+        </div>
+        <div class="info-field">
+          <span class="info-label">Adresse siège</span>
+          <span class="info-value">23 rue Etienne Marcel, 75001 Paris</span>
+        </div>
+        <div class="info-field">
+          <span class="info-label">Site web</span>
+          <span class="info-value" style="color:var(--teal)">barbarabui.com</span>
+        </div>
+        <div class="info-field">
+          <span class="info-label">Téléphone standard</span>
+          <span class="info-value">+33 1 42 36 74 00</span>
+        </div>
+        <div class="info-field">
+          <span class="info-label">Commercial assigné</span>
+          <span class="info-value">Roger</span>
+        </div>
+        <div class="info-field">
+          <span class="info-label">Date entrée en relation</span>
+          <span class="info-value">03/12/2025</span>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Version TexasWin -->
+      <div class="section-title">Installation TexasWin</div>
+      <div class="version-card">
+        <div>
+          <div class="version-label">Version installée</div>
+          <div class="version-val">TexasWin 12.4.2</div>
+          <div class="version-sub">Mise à jour le 15/01/2026 · Hébergement cloud ASTI</div>
+        </div>
+        <div class="version-kpis">
+          <div class="vkpi">
+            <div class="vkpi-val">18</div>
+            <div class="vkpi-lbl">Utilisateurs</div>
+          </div>
+          <div class="vkpi">
+            <div class="vkpi-val">A3</div>
+            <div class="vkpi-lbl">Maintenance</div>
+          </div>
+          <div class="vkpi">
+            <div class="vkpi-val">Cloud</div>
+            <div class="vkpi-lbl">Hébergement</div>
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Contacts -->
+      <div class="section-title">
+        Contacts
+        <button class="btn-add">+ Contact</button>
+      </div>
+
+      <div class="contact-card">
+        <div class="contact-avatar">PM</div>
+        <div class="contact-info">
+          <div class="contact-name">Paul-Louis Michel</div>
+          <div class="contact-role">Directeur Général · p.michel@barbarabui.com · +33 6 12 34 56 78</div>
+        </div>
+        <div class="contact-badges">
+          <span class="tag tag-decideur">Décideur</span>
+          <span class="tag tag-principal">Principal</span>
+        </div>
+      </div>
+
+      <div class="contact-card">
+        <div class="contact-avatar" style="background:#667eea">SL</div>
+        <div class="contact-info">
+          <div class="contact-name">Sophie Laurent</div>
+          <div class="contact-role">DSI · s.laurent@barbarabui.com · +33 6 98 76 54 32</div>
+        </div>
+        <div class="contact-badges">
+          <span class="tag" style="background:#e8f4fd;color:var(--blue)">Technique</span>
+        </div>
+      </div>
+
+      <div class="contact-card">
+        <div class="contact-avatar" style="background:#f0932b">MC</div>
+        <div class="contact-info">
+          <div class="contact-name">Marie Chevalier</div>
+          <div class="contact-role">Responsable boutique Paris · m.chevalier@barbarabui.com</div>
+        </div>
+        <div class="contact-badges">
+          <span class="tag tag-boutique">Boutique Paris</span>
+        </div>
+      </div>
+
+      <div class="contact-card">
+        <div class="contact-avatar" style="background:#2ec27e">JD</div>
+        <div class="contact-info">
+          <div class="contact-name">Jean Dupont</div>
+          <div class="contact-role">Responsable boutique Lyon · j.dupont@barbarabui.com</div>
+        </div>
+        <div class="contact-badges">
+          <span class="tag tag-boutique">Boutique Lyon</span>
+        </div>
+      </div>
+
+      <hr class="divider">
+      <div class="section-title">Notes</div>
+      <div style="background:var(--bg);border-radius:var(--radius-sm);padding:14px;font-size:13px;color:var(--slate);line-height:1.6">
+        Client stratégique — 3 boutiques en France. Migration depuis un ERP concurrent en décembre 2025. Très satisfait de l'intégration Shopify. Potentiel d'extension sur les boutiques Espagne en 2026.
+      </div>
+
+    </div>
+
+    <!-- ══ ONGLET LICENCES ══ -->
+    <div class="tab-content" id="tab-licences">
+
+      <div class="section-title">
+        Licences actives
+        <button class="btn-add">+ Licence</button>
+      </div>
+
+      <table class="licence-table">
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Type</th>
+            <th>Nb utilisateurs</th>
+            <th>Hébergement</th>
+            <th>Maintenance</th>
+            <th>Depuis</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="module-chip chip-perp">🔑 Biz</span></td>
+            <td style="color:var(--orange);font-weight:600;font-size:12px">Perpétuelle</td>
+            <td style="font-weight:600;font-variant-numeric:tabular-nums">12</td>
+            <td><span style="font-size:12px">🏢 On-premise</span></td>
+            <td><span class="maintenance-badge maint-a3">A3</span></td>
+            <td style="color:var(--muted);font-size:12px">03/12/2025</td>
+            <td><button style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:white;cursor:pointer;font-size:11px">✏️</button></td>
+          </tr>
+          <tr>
+            <td><span class="module-chip chip-perp">🔑 Fab</span></td>
+            <td style="color:var(--orange);font-weight:600;font-size:12px">Perpétuelle</td>
+            <td style="font-weight:600;font-variant-numeric:tabular-nums">6</td>
+            <td><span style="font-size:12px">🏢 On-premise</span></td>
+            <td><span class="maintenance-badge maint-a3">A3</span></td>
+            <td style="color:var(--muted);font-size:12px">03/12/2025</td>
+            <td><button style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:white;cursor:pointer;font-size:11px">✏️</button></td>
+          </tr>
+          <tr>
+            <td><span class="module-chip chip-saas">☁️ Net B2B</span></td>
+            <td style="color:var(--blue);font-weight:600;font-size:12px">SaaS</td>
+            <td style="font-weight:600;font-variant-numeric:tabular-nums">—</td>
+            <td><span style="font-size:12px">☁️ Cloud ASTI</span></td>
+            <td><span class="maintenance-badge maint-none">Inclus</span></td>
+            <td style="color:var(--muted);font-size:12px">01/02/2026</td>
+            <td><button style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:white;cursor:pointer;font-size:11px">✏️</button></td>
+          </tr>
+          <tr>
+            <td><span class="module-chip chip-saas">☁️ Agents</span></td>
+            <td style="color:var(--blue);font-weight:600;font-size:12px">SaaS</td>
+            <td style="font-weight:600;font-variant-numeric:tabular-nums">3</td>
+            <td><span style="font-size:12px">☁️ Cloud ASTI</span></td>
+            <td><span class="maintenance-badge maint-none">Inclus</span></td>
+            <td style="color:var(--muted);font-size:12px">01/02/2026</td>
+            <td><button style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:white;cursor:pointer;font-size:11px">✏️</button></td>
+          </tr>
+          <tr>
+            <td><span class="module-chip chip-saas">☁️ Facturation Électronique</span></td>
+            <td style="color:var(--blue);font-weight:600;font-size:12px">SaaS</td>
+            <td style="font-weight:600;font-variant-numeric:tabular-nums">—</td>
+            <td><span style="font-size:12px">☁️ Cloud ASTI</span></td>
+            <td><span class="maintenance-badge maint-none">Inclus</span></td>
+            <td style="color:var(--muted);font-size:12px">01/01/2026</td>
+            <td><button style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:white;cursor:pointer;font-size:11px">✏️</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div>
+
+    <!-- ══ ONGLET BOUTIQUES ══ -->
+    <div class="tab-content" id="tab-boutiques">
+
+      <div class="section-title">
+        Boutiques
+        <button class="btn-add">+ Boutique</button>
+      </div>
+
+      <!-- Boutique 1 -->
+      <div class="boutique-card">
+        <div class="boutique-header">
+          <div>
+            <div class="boutique-name">🏪 Boutique Paris — Étienne Marcel</div>
+            <div style="font-size:12px;color:var(--teal);margin-top:2px;opacity:.8">23 rue Étienne Marcel, 75001 Paris</div>
+          </div>
+          <button style="padding:4px 10px;border:1px solid var(--teal);border-radius:4px;background:white;color:var(--teal);cursor:pointer;font-size:12px">✏️ Modifier</button>
+        </div>
+        <div class="boutique-body">
+          <div class="boutique-info">
+            <div class="info-field">
+              <span class="info-label">Responsable</span>
+              <span class="info-value">Marie Chevalier</span>
+            </div>
+            <div class="info-field">
+              <span class="info-label">Téléphone boutique</span>
+              <span class="info-value">+33 1 42 36 74 01</span>
+            </div>
+          </div>
+          <div class="info-label" style="margin-bottom:8px">Matériel installé</div>
+          <div class="materiel-list">
+            <div class="materiel-chip">📱 PDA <span class="qty">×2</span> <span style="color:var(--muted);font-size:11px">Honeywell CT45 · Android 12</span></div>
+            <div class="materiel-chip">🖥️ Caisse <span class="qty">×2</span> <span style="color:var(--muted);font-size:11px">Toshiba TCxFlight · Win 10</span></div>
+            <div class="materiel-chip">📊 Tablette <span class="qty">×1</span> <span style="color:var(--muted);font-size:11px">Surface Pro 9 · Win 11</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Boutique 2 -->
+      <div class="boutique-card">
+        <div class="boutique-header">
+          <div>
+            <div class="boutique-name">🏪 Boutique Lyon — Presqu'île</div>
+            <div style="font-size:12px;color:var(--teal);margin-top:2px;opacity:.8">8 rue de la République, 69001 Lyon</div>
+          </div>
+          <button style="padding:4px 10px;border:1px solid var(--teal);border-radius:4px;background:white;color:var(--teal);cursor:pointer;font-size:12px">✏️ Modifier</button>
+        </div>
+        <div class="boutique-body">
+          <div class="boutique-info">
+            <div class="info-field">
+              <span class="info-label">Responsable</span>
+              <span class="info-value">Jean Dupont</span>
+            </div>
+            <div class="info-field">
+              <span class="info-label">Téléphone boutique</span>
+              <span class="info-value">+33 4 78 12 34 56</span>
+            </div>
+          </div>
+          <div class="info-label" style="margin-bottom:8px">Matériel installé</div>
+          <div class="materiel-list">
+            <div class="materiel-chip">📱 PDA <span class="qty">×1</span> <span style="color:var(--muted);font-size:11px">Honeywell CT45 · Android 12</span></div>
+            <div class="materiel-chip">🖥️ Caisse <span class="qty">×1</span> <span style="color:var(--muted);font-size:11px">Toshiba TCxFlight · Win 10</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Boutique 3 -->
+      <div class="boutique-card">
+        <div class="boutique-header">
+          <div>
+            <div class="boutique-name">🏪 Boutique Bordeaux — Triangle d'Or</div>
+            <div style="font-size:12px;color:var(--teal);margin-top:2px;opacity:.8">15 cours de l'Intendance, 33000 Bordeaux</div>
+          </div>
+          <button style="padding:4px 10px;border:1px solid var(--teal);border-radius:4px;background:white;color:var(--teal);cursor:pointer;font-size:12px">✏️ Modifier</button>
+        </div>
+        <div class="boutique-body">
+          <div class="boutique-info">
+            <div class="info-field">
+              <span class="info-label">Responsable</span>
+              <span class="info-value empty">Non défini</span>
+            </div>
+            <div class="info-field">
+              <span class="info-label">Téléphone boutique</span>
+              <span class="info-value empty">—</span>
+            </div>
+          </div>
+          <div class="info-label" style="margin-bottom:8px">Matériel installé</div>
+          <div class="materiel-list">
+            <div class="materiel-chip">📱 PDA <span class="qty">×2</span> <span style="color:var(--muted);font-size:11px">Zebra TC21 · Android 11</span></div>
+            <div class="materiel-chip">🖥️ Caisse <span class="qty">×1</span> <span style="color:var(--muted);font-size:11px">Toshiba TCxFlight · Win 10</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══ ONGLET MATÉRIEL ══ -->
+    <div class="tab-content" id="tab-materiel">
+
+      <div class="section-title">
+        Parc matériel complet
+        <button class="btn-add">+ Appareil</button>
+      </div>
+
+      <table class="materiel-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Marque / Modèle</th>
+            <th>OS / Version</th>
+            <th>Qté</th>
+            <th>Localisation</th>
+            <th>Date achat</th>
+            <th>Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="type-icon">📱</span> PDA</td>
+            <td style="font-weight:600">Honeywell CT45</td>
+            <td><span class="os-badge">Android 12</span></td>
+            <td style="font-weight:700;font-variant-numeric:tabular-nums">3</td>
+            <td style="font-size:12px;color:var(--slate)">Paris (×2) · Lyon (×1)</td>
+            <td style="color:var(--muted);font-size:12px">10/2025</td>
+            <td style="color:var(--muted);font-size:12px">Sous garantie</td>
+            <td><button style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:white;cursor:pointer;font-size:11px">✏️</button></td>
+          </tr>
+          <tr>
+            <td><span class="type-icon">📱</span> PDA</td>
+            <td style="font-weight:600">Zebra TC21</td>
+            <td><span class="os-badge">Android 11</span></td>
+            <td style="font-weight:700;font-variant-numeric:tabular-nums">2</td>
+            <td style="font-size:12px;color:var(--slate)">Bordeaux (×2)</td>
+            <td style="color:var(--muted);font-size:12px">03/2024</td>
+            <td style="color:var(--muted);font-size:12px">—</td>
+            <td><button style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:white;cursor:pointer;font-size:11px">✏️</button></td>
+          </tr>
+          <tr>
+            <td><span class="type-icon">🖥️</span> Caisse</td>
+            <td style="font-weight:600">Toshiba TCxFlight</td>
+            <td><span class="os-badge">Windows 10</span></td>
+            <td style="font-weight:700;font-variant-numeric:tabular-nums">4</td>
+            <td style="font-size:12px;color:var(--slate)">Paris (×2) · Lyon (×1) · Bordeaux (×1)</td>
+            <td style="color:var(--muted);font-size:12px">12/2025</td>
+            <td style="color:var(--muted);font-size:12px">Intégration TexasWin POS</td>
+            <td><button style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:white;cursor:pointer;font-size:11px">✏️</button></td>
+          </tr>
+          <tr>
+            <td><span class="type-icon">📊</span> Tablette</td>
+            <td style="font-weight:600">Microsoft Surface Pro 9</td>
+            <td><span class="os-badge">Windows 11</span></td>
+            <td style="font-weight:700;font-variant-numeric:tabular-nums">1</td>
+            <td style="font-size:12px;color:var(--slate)">Paris Siège</td>
+            <td style="color:var(--muted);font-size:12px">01/2026</td>
+            <td style="color:var(--muted);font-size:12px">Showroom</td>
+            <td><button style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:white;cursor:pointer;font-size:11px">✏️</button></td>
+          </tr>
+          <tr>
+            <td><span class="type-icon">🖥️</span> Serveur</td>
+            <td style="font-weight:600">Dell PowerEdge R350</td>
+            <td><span class="os-badge">Windows Server 2022</span></td>
+            <td style="font-weight:700;font-variant-numeric:tabular-nums">1</td>
+            <td style="font-size:12px;color:var(--slate)">Paris Siège</td>
+            <td style="color:var(--muted);font-size:12px">09/2023</td>
+            <td style="color:var(--muted);font-size:12px" style="color:var(--orange)">⚠️ Renouvellement 2026</td>
+            <td><button style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:white;cursor:pointer;font-size:11px">✏️</button></td>
+          </tr>
+          <tr>
+            <td><span class="type-icon">🖨️</span> Imprimante étiquettes</td>
+            <td style="font-weight:600">Zebra ZD421</td>
+            <td><span class="os-badge">Firmware 26.20</span></td>
+            <td style="font-weight:700;font-variant-numeric:tabular-nums">1</td>
+            <td style="font-size:12px;color:var(--slate)">Paris Entrepôt</td>
+            <td style="color:var(--muted);font-size:12px">06/2024</td>
+            <td style="color:var(--muted);font-size:12px">—</td>
+            <td><button style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:white;cursor:pointer;font-size:11px">✏️</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div>
+
+    <!-- ══ ONGLET AFFAIRES ══ -->
+    <div class="tab-content" id="tab-affaires">
+
+      <div class="section-title">
+        Historique des affaires
+        <button class="btn-add">+ Affaire</button>
+      </div>
+
+      <div class="affaire-item">
+        <div class="affaire-row">
+          <div>
+            <div class="affaire-name">Barbara Bui / Changement ERP</div>
+            <div class="affaire-meta">Démarré le 03/12/2025 · Roger · 2 devis</div>
+          </div>
+          <span class="status-pill pill-gagne">✓ Gagné</span>
+        </div>
+      </div>
+
+      <div class="affaire-item" style="opacity:.7">
+        <div class="affaire-row">
+          <div>
+            <div class="affaire-name">Extension modules Net B2B</div>
+            <div class="affaire-meta">Démarré le 15/01/2026 · Roger · 1 devis</div>
+          </div>
+          <span class="status-pill pill-encours">En cours</span>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<script>
+function showTab(id) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prospection — Pipeline TexasWin</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap');
+  :root {
+    --bg:#0f0f0f;--surface:#161616;--border:#252525;--accent:#e8c547;
+    --accent2:#4ade80;--text:#f0f0f0;--muted:#666;--danger:#f87171;--info:#60a5fa;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
+
+  /* LAYOUT */
+  .app{display:grid;grid-template-columns:340px 1fr;grid-template-rows:56px 1fr;height:100vh;}
+  .topbar{grid-column:1/-1;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:0 20px;}
+  .logo{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:#000;background:var(--accent);padding:4px 10px;letter-spacing:0.1em;}
+  .topbar-title{font-family:'Syne',sans-serif;font-weight:600;font-size:14px;color:var(--text);}
+  .topbar-sub{font-size:10px;color:var(--muted);margin-left:auto;letter-spacing:0.05em;}
+
+  /* PANNEAU GAUCHE */
+  .left{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+  .left-head{padding:16px;border-bottom:1px solid var(--border);}
+  .section-label{font-size:9px;font-weight:500;letter-spacing:0.15em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;}
+  .search-box{display:flex;gap:6px;margin-bottom:10px;}
+  input[type=text]{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none;}
+  input[type=text]:focus{border-color:var(--accent);}
+  .btn{background:var(--accent);color:#000;border:none;padding:8px 14px;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;cursor:pointer;white-space:nowrap;}
+  .btn:hover{background:#f0d060;}
+  .btn:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 8px;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;}
+  .btn-sm:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-green{background:var(--accent2);color:#000;border:none;padding:7px 14px;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;cursor:pointer;}
+  .btn-green:hover{background:#22c55e;}
+
+  .tabs{display:flex;border-bottom:1px solid var(--border);}
+  .tab{flex:1;padding:8px;font-size:10px;text-align:center;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;letter-spacing:0.05em;text-transform:uppercase;}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+  /* LISTE RÉSULTATS */
+  .results-list{flex:1;overflow-y:auto;}
+  .result-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.1s;}
+  .result-item:hover{background:rgba(232,197,71,0.04);}
+  .result-item.selected{background:rgba(232,197,71,0.08);border-left:2px solid var(--accent);}
+  .ri-nom{font-size:12px;font-weight:500;color:var(--text);margin-bottom:3px;}
+  .ri-commercial{font-size:10px;color:var(--accent);margin-bottom:3px;}
+  .ri-meta{font-size:10px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;}
+  .ri-siren{font-size:9px;color:var(--muted);}
+  .badge{font-size:9px;padding:2px 6px;border-radius:2px;}
+  .badge-naf{background:rgba(232,197,71,0.1);color:var(--accent);}
+  .badge-risk{background:rgba(248,113,113,0.1);color:var(--danger);}
+
+  .status-bar{padding:8px 16px;font-size:10px;color:var(--muted);border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--muted);}
+  .dot.loading{background:var(--accent);animation:pulse 1s infinite;}
+  .dot.ok{background:var(--accent2);}
+  .dot.err{background:var(--danger);}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+  /* PANNEAU DROIT — DÉTAIL */
+  .right{overflow-y:auto;padding:24px;}
+  .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:12px;gap:8px;}
+  .empty-icon{font-size:32px;opacity:0.3;}
+
+  .detail-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:16px;}
+  .detail-nom{font-family:'Syne',sans-serif;font-weight:700;font-size:20px;margin-bottom:4px;}
+  .detail-commercial{font-size:13px;color:var(--accent);margin-bottom:4px;}
+  .detail-business{font-size:11px;color:var(--muted);}
+  .detail-actions{display:flex;gap:8px;flex-shrink:0;}
+
+  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:20px;}
+  .card{background:var(--surface);border:1px solid var(--border);padding:12px;}
+  .card-label{font-size:9px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;}
+  .card-value{font-size:13px;font-weight:500;color:var(--text);}
+  .card-value.accent{color:var(--accent);}
+  .card-value.green{color:var(--accent2);}
+  .card-value.red{color:var(--danger);}
+
+  .section{margin-bottom:20px;}
+  .section-title{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+
+  .dirigeant-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
+  .dirigeant-avatar{width:32px;height:32px;border-radius:50%;background:rgba(232,197,71,0.15);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:var(--accent);flex-shrink:0;}
+  .dirigeant-nom{font-size:12px;font-weight:500;}
+  .dirigeant-role{font-size:10px;color:var(--muted);}
+
+  .contact-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;}
+  .contact-icon{width:20px;text-align:center;color:var(--muted);flex-shrink:0;}
+  .contact-val{flex:1;color:var(--text);}
+  .contact-val a{color:var(--info);text-decoration:none;}
+  .contact-val a:hover{text-decoration:underline;}
+
+  .fin-table{width:100%;border-collapse:collapse;font-size:11px;}
+  .fin-table th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--accent);color:var(--accent);font-size:9px;letter-spacing:0.1em;text-transform:uppercase;font-weight:500;}
+  .fin-table td{padding:6px 8px;border-bottom:1px solid var(--border);}
+  .fin-pos{color:var(--accent2);}
+  .fin-neg{color:var(--danger);}
+
+  .risk-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;font-size:10px;}
+  .risk-0{background:rgba(74,222,128,0.1);color:var(--accent2);}
+  .risk-1{background:rgba(232,197,71,0.1);color:var(--accent);}
+  .risk-2{background:rgba(248,113,113,0.1);color:var(--danger);}
+
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <span class="logo">TexasWin</span>
+    <span class="topbar-title">Prospection B2B</span>
+    <span class="topbar-sub">Source : SocieteInfo</span>
+  </div>
+
+  <!-- PANNEAU GAUCHE -->
+  <div class="left">
+    <div class="left-head">
+      <div class="section-label">Recherche</div>
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Nom, marque, SIREN..." onkeydown="if(event.key==='Enter')lancer()">
+        <button class="btn" id="btnSearch" onclick="lancer()">▶</button>
+      </div>
+      <div style="font-size:9px;color:var(--muted);">Nom commercial, raison sociale ou SIREN (9 chiffres)</div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" id="tab-search" onclick="switchTab('search')">Recherche</div>
+      <div class="tab" id="tab-recent" onclick="switchTab('recent')">Récents</div>
+    </div>
+
+    <div class="results-list" id="resultsList">
+      <div style="padding:20px;text-align:center;color:var(--muted);font-size:11px;">Tapez un nom ou un SIREN</div>
+    </div>
+
+    <div class="status-bar">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">Prêt</span>
+    </div>
+  </div>
+
+  <!-- PANNEAU DROIT -->
+  <div class="right" id="rightPanel">
+    <div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <div>Sélectionnez une société pour voir le détail</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const SIKEY = 'ao8e6ivfppqtvmh6n4sroqfiqkv1er14rcsgnf72nkqjgeb4fji';
+let selectedSiren = null;
+let recentItems = JSON.parse(localStorage.getItem('prospection_recent') || '[]');
+
+function setStatus(type, msg) {
+  document.getElementById('statusDot').className = 'dot ' + type;
+  document.getElementById('statusText').textContent = msg;
+}
+
+function switchTab(tab) {
+  document.getElementById('tab-search').classList.toggle('active', tab === 'search');
+  document.getElementById('tab-recent').classList.toggle('active', tab === 'recent');
+  if (tab === 'recent') afficherRecents();
+}
+
+function afficherRecents() {
+  const list = document.getElementById('resultsList');
+  if (recentItems.length === 0) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px;">Aucun historique</div>';
+    return;
+  }
+  list.innerHTML = recentItems.map(e => itemHTML(e)).join('');
+}
+
+function itemHTML(e) {
+  const siren = e.registration_number || e.siren || '';
+  const nom = e.name || '';
+  const commercial = e.commercial_name || e.business_name || '';
+  const adresse = e.formatted_address || (e.address ? e.address.postal_code + ' ' + e.address.city : '');
+  const naf = e.activity?.ape_code || e.ape_code || '';
+  const risk = e.risk?.risk_level ?? -1;
+  return `<div class="result-item ${selectedSiren===siren?'selected':''}" onclick="selectSiren('${siren}')">
+    <div class="ri-nom">${nom}</div>
+    ${commercial ? `<div class="ri-commercial">${commercial}</div>` : ''}
+    <div class="ri-meta">
+      <span class="ri-siren">${siren}</span>
+      ${naf ? `<span class="badge badge-naf">${naf}</span>` : ''}
+      ${risk >= 2 ? `<span class="badge badge-risk">⚠ Proc. collective</span>` : ''}
+      <span>${adresse}</span>
+    </div>
+  </div>`;
+}
+
+async function lancer() {
+  const q = document.getElementById('searchInput').value.trim();
+  if (!q) return;
+
+  document.getElementById('btnSearch').disabled = true;
+  setStatus('loading', 'Recherche en cours...');
+  document.getElementById('resultsList').innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px;">Chargement...</div>';
+
+  try {
+    // SIREN direct ?
+    if (/^\d{9}$/.test(q)) {
+      await selectSiren(q);
+      document.getElementById('btnSearch').disabled = false;
+      return;
+    }
+
+    const r = await fetch(`https://societeinfo.com/app/rest/api/v2/companies.json?query=${encodeURIComponent(q)}&key=${SIKEY}&limit=20`);
+    const data = await r.json();
+    const results = data.result || [];
+
+    if (results.length === 0) {
+      document.getElementById('resultsList').innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px;">Aucun résultat</div>';
+      setStatus('err', 'Aucun résultat');
+    } else {
+      document.getElementById('resultsList').innerHTML = results.map(e => itemHTML(e)).join('');
+      setStatus('ok', `${results.length} société(s) — cliquez pour le détail`);
+    }
+  } catch(err) {
+    setStatus('err', 'Erreur : ' + err.message);
+  }
+  document.getElementById('btnSearch').disabled = false;
+}
+
+async function selectSiren(siren) {
+  if (!siren) return;
+  selectedSiren = siren;
+
+  // Mettre à jour la sélection dans la liste
+  document.querySelectorAll('.result-item').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll('.result-item').forEach(el => {
+    if (el.onclick.toString().includes(siren)) el.classList.add('selected');
+  });
+
+  const right = document.getElementById('rightPanel');
+  right.innerHTML = '<div class="empty-state"><div>Chargement du détail...</div></div>';
+  setStatus('loading', `Chargement SIREN ${siren}...`);
+
+  try {
+    const r = await fetch(`https://societeinfo.com/app/rest/api/v2/company.json/${siren}?key=${SIKEY}`);
+    const data = await r.json();
+    const e = data.result;
+    if (!e) throw new Error('Société non trouvée');
+
+    const org = e.organization;
+    const contacts = e.contacts || {};
+    const web = e.web_infos || {};
+    const fin = e.financials || {};
+
+    // Ajouter aux récents
+    const recItem = { registration_number: siren, name: org.name, commercial_name: org.commercial_name, business_name: org.business_name, formatted_address: org.address?.postal_code + ' ' + org.address?.city, activity: org.activity, risk: org.risk };
+    recentItems = [recItem, ...recentItems.filter(x => x.registration_number !== siren)].slice(0, 20);
+    localStorage.setItem('prospection_recent', JSON.stringify(recentItems));
+
+    // Formater CA
+    const formatCA = v => v ? (v/1000000).toFixed(1) + ' M€' : '—';
+    const formatEff = v => v ? v.toLocaleString() : '—';
+    const lastFin = fin.years?.find(y => y.sales) || {};
+    const riskLevel = org.risk?.risk_level ?? 0;
+    const riskDesc = org.risk?.risk_level_description || 'Pas de risque';
+
+    right.innerHTML = `
+      <div class="detail-head">
+        <div>
+          <div class="detail-nom">${org.name}</div>
+          ${org.commercial_name ? `<div class="detail-commercial">${org.commercial_name}</div>` : ''}
+          ${org.business_name && org.business_name !== org.commercial_name ? `<div class="detail-business">${org.business_name}</div>` : ''}
+        </div>
+        <div class="detail-actions">
+          <button class="btn-sm" onclick="copierSiren('${siren}')">⊕ Copier SIREN</button>
+          <button class="btn-green" onclick="importerPipeline('${siren}')">↗ Importer Pipeline</button>
+        </div>
+      </div>
+
+      <!-- CARDS -->
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-label">SIREN</div>
+          <div class="card-value accent">${siren}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Code NAF</div>
+          <div class="card-value accent">${org.activity?.ape_code || '—'}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Statut</div>
+          <div class="card-value ${org.status === 'Active' ? 'green' : 'red'}">${org.status || '—'}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Risque</div>
+          <div class="card-value">
+            <span class="risk-badge risk-${riskLevel}">${riskDesc}</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-label">CA (${lastFin.year || '—'})</div>
+          <div class="card-value">${formatCA(lastFin.sales)}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Effectifs</div>
+          <div class="card-value">${formatEff(fin.last_staff)}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Création</div>
+          <div class="card-value">${org.creation_date || '—'}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Établissements</div>
+          <div class="card-value">${org.establishments_count || '—'}</div>
+        </div>
+      </div>
+
+      <!-- ADRESSE & CONTACTS -->
+      <div class="section">
+        <div class="section-title">Coordonnées</div>
+        <div class="contact-row"><div class="contact-icon">📍</div><div class="contact-val">${org.address?.street || ''}, ${org.address?.postal_code || ''} ${org.address?.city || ''}</div></div>
+        ${contacts.phones?.length ? contacts.phones.map(p => `<div class="contact-row"><div class="contact-icon">📞</div><div class="contact-val">${p.value}</div></div>`).join('') : ''}
+        ${contacts.email ? `<div class="contact-row"><div class="contact-icon">✉</div><div class="contact-val"><a href="mailto:${contacts.email}">${contacts.email}</a></div></div>` : ''}
+        ${web.linkedin?.url ? `<div class="contact-row"><div class="contact-icon">in</div><div class="contact-val"><a href="${web.linkedin.url}" target="_blank">${web.linkedin.url}</a></div></div>` : ''}
+        ${web.website_url ? `<div class="contact-row"><div class="contact-icon">🌐</div><div class="contact-val"><a href="${web.website_url}" target="_blank">${web.website_url}</a></div></div>` : ''}
+      </div>
+
+      <!-- ACTIVITÉ -->
+      <div class="section">
+        <div class="section-title">Activité</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.6;">${org.activity?.ape_name || ''}</div>
+        ${org.activity?.corporate_object ? `<div style="font-size:10px;color:var(--muted);line-height:1.6;margin-top:6px;">${org.activity.corporate_object.slice(0, 200)}...</div>` : ''}
+      </div>
+
+      <!-- DIRIGEANTS -->
+      ${contacts.corporate_officiers?.length ? `
+      <div class="section">
+        <div class="section-title">Dirigeants</div>
+        ${contacts.corporate_officiers.filter(d => !d.company).map(d => `
+          <div class="dirigeant-item">
+            <div class="dirigeant-avatar">${(d.firstName?.[0]||'') + (d.lastName?.[0]||'')}</div>
+            <div>
+              <div class="dirigeant-nom">${d.name}</div>
+              <div class="dirigeant-role">${d.role}</div>
+            </div>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- FINANCIERS -->
+      ${fin.years?.length ? `
+      <div class="section">
+        <div class="section-title">Données financières</div>
+        <table class="fin-table">
+          <thead><tr><th>Année</th><th>CA</th><th>Résultat</th><th>Effectifs</th></tr></thead>
+          <tbody>
+            ${fin.years.filter(y => y.sales).slice(0, 5).map(y => `
+              <tr>
+                <td>${y.year}</td>
+                <td>${formatCA(y.sales)}</td>
+                <td class="${y.profit >= 0 ? 'fin-pos' : 'fin-neg'}">${formatCA(y.profit)}</td>
+                <td>${y.staff || '—'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : ''}
+    `;
+
+    setStatus('ok', `${org.name} — chargé`);
+  } catch(err) {
+    right.innerHTML = `<div class="empty-state"><div style="color:var(--danger)">Erreur : ${err.message}</div></div>`;
+    setStatus('err', err.message);
+  }
+}
+
+function copierSiren(siren) {
+  navigator.clipboard.writeText(siren).then(() => setStatus('ok', 'SIREN copié !'));
+}
+
+function importerPipeline(siren) {
+  // TODO : appel API Pipeline TexasWin
+  alert('Import vers Pipeline — à connecter à votre API\nSIREN : ' + siren);
+}
+</script>
+</body>
+</html>

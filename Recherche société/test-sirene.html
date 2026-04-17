@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Test API Sirene</title></head>
+<body>
+<h2>Test API Sirene - Nom Commercial</h2>
+<button onclick="test1()">Test 1: GD Distribution par SIREN</button><br><br>
+<button onclick="test2()">Test 2: Recherche nom commercial "gerard darel"</button><br><br>
+<button onclick="test3()">Test 3: Recherche nom commercial "GERARD DAREL"</button><br><br>
+<pre id="result" style="background:#eee;padding:10px;white-space:pre-wrap;"></pre>
+<script>
+const KEY = '6d4614ba-7cc2-4eb3-8614-ba7cc2eeb3d4';
+const log = t => document.getElementById('result').textContent = JSON.stringify(t, null, 2);
+
+async function test1() {
+  const r = await fetch('https://api.insee.fr/api-sirene/3.11/siren/814116794', {
+    headers: { 'Accept': 'application/json', 'X-INSEE-Api-Key-Integration': KEY }
+  });
+  log({ status: r.status, data: await r.json() });
+}
+
+async function test2() {
+  const r = await fetch('https://api.insee.fr/api-sirene/3.11/siren?q=nomCommercialUniteLegale:"gerard darel" AND etatAdministratifUniteLegale:A&nombre=5', {
+    headers: { 'Accept': 'application/json', 'X-INSEE-Api-Key-Integration': KEY }
+  });
+  log({ status: r.status, data: await r.json() });
+}
+
+async function test3() {
+  const r = await fetch('https://api.insee.fr/api-sirene/3.11/siren?q=nomCommercialUniteLegale:"GERARD DAREL" AND etatAdministratifUniteLegale:A&nombre=5', {
+    headers: { 'Accept': 'application/json', 'X-INSEE-Api-Key-Integration': KEY }
+  });
+  log({ status: r.status, data: await r.json() });
+}
+</script>
+</body>
+</html>

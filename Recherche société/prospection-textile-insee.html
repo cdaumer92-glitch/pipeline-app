@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prospection Textile — TexasWin</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+:root{--bg:#0f0f0f;--surface:#181818;--border:#2a2a2a;--accent:#e8c547;--accent2:#4ade80;--text:#f0f0f0;--muted:#888;--danger:#f87171;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;padding:28px 20px;}
+header{display:flex;align-items:center;gap:12px;margin-bottom:24px;border-bottom:1px solid var(--border);padding-bottom:16px;}
+.logo-tag{background:var(--accent);color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:11px;padding:4px 10px;letter-spacing:.15em;text-transform:uppercase;}
+h1{font-family:'Syne',sans-serif;font-weight:700;font-size:18px;}
+.credits-info{margin-left:auto;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:8px;}
+.credits-val{color:var(--accent2);font-weight:500;}
+
+.tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid var(--border);}
+.tab{padding:9px 18px;font-family:'Syne',sans-serif;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .15s;}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+
+.panel{background:var(--surface);border:1px solid var(--border);padding:18px;margin-bottom:14px;}
+.panel-title{font-family:'Syne',sans-serif;font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin-bottom:12px;}
+.filters-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+.fg{display:flex;flex-direction:column;gap:4px;flex:1;min-width:120px;}
+label{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+select,input[type="text"],input[type="number"]{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;font-family:'DM Mono',monospace;font-size:12px;outline:none;transition:border-color .15s;width:100%;}
+select:focus,input:focus{border-color:var(--accent);}
+.btn{border:none;padding:8px 16px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.btn-y{background:var(--accent);color:#000;}
+.btn-y:hover{background:#f0d060;}
+.btn-y:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+.btn-g{background:transparent;color:var(--accent2);border:1px solid var(--accent2);font-size:11px;padding:6px 12px;}
+.btn-g:hover{background:rgba(74,222,128,.1);}
+.btn-g:disabled{opacity:.3;cursor:not-allowed;}
+.btn-sm{background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 7px;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;transition:all .1s;}
+.btn-sm:hover{border-color:var(--accent);color:var(--accent);}
+.btn-contacts{background:rgba(232,197,71,.1);border:1px solid var(--accent);color:var(--accent);padding:3px 8px;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;white-space:nowrap;}
+.btn-contacts:hover{background:rgba(232,197,71,.2);}
+
+.naf-container{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+.naf-block{border:1px solid var(--border);}
+.naf-header{display:flex;align-items:center;gap:7px;padding:6px 9px;cursor:pointer;background:rgba(232,197,71,.04);}
+.naf-arrow{font-size:9px;color:var(--accent);transition:transform .2s;flex-shrink:0;}
+.naf-cat-name{font-size:10px;font-weight:500;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);flex:1;}
+.naf-count{font-size:10px;color:var(--muted);}
+.naf-body{display:none;padding:6px;}
+.naf-body.open{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:3px;}
+.naf-item{display:flex;align-items:center;gap:5px;padding:4px 7px;border:1px solid var(--border);cursor:pointer;font-size:10px;transition:all .1s;}
+.naf-item.active{border-color:var(--accent);background:rgba(232,197,71,.06);}
+.naf-item input{accent-color:var(--accent);}
+.naf-code{color:var(--accent);font-weight:500;white-space:nowrap;}
+.naf-label{color:var(--muted);}
+
+.status-bar{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);font-size:11px;color:var(--muted);margin-bottom:12px;min-height:38px;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--border);flex-shrink:0;}
+.dot.active{background:var(--accent);animation:pulse 1s infinite;}
+.dot.done{background:var(--accent2);}
+.dot.error{background:var(--danger);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.progress-bar{height:2px;background:var(--border);margin-bottom:12px;}
+.progress-fill{height:100%;background:var(--accent);width:0%;transition:width .3s;}
+
+.results-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;}
+.count-badge{background:rgba(232,197,71,.15);border:1px solid var(--accent);color:var(--accent);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:3px 10px;}
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:11px;}
+thead th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--accent);color:var(--accent);font-size:10px;letter-spacing:.07em;text-transform:uppercase;font-weight:500;white-space:nowrap;}
+thead th.s{cursor:pointer;user-select:none;}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
+tbody tr:hover{background:rgba(255,255,255,.03);}
+tbody td{padding:6px 8px;vertical-align:middle;}
+.td-s{color:var(--muted);font-size:10px;}
+.td-n{font-weight:500;}
+.td-m{color:var(--accent);font-size:10px;}
+.td-e{color:var(--accent2);}
+.warning{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--danger);padding:8px 12px;font-size:11px;margin-bottom:10px;}
+.empty{text-align:center;padding:36px;color:var(--muted);font-size:12px;}
+
+.sri-list{border:1px solid var(--border);margin-top:10px;}
+.sri{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;}
+.sri:last-child{border-bottom:none;}
+.sri:hover{background:rgba(232,197,71,.05);}
+.sri-name{font-weight:500;font-size:12px;}
+.sri-info{font-size:10px;color:var(--muted);margin-top:2px;}
+
+/* MODAL CONTACTS */
+.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);width:90%;max-width:800px;max-height:80vh;display:flex;flex-direction:column;}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);}
+.modal-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;}
+.modal-body{padding:16px;overflow-y:auto;flex:1;}
+.modal-footer{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;}
+.contact-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);margin-bottom:6px;transition:background .1s;}
+.contact-item:hover{background:rgba(255,255,255,.03);}
+.contact-item input{accent-color:var(--accent);}
+.contact-role{font-size:11px;font-weight:500;}
+.contact-level{font-size:10px;color:var(--accent);margin-top:2px;}
+.contact-flou{font-size:11px;color:var(--muted);font-style:italic;}
+.contact-real{font-size:11px;color:var(--accent2);}
+.contact-linkedin{font-size:10px;color:var(--muted);}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo-tag">TexasWin</span>
+  <h1>Prospection Textile</h1>
+  <div class="credits-info">
+    Crédits SocieteInfo : <span class="credits-val" id="creditsVal">—</span>
+    <button class="btn-sm" onclick="refreshCredits()">↻</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('naf')">Codes NAF</div>
+  <div class="tab" onclick="switchTab('nom')">Par nom / marque</div>
+  <div class="tab" onclick="switchTab('siren')">Par SIREN</div>
+</div>
+
+<!-- TAB NAF -->
+<div class="tab-content active" id="tab-naf">
+  <div class="panel">
+    <div class="panel-title">Filtres <span style="color:var(--muted);font-size:9px;">⚡ 1 crédit / 25 résultats</span></div>
+    <div class="filters-row">
+      <div class="fg"><label>Effectifs min</label><input type="number" id="nafMinStaff" placeholder="ex: 6" min="0"></div>
+      <div class="fg"><label>Effectifs max</label><input type="number" id="nafMaxStaff" placeholder="ex: 499" min="0"></div>
+      <div class="fg"><label>Département</label><input type="text" id="nafDept" placeholder="ex: 75, 69..."></div>
+      <div class="fg"><label>Max résultats / code</label>
+        <select id="nafMax"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option></select>
+      </div>
+      <div class="fg" style="flex:none;">
+        <label>&nbsp;</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0;font-size:11px;cursor:pointer;white-space:nowrap;">
+            <input type="checkbox" id="nafWithPhone" checked style="accent-color:var(--accent);"> Tél. présent
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0;font-size:11px;cursor:pointer;white-space:nowrap;">
+            <input type="checkbox" id="nafWithEmail" style="accent-color:var(--accent);"> Email présent
+          </label>
+        </div>
+      </div>
+      <button class="btn btn-y" id="btnNaf" onclick="lancerNAF()">▶ Lancer</button>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Codes NAF <span style="margin-left:8px;"><button class="btn-sm" onclick="selectAll(true)">✓ Tout</button> <button class="btn-sm" onclick="selectAll(false)">✗ Aucun</button></span></div>
+    <div class="naf-container" id="nafGrid"></div>
+  </div>
+</div>
+
+<!-- TAB NOM -->
+<div class="tab-content" id="tab-nom">
+  <div class="panel">
+    <div class="panel-title">Recherche par nom ou marque</div>
+    <div class="filters-row">
+      <div class="fg" style="flex:3;"><label>Nom, marque, dirigeant...</label>
+        <input type="text" id="nomQuery" placeholder="ex: Gerard Darel, Barbara Bui, Sandro..." onkeydown="if(event.key==='Enter')rechercherNom()">
+      </div>
+      <button class="btn btn-y" onclick="rechercherNom()">🔍 Autocomplete <span style="font-size:9px;">(gratuit)</span></button>
+      <button class="btn btn-y" onclick="rechercherNomCommercial()" style="background:rgba(232,197,71,.3);">🔍 Nom commercial <span style="font-size:9px;">⚡1 crédit</span></button>
+    </div>
+    <div id="nomResultats" style="margin-top:10px;"></div>
+  </div>
+</div>
+
+<!-- TAB SIREN -->
+<div class="tab-content" id="tab-siren">
+  <div class="panel">
+    <div class="panel-title">Ajouter par SIREN <span style="color:var(--muted);font-size:9px;">⚡ 1 crédit</span></div>
+    <div class="filters-row">
+      <div class="fg"><label>SIREN (9 chiffres)</label>
+        <input type="text" id="sirenQuery" placeholder="ex: 814116794" maxlength="9" onkeydown="if(event.key==='Enter')rechercherSiren()">
+      </div>
+      <button class="btn btn-y" onclick="rechercherSiren()">⊕ Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<div class="status-bar"><div class="dot" id="dot"></div><span id="statusTxt">Prêt</span></div>
+<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+<div id="warningZone"></div>
+
+<div class="results-header">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span style="font-family:Syne,sans-serif;font-size:13px;font-weight:600;">Résultats</span>
+    <span class="count-badge" id="countBadge">0 entreprise</span>
+  </div>
+  <div style="display:flex;gap:6px;">
+    <button class="btn-sm" onclick="viderResultats()">🗑 Vider</button>
+    <button class="btn btn-g" id="btnExport" onclick="exportCSV()" disabled>⬇ CSV</button>
+  </div>
+</div>
+<div class="table-wrap"><div id="tableZone"><div class="empty">Les résultats apparaîtront ici.</div></div></div>
+
+<!-- MODAL CONTACTS -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)fermerModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalTitle">Contacts</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px;" id="modalSubtitle"></div>
+      </div>
+      <button class="btn-sm" onclick="fermerModal()">✕ Fermer</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer">
+      <span style="font-size:10px;color:var(--muted);">Cochez les contacts à dévoiler</span>
+      <button class="btn btn-y" onclick="devoilerContacts()" id="btnDevoiler" disabled>⚡ Dévoiler les contacts sélectionnés</button>
+      <span style="font-size:10px;color:var(--danger);" id="devoilCout"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+const SI_KEY = 'ao8e6ivfppqtvmh6n4sroqfiqkv1er14rcsgnf72nkqjgeb4fji';
+
+const NAF_CATEGORIES = [
+  {cat:'Fabrication textile',codes:[
+    {code:'13.10Z',label:'Préparation fibres'},{code:'13.20Z',label:'Tissage'},
+    {code:'13.30Z',label:'Ennoblissement'},{code:'13.91Z',label:'Étoffes à mailles'},
+    {code:'13.92Z',label:'Articles textiles'},{code:'13.93Z',label:'Tapis & moquettes'},
+    {code:'13.94Z',label:'Ficelles & filets'},{code:'13.95Z',label:'Non-tissés'},
+    {code:'13.96Z',label:'Textiles techniques'},{code:'13.99Z',label:'Autres textiles'},
+  ]},
+  {cat:'Fabrication vêtements',codes:[
+    {code:'14.11Z',label:'Vêtements cuir'},{code:'14.12Z',label:'Vêtements travail'},
+    {code:'14.13Z',label:'Vêtements dessus'},{code:'14.14Z',label:'Vêtements dessous'},
+    {code:'14.19Z',label:'Autres vêtements'},{code:'14.20Z',label:'Fourrure'},
+    {code:'14.31Z',label:'Bonneterie'},{code:'14.39Z',label:'Autres bonneterie'},
+  ]},
+  {cat:'Cuir & chaussures',codes:[
+    {code:'15.11Z',label:'Tannage cuir'},{code:'15.12Z',label:'Maroquinerie'},
+    {code:'15.20Z',label:'Chaussures'},
+  ]},
+  {cat:'Commerce de gros',codes:[
+    {code:'46.16Z',label:'Agents textiles'},{code:'46.41Z',label:'Gros textiles'},
+    {code:'46.42Z',label:'Gros habillement'},
+  ]},
+  {cat:'Commerce de détail',codes:[
+    {code:'47.51Z',label:'Détail textiles'},{code:'47.71Z',label:'Détail habillement'},
+    {code:'47.72A',label:'Détail chaussures'},{code:'47.72B',label:'Détail maroquinerie'},
+    {code:'47.91A',label:'Vente distance mode'},
+  ]},
+  {cat:'Création & design',codes:[
+    {code:'74.10Z',label:'Design mode'},
+  ]},
+];
+const NAF_CODES = NAF_CATEGORIES.flatMap(c=>c.codes);
+
+let resultats = [];
+let sortCol=null, sortAsc=true;
+let modalSiren='', modalContacts=[];
+
+// Init NAF grid
+const grid = document.getElementById('nafGrid');
+NAF_CATEGORIES.forEach((cat,idx)=>{
+  const catId='cat_'+idx;
+  const block=document.createElement('div'); block.className='naf-block';
+  const header=document.createElement('div'); header.className='naf-header';
+  const open=idx<2;
+  header.innerHTML=`<span class="naf-arrow" id="arr_${catId}" style="transform:${open?'rotate(90deg)':''}"">▶</span>
+    <span class="naf-cat-name">${cat.cat}</span>
+    <span class="naf-count" id="cnt_${catId}">0/${cat.codes.length}</span>
+    <button class="btn-sm" onclick="event.stopPropagation();setCat(${idx},true)">Tout</button>
+    <button class="btn-sm" onclick="event.stopPropagation();setCat(${idx},false)">Aucun</button>`;
+  header.onclick=()=>{
+    const body=document.getElementById('body_'+catId);
+    const isOpen=body.classList.contains('open');
+    body.classList.toggle('open',!isOpen);
+    document.getElementById('arr_'+catId).style.transform=isOpen?'':'rotate(90deg)';
+  };
+  const body=document.createElement('div');
+  body.className='naf-body'+(open?' open':''); body.id='body_'+catId;
+  cat.codes.forEach(n=>{
+    const item=document.createElement('div'); item.className='naf-item'; item.dataset.catIdx=idx;
+    item.innerHTML=`<input type="checkbox" value="${n.code}"><div><div class="naf-code">${n.code}</div><div class="naf-label">${n.label}</div></div>`;
+    const cb=item.querySelector('input');
+    cb.addEventListener('change',()=>{item.classList.toggle('active',cb.checked);updateCount(idx);});
+    item.addEventListener('click',e=>{if(e.target.tagName!=='INPUT'){cb.checked=!cb.checked;item.classList.toggle('active',cb.checked);updateCount(idx);}});
+    body.appendChild(item);
+  });
+  block.appendChild(header); block.appendChild(body); grid.appendChild(block);
+  updateCount(idx);
+});
+
+function updateCount(idx){
+  const items=document.querySelectorAll(`.naf-item[data-cat-idx="${idx}"] input`);
+  const checked=[...items].filter(i=>i.checked).length;
+  const el=document.getElementById('cnt_cat_'+idx);
+  if(el){el.textContent=checked+'/'+items.length;el.style.color=checked>0?'var(--accent2)':'var(--muted)';}
+}
+function setCat(idx,val){
+  document.querySelectorAll(`.naf-item[data-cat-idx="${idx}"] input`).forEach(cb=>{cb.checked=val;cb.closest('.naf-item').classList.toggle('active',val);});
+  updateCount(idx);
+}
+function selectAll(val){
+  document.querySelectorAll('.naf-item input').forEach(cb=>{cb.checked=val;cb.closest('.naf-item').classList.toggle('active',val);});
+  NAF_CATEGORIES.forEach((_,i)=>updateCount(i));
+}
+function codesCoches(){return[...document.querySelectorAll('.naf-item input:checked')].map(c=>c.value);}
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['naf','nom','siren'][i]===name));
+  document.querySelectorAll('.tab-content').forEach(tc=>tc.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+function setStatus(type,msg){document.getElementById('dot').className='dot '+type;document.getElementById('statusTxt').textContent=msg;}
+function setProgress(p){document.getElementById('progressFill').style.width=p+'%';}
+
+// Crédits
+async function refreshCredits(){
+  try{
+    const r=await fetch(`https://societeinfo.com/app/rest/api/v2/apikeyinfo.json?key=${SI_KEY}`);
+    const d=await r.json();
+    if(d.success) document.getElementById('creditsVal').textContent=d.result.totalAvailableCredits+' crédits';
+  }catch(e){}
+}
+refreshCredits();
+
+// Enrichir société par id SocieteInfo
+async function enrichirParId(id,nomConnu){
+  setStatus('active',`Enrichissement ${nomConnu||id}... (⚡ 1 crédit)`);
+  try{
+    const r=await fetch(`https://societeinfo.com/app/rest/api/v2/company.json?id=${encodeURIComponent(id)}&key=${SI_KEY}`);
+    const d=await r.json();
+    if(!d.success){setStatus('error','Non trouvé');return;}
+    ajouterSociete(d.result);
+    setStatus('done',`${d.result.organization.commercial_name||d.result.organization.name} ajouté ✓`);
+    refreshCredits();
+    document.getElementById('nomResultats').innerHTML='';
+  }catch(e){setStatus('error',`Erreur: ${e.message}`);}
+}
+
+// Enrichir par SIREN
+async function enrichirParSiren(siren){
+  setStatus('active',`Enrichissement ${siren}... (⚡ 1 crédit)`);
+  try{
+    const r=await fetch(`https://societeinfo.com/app/rest/api/v2/company.json/${siren}?key=${SI_KEY}`);
+    const d=await r.json();
+    if(!d.success){setStatus('error','Non trouvé');return;}
+    ajouterSociete(d.result);
+    setStatus('done',`${d.result.organization.commercial_name||d.result.organization.name} ajouté ✓`);
+    refreshCredits();
+  }catch(e){setStatus('error',`Erreur: ${e.message}`);}
+}
+
+function ajouterSociete(result){
+  const o=result.organization, c=result.contacts||{}, f=result.financials||{};
+  const siren=o.registration_number;
+  if(resultats.some(r=>r.siren===siren)){setStatus('done','Déjà dans les résultats');return;}
+  const dirigeants=(c.corporate_officiers||[]).filter(d=>!d.company).slice(0,2).map(d=>(d.firstName?d.firstName+' ':'')+d.lastName).join(', ');
+  const ape=o.activity?.ape_code||'';
+  const nafCode=ape.length===5?ape.slice(0,2)+'.'+ape.slice(2):ape;
+  resultats.push({
+    siren, nom:o.name||'', nomCommercial:o.commercial_name||o.business_name||'',
+    naf:nafCode, activite:o.activity?.ape_name||'',
+    effectifs:f.last_staff?f.last_staff+' sal.':'',
+    dirigeant:dirigeants,
+    adresse:o.address?.street||'', cp:o.address?.postal_code||'', ville:o.address?.city||'',
+    tel:(c.phones?.[0]?.value||''), email:c.email||'',
+    website:result.web_infos?.website_url||'',
+    source:'SocieteInfo', siId:result.id||''
+  });
+  afficherResultats();
+  document.getElementById('btnExport').disabled=false;
+}
+
+// TAB NAF — SocieteInfo Search Companies
+async function lancerNAF(){
+  const codes=codesCoches();
+  if(!codes.length){alert('Sélectionnez au moins un code NAF.');return;}
+  document.getElementById('btnNaf').disabled=true;
+  document.getElementById('warningZone').innerHTML='';
+  const warnings=[];
+  const minStaff=document.getElementById('nafMinStaff').value;
+  const maxStaff=document.getElementById('nafMaxStaff').value;
+  const dept=document.getElementById('nafDept').value.trim();
+  const maxPar=parseInt(document.getElementById('nafMax').value);
+  const withPhone=document.getElementById('nafWithPhone').checked;
+  const withEmail=document.getElementById('nafWithEmail').checked;
+  const sirenExistants=new Set(resultats.map(r=>r.siren));
+  const nouveaux=[];
+
+  for(let i=0;i<codes.length;i++){
+    const code=codes[i];
+    setStatus('active',`SocieteInfo — ${code} (${i+1}/${codes.length})...`);
+    setProgress(Math.round(i/codes.length*90));
+
+    let page=1, count=0;
+    while(count<maxPar){
+      let url=`https://societeinfo.com/app/rest/api/v2/companies.json?key=${SI_KEY}&nafLevel=${encodeURIComponent(code)}&limit=25&page=${page}&active=true`;
+      if(minStaff) url+=`&minstaff=${minStaff}`;
+      if(maxStaff) url+=`&maxstaff=${maxStaff}`;
+      if(withPhone) url+=`&withphone=true`;
+      if(withEmail) url+=`&withemail=true`;
+      if(dept) url+=`&where=${encodeURIComponent(dept)}`;
+
+      try{
+        const res=await fetch(url);
+        if(!res.ok){warnings.push(`Erreur ${code}: HTTP ${res.status}`);break;}
+        const data=await res.json();
+        if(!data.success){warnings.push(`Erreur ${code}: ${data.errorMessage||'inconnue'}`);break;}
+        const batch=data.result||[];
+        if(!batch.length) break;
+
+        for(const e of batch){
+          if(count>=maxPar) break;
+          if(sirenExistants.has(e.registration_number)) continue;
+          sirenExistants.add(e.registration_number);
+          nouveaux.push({
+            siren:e.registration_number||'', nom:e.name||'', nomCommercial:'',
+            naf:code, activite:e.activity?.slice(0,60)||'',
+            effectifs:'', dirigeant:'', adresse:'',
+            cp:e.formatted_address?.match(/\b(\d{5})\b/)?.[1]||'',
+            ville:e.formatted_address?.replace(/\d{5}\s*/,'').trim()||'',
+            tel:'', email:'', website:'', source:'SocieteInfo', siId:e.id||''
+          });
+          count++;
+        }
+        if(batch.length<25||count>=maxPar) break;
+        page++;
+        await new Promise(r=>setTimeout(r,500));
+      }catch(e){warnings.push(`Erreur ${code}: ${e.message}`);break;}
+    }
+    await new Promise(r=>setTimeout(r,500));
+  }
+
+  resultats.push(...nouveaux);
+  setProgress(100);
+  setStatus('done',`${nouveaux.length} société(s) ajoutée(s) — Total: ${resultats.length}`);
+  if(warnings.length) document.getElementById('warningZone').innerHTML=warnings.map(w=>`<div class="warning">⚠ ${w}</div>`).join('');
+  afficherResultats();
+  document.getElementById('btnNaf').disabled=false;
+  refreshCredits();
+}
+
+// TAB NOM — Autocomplete V3 gratuit
+async function rechercherNom(){
+  const q=document.getElementById('nomQuery').value.trim();
+  if(!q||q.length<2) return;
+  const zone=document.getElementById('nomResultats');
+  zone.innerHTML='<div style="color:var(--muted);font-size:11px;padding:8px;">Recherche gratuite...</div>';
+  try{
+    const r=await fetch(`https://societeinfo.com/app/rest/api/v3/companies.json/autocomplete?query=${encodeURIComponent(q)}&key=${SI_KEY}&limit=10`);
+    const d=await r.json();
+    const results=d.result||[];
+    if(!results.length){zone.innerHTML='<div class="warning">Aucun résultat.</div>';return;}
+    let html=`<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">${d.total||''} résultats — cliquez pour enrichir (⚡ 1 crédit)</div><div class="sri-list">`;
+    results.forEach(e=>{
+      const nomSafe=(e.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      html+=`<div class="sri" onclick="enrichirParId('${e.id}','${nomSafe}')">
+        <div><div class="sri-name">${e.name||''}</div><div class="sri-info">${e.formatted_address||''}</div></div>
+        <span style="font-size:10px;color:var(--accent);">⚡ Enrichir</span></div>`;
+    });
+    html+='</div>';
+    zone.innerHTML=html;
+  }catch(e){zone.innerHTML=`<div class="warning">Erreur: ${e.message}</div>`;}
+}
+
+// Recherche nom commercial — 1 crédit
+async function rechercherNomCommercial(){
+  const q=document.getElementById('nomQuery').value.trim();
+  if(!q||q.length<2) return;
+  const zone=document.getElementById('nomResultats');
+  zone.innerHTML='<div style="color:var(--muted);font-size:11px;padding:8px;">Recherche nom commercial... (⚡ 1 crédit)</div>';
+  try{
+    const r=await fetch(`https://societeinfo.com/app/rest/api/v2/companies.json?query=${encodeURIComponent(q)}&searchMode=name&key=${SI_KEY}&limit=10`);
+    const d=await r.json();
+    const results=d.result||[];
+    if(!results.length){zone.innerHTML='<div class="warning">Aucun résultat.</div>';return;}
+    let html=`<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">${d.total||''} résultats — cliquez pour enrichir (⚡ 1 crédit)</div><div class="sri-list">`;
+    results.forEach(e=>{
+      const nomSafe=(e.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      html+=`<div class="sri" onclick="enrichirParId('${e.id}','${nomSafe}')">
+        <div><div class="sri-name">${e.name||''}</div><div class="sri-info">${e.activity?.slice(0,60)||''} — ${e.formatted_address||''}</div></div>
+        <span style="font-size:10px;color:var(--accent);">⚡ Enrichir</span></div>`;
+    });
+    html+='</div>';
+    zone.innerHTML=html;
+    refreshCredits();
+  }catch(e){zone.innerHTML=`<div class="warning">Erreur: ${e.message}</div>`;}
+}
+
+// TAB SIREN
+async function rechercherSiren(){
+  const siren=document.getElementById('sirenQuery').value.trim().replace(/\s/g,'');
+  if(!siren||siren.length!==9||isNaN(siren)){alert('SIREN invalide (9 chiffres).');return;}
+  if(resultats.some(r=>r.siren===siren)){setStatus('done','Déjà dans les résultats');return;}
+  await enrichirParSiren(siren);
+  document.getElementById('sirenQuery').value='';
+}
+
+// CONTACTS — liste floutée gratuite
+async function voirContacts(siren, nom){
+  modalSiren=siren; modalContacts=[];
+  document.getElementById('modalTitle').textContent='Contacts — '+nom;
+  document.getElementById('modalSubtitle').textContent='Chargement...';
+  document.getElementById('modalBody').innerHTML='<div style="color:var(--muted);font-size:11px;padding:16px;">Récupération des contacts...</div>';
+  document.getElementById('btnDevoiler').disabled=true;
+  document.getElementById('devoilCout').textContent='';
+  document.getElementById('modalOverlay').classList.add('open');
+
+  try{
+    const r=await fetch(`https://societeinfo.com/app/rest/api/v2/contacts.json/${siren}?show_all_anonymized=true&key=${SI_KEY}`);
+    const d=await r.json();
+    if(!d.success||!d.contacts?.length){
+      document.getElementById('modalBody').innerHTML='<div class="warning">Aucun contact disponible.</div>';
+      document.getElementById('modalSubtitle').textContent='';
+      return;
+    }
+    modalContacts=d.contacts;
+    document.getElementById('modalSubtitle').textContent=`${d.contacts_count} contact(s) disponible(s) — cochez pour dévoiler (⚡ 1 crédit/contact)`;
+    let html='';
+    d.contacts.forEach((c,i)=>{
+      const flou=c.anonymized;
+      html+=`<div class="contact-item">
+        <input type="checkbox" id="cc_${i}" ${flou?'':'checked'} onchange="updateDevoilCout()">
+        <div style="flex:1;">
+          <div class="contact-role">${flou?'<span class="contact-flou">'+c.firstName+' '+c.lastName+'</span>':'<span class="contact-real">'+c.firstName+' '+c.lastName+'</span>'}</div>
+          <div class="contact-level">${c.role||''} ${c.level_label?'· '+c.level_label:''}</div>
+          ${flou?'<div class="contact-flou" style="font-size:10px;">'+c.email+'</div>':'<div class="contact-real" style="font-size:10px;">'+c.email+(c.linkedin_url?' · <a href="'+c.linkedin_url+'" target="_blank" style="color:var(--accent2);">LinkedIn</a>':'')+'</div>'}
+        </div>
+        <span style="font-size:10px;color:${flou?'var(--danger)':'var(--accent2)'};">${flou?'⚡ flou':'✓ visible'}</span>
+      </div>`;
+    });
+    document.getElementById('modalBody').innerHTML=html;
+    updateDevoilCout();
+  }catch(e){
+    document.getElementById('modalBody').innerHTML=`<div class="warning">Erreur: ${e.message}</div>`;
+  }
+}
+
+function updateDevoilCout(){
+  const toReveal=modalContacts.filter((c,i)=>{
+    const cb=document.getElementById('cc_'+i);
+    return cb&&cb.checked&&c.anonymized;
+  });
+  const n=toReveal.length;
+  document.getElementById('btnDevoiler').disabled=n===0;
+  document.getElementById('devoilCout').textContent=n>0?`⚡ ${n} crédit(s)`:'';
+}
+
+async function devoilerContacts(){
+  const toReveal=modalContacts.filter((c,i)=>{
+    const cb=document.getElementById('cc_'+i);
+    return cb&&cb.checked&&c.anonymized;
+  });
+  if(!toReveal.length) return;
+  const ids=toReveal.map(c=>c.id).join(',');
+  document.getElementById('btnDevoiler').disabled=true;
+  document.getElementById('btnDevoiler').textContent='Dévoilement...';
+  try{
+    const r=await fetch(`https://societeinfo.com/app/rest/api/v2/contacts.json/${modalSiren}?contact_ids=${ids}&key=${SI_KEY}`);
+    const d=await r.json();
+    if(!d.success){alert('Erreur lors du dévoilement');return;}
+    // Mettre à jour les contacts dans la modal
+    d.contacts.forEach(c=>{
+      const idx=modalContacts.findIndex(mc=>mc.id===c.id);
+      if(idx>=0){
+        modalContacts[idx]={...c,anonymized:false};
+        const item=document.getElementById('cc_'+idx)?.closest('.contact-item');
+        if(item){
+          item.querySelector('.contact-role').innerHTML=`<span class="contact-real">${c.firstName} ${c.lastName}</span>`;
+          item.querySelector('.contact-level').textContent=(c.role||'')+' '+(c.level_label?'· '+c.level_label:'');
+          item.querySelectorAll('.contact-flou,.contact-real')[1]?.remove();
+          const info=document.createElement('div');
+          info.className='contact-real';
+          info.style.fontSize='10px';
+          info.innerHTML=c.email+(c.linkedin_url?` · <a href="${c.linkedin_url}" target="_blank" style="color:var(--accent2);">LinkedIn</a>`:'');
+          item.children[1].appendChild(info);
+          item.querySelector('span:last-child').textContent='✓ visible';
+          item.querySelector('span:last-child').style.color='var(--accent2)';
+        }
+      }
+    });
+    refreshCredits();
+    updateDevoilCout();
+  }catch(e){alert(`Erreur: ${e.message}`);}
+  document.getElementById('btnDevoiler').textContent='⚡ Dévoiler les contacts sélectionnés';
+}
+
+function fermerModal(){document.getElementById('modalOverlay').classList.remove('open');}
+
+// Affichage tableau
+function trierEt(col){sortAsc=sortCol===col?!sortAsc:true;sortCol=col;afficherResultats();}
+
+function afficherResultats(){
+  document.getElementById('countBadge').textContent=resultats.length+' entreprise'+(resultats.length>1?'s':'');
+  if(!resultats.length){
+    document.getElementById('tableZone').innerHTML='<div class="empty">Aucun résultat.</div>';
+    document.getElementById('btnExport').disabled=true; return;
+  }
+  let data=[...resultats];
+  if(sortCol){
+    data.sort((a,b)=>{
+      let va=a[sortCol]||'', vb=b[sortCol]||'';
+      va=va.toString().toLowerCase(); vb=vb.toString().toLowerCase();
+      return sortAsc?(va<vb?-1:va>vb?1:0):(va>vb?-1:va<vb?1:0);
+    });
+  }
+  const arr=col=>sortCol===col?(sortAsc?' ▲':' ▼'):' ⇅';
+  let html=`<table><thead><tr>
+    <th>SIREN</th>
+    <th class="s" onclick="trierEt('nom')">Raison sociale${arr('nom')}</th>
+    <th>Nom commercial</th>
+    <th>NAF</th>
+    <th>Effectifs</th>
+    <th>Dirigeant</th>
+    <th>Téléphone</th>
+    <th>Email</th>
+    <th class="s" onclick="trierEt('cp')">CP${arr('cp')}</th>
+    <th class="s" onclick="trierEt('ville')">Ville${arr('ville')}</th>
+    <th>Contacts</th>
+  </tr></thead><tbody>`;
+
+  data.forEach(e=>{
+    const nomSafe=(e.nom||'').replace(/'/g,"\\'");
+    html+=`<tr>
+      <td class="td-s">${e.siren}</td>
+      <td class="td-n">${e.nom}</td>
+      <td class="td-m">${e.nomCommercial||''}</td>
+      <td class="td-s">${e.naf||''}</td>
+      <td class="td-e">${e.effectifs||''}</td>
+      <td class="td-s">${e.dirigeant||''}</td>
+      <td class="td-s">${e.tel||''}</td>
+      <td class="td-s">${e.email||''}</td>
+      <td class="td-s">${e.cp||''}</td>
+      <td class="td-s">${e.ville||''}</td>
+      <td><button class="btn-contacts" onclick="voirContacts('${e.siren}','${nomSafe}')">👥 Contacts</button></td>
+    </tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('tableZone').innerHTML=html;
+  document.getElementById('btnExport').disabled=false;
+}
+
+function viderResultats(){
+  if(!confirm('Vider tous les résultats ?')) return;
+  resultats=[];afficherResultats();setStatus('','Prêt');
+  document.getElementById('btnExport').disabled=true;
+}
+
+function exportCSV(){
+  if(!resultats.length) return;
+  const h=['SIREN','Raison sociale','Nom commercial','NAF','Activité','Effectifs','Dirigeant','Téléphone','Email','Adresse','CP','Ville'];
+  const q=s=>`"${(s||'').replace(/"/g,'""')}"`;
+  const rows=resultats.map(e=>[e.siren,q(e.nom),q(e.nomCommercial),e.naf,q(e.activite),e.effectifs,q(e.dirigeant),e.tel,e.email,q(e.adresse),e.cp,e.ville].join(';'));
+  const csv='\uFEFF'+[h.join(';'),...rows].join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  a.download=`prospects_textile_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+</script>
+</body>
+</html>

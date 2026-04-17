@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prospection Textile — TexasWin</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+  :root {
+    --bg:#0f0f0f;--surface:#181818;--border:#2a2a2a;
+    --accent:#e8c547;--accent2:#4ade80;--text:#f0f0f0;
+    --muted:#888;--danger:#f87171;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;padding:32px 24px;}
+  header{display:flex;align-items:flex-end;gap:16px;margin-bottom:32px;border-bottom:1px solid var(--border);padding-bottom:20px;}
+  .logo-tag{background:var(--accent);color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:11px;padding:4px 10px;letter-spacing:.15em;text-transform:uppercase;}
+  h1{font-family:'Syne',sans-serif;font-weight:700;font-size:20px;}
+  .subtitle{font-size:11px;color:var(--muted);margin-left:auto;}
+
+  /* TABS */
+  .tabs{display:flex;gap:0;margin-bottom:24px;border-bottom:1px solid var(--border);}
+  .tab{padding:10px 20px;font-family:'Syne',sans-serif;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .15s;}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .tab-content{display:none;}
+  .tab-content.active{display:block;}
+
+  /* PANELS */
+  .panel{background:var(--surface);border:1px solid var(--border);padding:20px;margin-bottom:16px;}
+  .panel-title{font-family:'Syne',sans-serif;font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin-bottom:14px;}
+
+  /* FORM */
+  .filters-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+  .filter-group{display:flex;flex-direction:column;gap:5px;flex:1;min-width:140px;}
+  label{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+  select,input[type="text"]{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 10px;font-family:'DM Mono',monospace;font-size:12px;outline:none;transition:border-color .15s;width:100%;}
+  select:focus,input[type="text"]:focus{border-color:var(--accent);}
+  .btn{border:none;padding:9px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+  .btn-primary{background:var(--accent);color:#000;}
+  .btn-primary:hover{background:#f0d060;}
+  .btn-primary:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+  .btn-green{background:transparent;color:var(--accent2);border:1px solid var(--accent2);}
+  .btn-green:hover{background:rgba(74,222,128,.1);}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 8px;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;}
+  .btn-sm:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* NAF CATEGORIES */
+  .naf-container{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+  .naf-block{border:1px solid var(--border);}
+  .naf-header{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;background:rgba(232,197,71,.04);}
+  .naf-arrow{font-size:10px;color:var(--accent);transition:transform .2s;}
+  .naf-cat-name{font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);flex:1;}
+  .naf-count{font-size:10px;color:var(--muted);}
+  .naf-body{display:none;padding:8px;display:none;}
+  .naf-body.open{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:4px;}
+  .naf-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--border);cursor:pointer;font-size:11px;transition:all .1s;}
+  .naf-item.active{border-color:var(--accent);background:rgba(232,197,71,.06);}
+  .naf-item input{accent-color:var(--accent);}
+  .naf-code{color:var(--accent);font-weight:500;font-size:10px;white-space:nowrap;}
+  .naf-label{color:var(--muted);font-size:10px;}
+
+  /* STATUS */
+  .status-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border);font-size:11px;color:var(--muted);margin-bottom:14px;min-height:40px;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0;}
+  .dot.active{background:var(--accent);animation:pulse 1s infinite;}
+  .dot.done{background:var(--accent2);}
+  .dot.error{background:var(--danger);}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .progress-bar{height:2px;background:var(--border);margin-bottom:14px;}
+  .progress-fill{height:100%;background:var(--accent);width:0%;transition:width .3s;}
+
+  /* RESULTS */
+  .results-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
+  .count-badge{background:rgba(232,197,71,.15);border:1px solid var(--accent);color:var(--accent);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:3px 10px;}
+  table{width:100%;border-collapse:collapse;font-size:11px;}
+  thead th{text-align:left;padding:7px 9px;border-bottom:1px solid var(--accent);color:var(--accent);font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:500;white-space:nowrap;}
+  thead th.sortable{cursor:pointer;user-select:none;}
+  tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
+  tbody tr:hover{background:rgba(255,255,255,.03);}
+  tbody td{padding:7px 9px;vertical-align:middle;}
+  .td-siren{color:var(--muted);font-size:10px;}
+  .td-nom{font-weight:500;}
+  .td-com{color:var(--accent);font-size:10px;}
+  .td-naf{color:var(--muted);font-size:10px;}
+  .td-eff{color:var(--accent2);}
+  .td-sm{color:var(--muted);font-size:10px;}
+  .warning{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--danger);padding:8px 12px;font-size:11px;margin-bottom:10px;}
+  .empty-state{text-align:center;padding:40px;color:var(--muted);font-size:12px;}
+
+  /* SEARCH RESULTS MODAL */
+  .search-results{border:1px solid var(--border);margin-top:10px;}
+  .search-result-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;}
+  .search-result-item:last-child{border-bottom:none;}
+  .search-result-item:hover{background:rgba(232,197,71,.05);}
+  .sri-name{font-weight:500;font-size:12px;}
+  .sri-info{font-size:10px;color:var(--muted);margin-top:2px;}
+  .sri-siren{font-size:10px;color:var(--accent);}
+  .credits-badge{font-size:10px;color:var(--danger);margin-left:auto;padding:0 8px;}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo-tag">TexasWin</span>
+  <h1>Prospection Textile</h1>
+  <span class="subtitle">INSEE (gratuit) + SocieteInfo (crédits)</span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('naf')">Recherche par codes NAF</div>
+  <div class="tab" onclick="switchTab('nom')">Recherche par nom / marque</div>
+  <div class="tab" onclick="switchTab('siren')">Recherche par SIREN</div>
+</div>
+
+<!-- TAB 1 : NAF -->
+<div class="tab-content active" id="tab-naf">
+  <div class="panel">
+    <div class="panel-title">Filtres</div>
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Effectifs minimum</label>
+        <select id="nafEffectif">
+          <option value="02">3 à 5 salariés et plus</option>
+          <option value="03" selected>6 à 9 salariés et plus</option>
+          <option value="11">10 salariés et plus</option>
+          <option value="12">20 salariés et plus</option>
+          <option value="21">50 salariés et plus</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Département (optionnel)</label>
+        <input type="text" id="nafDept" placeholder="ex: 75, 69...">
+      </div>
+      <div class="filter-group">
+        <label>Max résultats / code NAF</label>
+        <select id="nafMax">
+          <option value="25">25</option>
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="btnNaf" onclick="lancerNAF()">▶ Lancer</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">
+      Codes NAF à cibler
+      <span style="margin-left:12px;">
+        <button class="btn-sm" onclick="selectAll(true)">✓ Tout</button>
+        <button class="btn-sm" onclick="selectAll(false)">✗ Aucun</button>
+      </span>
+    </div>
+    <div class="naf-container" id="nafGrid"></div>
+  </div>
+</div>
+
+<!-- TAB 2 : NOM -->
+<div class="tab-content" id="tab-nom">
+  <div class="panel">
+    <div class="panel-title">Recherche par nom ou marque <span class="credits-badge">⚡ 1 crédit / recherche</span></div>
+    <div class="filters-row">
+      <div class="filter-group" style="flex:3;">
+        <label>Nom de la société ou marque</label>
+        <input type="text" id="nomQuery" placeholder="ex: Gerard Darel, Barbara Bui, Sandro..." onkeydown="if(event.key==='Enter')rechercherNom()">
+      </div>
+      <button class="btn btn-primary" onclick="rechercherNom()">🔍 Rechercher</button>
+    </div>
+    <div id="nomResultats" style="margin-top:12px;"></div>
+  </div>
+</div>
+
+<!-- TAB 3 : SIREN -->
+<div class="tab-content" id="tab-siren">
+  <div class="panel">
+    <div class="panel-title">Ajouter une société par SIREN <span class="credits-badge">⚡ 1 crédit / SIREN</span></div>
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Numéro SIREN (9 chiffres)</label>
+        <input type="text" id="sirenQuery" placeholder="ex: 814116794" maxlength="9" onkeydown="if(event.key==='Enter')rechercherSiren()">
+      </div>
+      <button class="btn btn-primary" onclick="rechercherSiren()">⊕ Ajouter</button>
+    </div>
+    <div id="sirenResultat" style="margin-top:12px;"></div>
+  </div>
+</div>
+
+<!-- RESULTS COMMUNS -->
+<div class="status-bar"><div class="dot" id="dot"></div><span id="statusTxt">Prêt</span></div>
+<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+<div id="warningZone"></div>
+
+<div class="results-header">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span style="font-family:Syne,sans-serif;font-size:13px;font-weight:600;">Résultats</span>
+    <span class="count-badge" id="countBadge">0 entreprise</span>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn-sm" onclick="viderResultats()">🗑 Vider</button>
+    <button class="btn btn-green" id="btnExport" onclick="exportCSV()" disabled style="font-size:11px;padding:6px 14px;">⬇ Exporter CSV</button>
+  </div>
+</div>
+
+<div id="tableZone"><div class="empty-state">Les résultats apparaîtront ici.</div></div>
+
+<script>
+const SI_KEY = 'ao8e6ivfppqtvmh6n4sroqfiqkv1er14rcsgnf72nkqjgeb4fji';
+
+const NAF_CATEGORIES = [
+  { cat:'Fabrication textile', codes:[
+    {code:'13.10Z',label:'Préparation fibres'},{code:'13.20Z',label:'Tissage'},
+    {code:'13.30Z',label:'Ennoblissement'},{code:'13.91Z',label:'Étoffes à mailles'},
+    {code:'13.92Z',label:'Articles textiles'},{code:'13.93Z',label:'Tapis & moquettes'},
+    {code:'13.94Z',label:'Ficelles & filets'},{code:'13.95Z',label:'Non-tissés'},
+    {code:'13.96Z',label:'Textiles techniques'},{code:'13.99Z',label:'Autres textiles'},
+  ]},
+  { cat:'Fabrication vêtements', codes:[
+    {code:'14.11Z',label:'Vêtements cuir'},{code:'14.12Z',label:'Vêtements travail'},
+    {code:'14.13Z',label:'Vêtements dessus'},{code:'14.14Z',label:'Vêtements dessous'},
+    {code:'14.19Z',label:'Autres vêtements'},{code:'14.20Z',label:'Fourrure'},
+    {code:'14.31Z',label:'Bonneterie'},{code:'14.39Z',label:'Autres bonneterie'},
+  ]},
+  { cat:'Cuir & chaussures', codes:[
+    {code:'15.11Z',label:'Tannage cuir'},{code:'15.12Z',label:'Maroquinerie'},
+    {code:'15.20Z',label:'Chaussures'},
+  ]},
+  { cat:'Commerce de gros', codes:[
+    {code:'46.16Z',label:'Agents textiles'},{code:'46.41Z',label:'Gros textiles'},
+    {code:'46.42Z',label:'Gros habillement'},
+  ]},
+  { cat:'Commerce de détail', codes:[
+    {code:'47.51Z',label:'Détail textiles'},{code:'47.71Z',label:'Détail habillement'},
+    {code:'47.72A',label:'Détail chaussures'},{code:'47.72B',label:'Détail maroquinerie'},
+    {code:'47.91A',label:'Vente distance mode'},
+  ]},
+  { cat:'Création & design', codes:[
+    {code:'74.10Z',label:'Design mode'},
+  ]},
+];
+const NAF_CODES = NAF_CATEGORIES.flatMap(c => c.codes);
+const TRANCHES_ORDRE = ['02','03','11','12','21','22','31','32','41','51','52','53'];
+
+let resultats = [];
+let sortCol = null, sortAsc = true;
+
+// Init NAF grid
+const grid = document.getElementById('nafGrid');
+NAF_CATEGORIES.forEach((cat, idx) => {
+  const catId = 'cat_' + idx;
+  const block = document.createElement('div');
+  block.className = 'naf-block';
+
+  const header = document.createElement('div');
+  header.className = 'naf-header';
+  const open = idx < 2;
+  header.innerHTML = `
+    <span class="naf-arrow" id="arr_${catId}" style="transform:${open?'rotate(90deg)':''}">▶</span>
+    <span class="naf-cat-name">${cat.cat}</span>
+    <span class="naf-count" id="cnt_${catId}">0/${cat.codes.length}</span>
+    <button class="btn-sm" onclick="event.stopPropagation();setCat(${idx},true)">Tout</button>
+    <button class="btn-sm" onclick="event.stopPropagation();setCat(${idx},false)">Aucun</button>`;
+  header.onclick = () => {
+    const body = document.getElementById('body_'+catId);
+    const isOpen = body.classList.contains('open');
+    body.classList.toggle('open', !isOpen);
+    document.getElementById('arr_'+catId).style.transform = isOpen ? '' : 'rotate(90deg)';
+  };
+
+  const body = document.createElement('div');
+  body.className = 'naf-body' + (open ? ' open' : '');
+  body.id = 'body_' + catId;
+
+  cat.codes.forEach(n => {
+    const item = document.createElement('div');
+    item.className = 'naf-item';
+    item.dataset.catIdx = idx;
+    item.innerHTML = `<input type="checkbox" value="${n.code}"><div><div class="naf-code">${n.code}</div><div class="naf-label">${n.label}</div></div>`;
+    const cb = item.querySelector('input');
+    cb.addEventListener('change', () => { item.classList.toggle('active', cb.checked); updateCount(idx); });
+    item.addEventListener('click', e => { if(e.target.tagName!=='INPUT'){ cb.checked=!cb.checked; item.classList.toggle('active',cb.checked); updateCount(idx); }});
+    body.appendChild(item);
+  });
+
+  block.appendChild(header);
+  block.appendChild(body);
+  grid.appendChild(block);
+  updateCount(idx);
+});
+
+function updateCount(idx) {
+  const items = document.querySelectorAll(`.naf-item[data-cat-idx="${idx}"] input`);
+  const checked = [...items].filter(i=>i.checked).length;
+  const el = document.getElementById('cnt_cat_'+idx);
+  if(el){ el.textContent = checked+'/'+items.length; el.style.color = checked>0?'var(--accent2)':'var(--muted)'; }
+}
+
+function setCat(idx, val) {
+  document.querySelectorAll(`.naf-item[data-cat-idx="${idx}"] input`).forEach(cb => {
+    cb.checked = val; cb.closest('.naf-item').classList.toggle('active', val);
+  });
+  updateCount(idx);
+}
+
+function selectAll(val) {
+  document.querySelectorAll('.naf-item input').forEach((cb,i) => {
+    cb.checked = val; cb.closest('.naf-item').classList.toggle('active', val);
+  });
+  NAF_CATEGORIES.forEach((_,i) => updateCount(i));
+}
+
+function codesCoches() {
+  return [...document.querySelectorAll('.naf-item input:checked')].map(c=>c.value);
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['naf','nom','siren'][i]===name));
+  document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+function setStatus(type, msg) {
+  document.getElementById('dot').className = 'dot '+type;
+  document.getElementById('statusTxt').textContent = msg;
+}
+function setProgress(p) { document.getElementById('progressFill').style.width = p+'%'; }
+
+function trancheOk(t, min) {
+  const im = TRANCHES_ORDRE.indexOf(min), it = TRANCHES_ORDRE.indexOf(t);
+  return it >= 0 && it >= im;
+}
+function libelleTranche(t) {
+  return {'02':'3-5','03':'6-9','11':'10-19','12':'20-49','21':'50-99','22':'100-199',
+          '31':'200-249','32':'250-499','41':'500-999','42':'1000+','51':'2000+','52':'5000+','53':'10000+'}[t] || (t||'—');
+}
+
+// ===== TAB 1 : RECHERCHE NAF (INSEE gratuit) =====
+async function lancerNAF() {
+  const codes = codesCoches();
+  if (!codes.length) { alert('Sélectionnez au moins un code NAF.'); return; }
+
+  document.getElementById('btnNaf').disabled = true;
+  document.getElementById('warningZone').innerHTML = '';
+  const warnings = [];
+  const filtreEff = document.getElementById('nafEffectif').value;
+  const dept = document.getElementById('nafDept').value.trim();
+  const maxPar = parseInt(document.getElementById('nafMax').value);
+  const nouveaux = [];
+  const sirenExistants = new Set(resultats.map(r=>r.siren));
+
+  for (let i=0; i<codes.length; i++) {
+    const code = codes[i];
+    setStatus('active', `INSEE — ${code} (${i+1}/${codes.length})...`);
+    setProgress(Math.round(i/codes.length*90));
+
+    let page = 1, count = 0;
+    while (count < maxPar) {
+      let url = `https://recherche-entreprises.api.gouv.fr/search?activite_principale=${encodeURIComponent(code)}&etat_administratif=A&per_page=25&page=${page}`;
+      if (dept) url += `&departement=${dept}`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) { warnings.push(`Erreur ${code}: HTTP ${res.status}`); break; }
+        const data = await res.json();
+        const batch = data.results || [];
+        if (!batch.length) break;
+        for (const e of batch) {
+          if (count >= maxPar) break;
+          const siege = e.siege || {};
+          const tranche = e.tranche_effectif_salarie || siege.tranche_effectif_salarie || '';
+          if (tranche === 'NN' || tranche === '00' || tranche === '01') continue;
+          if (tranche && !trancheOk(tranche, filtreEff)) continue;
+          if (sirenExistants.has(e.siren)) continue;
+          const dirigeants = e.dirigeants || [];
+          let dirigeant = '';
+          if (dirigeants.length > 0) {
+            const d = dirigeants[0];
+            dirigeant = (d.prenoms ? d.prenoms+' ' : '') + (d.nom || d.denomination || '');
+          }
+          nouveaux.push({
+            siren: e.siren||'', nom: e.nom_complet||e.nom_raison_sociale||'',
+            nomCommercial: '', naf: code,
+            activite: NAF_CODES.find(n=>n.code===code)?.label||'',
+            tranche, dirigeant,
+            adresse: [siege.numero_voie,siege.type_voie,siege.libelle_voie].filter(Boolean).join(' '),
+            cp: siege.code_postal||'', ville: siege.libelle_commune||'',
+            tel:'', email:'', source:'INSEE'
+          });
+          sirenExistants.add(e.siren);
+          count++;
+        }
+        if (batch.length < 25 || count >= maxPar) break;
+        page++;
+        await new Promise(r=>setTimeout(r,1200));
+      } catch(e) { warnings.push(`Erreur ${code}: ${e.message}`); break; }
+    }
+    await new Promise(r=>setTimeout(r,1200));
+  }
+
+  resultats.push(...nouveaux);
+  setProgress(100);
+  setStatus('done', `${nouveaux.length} nouvelle(s) société(s) ajoutée(s) — Total: ${resultats.length}`);
+  if (warnings.length) document.getElementById('warningZone').innerHTML = warnings.map(w=>`<div class="warning">⚠ ${w}</div>`).join('');
+  afficherResultats();
+  document.getElementById('btnNaf').disabled = false;
+}
+
+// ===== TAB 2 : RECHERCHE PAR NOM (SocieteInfo — 1 crédit) =====
+async function rechercherNom() {
+  const q = document.getElementById('nomQuery').value.trim();
+  if (!q) return;
+  const zone = document.getElementById('nomResultats');
+  zone.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px;">Recherche en cours...</div>';
+
+  try {
+    const res = await fetch(`https://societeinfo.com/app/rest/api/v2/companies.json?query=${encodeURIComponent(q)}&key=${SI_KEY}&limit=5`);
+    const data = await res.json();
+    if (!data.success || !data.result?.length) {
+      zone.innerHTML = '<div class="warning">Aucun résultat.</div>'; return;
+    }
+    let html = `<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">${data.total} résultats trouvés — 5 affichés — Cliquez pour enrichir et ajouter (⚡1 crédit)</div>`;
+    html += '<div class="search-results">';
+    data.result.forEach(e => {
+      html += `<div class="search-result-item" onclick="enrichirEtAjouter('${e.registration_number}','${e.name.replace(/'/g,"\\'")}')">
+        <div>
+          <div class="sri-name">${e.name}</div>
+          <div class="sri-info">${e.activity?.slice(0,80)||''} — ${e.formatted_address||''}</div>
+        </div>
+        <span class="sri-siren">${e.registration_number}</span>
+      </div>`;
+    });
+    html += '</div>';
+    zone.innerHTML = html;
+  } catch(e) {
+    zone.innerHTML = `<div class="warning">Erreur: ${e.message}</div>`;
+  }
+}
+
+// ===== TAB 3 : RECHERCHE PAR SIREN (SocieteInfo — 1 crédit) =====
+async function rechercherSiren() {
+  const siren = document.getElementById('sirenQuery').value.trim().replace(/\s/g,'');
+  if (!siren || siren.length !== 9 || isNaN(siren)) { alert('SIREN invalide (9 chiffres).'); return; }
+  document.getElementById('sirenResultat').innerHTML = '<div style="color:var(--muted);font-size:11px;">Recherche...</div>';
+  await enrichirEtAjouter(siren, '');
+  document.getElementById('sirenResultat').innerHTML = '';
+  document.getElementById('sirenQuery').value = '';
+}
+
+// ===== ENRICHIR PAR SIREN (SocieteInfo détail — 1 crédit) =====
+async function enrichirEtAjouter(siren, nomConnu) {
+  if (resultats.some(r=>r.siren===siren)) {
+    setStatus('done', `${nomConnu||siren} — déjà dans les résultats`); return;
+  }
+  setStatus('active', `Enrichissement ${nomConnu||siren}...`);
+  try {
+    const res = await fetch(`https://societeinfo.com/app/rest/api/v2/company.json/${siren}?key=${SI_KEY}`);
+    const data = await res.json();
+    if (!data.success) { setStatus('error', 'Société non trouvée'); return; }
+    const o = data.result.organization;
+    const c = data.result.contacts || {};
+    const f = data.result.financials || {};
+
+    const dirigeants = (c.corporate_officiers||[]).filter(d=>!d.company).slice(0,2)
+      .map(d=>(d.firstName?d.firstName+' ':'')+d.lastName).join(', ');
+
+    resultats.push({
+      siren: o.registration_number||siren,
+      nom: o.name||'',
+      nomCommercial: o.commercial_name || o.business_name || '',
+      naf: o.activity?.ape_code ? o.activity.ape_code.slice(0,2)+'.'+o.activity.ape_code.slice(2) : '',
+      activite: o.activity?.ape_name||'',
+      tranche: '',
+      effectifsReel: f.last_staff ? f.last_staff+' sal.' : '',
+      dirigeant: dirigeants,
+      adresse: (o.address?.street||''),
+      cp: o.address?.postal_code||'',
+      ville: o.address?.city||'',
+      tel: (c.phones?.[0]?.value||''),
+      email: c.email||'',
+      source:'SocieteInfo'
+    });
+    setStatus('done', `${o.commercial_name||o.name} ajouté`);
+    afficherResultats();
+    document.getElementById('btnExport').disabled = false;
+  } catch(e) {
+    setStatus('error', `Erreur: ${e.message}`);
+  }
+}
+
+function viderResultats() {
+  if (!confirm('Vider tous les résultats ?')) return;
+  resultats = [];
+  afficherResultats();
+  setStatus('', 'Prêt');
+  document.getElementById('btnExport').disabled = true;
+}
+
+// ===== AFFICHAGE =====
+function trierEt(col) {
+  sortAsc = sortCol===col ? !sortAsc : true;
+  sortCol = col;
+  afficherResultats();
+}
+
+function afficherResultats() {
+  const badge = document.getElementById('countBadge');
+  badge.textContent = resultats.length + ' entreprise' + (resultats.length>1?'s':'');
+
+  if (!resultats.length) {
+    document.getElementById('tableZone').innerHTML = '<div class="empty-state">Aucun résultat.</div>';
+    document.getElementById('btnExport').disabled = true;
+    return;
+  }
+
+  let data = [...resultats];
+  if (sortCol) {
+    data.sort((a,b) => {
+      let va = a[sortCol]||'', vb = b[sortCol]||'';
+      if (sortCol==='tranche') { va=TRANCHES_ORDRE.indexOf(a.tranche); vb=TRANCHES_ORDRE.indexOf(b.tranche); }
+      else { va=va.toString().toLowerCase(); vb=vb.toString().toLowerCase(); }
+      return sortAsc ? (va<vb?-1:va>vb?1:0) : (va>vb?-1:va<vb?1:0);
+    });
+  }
+
+  const arr = col => sortCol===col ? (sortAsc?' ▲':' ▼') : ' ⇅';
+  let html = `<table><thead><tr>
+    <th>SIREN</th>
+    <th class="sortable" onclick="trierEt('nom')">Raison sociale${arr('nom')}</th>
+    <th>Nom commercial</th>
+    <th>Code NAF</th>
+    <th class="sortable" onclick="trierEt('tranche')">Effectifs${arr('tranche')}</th>
+    <th>Dirigeant</th>
+    <th>Téléphone</th>
+    <th>Email</th>
+    <th class="sortable" onclick="trierEt('cp')">CP${arr('cp')}</th>
+    <th class="sortable" onclick="trierEt('ville')">Ville${arr('ville')}</th>
+    <th>Source</th>
+  </tr></thead><tbody>`;
+
+  data.forEach(e => {
+    const eff = e.effectifsReel || libelleTranche(e.tranche);
+    html += `<tr>
+      <td class="td-siren">${e.siren}</td>
+      <td class="td-nom">${e.nom}</td>
+      <td class="td-com">${e.nomCommercial||''}</td>
+      <td class="td-naf">${e.naf||''}</td>
+      <td class="td-eff">${eff}</td>
+      <td class="td-sm">${e.dirigeant||''}</td>
+      <td class="td-sm">${e.tel||''}</td>
+      <td class="td-sm">${e.email||''}</td>
+      <td class="td-sm">${e.cp||''}</td>
+      <td class="td-sm">${e.ville||''}</td>
+      <td class="td-sm" style="color:${e.source==='SocieteInfo'?'var(--accent)':'var(--muted)'}">${e.source}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('tableZone').innerHTML = html;
+  document.getElementById('btnExport').disabled = false;
+}
+
+// ===== EXPORT CSV =====
+function exportCSV() {
+  if (!resultats.length) return;
+  const headers = ['SIREN','Raison sociale','Nom commercial','Code NAF','Activité','Effectifs','Dirigeant','Téléphone','Email','Adresse','CP','Ville','Source'];
+  const q = s => `"${(s||'').replace(/"/g,'""')}"`;
+  const rows = resultats.map(e => [
+    e.siren, q(e.nom), q(e.nomCommercial), e.naf, q(e.activite),
+    e.effectifsReel||libelleTranche(e.tranche), q(e.dirigeant),
+    e.tel, e.email, q(e.adresse), e.cp, e.ville, e.source
+  ].join(';'));
+  const csv = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  a.download = `prospects_textile_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+</script>
+</body>
+</html>

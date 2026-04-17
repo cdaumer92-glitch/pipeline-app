@@ -1,0 +1,13 @@
+.gcloudignore
+.git
+.gitignore
+node_modules/
+Archives/
+Documentation/
+prototype/
+*.bat
+*.ps1
+~$*
+*.sqlite
+*.db
+seed-data.json
