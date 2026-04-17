@@ -5,7 +5,7 @@ import cors from 'cors';
 import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join as path_join } from 'path';
 import fileUpload from 'express-fileupload';
 import { Storage } from '@google-cloud/storage';
 import XLSX from 'xlsx';
@@ -448,6 +448,13 @@ app.post('/api/auth/logout', auth, async (req, res) => {
 });
 
 // ===================== PROSPECTS =====================
+// =====================================================================
+// ROUTE CONFIGURATEUR DEVIS
+// =====================================================================
+app.get('/configurateur', (req, res) => {
+  res.sendFile(path_join(__dirname, 'configurateur.html'));
+});
+
 // =====================================================================
 // ROUTE PUBLIQUE — Recherche société pour le Configurateur TexasWin
 // Sans auth JWT — retourne uniquement : nom, contact principal, adresse
