@@ -448,6 +448,56 @@ app.post('/api/auth/logout', auth, async (req, res) => {
 });
 
 // ===================== PROSPECTS =====================
+// =====================================================================
+// ROUTE PUBLIQUE — Recherche société pour le Configurateur TexasWin
+// Sans auth JWT — retourne uniquement : nom, contact principal, adresse
+// =====================================================================
+app.get('/api/public/companies/search', async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+
+  const q = (req.query.q || '').trim();
+  if (!q || q.length < 2) {
+    return res.status(400).json({ error: 'Paramètre q requis (min 2 caractères)' });
+  }
+
+  try {
+    const result = await pool.query(`
+      SELECT
+        p.id,
+        p.name                                    AS societe,
+        COALESCE(p.adresse, '')                   AS adresse,
+        COALESCE(p.ville, '')                     AS ville,
+        COALESCE(p.code_postal, '')               AS code_postal,
+        COALESCE(
+          NULLIF(TRIM(COALESCE(i.prenom,'') || ' ' || COALESCE(i.nom,'')), ''),
+          p.contact_name,
+          ''
+        )                                         AS contact,
+        COALESCE(i.fonction, '')                  AS fonction
+      FROM prospects p
+      LEFT JOIN interlocuteurs i
+        ON i.prospect_id = p.id AND i.principal = true
+      WHERE p.name ILIKE $1
+      ORDER BY p.name ASC
+      LIMIT 10
+    `, [`%${q}%`]);
+
+    const rows = result.rows.map(r => ({
+      id:       r.id,
+      societe:  r.societe,
+      contact:  r.contact,
+      fonction: r.fonction,
+      adresse:  [r.adresse, r.code_postal, r.ville].filter(Boolean).join(', ')
+    }));
+
+    res.json(rows);
+  } catch (err) {
+    console.error('Erreur /api/public/companies/search:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/prospects', auth, async (req, res) => {
   try {
     const { siren } = req.query;
