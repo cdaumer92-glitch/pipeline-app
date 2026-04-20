@@ -1,0 +1,48 @@
+﻿# Dependances (seront reinstallees dans le container via npm ci)
+node_modules/
+npm-debug.log
+
+# Git
+.git/
+.gitignore
+.gcloudignore
+
+# Documentation et fichiers locaux
+Documentation/
+Archives/
+prototype/
+SVG/
+Recherche societe/
+.claude/
+
+# Fichiers de configuration GCP (migration en cours)
+cloudrun-config.yaml
+
+# Base de donnees locale (dev uniquement, on utilise PostgreSQL en prod)
+pipeline.db
+
+# Fichiers de travail / doublons
+Test index.html
+Configurateur.html
+
+# Donnees brutes (pas necessaires dans l'image)
+*.xlsx
+*.csv
+seed-data.json
+reinsertion_barbara_bui_antik_batik.sql
+generate_sql.js
+
+# Scripts Windows (pas pertinents en Linux)
+start.bat
+deploy.ps1
+
+# Fichiers systeme
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+.dockerignore
+
+# README
+README.md
