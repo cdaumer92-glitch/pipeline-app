@@ -6465,68 +6465,7 @@
                   {devisPdfFile && <div style={{fontSize: '12px', color: '#666', marginTop: '5px'}}>✓ {devisPdfFile.name}</div>}
                 </div>
 
-                {/* Modules */}
-                <div style={{marginBottom: '15px'}}>
-                  <label style={{display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold'}}>Modules</label>
-                  <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px 15px'}}>
-                    {[
-                      {name: 'Biz', key: 'biz', color: '#17a2b8'},
-                      {name: 'Biz + Fab', key: 'biz_avec_fab', color: '#17a2b8'},
-                      {name: 'Fab', key: 'fab', color: '#17a2b8'},
-                      {name: 'Net', key: 'net', color: '#17a2b8'},
-                      {name: 'Kub', key: 'kub', color: '#17a2b8'},
-                      {name: 'Mag', key: 'mag', color: '#e91e63'},
-                      {name: 'VRP', key: 'vrp', color: '#9c27b0'},
-                      {name: 'Col', key: 'col', color: '#ff9800'},
-                      {name: 'Log', key: 'log', color: '#ffc107'},
-                      {name: 'Jet', key: 'jet', color: '#4caf50'},
-                      {name: 'Flux Tiers', key: 'flux_tiers', color: '#666'}
-                    ].map(module => (
-                      <div key={module.key} style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                        <span style={{color: module.color, fontWeight: 'bold', fontSize: '13px'}}>{module.name}</span>
-                        <input
-                          type="number"
-                          min="0"
-                          max="999"
-                          value={devisFormData.modules[module.key] || 0}
-                          onChange={(e) => setDevisFormData({
-                            ...devisFormData,
-                            modules: {...devisFormData.modules, [module.key]: parseInt(e.target.value) || 0}
-                          })}
-                          style={{width: '50px', padding: '4px', border: '1px solid #ddd', borderRadius: '4px', textAlign: 'center', fontSize: '13px'}}
-                        />
-                      </div>
-                    ))}
-                    <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                      <label style={{display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}>
-                        <input
-                          type="checkbox"
-                          checked={devisFormData.modules.compta_sage || false}
-                          onChange={(e) => setDevisFormData({
-                            ...devisFormData,
-                            modules: {...devisFormData.modules, compta_sage: e.target.checked}
-                          })}
-                          style={{width: '16px', height: '16px'}}
-                        />
-                        <span style={{color: '#3cd6b9', fontWeight: 'bold', fontSize: '13px'}}>Compta Sage</span>
-                      </label>
-                    </div>
-                    <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                      <label style={{display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}>
-                        <input
-                          type="checkbox"
-                          checked={devisFormData.modules.facturation_electronique || false}
-                          onChange={(e) => setDevisFormData({
-                            ...devisFormData,
-                            modules: {...devisFormData.modules, facturation_electronique: e.target.checked}
-                          })}
-                          style={{width: '16px', height: '16px'}}
-                        />
-                        <span style={{color: '#666', fontWeight: 'bold', fontSize: '13px'}}>Facturation Électronique</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
+      
 
                 {/* Boutons */}
                 <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
