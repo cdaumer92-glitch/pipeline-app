@@ -14,7 +14,7 @@ const { Pool } = pkg;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 8080;
-const JWT_SECRET = 'secret-key-2024';
+const JWT_SECRET = process.env.JWT_SECRET || 'secret-key-2024';
 
 // ===================== MAILER =====================
 const transporter = nodemailer.createTransport({
@@ -38,88 +38,8 @@ app.use(express.json());
 app.use(fileUpload());
 app.use(express.static(__dirname));
 
-// === ROUTE DE DIAGNOSTIC TEMPORAIRE (a retirer apres resolution) ===
-app.get('/debug-env', (req, res) => {
-  const _dbpwd = process.env.DB_PASSWORD || '';
-  res.json({
-    DB_HOST: JSON.stringify(process.env.DB_HOST),
-    DB_PORT: JSON.stringify(process.env.DB_PORT),
-    DB_NAME: JSON.stringify(process.env.DB_NAME),
-    DB_USER: JSON.stringify(process.env.DB_USER),
-    DB_PASSWORD_length: _dbpwd.length,
-    DB_PASSWORD_first_4: JSON.stringify(_dbpwd.substring(0, 4)),
-    DB_PASSWORD_last_4: JSON.stringify(_dbpwd.substring(_dbpwd.length - 4)),
-    DB_PASSWORD_starts_with_Value: _dbpwd.startsWith('Value'),
-    DB_PASSWORD_has_leading_space: _dbpwd.startsWith(' '),
-    DB_PASSWORD_has_trailing_space: _dbpwd.endsWith(' '),
-    NODE_ENV: process.env.NODE_ENV,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// === ROUTE DE TEST POOL (a retirer apres resolution) ===
-app.get('/debug-pool', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT current_user, current_database()');
-    res.json({ status: 'POOL OK', rows: result.rows });
-  } catch (e) {
-    res.json({
-      status: 'ERREUR POOL',
-      message: e.message,
-      code: e.code,
-      detail: e.detail,
-      hint: e.hint,
-      stack: e.stack ? e.stack.substring(0, 800) : null
-    });
-  }
-});
-
-// === ROUTE DE TEST DB (a retirer apres resolution) ===
-app.get('/debug-db', async (req, res) => {
-  const pkg2 = await import('pg');
-  const { Client } = pkg2.default;
-  const client = new Client({
-    host: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT),
-    database: process.env.DB_NAME,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    ssl: { rejectUnauthorized: false }
-  });
-  try {
-    await client.connect();
-    const r = await client.query('SELECT current_user, current_database(), version()');
-    await client.end();
-    res.json({ status: 'CONNEXION OK', rows: r.rows });
-  } catch (e) {
-    res.json({
-      status: 'ERREUR',
-      message: e.message,
-      code: e.code,
-      detail: e.detail,
-      hint: e.hint,
-      stack: e.stack ? e.stack.substring(0, 500) : null
-    });
-  }
-});
-
 // ===================== DATABASE =====================
-// === DIAGNOSTIC TEMPORAIRE (a retirer apres test) ===
-console.log('=== DIAGNOSTIC ENV VARIABLES ===');
-console.log('DB_HOST:', JSON.stringify(process.env.DB_HOST));
-console.log('DB_PORT:', JSON.stringify(process.env.DB_PORT));
-console.log('DB_NAME:', JSON.stringify(process.env.DB_NAME));
-console.log('DB_USER:', JSON.stringify(process.env.DB_USER));
-const _dbpwd = process.env.DB_PASSWORD || '';
-console.log('DB_PASSWORD length:', _dbpwd.length);
-console.log('DB_PASSWORD first 4 chars:', JSON.stringify(_dbpwd.substring(0, 4)));
-console.log('DB_PASSWORD last 4 chars:', JSON.stringify(_dbpwd.substring(_dbpwd.length - 4)));
-console.log('DB_PASSWORD starts with Value?', _dbpwd.startsWith('Value'));
-console.log('DB_PASSWORD has leading space?', _dbpwd.startsWith(' '));
-console.log('DB_PASSWORD has trailing space?', _dbpwd.endsWith(' '));
-console.log('=== FIN DIAGNOSTIC ===');
-
-// Fonction qui retourne les options du pool (lit process.env a chaque fois)
+// Fonction qui retourne les options du pool (lit process.env)
 function getDBConfig() {
   return {
     host: process.env.DB_HOST,
@@ -485,9 +405,7 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    console.log('[LOGIN] Attempting query for email:', email);
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    console.log('[LOGIN] Query SUCCESS, rows:', result.rows.length);
     const user = result.rows[0];
     if (!user) return res.status(400).json({ error: 'Identifiants invalides' });
     const valid = await bcryptjs.compare(password, user.password);
@@ -513,13 +431,7 @@ app.post('/api/auth/login', async (req, res) => {
     
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {
-    console.error('[LOGIN] ERROR:', err.message, '| code:', err.code, '| stack:', err.stack);
-    res.status(500).json({ 
-      error: err.message,
-      code: err.code,
-      detail: err.detail,
-      stack_excerpt: err.stack ? err.stack.substring(0, 300) : null
-    });
+    res.status(500).json({ error: err.message });
   }
 });
 
