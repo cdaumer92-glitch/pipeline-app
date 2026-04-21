@@ -108,8 +108,7 @@ const pool = new Pool({
   database: process.env.DB_NAME || 'pipeline',
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'password',
-  ssl: { rejectUnauthorized: false },
-  connect_timeout: 30000
+  ssl: { rejectUnauthorized: false }
 });
 
 pool.on('error', (err) => console.error('Pool error:', err));
