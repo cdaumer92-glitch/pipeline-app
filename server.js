@@ -57,6 +57,23 @@ app.get('/debug-env', (req, res) => {
   });
 });
 
+// === ROUTE DE TEST POOL (a retirer apres resolution) ===
+app.get('/debug-pool', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT current_user, current_database()');
+    res.json({ status: 'POOL OK', rows: result.rows });
+  } catch (e) {
+    res.json({
+      status: 'ERREUR POOL',
+      message: e.message,
+      code: e.code,
+      detail: e.detail,
+      hint: e.hint,
+      stack: e.stack ? e.stack.substring(0, 800) : null
+    });
+  }
+});
+
 // === ROUTE DE TEST DB (a retirer apres resolution) ===
 app.get('/debug-db', async (req, res) => {
   const pkg2 = await import('pg');
@@ -102,14 +119,19 @@ console.log('DB_PASSWORD has leading space?', _dbpwd.startsWith(' '));
 console.log('DB_PASSWORD has trailing space?', _dbpwd.endsWith(' '));
 console.log('=== FIN DIAGNOSTIC ===');
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'pipeline',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'password',
-  ssl: { rejectUnauthorized: false }
-});
+// Fonction qui retourne les options du pool (lit process.env a chaque fois)
+function getDBConfig() {
+  return {
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    ssl: { rejectUnauthorized: false }
+  };
+}
+
+const pool = new Pool(getDBConfig());
 
 pool.on('error', (err) => console.error('Pool error:', err));
 
