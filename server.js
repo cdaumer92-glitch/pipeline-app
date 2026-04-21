@@ -485,7 +485,9 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
+    console.log('[LOGIN] Attempting query for email:', email);
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    console.log('[LOGIN] Query SUCCESS, rows:', result.rows.length);
     const user = result.rows[0];
     if (!user) return res.status(400).json({ error: 'Identifiants invalides' });
     const valid = await bcryptjs.compare(password, user.password);
@@ -511,7 +513,13 @@ app.post('/api/auth/login', async (req, res) => {
     
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[LOGIN] ERROR:', err.message, '| code:', err.code, '| stack:', err.stack);
+    res.status(500).json({ 
+      error: err.message,
+      code: err.code,
+      detail: err.detail,
+      stack_excerpt: err.stack ? err.stack.substring(0, 300) : null
+    });
   }
 });
 
