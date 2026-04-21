@@ -38,6 +38,25 @@ app.use(express.json());
 app.use(fileUpload());
 app.use(express.static(__dirname));
 
+// === ROUTE DE DIAGNOSTIC TEMPORAIRE (a retirer apres resolution) ===
+app.get('/debug-env', (req, res) => {
+  const _dbpwd = process.env.DB_PASSWORD || '';
+  res.json({
+    DB_HOST: JSON.stringify(process.env.DB_HOST),
+    DB_PORT: JSON.stringify(process.env.DB_PORT),
+    DB_NAME: JSON.stringify(process.env.DB_NAME),
+    DB_USER: JSON.stringify(process.env.DB_USER),
+    DB_PASSWORD_length: _dbpwd.length,
+    DB_PASSWORD_first_4: JSON.stringify(_dbpwd.substring(0, 4)),
+    DB_PASSWORD_last_4: JSON.stringify(_dbpwd.substring(_dbpwd.length - 4)),
+    DB_PASSWORD_starts_with_Value: _dbpwd.startsWith('Value'),
+    DB_PASSWORD_has_leading_space: _dbpwd.startsWith(' '),
+    DB_PASSWORD_has_trailing_space: _dbpwd.endsWith(' '),
+    NODE_ENV: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // ===================== DATABASE =====================
 // === DIAGNOSTIC TEMPORAIRE (a retirer apres test) ===
 console.log('=== DIAGNOSTIC ENV VARIABLES ===');
