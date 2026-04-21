@@ -39,6 +39,21 @@ app.use(fileUpload());
 app.use(express.static(__dirname));
 
 // ===================== DATABASE =====================
+// === DIAGNOSTIC TEMPORAIRE (a retirer apres test) ===
+console.log('=== DIAGNOSTIC ENV VARIABLES ===');
+console.log('DB_HOST:', JSON.stringify(process.env.DB_HOST));
+console.log('DB_PORT:', JSON.stringify(process.env.DB_PORT));
+console.log('DB_NAME:', JSON.stringify(process.env.DB_NAME));
+console.log('DB_USER:', JSON.stringify(process.env.DB_USER));
+const _dbpwd = process.env.DB_PASSWORD || '';
+console.log('DB_PASSWORD length:', _dbpwd.length);
+console.log('DB_PASSWORD first 4 chars:', JSON.stringify(_dbpwd.substring(0, 4)));
+console.log('DB_PASSWORD last 4 chars:', JSON.stringify(_dbpwd.substring(_dbpwd.length - 4)));
+console.log('DB_PASSWORD starts with Value?', _dbpwd.startsWith('Value'));
+console.log('DB_PASSWORD has leading space?', _dbpwd.startsWith(' '));
+console.log('DB_PASSWORD has trailing space?', _dbpwd.endsWith(' '));
+console.log('=== FIN DIAGNOSTIC ===');
+
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432'),
