@@ -7,7 +7,13 @@ import jwt from 'jsonwebtoken';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fileUpload from 'express-fileupload';
-import { Storage } from '@google-cloud/storage';
+import {
+  saveObject,
+  downloadObject,
+  deleteObject,
+  objectExists,
+  storageConfig,
+} from './lib/storage.js';
 import XLSX from 'xlsx';
 
 const { Pool } = pkg;
@@ -27,11 +33,10 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// ===================== Google Cloud Storage =====================
-const storage = new Storage({
-  projectId: process.env.GCP_PROJECT_ID || 'project-731c3f29-bb12-43c5-a4d'
-});
-const bucket = storage.bucket('pipeline-devis');
+// ===================== Object Storage (Scaleway) =====================
+console.log(
+  `📦 Storage : ${storageConfig.provider} / ${storageConfig.bucket} @ ${storageConfig.region}`
+);
 
 app.use(cors());
 app.use(express.json());
@@ -363,6 +368,67 @@ async function initDB() {
     // Migration: colonnes interlocuteurs (prénom séparé du nom)
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS prenom TEXT`);
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS civilite TEXT`);
+
+    // ========== MIGRATION GCS → Scaleway : préfixes pdf_url ==========
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    const migrationName = 'gcs-to-scaleway-pdf-paths-v1';
+    const migCheck = await client.query(
+      'SELECT 1 FROM migrations WHERE name = $1',
+      [migrationName]
+    );
+
+    if (migCheck.rows.length === 0) {
+      console.log(`⏳ Migration "${migrationName}" en cours...`);
+      await client.query('BEGIN');
+      try {
+        const rp = await client.query(`
+          UPDATE prospects
+             SET pdf_url = 'prospects/' || pdf_url
+           WHERE pdf_url IS NOT NULL
+             AND pdf_url NOT LIKE 'prospects/%'
+             AND pdf_url NOT LIKE 'devis/%'
+        `);
+
+        const rd1 = await client.query(`
+          UPDATE devis
+             SET pdf_url = 'devis/' || SUBSTRING(pdf_url FROM LENGTH('devis-pdfs/') + 1)
+           WHERE pdf_url LIKE 'devis-pdfs/%'
+        `);
+
+        const rd2 = await client.query(`
+          UPDATE devis
+             SET pdf_url = 'devis/' || pdf_url
+           WHERE pdf_url IS NOT NULL
+             AND pdf_url NOT LIKE 'prospects/%'
+             AND pdf_url NOT LIKE 'devis/%'
+             AND pdf_url NOT LIKE 'devis-pdfs/%'
+        `);
+
+        await client.query(
+          'INSERT INTO migrations (name) VALUES ($1)',
+          [migrationName]
+        );
+        await client.query('COMMIT');
+
+        console.log(
+          `✅ Migration "${migrationName}" appliquée : ` +
+          `${rp.rowCount} prospects, ${rd1.rowCount + rd2.rowCount} devis mis à jour`
+        );
+      } catch (err) {
+        await client.query('ROLLBACK');
+        console.error(`❌ Migration "${migrationName}" échouée, ROLLBACK :`, err.message);
+        throw err;
+      }
+    } else {
+      console.log(`↻ Migration "${migrationName}" déjà appliquée (skip)`);
+    }
+    // ========== FIN MIGRATION ==========
 
     client.release();
     console.log('✅ Tables créées + Système admin initialisé');
@@ -842,10 +908,8 @@ app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
       return res.status(400).json({ error: 'Le fichier doit être un PDF' });
     }
 
-    const fileName = `prospect-${req.params.id}-${Date.now()}.pdf`;
-    const blob = bucket.file(fileName);
-
-    await blob.save(pdfFile.data);
+    const fileName = `prospects/prospect-${req.params.id}-${Date.now()}.pdf`;
+    await saveObject(fileName, pdfFile.data, 'application/pdf');
 
     await pool.query(
       `UPDATE prospects SET pdf_url = $1 WHERE id = $2`,
@@ -869,7 +933,11 @@ app.delete('/api/prospects/:id/pdf', auth, async (req, res) => {
 
     if (result.rows[0]?.pdf_url) {
       const fileName = result.rows[0].pdf_url;
-      await bucket.file(fileName).delete();
+      try {
+        await deleteObject(fileName);
+      } catch (storageErr) {
+        console.error('Erreur suppression PDF storage:', storageErr);
+      }
     }
 
     await pool.query(
@@ -897,14 +965,12 @@ app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
     }
 
     const fileName = result.rows[0].pdf_url;
-    const blob = bucket.file(fileName);
 
-    const [exists] = await blob.exists();
-    if (!exists) {
+    if (!(await objectExists(fileName))) {
       return res.status(404).json({ error: 'Fichier PDF non trouvé' });
     }
 
-    const [fileContent] = await blob.download();
+    const fileContent = await downloadObject(fileName);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
     res.send(fileContent);
@@ -1288,12 +1354,10 @@ app.delete('/api/devis/:id', auth, async (req, res) => {
     
     const devis = devisResult.rows[0];
     
-    // Supprimer le PDF du Google Cloud Storage si présent
+    // Supprimer le PDF du storage si présent
     if (devis.pdf_url) {
       try {
-        const fileName = devis.pdf_url;
-        const file = bucket.file(fileName);
-        await file.delete();
+        await deleteObject(devis.pdf_url);
       } catch (storageErr) {
         console.error('Erreur suppression PDF du storage:', storageErr);
       }
@@ -1334,13 +1398,10 @@ app.post('/api/devis/:id/upload-pdf', auth, async (req, res) => {
     
     // Générer un nom unique pour le fichier
     const timestamp = Date.now();
-    const fileName = `devis-pdfs/devis-${id}-${timestamp}.pdf`;
-    const blob = bucket.file(fileName);
-    
-    // Upload vers Google Cloud Storage
-    await blob.save(pdfFile.data, {
-      metadata: { contentType: 'application/pdf' }
-    });
+    const fileName = `devis/devis-${id}-${timestamp}.pdf`;
+
+    // Upload vers Scaleway Object Storage
+    await saveObject(fileName, pdfFile.data, 'application/pdf');
     
     // Mettre à jour l'URL dans la base de données
     await pool.query(
@@ -1351,8 +1412,7 @@ app.post('/api/devis/:id/upload-pdf', auth, async (req, res) => {
     // Supprimer l'ancien PDF si présent
     if (oldPdfUrl) {
       try {
-        const oldFile = bucket.file(oldPdfUrl);
-        await oldFile.delete();
+        await deleteObject(oldPdfUrl);
       } catch (err) {
         console.error('Erreur suppression ancien PDF:', err);
       }
@@ -1386,10 +1446,9 @@ app.delete('/api/devis/:id/pdf', auth, async (req, res) => {
       return res.status(404).json({ error: 'Aucun PDF à supprimer' });
     }
     
-    // Supprimer du Google Cloud Storage
+    // Supprimer du Scaleway Object Storage
     try {
-      const file = bucket.file(pdfUrl);
-      await file.delete();
+      await deleteObject(pdfUrl);
     } catch (storageErr) {
       console.error('Erreur suppression PDF du storage:', storageErr);
     }
@@ -1421,14 +1480,11 @@ app.get('/api/devis/:id/download-pdf', auth, async (req, res) => {
       return res.status(404).json({ error: 'Aucun PDF disponible' });
     }
     
-    const blob = bucket.file(pdfUrl);
-    
-    const [exists] = await blob.exists();
-    if (!exists) {
+    if (!(await objectExists(pdfUrl))) {
       return res.status(404).json({ error: 'Fichier PDF non trouvé' });
     }
-    
-    const [fileContent] = await blob.download();
+
+    const fileContent = await downloadObject(pdfUrl);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${pdfUrl}"`);
     res.send(fileContent);
