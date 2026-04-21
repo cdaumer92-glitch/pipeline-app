@@ -57,6 +57,35 @@ app.get('/debug-env', (req, res) => {
   });
 });
 
+// === ROUTE DE TEST DB (a retirer apres resolution) ===
+app.get('/debug-db', async (req, res) => {
+  const pkg2 = await import('pg');
+  const { Client } = pkg2.default;
+  const client = new Client({
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT),
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    ssl: { rejectUnauthorized: false }
+  });
+  try {
+    await client.connect();
+    const r = await client.query('SELECT current_user, current_database(), version()');
+    await client.end();
+    res.json({ status: 'CONNEXION OK', rows: r.rows });
+  } catch (e) {
+    res.json({
+      status: 'ERREUR',
+      message: e.message,
+      code: e.code,
+      detail: e.detail,
+      hint: e.hint,
+      stack: e.stack ? e.stack.substring(0, 500) : null
+    });
+  }
+});
+
 // ===================== DATABASE =====================
 // === DIAGNOSTIC TEMPORAIRE (a retirer apres test) ===
 console.log('=== DIAGNOSTIC ENV VARIABLES ===');
