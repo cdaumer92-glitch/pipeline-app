@@ -535,34 +535,76 @@ app.get('/api/public/companies/search', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(`
+    // 1. Récupérer les sociétés qui matchent
+    const companiesResult = await pool.query(`
       SELECT
         p.id,
         p.name                                    AS societe,
         COALESCE(p.adresse, '')                   AS adresse,
         COALESCE(p.ville, '')                     AS ville,
         COALESCE(p.cp, '')                        AS code_postal,
-        COALESCE(
-          NULLIF(TRIM(COALESCE(i.prenom,'') || ' ' || COALESCE(i.nom,'')), ''),
-          p.contact_name,
-          ''
-        )                                         AS contact,
-        COALESCE(i.fonction, '')                  AS fonction
+        p.contact_name                            AS fallback_contact
       FROM prospects p
-      LEFT JOIN interlocuteurs i
-        ON i.prospect_id = p.id AND i.principal = true
       WHERE p.name ILIKE $1
       ORDER BY p.name ASC
       LIMIT 10
     `, [`%${q}%`]);
 
-    const rows = result.rows.map(r => ({
-      id:       r.id,
-      societe:  r.societe,
-      contact:  r.contact,
-      fonction: r.fonction,
-      adresse:  [r.adresse, r.code_postal, r.ville].filter(Boolean).join(', ')
-    }));
+    if (companiesResult.rows.length === 0) {
+      return res.json([]);
+    }
+
+    // 2. Récupérer tous les interlocuteurs de ces sociétés en une seule requête
+    const companyIds = companiesResult.rows.map(r => r.id);
+    const intersResult = await pool.query(`
+      SELECT
+        prospect_id,
+        id,
+        NULLIF(TRIM(COALESCE(prenom,'') || ' ' || COALESCE(nom,'')), '') AS nom,
+        COALESCE(fonction, '') AS fonction,
+        COALESCE(email, '')    AS email,
+        COALESCE(telephone,'') AS telephone,
+        COALESCE(principal, false) AS principal,
+        COALESCE(decideur, false)  AS decideur
+      FROM interlocuteurs
+      WHERE prospect_id = ANY($1::int[])
+        AND NULLIF(TRIM(COALESCE(prenom,'') || ' ' || COALESCE(nom,'')), '') IS NOT NULL
+      ORDER BY prospect_id, principal DESC, decideur DESC, nom ASC
+    `, [companyIds]);
+
+    // 3. Grouper les interlocuteurs par société
+    const intersByCompany = {};
+    for (const i of intersResult.rows) {
+      if (!intersByCompany[i.prospect_id]) intersByCompany[i.prospect_id] = [];
+      intersByCompany[i.prospect_id].push({
+        id:        i.id,
+        nom:       i.nom,
+        fonction:  i.fonction,
+        email:     i.email,
+        telephone: i.telephone,
+        principal: i.principal,
+        decideur:  i.decideur,
+      });
+    }
+
+    // 4. Construire la réponse
+    const rows = companiesResult.rows.map(r => {
+      const inters = intersByCompany[r.id] || [];
+      // Contact affiché en preview : principal > 1er > contact_name
+      const principal = inters.find(i => i.principal) || inters[0];
+      const contactPreview = principal
+        ? (principal.nom + (principal.fonction ? ', ' + principal.fonction : ''))
+        : (r.fallback_contact || '');
+
+      return {
+        id:              r.id,
+        societe:         r.societe,
+        contact:         contactPreview,
+        fonction:        principal ? principal.fonction : '',
+        adresse:         [r.adresse, r.code_postal, r.ville].filter(Boolean).join(', '),
+        interlocuteurs:  inters,
+      };
+    });
 
     res.json(rows);
   } catch (err) {
