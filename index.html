@@ -711,6 +711,25 @@
         }
       };
 
+      // ── Écoute les messages du configurateur TexasWin ──
+      // Quand le configurateur enregistre un devis dans une affaire, il poste
+      // { type:'devis_saved', prospect_id } vers window.opener → on rafraîchit.
+      React.useEffect(() => {
+        const onMessage = (event) => {
+          // Même origine exigée (sécurité)
+          if (event.origin !== window.location.origin) return;
+          const data = event.data || {};
+          if (data.type === 'devis_saved' && data.prospect_id) {
+            // Si le prospect concerné est celui actuellement ouvert, on rafraîchit
+            if (selectedProspect && String(selectedProspect.id) === String(data.prospect_id)) {
+              fetchDevis(selectedProspect.id);
+            }
+          }
+        };
+        window.addEventListener('message', onMessage);
+        return () => window.removeEventListener('message', onMessage);
+      }, [selectedProspect]);
+
       const handleAddDevis = () => {
         setShowDevisTypeModal(true);
       };
@@ -744,6 +763,10 @@
           adresse: [prospect.adresse, prospect.cp, prospect.ville].filter(Boolean).join(', '),
           commercial: prospect.assigned_to || 'christian',
         });
+        // Si une affaire est sélectionnée dans l'UI, on la passe au configurateur
+        if (selectedAffaireId) {
+          params.set('affaire_id', selectedAffaireId);
+        }
         window.open('/configurateur?' + params.toString(), '_blank');
       };;
 

@@ -1016,6 +1016,7 @@ body {
     <hr class="divider">
 
     <div class="sidebar-title" style="margin-top:4px;">Actions</div>
+    <button class="btn btn-primary btn-full" id="btnSaveInAffaire" onclick="openSaveInAffaireModal()" style="display:none;background:#059669;border-color:#059669;">💼 Enregistrer dans l'affaire</button>
     <button class="btn btn-primary btn-full" onclick="exportConfig()">💾 Export JSON propale</button>
     <button class="btn btn-secondary btn-full btn-sm" onclick="exportExcel()">📊 Export Excel devis</button>
     <button class="btn btn-secondary btn-full btn-sm" onclick="document.getElementById('importInput').click()">📥 Importer JSON</button>
@@ -1026,6 +1027,26 @@ body {
 <!-- Drawer latéral configuration module -->
 <div class="drawer-overlay" id="drawerOverlay" onclick="closeModuleDrawer()"></div>
 <div class="drawer" id="moduleDrawer"></div>
+
+<!-- Modal : Enregistrer le devis dans l'affaire -->
+<div class="modal-overlay" id="saveDevisModal">
+  <div class="modal-box" style="max-width:560px;">
+    <h3 style="margin:0 0 12px;font-family:'Poppins',sans-serif;color:#003366;">💼 Enregistrer le devis dans l'affaire</h3>
+    <p style="color:#607a7a;margin:0 0 16px;font-size:0.9rem;">Vérifiez les informations avant d'enregistrer.</p>
+
+    <div id="saveDevisRecap" style="background:#f0f8f8;border-radius:8px;padding:14px;margin-bottom:14px;font-size:0.9rem;line-height:1.7;"></div>
+
+    <label style="display:block;font-size:0.8rem;color:#607a7a;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Nom du devis (modifiable)</label>
+    <input type="text" id="saveDevisName" style="width:100%;padding:8px 10px;border:1.5px solid #a8d0d3;border-radius:6px;font-family:'Lato',sans-serif;font-size:0.95rem;font-weight:700;margin-bottom:16px;">
+
+    <div id="saveDevisError" style="display:none;background:#fee2e2;border:1px solid #fca5a5;color:#991b1b;padding:8px 12px;border-radius:6px;font-size:0.85rem;margin-bottom:12px;"></div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-secondary" onclick="document.getElementById('saveDevisModal').classList.remove('open')">Annuler</button>
+      <button class="btn btn-primary" id="saveDevisConfirmBtn" onclick="confirmSaveDevis()" style="background:#059669;border-color:#059669;">Enregistrer le devis</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal contact picker -->
 <div class="modal-overlay" id="contactPickerModal">
@@ -2186,6 +2207,258 @@ function exportExcel() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// CAS A : Enregistrer le devis dans une affaire
+// ══════════════════════════════════════════════════════════════
+// Variables de contexte remplies depuis les paramètres URL
+let CTX = { prospect_id: null, affaire_id: null, societe: '', contact_list: [] };
+
+// Récupère le token JWT depuis localStorage (partagé avec l'app principale)
+function getAuthToken() {
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    return u?.token || null;
+  } catch { return null; }
+}
+
+// Génère un trigramme à partir du nom de société
+// Ex : "Barbara Bui" → "BAR", "TEST CDA" → "TES", "Grace & Mila" → "GRA"
+function makeTrigramme(societe) {
+  if (!societe) return 'XXX';
+  const clean = societe
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // accents
+    .replace(/[^A-Za-z0-9]/g, '')
+    .toUpperCase();
+  return (clean.slice(0, 3) || 'XXX').padEnd(3, 'X');
+}
+
+// Format DD/MM/YY pour le nom du devis
+function todayShort() {
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
+}
+
+// Extrait les 4 montants-clés depuis l'état courant du configurateur
+function extractMontantsForSave() {
+  // On relance calculate() pour s'assurer que les totaux sont à jour
+  calculate();
+  const parseMontant = (txt) => {
+    if (!txt) return 0;
+    const m = txt.replace(/[^0-9,.-]/g, '').replace(/\s/g, '').replace(',', '.');
+    return parseFloat(m) || 0;
+  };
+  const monthly = parseMontant(document.getElementById('totalMensuel')?.textContent);
+  const annual  = parseMontant(document.getElementById('totalAnnuel')?.textContent);
+  const setup   = parseMontant(document.getElementById('totalPrestations')?.textContent);
+  const training = parseMontant(document.getElementById('totalFormationDisplay')?.textContent);
+  return { monthly, annual, setup, training };
+}
+
+// Construit le JSON complet du devis (réutilise la logique d'exportConfig)
+// Version simplifiée : on n'exporte pas en fichier, on remonte juste l'objet
+function buildConfigObject() {
+  const ms = moduleState;
+  return {
+    societe: document.getElementById('societe')?.value?.trim() || '',
+    contact: document.getElementById('contact')?.value?.trim() || '',
+    adresse: document.getElementById('adresse')?.value?.trim() || '',
+    commercial: document.getElementById('commercial')?.value || '',
+    margeHebergement: document.getElementById('margeHebergement')?.value || '30',
+    margeSetup: document.getElementById('margeSetup')?.value || '30',
+    flux_noms: fluxNoms,
+    moduleState: { ...moduleState },
+    saved_at: new Date().toISOString(),
+  };
+}
+
+// Ouvre la modale de confirmation avec récap
+function openSaveInAffaireModal() {
+  if (!CTX.affaire_id) {
+    alert("Ce devis n'est pas rattaché à une affaire. Ouvrez le configurateur depuis une fiche d'affaire pour l'enregistrer.");
+    return;
+  }
+  const societe = document.getElementById('societe')?.value?.trim() || '';
+  if (!societe || societe === 'Nom de la Société') {
+    alert('Veuillez renseigner le nom de la société.');
+    return;
+  }
+  const contact = document.getElementById('contact')?.value?.trim() || '(aucun)';
+  const m = extractMontantsForSave();
+
+  const recapHtml = `
+    <div><strong>Société :</strong> ${societe}</div>
+    <div><strong>Contact :</strong> ${contact}</div>
+    <div><strong>Affaire ID :</strong> #${CTX.affaire_id}</div>
+    <hr style="border:none;border-top:1px solid #cde8e8;margin:10px 0;">
+    <div><strong>Setup :</strong> ${fmtEur(m.setup)} HT</div>
+    <div><strong>Abonnement mensuel :</strong> ${fmtEur(m.monthly)} HT</div>
+    <div><strong>Abonnement annuel :</strong> ${fmtEur(m.annual)} HT</div>
+    <div><strong>Formation :</strong> ${fmtEur(m.training)} HT</div>
+  `;
+  document.getElementById('saveDevisRecap').innerHTML = recapHtml;
+
+  // Nom de devis pré-rempli : [TRIGRAMME]_DTW_DD/MM/YY
+  const defaultName = `${makeTrigramme(societe)}_DTW_${todayShort()}`;
+  document.getElementById('saveDevisName').value = defaultName;
+
+  document.getElementById('saveDevisError').style.display = 'none';
+  document.getElementById('saveDevisConfirmBtn').disabled = false;
+  document.getElementById('saveDevisConfirmBtn').textContent = 'Enregistrer le devis';
+  document.getElementById('saveDevisModal').classList.add('open');
+}
+
+// Confirme la sauvegarde : POST vers /api/affaires/:id/devis
+async function confirmSaveDevis() {
+  const token = getAuthToken();
+  if (!token) {
+    showSaveError("Session expirée. Fermez cet onglet, reconnectez-vous à Pipeline, puis réouvrez le configurateur depuis l'affaire.");
+    return;
+  }
+  const btn = document.getElementById('saveDevisConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement...';
+
+  const devisName = document.getElementById('saveDevisName').value.trim()
+    || `${makeTrigramme(document.getElementById('societe').value)}_DTW_${todayShort()}`;
+
+  const m = extractMontantsForSave();
+  const modulesPayload = buildConfigObject();
+
+  const today = new Date().toISOString().split('T')[0];
+
+  const body = {
+    devis_name: devisName,
+    devis_status: 'En cours',
+    quote_date: today,
+    setup_amount: m.setup,
+    monthly_amount: m.monthly,
+    annual_amount: m.annual,
+    training_amount: m.training,
+    chance_percent: 0,
+    modules: modulesPayload,
+    comment: ''
+  };
+
+  try {
+    const resp = await fetch(`/api/affaires/${CTX.affaire_id}/devis`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${resp.status}`);
+    }
+    // Succès : notifier l'onglet parent + fermer
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: 'devis_saved', prospect_id: CTX.prospect_id, affaire_id: CTX.affaire_id }, window.location.origin);
+    }
+    document.getElementById('saveDevisModal').classList.remove('open');
+    // Petit feedback avant fermeture
+    alert('Devis enregistré ✓');
+    setTimeout(() => window.close(), 200);
+  } catch (err) {
+    showSaveError('Erreur : ' + err.message);
+    btn.disabled = false;
+    btn.textContent = 'Enregistrer le devis';
+  }
+}
+
+function showSaveError(msg) {
+  const el = document.getElementById('saveDevisError');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ── INIT : lire les paramètres URL et pré-remplir ──
+async function initFromUrlParams() {
+  const params = new URLSearchParams(window.location.search);
+  CTX.prospect_id = params.get('prospect_id') || null;
+  CTX.affaire_id = params.get('affaire_id') || null;
+  const societe = params.get('societe') || '';
+  const adresse = params.get('adresse') || '';
+  const commercial = params.get('commercial') || '';
+
+  if (societe) {
+    const input = document.getElementById('societe');
+    if (input) input.value = societe;
+  }
+  if (adresse) {
+    const input = document.getElementById('adresse');
+    if (input) input.value = adresse;
+  }
+  if (commercial) {
+    const sel = document.getElementById('commercial');
+    if (sel) {
+      // Matcher par valeur exacte (case-insensitive) ou par prénom
+      const target = commercial.toLowerCase();
+      const opts = Array.from(sel.options);
+      const match = opts.find(o => o.value.toLowerCase() === target)
+                 || opts.find(o => o.text.toLowerCase().includes(target));
+      if (match) sel.value = match.value;
+    }
+  }
+
+  // Afficher le bouton "Enregistrer dans l'affaire" si on a un affaire_id
+  if (CTX.affaire_id) {
+    const btn = document.getElementById('btnSaveInAffaire');
+    if (btn) btn.style.display = '';
+  }
+
+  // Si on a un prospect_id, récupérer les contacts pour le picker
+  if (CTX.prospect_id) {
+    await fetchAndSetContacts(CTX.prospect_id);
+  }
+}
+
+async function fetchAndSetContacts(prospectId) {
+  const token = getAuthToken();
+  if (!token) {
+    // Pas de token, on laisse l'utilisateur saisir à la main
+    console.warn('[configurateur] pas de token disponible pour charger les contacts');
+    return;
+  }
+  try {
+    const resp = await fetch(`/api/prospects/${prospectId}/interlocuteurs`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!resp.ok) return;
+    const inters = await resp.json();
+    if (!Array.isArray(inters) || inters.length === 0) return;
+
+    // Normaliser le format (backend peut renvoyer nom/prenom séparés)
+    const normalized = inters.map(i => ({
+      id: i.id,
+      nom: (i.prenom || i.nom) ? [(i.prenom||'').trim(), (i.nom||'').trim()].filter(Boolean).join(' ') : (i.name || ''),
+      fonction: i.fonction || '',
+      principal: !!i.principal,
+      decideur: !!i.decideur,
+    })).filter(i => i.nom);
+
+    if (normalized.length === 0) return;
+    CTX.contact_list = normalized;
+
+    if (normalized.length === 1) {
+      const i = normalized[0];
+      document.getElementById('contact').value = i.nom + (i.fonction ? ', ' + i.fonction : '');
+    } else {
+      // Principal d'abord
+      normalized.sort((a, b) => (b.principal ? 1 : 0) - (a.principal ? 1 : 0));
+      showContactPicker(normalized);
+    }
+  } catch (err) {
+    console.error('[configurateur] fetch contacts erreur', err);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
@@ -2193,6 +2466,8 @@ document.addEventListener('DOMContentLoaded', () => {
   renderModuleConfigs();
   renderAllSections();
   calculate();
+  // Pré-remplissage depuis les paramètres URL + fetch contacts + afficher bouton "Enregistrer dans l'affaire"
+  initFromUrlParams();
 });
 </script>
 </body>
