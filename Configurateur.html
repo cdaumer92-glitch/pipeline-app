@@ -1872,7 +1872,7 @@ function calculate() {
 
   // Totaux sidebar
   document.getElementById('totalMensuel').innerHTML = fmtNum(totalMensuel) + ' <span>€/mois</span>';
-  document.getElementById('totalAnnuel').innerHTML = fmtNum(totalMensuel * 12 + totalAnnuel) + ' <span>€/an</span>';
+  document.getElementById('totalAnnuel').innerHTML = fmtNum(totalAnnuel) + ' <span>€/an</span>';
   document.getElementById('totalPrestations').innerHTML = fmtNum(totalPrest) + ' <span>€ HT</span>';
 
   const grandTotal = totalMensuel * 12 + totalAnnuel + totalPrest + totalFormation;
