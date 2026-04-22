@@ -2210,7 +2210,7 @@ function exportExcel() {
 // CAS A : Enregistrer le devis dans une affaire
 // ══════════════════════════════════════════════════════════════
 // Variables de contexte remplies depuis les paramètres URL
-let CTX = { prospect_id: null, affaire_id: null, societe: '', contact_list: [] };
+let CTX = { prospect_id: null, affaire_id: null, devis_id: null, societe: '', contact_list: [] };
 
 // Récupère le token JWT depuis localStorage (partagé avec l'app principale)
 function getAuthToken() {
@@ -2382,6 +2382,7 @@ async function initFromUrlParams() {
   const params = new URLSearchParams(window.location.search);
   CTX.prospect_id = params.get('prospect_id') || null;
   CTX.affaire_id = params.get('affaire_id') || null;
+  CTX.devis_id = params.get('devis_id') || null;
   const societe = params.get('societe') || '';
   const adresse = params.get('adresse') || '';
   const commercial = params.get('commercial') || '';
@@ -2406,15 +2407,188 @@ async function initFromUrlParams() {
     }
   }
 
-  // Afficher le bouton "Enregistrer dans l'affaire" si on a un affaire_id
-  if (CTX.affaire_id) {
-    const btn = document.getElementById('btnSaveInAffaire');
-    if (btn) btn.style.display = '';
+  // ── Mode édition : un devis_id est passé → charger le devis existant ──
+  if (CTX.devis_id && CTX.prospect_id) {
+    await loadDevisForEdit();
   }
 
-  // Si on a un prospect_id, récupérer les contacts pour le picker
-  if (CTX.prospect_id) {
+  // Afficher le bouton "Enregistrer / Mettre à jour" si on a une affaire
+  if (CTX.affaire_id) {
+    const btn = document.getElementById('btnSaveInAffaire');
+    if (btn) {
+      btn.style.display = '';
+      if (CTX.devis_id) {
+        // Mode édition : bouton bleu "Mettre à jour le devis"
+        btn.innerHTML = '🔄 Mettre à jour le devis';
+        btn.style.background = '#0284c7';
+        btn.style.borderColor = '#0284c7';
+        btn.setAttribute('onclick', 'updateDevis()');
+      }
+    }
+  }
+
+  // Si on a un prospect_id et qu'on n'est PAS en édition, récupérer les contacts pour le picker
+  if (CTX.prospect_id && !CTX.devis_id) {
     await fetchAndSetContacts(CTX.prospect_id);
+  }
+}
+
+// ── Mode édition : charger un devis existant ──
+async function loadDevisForEdit() {
+  const token = getAuthToken();
+  if (!token) {
+    console.warn('[configurateur] pas de token pour charger le devis');
+    return;
+  }
+  try {
+    // On récupère tous les devis du prospect et on filtre par id
+    const resp = await fetch(`/api/prospects/${CTX.prospect_id}/devis`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!resp.ok) {
+      console.error('[configurateur] échec fetch devis:', resp.status);
+      return;
+    }
+    const devisList = await resp.json();
+    const devis = (devisList || []).find(d => String(d.id) === String(CTX.devis_id));
+    if (!devis) {
+      console.warn('[configurateur] devis non trouvé:', CTX.devis_id);
+      return;
+    }
+
+    // Parser le JSON modules
+    let modulesObj = devis.modules;
+    if (typeof modulesObj === 'string') {
+      try { modulesObj = JSON.parse(modulesObj); } catch { modulesObj = {}; }
+    }
+    if (!modulesObj || !modulesObj.moduleState) {
+      console.warn('[configurateur] devis sans moduleState — impossible à restaurer');
+      return;
+    }
+
+    // Restaurer le moduleState complet (inclut les remises)
+    Object.assign(moduleState, modulesObj.moduleState);
+
+    // Stocker le nom actuel du devis pour qu'updateDevis() le préserve
+    CTX.devis_name = devis.devis_name || '';
+
+    // Restaurer les champs d'en-tête (société/contact/adresse/commercial/marges)
+    if (modulesObj.societe) document.getElementById('societe').value = modulesObj.societe;
+    if (modulesObj.contact) document.getElementById('contact').value = modulesObj.contact;
+    if (modulesObj.adresse) document.getElementById('adresse').value = modulesObj.adresse;
+    if (modulesObj.commercial) {
+      const sel = document.getElementById('commercial');
+      if (sel) {
+        const target = modulesObj.commercial.toLowerCase();
+        const match = Array.from(sel.options).find(o => o.value.toLowerCase() === target);
+        if (match) sel.value = match.value;
+      }
+    }
+    if (modulesObj.margeHebergement) {
+      const el = document.getElementById('margeHebergement');
+      if (el) el.value = modulesObj.margeHebergement;
+    }
+    if (modulesObj.margeSetup) {
+      const el = document.getElementById('margeSetup');
+      if (el) el.value = modulesObj.margeSetup;
+    }
+
+    // Restaurer les noms de flux
+    if (Array.isArray(modulesObj.flux_noms)) {
+      fluxNoms = modulesObj.flux_noms.slice();
+    }
+
+    // Rafraîchir l'affichage global
+    MODULES_DEF.forEach(mod => updateTileDisplay(mod.id));
+    renderModuleConfigs();
+    if (typeof updateFluxNoms === 'function') updateFluxNoms();
+    renderAllSections();
+    calculate();
+
+    // Remplir les inputs noms de flux s'ils existent
+    if (Array.isArray(modulesObj.flux_noms)) {
+      modulesObj.flux_noms.forEach((nom, i) => {
+        const el = document.getElementById('flux_nom_' + (i+1));
+        if (el) el.value = nom;
+      });
+    }
+
+    console.log('[configurateur] devis ' + CTX.devis_id + ' chargé pour édition');
+  } catch (err) {
+    console.error('[configurateur] erreur chargement devis:', err);
+    alert('Impossible de charger le devis : ' + err.message);
+  }
+}
+
+// ── Mode édition : PUT direct sans modale de confirmation ──
+async function updateDevis() {
+  const token = getAuthToken();
+  if (!token) {
+    alert("Session expirée. Fermez cet onglet et reconnectez-vous.");
+    return;
+  }
+  if (!CTX.devis_id) {
+    alert("Contexte d'édition manquant.");
+    return;
+  }
+
+  const btn = document.getElementById('btnSaveInAffaire');
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Mise à jour...';
+
+  const m = extractMontantsForSave();
+  const modulesPayload = buildConfigObject();
+  const today = new Date().toISOString().split('T')[0];
+
+  // Nom du devis : on conserve celui d'origine (que l'utilisateur a pu modifier à la création)
+  let devisName = CTX.devis_name || '';
+  if (!devisName) {
+    const societe = document.getElementById('societe')?.value?.trim() || '';
+    devisName = `${makeTrigramme(societe)}_DTW_${todayShort()}`;
+  }
+
+  const body = {
+    devis_name: devisName,
+    devis_status: 'En cours',
+    quote_date: today,
+    setup_amount: m.setup,
+    monthly_amount: m.monthly,
+    annual_amount: m.annual,
+    training_amount: m.training,
+    chance_percent: 0,
+    modules: modulesPayload,
+    comment: '',
+    affaire_id: CTX.affaire_id ? parseInt(CTX.affaire_id, 10) : null
+  };
+
+  try {
+    const resp = await fetch(`/api/devis/${CTX.devis_id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${resp.status}`);
+    }
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({
+        type: 'devis_updated',
+        prospect_id: CTX.prospect_id,
+        affaire_id: CTX.affaire_id,
+        devis_id: CTX.devis_id
+      }, window.location.origin);
+    }
+    alert('Devis mis à jour ✓');
+    setTimeout(() => window.close(), 200);
+  } catch (err) {
+    alert('Erreur : ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
   }
 }
 

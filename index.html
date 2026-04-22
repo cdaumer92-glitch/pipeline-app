@@ -712,14 +712,14 @@
       };
 
       // ── Écoute les messages du configurateur TexasWin ──
-      // Quand le configurateur enregistre un devis dans une affaire, il poste
-      // { type:'devis_saved', prospect_id } vers window.opener → on rafraîchit.
+      // Quand le configurateur enregistre ou met à jour un devis, il poste
+      // { type:'devis_saved'|'devis_updated', prospect_id } vers window.opener → on rafraîchit.
       React.useEffect(() => {
         const onMessage = (event) => {
           // Même origine exigée (sécurité)
           if (event.origin !== window.location.origin) return;
           const data = event.data || {};
-          if (data.type === 'devis_saved' && data.prospect_id) {
+          if ((data.type === 'devis_saved' || data.type === 'devis_updated') && data.prospect_id) {
             // Si le prospect concerné est celui actuellement ouvert, on rafraîchit
             if (selectedProspect && String(selectedProspect.id) === String(data.prospect_id)) {
               fetchDevis(selectedProspect.id);
@@ -771,6 +771,30 @@
       };;
 
       const handleEditDevis = (devis) => {
+        // ── Détection : est-ce un Devis TexasWin ? ──
+        // Règle : un devis TexasWin a un champ `moduleState` dans son JSON `modules`
+        let modulesObj = devis.modules;
+        if (typeof modulesObj === 'string') {
+          try { modulesObj = JSON.parse(modulesObj); } catch { modulesObj = {}; }
+        }
+        const isTexasWin = modulesObj && typeof modulesObj === 'object' && modulesObj.moduleState;
+
+        if (isTexasWin) {
+          // → Route vers le configurateur en mode édition
+          const prospect = selectedProspect;
+          const params = new URLSearchParams({
+            devis_id: devis.id,
+            prospect_id: devis.prospect_id || prospect?.id || '',
+            societe: prospect?.name || modulesObj.societe || '',
+            adresse: [prospect?.adresse, prospect?.cp, prospect?.ville].filter(Boolean).join(', '),
+            commercial: prospect?.assigned_to || modulesObj.commercial || 'christian',
+          });
+          if (devis.affaire_id) params.set('affaire_id', devis.affaire_id);
+          window.open('/configurateur?' + params.toString(), '_blank');
+          return;
+        }
+
+        // ── Sinon : Devis libre (comportement existant inchangé) ──
         // Formater la date PostgreSQL en YYYY-MM-DD pour input HTML
         let formattedDate = '';
         if (devis.quote_date) {
@@ -789,7 +813,7 @@
           annual_amount: devis.annual_amount || 0,
           training_amount: devis.training_amount || 0,
           chance_percent: devis.chance_percent || 0,
-          modules: typeof devis.modules === 'string' ? JSON.parse(devis.modules) : (devis.modules || {}),
+          modules: modulesObj || {},
           comment: devis.comment || ''
         });
         setSelectedAffaireId(devis.affaire_id || null);
