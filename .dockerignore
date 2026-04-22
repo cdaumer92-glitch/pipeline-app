@@ -23,7 +23,7 @@ pipeline.db
 
 # Fichiers de travail / doublons
 Test index.html
-Configurateur.html
+
 
 # Donnees brutes (pas necessaires dans l'image)
 *.xlsx
