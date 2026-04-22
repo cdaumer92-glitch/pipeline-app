@@ -254,59 +254,231 @@ body {
 }
 .module-tile .mod-label { font-size: 0.67rem; color: var(--muted); margin-top: 2px; }
 
-/* Zone config DANS la tuile */
-.module-tile .tile-config {
+/* Mini-badge coche + total dans la tuile compacte */
+.module-tile .tile-badge {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--module-color, var(--teal));
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 800;
   display: none;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-  text-align: left;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Poppins', sans-serif;
 }
-.module-tile.active .tile-config { display: block; }
+.module-tile.active .tile-badge { display: flex; }
+.module-tile .tile-mini-total {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--module-color, var(--navy));
+  font-weight: 800;
+  font-family: 'Poppins', sans-serif;
+  display: none;
+}
+.module-tile.active .tile-mini-total { display: block; }
+.module-tile.has-remise .tile-mini-total { color: #c2410c; }
+.module-tile.has-remise .tile-mini-total::after { content: ' 🔖'; font-size: 0.8rem; }
 
-.tile-field {
+/* === DRAWER LATÉRAL === */
+.drawer-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 51, 102, 0);
+  backdrop-filter: blur(0px);
+  z-index: 100;
+  pointer-events: none;
+  transition: background 0.25s, backdrop-filter 0.25s;
+}
+.drawer-overlay.open {
+  background: rgba(0, 51, 102, 0.35);
+  backdrop-filter: blur(2px);
+  pointer-events: auto;
+}
+.drawer {
+  position: fixed;
+  top: 0; right: 0;
+  width: 420px;
+  max-width: 92vw;
+  height: 100vh;
+  background: white;
+  box-shadow: -8px 0 32px rgba(0,0,0,0.15);
+  z-index: 101;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+}
+.drawer.open { transform: translateX(0); }
+.drawer-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 16px;
 }
-.tile-field:last-child { margin-bottom: 0; }
-.tile-field label {
-  flex: 1;
-  font-size: 0.75rem;
+.drawer-header .d-icon {
+  width: 48px; height: 48px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 800; font-size: 0.85rem; color: white;
+  background: var(--module-color, var(--teal));
+  flex-shrink: 0;
+}
+.drawer-header .d-title { flex: 1; }
+.drawer-header .d-title h2 {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.05rem;
+  color: var(--navy);
+}
+.drawer-header .d-title p {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
   color: var(--slate);
+}
+.drawer-header .d-close {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: var(--bg);
+  cursor: pointer;
+  font-size: 1.1rem;
+  color: var(--slate);
+  transition: all 0.15s;
+}
+.drawer-header .d-close:hover { background: var(--border); color: var(--navy); }
+.drawer-body {
+  flex: 1;
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+.d-section { margin-bottom: 24px; }
+.d-section:last-child { margin-bottom: 0; }
+.d-section-title {
+  font-size: 0.72rem;
+  color: var(--slate);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+.d-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.d-field:last-child { margin-bottom: 0; }
+.d-field label {
+  flex: 1;
+  font-size: 0.88rem;
+  color: var(--text);
   line-height: 1.3;
 }
-.tile-qty {
-  width: 56px;
-  padding: 5px 6px;
+.d-field label .d-note {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 400;
+  margin-top: 2px;
+}
+.d-field .d-pu {
+  font-size: 0.78rem;
+  color: var(--slate);
+  font-weight: 700;
+  min-width: 60px;
+  text-align: right;
+}
+.d-field .d-qty {
+  width: 70px;
+  padding: 7px 8px;
   border: 1.5px solid var(--teal-m);
   border-radius: 6px;
   text-align: center;
   font-family: 'Lato', sans-serif;
-  font-size: 0.88rem;
+  font-size: 0.95rem;
   font-weight: 700;
 }
-.tile-qty:focus { outline: none; border-color: var(--module-color, var(--teal)); }
-.tile-pu { font-size: 0.72rem; color: var(--slate); font-weight: 700; min-width: 52px; text-align: right; }
-.tile-unit { font-size: 0.7rem; color: var(--muted); min-width: 28px; }
-
-.tile-total {
-  margin-top: 10px;
-  padding: 6px 8px;
-  background: var(--bg);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.d-field .d-qty:focus { outline: none; border-color: var(--module-color, var(--teal)); }
+.d-field .d-unit {
+  font-size: 0.78rem;
+  color: var(--muted);
+  min-width: 44px;
 }
-.tile-total .tt-label { font-size: 0.7rem; color: var(--slate); }
-.tile-total .tt-value {
+.d-field select.d-qty { width: auto; min-width: 160px; }
+
+.d-remise-box {
+  background: #fff7ed;
+  border: 1px dashed #fdba74;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.d-remise-box .d-section-title { color: #c2410c; margin-bottom: 8px; }
+.d-remise-box .d-field label { color: #c2410c; font-weight: 700; }
+.d-remise-box .d-qty { border-color: #fdba74; color: #c2410c; }
+.d-remise-box .d-unit { color: #c2410c; font-weight: 700; }
+
+.drawer-footer {
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.drawer-footer .df-sub,
+.drawer-footer .df-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.drawer-footer .df-sub {
+  margin-bottom: 4px;
+  font-size: 0.78rem;
+  color: var(--slate);
+  display: none;
+}
+.drawer-footer.has-remise .df-sub { display: flex; }
+.drawer-footer .df-sub .val { text-decoration: line-through; }
+.drawer-footer .df-total {
   font-family: 'Poppins', sans-serif;
   font-weight: 800;
-  font-size: 0.85rem;
-  color: var(--module-color, var(--navy));
 }
+.drawer-footer .df-total .lab { color: var(--slate); font-size: 0.85rem; }
+.drawer-footer .df-total .val {
+  color: var(--module-color, var(--navy));
+  font-size: 1.2rem;
+}
+.drawer-footer.has-remise .df-total .val { color: #c2410c; }
+.drawer-footer .df-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.drawer-footer button {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  font-family: 'Lato', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.drawer-footer .btn-validate {
+  background: var(--module-color, var(--teal));
+  color: white;
+}
+.drawer-footer .btn-validate:hover { opacity: 0.9; }
+.drawer-footer .btn-cancel {
+  background: white;
+  color: var(--slate);
+  border: 1.5px solid var(--border);
+}
+.drawer-footer .btn-cancel:hover { background: #fafafa; color: #c2410c; border-color: #fecaca; }
 
 /* Options globales */
 .global-opts {
@@ -851,6 +1023,10 @@ body {
 
 </div><!-- /app-body -->
 
+<!-- Drawer latéral configuration module -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeModuleDrawer()"></div>
+<div class="drawer" id="moduleDrawer"></div>
+
 <!-- Modal contact picker -->
 <div class="modal-overlay" id="contactPickerModal">
   <div class="modal-box">
@@ -981,8 +1157,14 @@ const FORMATION_DATA = [
 const moduleState = {
   biz:0, fab:0, net_siege:0, net_agents:'none', kub:0,
   mag:0, mag_caisses:0, vrp:0, col:0, log:0, jet:0,
-  fluxTiers:0, comptaSage:false, facturationElec:false
+  fluxTiers:0, comptaSage:false, facturationElec:false,
+  // Remise commerciale par tuile module (% de 0 à 100)
+  biz_remise:0, fab_remise:0, net_remise:0, mag_remise:0, vrp_remise:0,
+  col_remise:0, log_remise:0, jet_remise:0, kub_remise:0, flu_remise:0,
 };
+// Option FAB partage la remise de Biz (c'est la même tuile)
+// Caisses Mag partagent la remise de Mag
+// Siège + agents Net partagent la remise de Net
 let fluxNoms = [];
 let isUpdatingFluxLines = false;
 
@@ -1014,7 +1196,8 @@ const MODULE_FIELDS = {
   flu: [{label:'Nombre de flux tiers', key:'fluxTiers', unit:'flux', prix:40}],
 };
 
-function calcTileTotal(modId) {
+// Calcul brut (avant remise) du total mensuel d'une tuile module
+function calcTileTotalBrut(modId) {
   if (modId === 'net') return getNetAboPrix().prix;
   const fields = MODULE_FIELDS[modId];
   if (!fields || fields === 'special') return 0;
@@ -1027,23 +1210,33 @@ function calcTileTotal(modId) {
   return total;
 }
 
+// Total net après application de la remise de la tuile
+function calcTileTotal(modId) {
+  const brut = calcTileTotalBrut(modId);
+  const remise = moduleState[modId + '_remise'] || 0;
+  return brut * (1 - remise / 100);
+}
+
 function updateNetDisplay() {
   const { prix, label } = getNetAboPrix();
   const labelEl = document.getElementById('net_abo_label');
   if (labelEl) labelEl.textContent = label ? label + ' — ' + fmtNum(prix) + ' €/mois' : '';
-  // Màj total tuile
-  const tile = document.getElementById('tile-net');
-  const totalEl = tile?.querySelector('.tt-value');
-  if (totalEl) totalEl.textContent = fmtNum(prix) + ' €/mois';
 }
 
 function updateTileDisplay(modId) {
   const tile = document.getElementById('tile-' + modId);
-  if (!tile || !tile.classList.contains('active')) return;
-  if (modId === 'net') { updateNetDisplay(); return; }
-  const total = calcTileTotal(modId);
-  const totalEl = tile.querySelector('.tt-value');
-  if (totalEl) totalEl.textContent = fmtNum(total) + ' €/mois';
+  if (!tile) return;
+  const active = isModuleActive(modId);
+  tile.classList.toggle('active', active);
+  const brut = calcTileTotalBrut(modId);
+  const remise = moduleState[modId + '_remise'] || 0;
+  const net = brut * (1 - remise / 100);
+  const hasRemise = remise > 0 && brut > 0;
+  tile.classList.toggle('has-remise', hasRemise);
+  const mini = tile.querySelector('.tile-mini-total');
+  if (mini) {
+    mini.textContent = active ? fmtNum(net) + ' €/mois' : '';
+  }
 }
 
 function initModulesGrid() {
@@ -1054,167 +1247,205 @@ function initModulesGrid() {
     tile.className = 'module-tile';
     tile.id = 'tile-' + mod.id;
     tile.style.setProperty('--module-color', mod.color);
-
-    // Icône
-    const iconHtml = `<div class="mod-icon" style="background:${mod.color}">${mod.label}</div>`;
-
-    // Champs config (cachés tant que inactif)
-    const fieldsDef = MODULE_FIELDS[mod.id];
-    let fieldsHtml = '';
-    if (mod.id === 'net') {
-      // Cas spécial Net : Siège + select agents
-      fieldsHtml = `
-        <div class="tile-field">
-          <label>Siège (users)</label>
-          <span class="tile-pu">328 €</span>
-          <input type="number" class="tile-qty" id="tqty_net_siege" min="0" max="99"
-            value="${moduleState.net_siege||0}"
-            onclick="event.stopPropagation()"
-            oninput="updateModQty('net_siege',this.value);updateNetDisplay()" onchange="updateModQty('net_siege',this.value);updateNetDisplay()">
-          <span class="tile-unit">users</span>
-        </div>
-        <div class="tile-field">
-          <label>Agents</label>
-          <select id="sel_net_agents" onclick="event.stopPropagation()" onchange="moduleState.net_agents_val=parseInt(this.value)||0;updateNetDisplay();renderAllSections();calculate()"
-            style="flex:1;padding:5px 6px;border:1.5px solid var(--teal-m);border-radius:6px;font-size:0.8rem;">
-            <option value="0">Aucun</option>
-            <option value="5">Starter (1-5)</option>
-            <option value="10">Business (6-10)</option>
-            <option value="20">Pro (11-20)</option>
-            <option value="50">Enterprise (21-50)</option>
-          </select>
-        </div>
-        <div id="net_abo_label" style="font-size:0.72rem;color:var(--slate);margin-top:4px;font-style:italic;"></div>`;
-    } else if (fieldsDef && fieldsDef !== 'special') {
-      const fields = fieldsDef;
-      fields.forEach(f => {
-        fieldsHtml += `
-          <div class="tile-field">
-            <label>${f.label}${f.note ? `<br><span style="font-size:0.65rem;color:var(--muted)">${f.note}</span>` : ''}</label>
-            <span class="tile-pu">${fmtNum(f.prix)} €</span>
-            <input type="number" class="tile-qty" id="tqty_${f.key}" min="0" max="999"
-              value="${moduleState[f.key]||0}"
-              onclick="event.stopPropagation()"
-              onchange="updateModQty('${f.key}',this.value)">
-            <span class="tile-unit">${f.unit}</span>
-          </div>`;
-      });
-    }
-
     tile.innerHTML = `
-      ${iconHtml}
+      <div class="tile-badge">✓</div>
+      <div class="mod-icon" style="background:${mod.color}">${mod.label}</div>
       <div class="mod-label">${mod.sublabel}</div>
-      <div class="tile-config" onclick="event.stopPropagation()">
-        ${fieldsHtml}
-        <div class="tile-total">
-          <span class="tt-label">Total</span>
-          <span class="tt-value">0,00 €/mois</span>
-        </div>
-      </div>`;
-
-    // Click sur la tuile (pas sur les inputs)
-    tile.addEventListener('click', (e) => {
-      if (e.target.tagName === 'INPUT') return;
-      toggleModuleTile(mod.id);
-    });
-
+      <div class="tile-mini-total"></div>`;
+    tile.addEventListener('click', () => openModuleDrawer(mod.id));
     grid.appendChild(tile);
   });
 }
 
-function toggleModuleTile(modId) {
-  const tile = document.getElementById('tile-' + modId);
-  const isActive = tile.classList.contains('active');
-
-  // Dans les deux cas : reset complet des inputs et moduleState
+// ══════════════════════════════════════════════════════════════
+// DRAWER CONFIG MODULE
+// ══════════════════════════════════════════════════════════════
+function isModuleActive(modId) {
+  if (modId === 'net') {
+    return (moduleState.net_siege || 0) > 0 || (moduleState.net_agents_val || 0) > 0;
+  }
+  if (modId === 'mag') {
+    return (moduleState.mag_caisses || 0) > 0;
+  }
+  if (modId === 'flu') {
+    return (moduleState.fluxTiers || 0) > 0;
+  }
+  if (modId === 'biz') {
+    return (moduleState.biz || 0) > 0 || (moduleState.biz_fab_opt || 0) > 0;
+  }
   const fields = MODULE_FIELDS[modId];
-  if (Array.isArray(fields)) {
-    fields.forEach(f => {
-      moduleState[f.key] = 0;
-      const inp = document.getElementById('tqty_' + f.key);
-      if (inp) inp.value = 0;
-    });
-  }
-  if (modId === 'mag') moduleState.mag = 0;
-  if (modId === 'net') { moduleState.net_siege = 0; moduleState.net_agents_val = 0; }
-  if (modId === 'flu') { moduleState.fluxTiers = 0; }
+  if (!Array.isArray(fields)) return false;
+  return fields.some(f => (moduleState[f.key] || 0) > 0);
+}
 
-  if (isActive) {
-    tile.classList.remove('active');
-    if (modId === 'flu') updateFluxNoms();
+function openModuleDrawer(modId) {
+  renderModuleDrawer(modId);
+  document.getElementById('moduleDrawer').classList.add('open');
+  document.getElementById('drawerOverlay').classList.add('open');
+  // Focus premier input après animation
+  setTimeout(() => {
+    const first = document.querySelector('#moduleDrawer .d-qty');
+    if (first) first.focus();
+  }, 320);
+}
+
+function closeModuleDrawer() {
+  document.getElementById('moduleDrawer').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('open');
+}
+
+function renderModuleDrawer(modId) {
+  const mod = MODULES_DEF.find(m => m.id === modId);
+  const drawer = document.getElementById('moduleDrawer');
+  drawer.style.setProperty('--module-color', mod.color);
+
+  // Construire le HTML des champs selon le module
+  let fieldsHtml = '';
+  if (modId === 'net') {
+    fieldsHtml = `
+      <div class="d-field">
+        <label>Siège (users)</label>
+        <span class="d-pu">328 €</span>
+        <input type="number" class="d-qty" id="dq_net_siege" min="0" max="99"
+          value="${moduleState.net_siege || 0}"
+          oninput="moduleState.net_siege=parseInt(this.value)||0;onDrawerChange('net')">
+        <span class="d-unit">users</span>
+      </div>
+      <div class="d-field">
+        <label>Agents (palier)</label>
+        <select class="d-qty" id="dq_net_agents"
+          onchange="moduleState.net_agents_val=parseInt(this.value)||0;onDrawerChange('net')">
+          <option value="0">Aucun</option>
+          <option value="5">Starter (1-5)</option>
+          <option value="10">Business (6-10)</option>
+          <option value="20">Pro (11-20)</option>
+          <option value="50">Enterprise (21-50)</option>
+        </select>
+      </div>
+      <div id="net_abo_label" style="font-size:0.78rem;color:var(--slate);margin-top:8px;font-style:italic;"></div>`;
   } else {
-    tile.classList.add('active');
-    if (modId === 'mag') moduleState.mag = 1;
-    if (modId === 'net') {
-      setTimeout(() => {
-        const inp = document.getElementById('tqty_net_siege');
-        if (inp) inp.value = 0;
-        const sel = document.getElementById('sel_net_agents');
-        if (sel) sel.value = '0';
-        updateNetDisplay();
-      }, 20);
+    const fields = MODULE_FIELDS[modId];
+    if (Array.isArray(fields)) {
+      fieldsHtml = fields.map(f => `
+        <div class="d-field">
+          <label>${f.label}${f.note ? `<span class="d-note">${f.note}</span>` : ''}</label>
+          <span class="d-pu">${fmtNum(f.prix)} €</span>
+          <input type="number" class="d-qty" id="dq_${f.key}" min="0" max="999"
+            value="${moduleState[f.key] || 0}"
+            oninput="moduleState['${f.key}']=parseFloat(this.value)||0;${modId === 'mag' ? 'moduleState.mag=(parseFloat(this.value)||0)>0?1:0;' : ''}onDrawerChange('${modId}')">
+          <span class="d-unit">${f.unit}</span>
+        </div>`).join('');
     }
-    if (modId === 'flu') updateFluxNoms();
-    updateTileDisplay(modId);
   }
-  renderModuleConfigs();
+
+  const remiseKey = modId + '_remise';
+  drawer.innerHTML = `
+    <div class="drawer-header">
+      <div class="d-icon">${mod.label}</div>
+      <div class="d-title">
+        <h2>${mod.label} — ${mod.sublabel}</h2>
+        <p>Configuration du module</p>
+      </div>
+      <button class="d-close" onclick="closeModuleDrawer()">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="d-section">
+        <div class="d-section-title">Utilisateurs & options</div>
+        ${fieldsHtml}
+      </div>
+      <div class="d-section d-remise-box">
+        <div class="d-section-title">Remise commerciale</div>
+        <div class="d-field">
+          <label>Remise accordée sur l'abonnement mensuel</label>
+          <input type="number" class="d-qty" id="dq_remise" min="0" max="100"
+            value="${moduleState[remiseKey] || 0}"
+            oninput="moduleState['${remiseKey}']=parseFloat(this.value)||0;onDrawerChange('${modId}')">
+          <span class="d-unit">%</span>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-footer" id="drawerFooter">
+      <div class="df-sub"><span>Sous-total</span><span class="val" id="dfSub">0,00 €/mois</span></div>
+      <div class="df-total"><span class="lab">Total module</span><span class="val" id="dfTotal">0,00 €/mois</span></div>
+      <div class="df-actions">
+        <button class="btn-cancel" onclick="removeModuleFromDrawer('${modId}')">Retirer le module</button>
+        <button class="btn-validate" onclick="closeModuleDrawer()">Valider</button>
+      </div>
+    </div>`;
+
+  // Net : sélectionner la valeur actuelle dans le select
+  if (modId === 'net') {
+    const sel = document.getElementById('dq_net_agents');
+    if (sel) sel.value = String(moduleState.net_agents_val || 0);
+  }
+
+  updateDrawerFooter(modId);
+  if (modId === 'net') updateNetDisplay();
+}
+
+function updateDrawerFooter(modId) {
+  const brut = calcTileTotalBrut(modId);
+  const remise = moduleState[modId + '_remise'] || 0;
+  const net = brut * (1 - remise / 100);
+  const footer = document.getElementById('drawerFooter');
+  if (!footer) return;
+  const hasRemise = remise > 0 && brut > 0;
+  footer.classList.toggle('has-remise', hasRemise);
+  const subEl = document.getElementById('dfSub');
+  const totEl = document.getElementById('dfTotal');
+  if (subEl) subEl.textContent = fmtNum(brut) + ' €/mois';
+  if (totEl) totEl.textContent = fmtNum(net) + ' €/mois';
+}
+
+function onDrawerChange(modId) {
+  if (modId === 'flu') updateFluxNoms();
+  if (modId === 'net') updateNetDisplay();
+  updateDrawerFooter(modId);
+  updateTileDisplay(modId);
   renderAllSections();
   calculate();
 }
 
+function removeModuleFromDrawer(modId) {
+  // Reset des champs moduleState liés à ce module
+  const fields = MODULE_FIELDS[modId];
+  if (Array.isArray(fields)) {
+    fields.forEach(f => { moduleState[f.key] = 0; });
+  }
+  if (modId === 'mag') { moduleState.mag = 0; moduleState.mag_caisses = 0; }
+  if (modId === 'net') { moduleState.net_siege = 0; moduleState.net_agents_val = 0; }
+  if (modId === 'flu') { moduleState.fluxTiers = 0; updateFluxNoms(); }
+  if (modId === 'biz') { moduleState.biz = 0; moduleState.biz_fab_opt = 0; }
+  moduleState[modId + '_remise'] = 0;
+  updateTileDisplay(modId);
+  renderAllSections();
+  calculate();
+  closeModuleDrawer();
+}
+
+// Touche Escape pour fermer
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('moduleDrawer')?.classList.contains('open')) {
+    closeModuleDrawer();
+  }
+});
+
 function renderModuleConfigs() {
-  // Les configs sont maintenant directement dans les tuiles
   // Synchroniser les checkboxes globales
   const cs = document.getElementById('chk_comptaSage');
   const cf = document.getElementById('chk_factElec');
   if (cs) cs.checked = moduleState.comptaSage;
   if (cf) cf.checked = moduleState.facturationElec;
-  // Mettre à jour les totaux dans les tuiles actives
+  // Mettre à jour les mini-totaux dans les tuiles
   MODULES_DEF.forEach(mod => updateTileDisplay(mod.id));
 }
 
-function buildConfigPanel(modId, color, fields) {
-  const panel = document.createElement('div');
-  panel.className = 'module-config-panel visible';
-  panel.style.borderLeftColor = color;
-  panel.style.borderLeftWidth = '3px';
-
-  const title = document.createElement('div');
-  title.style.cssText = `font-family:Poppins,sans-serif;font-weight:700;font-size:0.78rem;color:${color};text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;`;
-  title.textContent = MODULES_DEF.find(m=>m.id===modId)?.label + ' — Configuration';
-  panel.appendChild(title);
-
-  fields.forEach(f => {
-    const row = document.createElement('div');
-    row.className = 'config-row';
-    const stateKey = f.key === 'biz_fab_opt' ? null : f.key;
-    const curVal = stateKey ? (moduleState[stateKey] || 0) : (moduleState['biz'] > 0 ? 0 : 0);
-    row.innerHTML = `
-      <label>${f.label}</label>
-      <input type="number" class="qty-input" id="qty_mod_${f.key}" min="0" max="999"
-        value="${f.key==='biz_fab_opt' ? 0 : (moduleState[f.key]||0)}"
-        onchange="updateModQty('${f.key}', this.value)"
-        style="border-color:${color}">
-      <span class="price-tag" style="color:${color}">${f.unit}</span>`;
-    if (f.subNote) {
-      const note = document.createElement('div');
-      note.style.cssText = 'font-size:0.72rem;color:var(--muted);margin-top:-6px;margin-bottom:4px;';
-      note.textContent = f.subNote;
-      panel.appendChild(row);
-      panel.appendChild(note);
-      return;
-    }
-    panel.appendChild(row);
-  });
-  return panel;
-}
-
 function updateModQty(key, val) {
+  // Conservée pour compatibilité (ancien chemin). Utilisée par certains onchange legacy.
   const v = parseFloat(val) || 0;
   moduleState[key] = v;
   if (key === 'fluxTiers') updateFluxNoms();
   if (key === 'net_siege') { updateNetDisplay(); }
-  // Mettre à jour le total dans la tuile concernée
   MODULES_DEF.forEach(mod => {
     const fields = MODULE_FIELDS[mod.id];
     if (Array.isArray(fields) && fields.some(f => f.key === key)) updateTileDisplay(mod.id);
@@ -1536,7 +1767,7 @@ function calculateFormation() {
 function calculate() {
   let totalMensuel = 0, totalAnnuel = 0, totalPrest = 0;
 
-  // Section 1 : abonnements modules
+  // Section 1 : abonnements modules (avec remises par tuile)
   let s1total = 0;
   const biz = moduleState.biz||0;
   const bizFabOpt = moduleState.biz_fab_opt||0;
@@ -1551,17 +1782,29 @@ function calculate() {
   const jet = moduleState.jet||0;
   const flux = moduleState.fluxTiers||0;
 
-  s1total += biz * 155;
-  s1total += bizFabOpt * 68;
-  s1total += fab * 145.5;
-  const { prix: netPrix } = getNetAboPrix(); s1total += netPrix;
-  s1total += kub * 20;
-  s1total += mag > 0 ? 99 : 0;  // concentrateur = 1 par mag
-  s1total += magC * 49;
-  s1total += vrp * 53;
-  s1total += col * 20;
-  s1total += log * 155;
-  s1total += jet * 40;
+  // Helper : applique la remise d'un module à un montant
+  const rem = (modId) => 1 - ((moduleState[modId + '_remise'] || 0) / 100);
+
+  // Biz + option FAB partagent la remise "biz_remise"
+  s1total += (biz * 155 + bizFabOpt * 68) * rem('biz');
+  // Fab standalone
+  s1total += fab * 145.5 * rem('fab');
+  // Net (siège + agents)
+  const { prix: netPrix } = getNetAboPrix();
+  s1total += netPrix * rem('net');
+  // Kub (mensuel)
+  s1total += kub * 20 * rem('kub');
+  // Mag : concentrateur (99€ si caisses > 0) + caisses * 49
+  s1total += ((magC > 0 ? 99 : 0) + magC * 49) * rem('mag');
+  // VRP
+  s1total += vrp * 53 * rem('vrp');
+  // Col
+  s1total += col * 20 * rem('col');
+  // Log
+  s1total += log * 155 * rem('log');
+  // Jet
+  s1total += jet * 40 * rem('jet');
+  // Flux : pas d'abonnement mensuel section1 (juste hébergement section3), remise non applicable
   totalMensuel += s1total;
 
   // Section 3 : infrastructure
@@ -1629,7 +1872,7 @@ function calculate() {
 
   // Totaux sidebar
   document.getElementById('totalMensuel').innerHTML = fmtNum(totalMensuel) + ' <span>€/mois</span>';
-  document.getElementById('totalAnnuel').innerHTML = fmtNum(totalAnnuel) + ' <span>€/an</span>';
+  document.getElementById('totalAnnuel').innerHTML = fmtNum(totalMensuel * 12 + totalAnnuel) + ' <span>€/an</span>';
   document.getElementById('totalPrestations').innerHTML = fmtNum(totalPrest) + ' <span>€ HT</span>';
 
   const grandTotal = totalMensuel * 12 + totalAnnuel + totalPrest + totalFormation;
@@ -1753,21 +1996,30 @@ function exportConfig() {
 
   // Lignes abonnements depuis le DOM
   const lignesAbo = [];
-  // Reconstruire depuis les valeurs
+  // Reconstruire depuis les valeurs (avec remises par module appliquées)
   const ms = moduleState;
-  const addAbo = (nom, montant) => { if(montant>0) lignesAbo.push({nom, montant, unite:'€/mois'}); };
-  addAbo('Module BIZ (Négoce)', (ms.biz||0)*155);
-  addAbo('Avec option Production (FAB)', (ms.biz_fab_opt||0)*68);
-  addAbo('Module FAB Standalone (Production seule)', (ms.fab||0)*145.5);
-  addAbo('Module Net B2B — Siège', (ms.net_siege||0)*328);
-  addAbo('Module Kub (Business Intelligence)', (ms.kub||0)*20);
-  if ((ms.mag||0)>0) addAbo('Module Mag : Concentrateur', 99);
-  addAbo('Module Mag (Nb Caisses déployées)', (ms.mag_caisses||0)*49);
-  addAbo('Module VRP (Représentant)', (ms.vrp||0)*53);
-  addAbo('Module Col (Collection)', (ms.col||0)*20);
-  addAbo('Module Log (Logistique)', (ms.log||0)*155);
-  addAbo('Module Jet (Inventaire)', (ms.jet||0)*40);
-  // Infrastructure
+  const remPct = (modId) => ms[modId + '_remise'] || 0;
+  const netMontant = (montant, modId) => montant * (1 - remPct(modId) / 100);
+  const addAbo = (nom, montant, modId) => {
+    if (montant <= 0) return;
+    const net = modId ? netMontant(montant, modId) : montant;
+    const r = modId ? remPct(modId) : 0;
+    const ligne = { nom, montant: net, unite: '€/mois' };
+    if (r > 0) { ligne.prix_brut = montant; ligne.remise_pct = r; }
+    lignesAbo.push(ligne);
+  };
+  addAbo('Module BIZ (Négoce)', (ms.biz||0)*155, 'biz');
+  addAbo('Avec option Production (FAB)', (ms.biz_fab_opt||0)*68, 'biz');
+  addAbo('Module FAB Standalone (Production seule)', (ms.fab||0)*145.5, 'fab');
+  addAbo('Module Net B2B — Siège', (ms.net_siege||0)*328, 'net');
+  addAbo('Module Kub (Business Intelligence)', (ms.kub||0)*20, 'kub');
+  if ((ms.mag||0)>0) addAbo('Module Mag : Concentrateur', 99, 'mag');
+  addAbo('Module Mag (Nb Caisses déployées)', (ms.mag_caisses||0)*49, 'mag');
+  addAbo('Module VRP (Représentant)', (ms.vrp||0)*53, 'vrp');
+  addAbo('Module Col (Collection)', (ms.col||0)*20, 'col');
+  addAbo('Module Log (Logistique)', (ms.log||0)*155, 'log');
+  addAbo('Module Jet (Inventaire)', (ms.jet||0)*40, 'jet');
+  // Infrastructure (pas de remise comme convenu)
   if ((ms.biz||0)>0||(ms.fab||0)>0) addAbo('Hébergement serveur TexasWin', calcHebTW());
   if ((ms.mag||0)>0) addAbo('Gestion des Flux MAG', 40);
   if ((ms.mag_caisses||0)>0) addAbo('Support MAG/Caisse déployée', 15*(ms.mag_caisses||0));
@@ -1897,35 +2149,9 @@ function handleImport(event) {
       }
 
       // ── Activer/désactiver les tuiles ─────────────────────────
-      const mr = config.modules_retenus || [];
-      MODULES_DEF.forEach(mod => {
-        const tile = document.getElementById('tile-' + mod.id);
-        if (!tile) return;
-        const active = mr.includes(mod.id);
-        tile.classList.toggle('active', active);
-      });
+      // (l'état actif est déduit automatiquement de moduleState par isModuleActive)
 
-      // ── Synchroniser les inputs dans les tuiles ───────────────
       setTimeout(() => {
-        // Inputs numériques
-        const inputMap = {
-          biz: 'tqty_biz', fab: 'tqty_fab', net_siege: 'tqty_net_siege',
-          mag_caisses: 'tqty_mag_caisses', vrp: 'tqty_vrp', col: 'tqty_col',
-          log: 'tqty_log', jet: 'tqty_jet', kub: 'tqty_kub',
-          fluxTiers: 'tqty_fluxTiers', biz_fab_opt: 'tqty_biz_fab_opt'
-        };
-        Object.entries(inputMap).forEach(([key, id]) => {
-          const el = document.getElementById(id);
-          if (el) el.value = moduleState[key] || 0;
-        });
-
-        // Net agents select
-        const sel = document.getElementById('sel_net_agents');
-        if (sel) {
-          sel.value = String(moduleState.net_agents_val || 0);
-          updateNetDisplay();
-        }
-
         // Checkboxes globales
         const cs = document.getElementById('chk_comptaSage');
         const cf = document.getElementById('chk_factElec');
@@ -1936,14 +2162,13 @@ function handleImport(event) {
         if (config.flux_noms) {
           fluxNoms = config.flux_noms;
           updateFluxNoms();
-          // Remplir les inputs noms flux
           config.flux_noms.forEach((nom, i) => {
             const el = document.getElementById('flux_nom_' + (i+1));
             if (el) el.value = nom;
           });
         }
 
-        // Mettre à jour les totaux dans les tuiles
+        // Mettre à jour l'affichage des tuiles (état actif + mini-total)
         MODULES_DEF.forEach(mod => updateTileDisplay(mod.id));
         renderAllSections();
         calculate();
