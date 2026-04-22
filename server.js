@@ -43,6 +43,9 @@ app.use(express.json());
 app.use(fileUpload());
 app.use(express.static(__dirname));
 
+// Route explicite pour le configurateur (fichier avec C majuscule)
+app.get('/configurateur', (req, res) => res.sendFile(join(__dirname, 'Configurateur.html')));
+
 // ===================== DATABASE =====================
 // Fonction qui retourne les options du pool (lit process.env)
 function getDBConfig() {
