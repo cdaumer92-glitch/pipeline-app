@@ -6,7 +6,6 @@ import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { readdirSync, existsSync } from 'fs';
 import fileUpload from 'express-fileupload';
 import {
   saveObject,
@@ -46,22 +45,6 @@ app.use(express.static(__dirname));
 
 // Route explicite pour le configurateur (fichier avec C majuscule)
 app.get('/configurateur', (req, res) => res.sendFile(join(__dirname, 'Configurateur.html')));
-
-// Route temporaire de debug — à retirer une fois diagnostic fait
-app.get('/debug-ls', (req, res) => {
-  try {
-    const files = readdirSync(__dirname);
-    res.json({
-      dirname: __dirname,
-      configurateurExists: existsSync(join(__dirname, 'Configurateur.html')),
-      totalFiles: files.length,
-      htmlFiles: files.filter(f => f.toLowerCase().endsWith('.html')),
-      allFiles: files,
-    });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
 
 // ===================== DATABASE =====================
 // Fonction qui retourne les options du pool (lit process.env)
