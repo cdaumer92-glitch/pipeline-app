@@ -431,6 +431,13 @@
       const [tempActionComments, setTempActionComments] = React.useState({});
       const [selectedProspect, setSelectedProspect] = React.useState(null);
       const [showForm, setShowForm] = React.useState(false);
+      const [showNewCompanyModal, setShowNewCompanyModal] = React.useState(false);
+      const [newCompanyData, setNewCompanyData] = React.useState({
+        name: '', statut_societe: '', assigned_to: '',
+        siren: '', tel_standard: '', website: '',
+        adresse: '', code_naf: '', marques: [], notes: ''
+      });
+      const [newCompanyErrors, setNewCompanyErrors] = React.useState({});
       const [formData, setFormData] = React.useState(getEmptyProspect());
       const [interlocuteurs, setInterlocuteurs] = React.useState([]);
       const [showInterlocuteurForm, setShowInterlocuteurForm] = React.useState(false);
@@ -1514,10 +1521,80 @@
       };
 
       const handleNewProspect = () => {
-        setFormData(getEmptyProspect());
-        setSelectedProspect(null);
-        setShowForm(true);
-        setIsDashboard(false);
+        setNewCompanyData({
+          name: '', statut_societe: '', assigned_to: user?.name || '',
+          siren: '', tel_standard: '', website: '',
+          adresse: '', code_naf: '', marques: [], notes: ''
+        });
+        setNewCompanyErrors({});
+        setShowNewCompanyModal(true);
+      };
+
+      // ── Création depuis la modale "Nouvelle société" ──
+      const handleNewCompanyChange = (field, value) => {
+        setNewCompanyData(d => ({ ...d, [field]: value }));
+        // Effacer l'erreur si le champ est rempli
+        if (value && newCompanyErrors[field]) {
+          setNewCompanyErrors(e => { const n = { ...e }; delete n[field]; return n; });
+        }
+      };
+
+      const handleCreateFromModal = async () => {
+        // Validation
+        const errors = {};
+        if (!newCompanyData.name.trim()) errors.name = 'Raison sociale requise';
+        if (!newCompanyData.statut_societe) errors.statut_societe = 'Type requis';
+        if (!newCompanyData.assigned_to) errors.assigned_to = 'Commercial requis';
+        if (newCompanyData.siren && !/^\d{9}$/.test(newCompanyData.siren.trim())) errors.siren = 'SIREN = 9 chiffres';
+        if (Object.keys(errors).length) {
+          setNewCompanyErrors(errors);
+          return;
+        }
+
+        // Construire le payload à partir d'un prospect vide + les champs de la modale
+        const payload = {
+          ...getEmptyProspect(),
+          name: newCompanyData.name.trim(),
+          statut_societe: newCompanyData.statut_societe,
+          assigned_to: newCompanyData.assigned_to,
+          siren: newCompanyData.siren.trim(),
+          tel_standard: newCompanyData.tel_standard.trim(),
+          website: newCompanyData.website.trim(),
+          adresse: newCompanyData.adresse.trim(),
+          code_naf: newCompanyData.code_naf,
+          marques: newCompanyData.marques,
+          notes: newCompanyData.notes.trim(),
+          status: 'Prospection',
+        };
+
+        try {
+          const res = await fetch(`${API_URL}/prospects`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || `HTTP ${res.status}`);
+          }
+          const data = await res.json();
+          const created = { ...payload, id: data.id || data.prospect_id };
+          // Fermer la modale, rafraîchir la liste, ouvrir la fiche créée
+          setShowNewCompanyModal(false);
+          await fetchProspects();
+          setSelectedProspect(created);
+          setFormData(created);
+          setShowForm(true);
+          // Charger les relations pour la nouvelle fiche
+          if (typeof fetchInterlocuteurs === 'function') await fetchInterlocuteurs(created.id);
+          if (typeof fetchDevis === 'function') await fetchDevis(created.id);
+          if (typeof fetchAffaires === 'function') await fetchAffaires(created.id);
+        } catch (err) {
+          alert('Erreur lors de la création : ' + err.message);
+        }
       };
 
       const handleSelectProspect = (prospect) => {
@@ -1722,14 +1799,13 @@
               onSortChange={setSortBy}
               prospectActionsInfo={prospectActionsInfo}
               onNewProspect={() => {
-                setSelectedProspect(null);
-                setFormData(getEmptyProspect());
-                setShowForm(true);
-                // Réinitialiser les devis
-                setDevisList([]);
-                setShowDevisForm(false);
-                setEditingDevisId(null);
-                setDevisPdfFile(null);
+                setNewCompanyData({
+                  name: '', statut_societe: '', assigned_to: user?.name || '',
+                  siren: '', tel_standard: '', website: '',
+                  adresse: '', code_naf: '', marques: [], notes: ''
+                });
+                setNewCompanyErrors({});
+                setShowNewCompanyModal(true);
               }}
             />
 
@@ -1926,11 +2002,216 @@
               </div>
             </div>
           )}
+
+          {/* ═══════ MODALE : NOUVELLE SOCIÉTÉ ═══════ */}
+          {showNewCompanyModal && (
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) setShowNewCompanyModal(false); }}
+              style={{
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'rgba(0, 51, 102, 0.35)', backdropFilter: 'blur(2px)',
+                zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+                padding: '40px 20px', overflowY: 'auto'
+              }}>
+              <div style={{
+                background: 'white', borderRadius: '12px', width: '100%', maxWidth: '900px',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.15)'
+              }}>
+                {/* Header */}
+                <div style={{
+                  padding: '20px 28px', borderBottom: '1px solid #cde8e8',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                }}>
+                  <h2 style={{ margin: 0, fontFamily: 'Poppins,sans-serif', color: '#003366', fontSize: '1.3rem' }}>
+                    🏢 Nouvelle société
+                  </h2>
+                  <button onClick={() => setShowNewCompanyModal(false)} style={{
+                    background: '#f0f8f8', border: 'none', width: '34px', height: '34px',
+                    borderRadius: '8px', cursor: 'pointer', fontSize: '1.1rem', color: '#607a7a'
+                  }}>✕</button>
+                </div>
+
+                {/* Body */}
+                <div style={{ padding: '24px 28px' }}>
+                  {/* Champs obligatoires */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px 18px', marginBottom: '14px' }}>
+                    <div style={{ gridColumn: 'span 3' }}>
+                      <label style={styles.modalLabel}>Raison sociale <span style={{color:'#dc2626'}}>*</span></label>
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="Ex: Barbara Bui"
+                        value={newCompanyData.name}
+                        onChange={(e) => handleNewCompanyChange('name', e.target.value)}
+                        style={{ ...styles.modalInput, borderColor: newCompanyErrors.name ? '#dc2626' : '#a8d0d3', background: newCompanyErrors.name ? '#fff5f5' : 'white' }}
+                      />
+                      {newCompanyErrors.name && <span style={styles.errMsg}>{newCompanyErrors.name}</span>}
+                    </div>
+
+                    <div>
+                      <label style={styles.modalLabel}>Type société <span style={{color:'#dc2626'}}>*</span></label>
+                      <select
+                        value={newCompanyData.statut_societe}
+                        onChange={(e) => handleNewCompanyChange('statut_societe', e.target.value)}
+                        style={{ ...styles.modalInput, borderColor: newCompanyErrors.statut_societe ? '#dc2626' : '#a8d0d3', background: newCompanyErrors.statut_societe ? '#fff5f5' : 'white' }}
+                      >
+                        <option value="">— Sélectionner —</option>
+                        <option value="Suspect">Suspect</option>
+                        <option value="Prospect">Prospect</option>
+                        <option value="Client">Client</option>
+                      </select>
+                      {newCompanyErrors.statut_societe && <span style={styles.errMsg}>{newCompanyErrors.statut_societe}</span>}
+                    </div>
+
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label style={styles.modalLabel}>Commercial assigné <span style={{color:'#dc2626'}}>*</span></label>
+                      <select
+                        value={newCompanyData.assigned_to}
+                        onChange={(e) => handleNewCompanyChange('assigned_to', e.target.value)}
+                        style={{ ...styles.modalInput, borderColor: newCompanyErrors.assigned_to ? '#dc2626' : '#a8d0d3', background: newCompanyErrors.assigned_to ? '#fff5f5' : 'white' }}
+                      >
+                        <option value="">— Sélectionner —</option>
+                        <option value="Christian">Christian</option>
+                        <option value="Roger">Roger</option>
+                        <option value="Frédéric">Frédéric</option>
+                      </select>
+                      {newCompanyErrors.assigned_to && <span style={styles.errMsg}>{newCompanyErrors.assigned_to}</span>}
+                    </div>
+                  </div>
+
+                  {/* Séparateur */}
+                  <div style={{
+                    borderTop: '1px dashed #cde8e8', margin: '18px 0 14px', paddingTop: '14px',
+                    fontSize: '0.72rem', color: '#607a7a', fontWeight: 700,
+                    textTransform: 'uppercase', letterSpacing: '0.08em'
+                  }}>Coordonnées société</div>
+
+                  {/* Champs optionnels */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px 18px' }}>
+                    <div>
+                      <label style={styles.modalLabel}>N° SIREN</label>
+                      <input
+                        type="text" placeholder="9 chiffres" maxLength="9"
+                        value={newCompanyData.siren}
+                        onChange={(e) => handleNewCompanyChange('siren', e.target.value.replace(/\D/g, ''))}
+                        style={{ ...styles.modalInput, borderColor: newCompanyErrors.siren ? '#dc2626' : '#a8d0d3', background: newCompanyErrors.siren ? '#fff5f5' : 'white' }}
+                      />
+                      {newCompanyErrors.siren && <span style={styles.errMsg}>{newCompanyErrors.siren}</span>}
+                    </div>
+
+                    <div>
+                      <label style={styles.modalLabel}>Téléphone standard</label>
+                      <input
+                        type="tel" placeholder="01 23 45 67 89"
+                        value={newCompanyData.tel_standard}
+                        onChange={(e) => handleNewCompanyChange('tel_standard', e.target.value)}
+                        style={styles.modalInput}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={styles.modalLabel}>Site web</label>
+                      <input
+                        type="url" placeholder="https://..."
+                        value={newCompanyData.website}
+                        onChange={(e) => handleNewCompanyChange('website', e.target.value)}
+                        style={styles.modalInput}
+                      />
+                    </div>
+
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label style={styles.modalLabel}>Adresse siège</label>
+                      <input
+                        type="text" placeholder="Adresse complète"
+                        value={newCompanyData.adresse}
+                        onChange={(e) => handleNewCompanyChange('adresse', e.target.value)}
+                        style={styles.modalInput}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={styles.modalLabel}>Code NAF</label>
+                      <select
+                        value={newCompanyData.code_naf}
+                        onChange={(e) => handleNewCompanyChange('code_naf', e.target.value)}
+                        style={styles.modalInput}
+                      >
+                        <option value="">— Sélectionner —</option>
+                        {codesNaf.map(c => (
+                          <option key={c.code} value={c.code}>{c.code} — {c.libelle}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div style={{ gridColumn: 'span 3' }}>
+                      <label style={styles.modalLabel}>Marques <span style={{fontWeight:400,color:'#9eb5b5',textTransform:'none',letterSpacing:0}}>(Entrée ou virgule pour ajouter)</span></label>
+                      <div style={{
+                        border: '1.5px solid #a8d0d3', borderRadius: '6px', padding: '6px',
+                        display: 'flex', flexWrap: 'wrap', gap: '6px', minHeight: '40px', background: 'white'
+                      }}>
+                        {(newCompanyData.marques || []).map((m, i) => (
+                          <span key={i} style={{
+                            background: '#e0f2fe', color: '#0369a1', padding: '3px 10px',
+                            borderRadius: '4px', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '6px'
+                          }}>
+                            {m}
+                            <button
+                              onClick={() => handleNewCompanyChange('marques', newCompanyData.marques.filter((_, j) => j !== i))}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0369a1', fontSize: '1rem', padding: 0, lineHeight: 1 }}
+                            >×</button>
+                          </span>
+                        ))}
+                        <input
+                          type="text"
+                          placeholder="ex: PABLO, GERARD DAREL"
+                          onKeyDown={(e) => {
+                            if ((e.key === 'Enter' || e.key === ',') && e.target.value.trim()) {
+                              e.preventDefault();
+                              const val = e.target.value.trim().replace(/,$/, '');
+                              if (val && !(newCompanyData.marques || []).includes(val)) {
+                                handleNewCompanyChange('marques', [...(newCompanyData.marques || []), val]);
+                              }
+                              e.target.value = '';
+                            }
+                          }}
+                          style={{ border: 'none', outline: 'none', flex: 1, minWidth: '150px', padding: '4px', fontSize: '0.9rem' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ gridColumn: 'span 3' }}>
+                      <label style={styles.modalLabel}>Notes</label>
+                      <textarea
+                        placeholder="Informations complémentaires..."
+                        value={newCompanyData.notes}
+                        onChange={(e) => handleNewCompanyChange('notes', e.target.value)}
+                        style={{ ...styles.modalInput, minHeight: '70px', resize: 'vertical', fontFamily: 'inherit' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div style={{
+                  padding: '16px 28px 20px', borderTop: '1px solid #cde8e8',
+                  background: '#f0f8f8', display: 'flex', gap: '10px', justifyContent: 'flex-end',
+                  borderRadius: '0 0 12px 12px'
+                }}>
+                  <button onClick={() => setShowNewCompanyModal(false)} style={{
+                    padding: '10px 20px', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem',
+                    cursor: 'pointer', background: 'white', color: '#607a7a', border: '1.5px solid #cde8e8'
+                  }}>Annuler</button>
+                  <button onClick={handleCreateFromModal} style={{
+                    padding: '10px 20px', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem',
+                    cursor: 'pointer', background: '#007d89', color: 'white', border: 'none'
+                  }}>💾 Enregistrer et ouvrir la fiche</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
-
-    // ================== RECAP MODAL ==================
     function RecapModal({ commercial, period, prospects, onClose, onNavigate, user, API_URL }) {
       const [recapData, setRecapData] = React.useState(null);
       const [loading, setLoading] = React.useState(true);
@@ -5393,16 +5674,7 @@
                 </div>
               </div>
 
-              {/* Ligne 4 : Version TexasWin + Solutions en place */}
-              <div style={{display:'flex', gap:'10px'}}>
-                <input
-                  type="text"
-                  placeholder="Version TexasWin installée (ex: 12.4.2)"
-                  value={formData.tw_version || ''}
-                  onChange={(e) => handleChange('tw_version', e.target.value)}
-                  style={{...styles.formInput, flex: 1}}
-                />
-              </div>
+              {/* Solutions en place */}
               <div>
                 <textarea
                   placeholder="Solutions en place (une par ligne: FastMag, Shopify, Sage...)"
@@ -6585,6 +6857,19 @@
     // ================== STYLES ==================
 
     const styles = {
+      modalLabel: {
+        display: 'block', fontSize: '0.72rem', color: '#607a7a', fontWeight: 700,
+        textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '5px'
+      },
+      modalInput: {
+        width: '100%', padding: '9px 11px', border: '1.5px solid #a8d0d3',
+        borderRadius: '6px', fontFamily: 'inherit', fontSize: '0.9rem',
+        background: 'white', color: '#1a3535', boxSizing: 'border-box'
+      },
+      errMsg: {
+        display: 'block', color: '#dc2626', fontSize: '0.72rem',
+        marginTop: '3px', fontWeight: 600
+      },
       container: {
         display: 'flex',
         flexDirection: 'column',
