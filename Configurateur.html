@@ -758,24 +758,39 @@ body {
   border: 1px solid var(--teal-m);
   border-radius: 8px;
 }
+.flux-noms-panel #fluxNomsContainer {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 14px;
+}
 .flux-noms-panel .flux-nom-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 7px;
+  gap: 8px;
+  margin-bottom: 0;
 }
-.flux-noms-panel .flux-nom-row:last-child { margin-bottom: 0; }
 .flux-noms-panel .flux-num {
   font-size: 0.75rem;
   color: var(--slate);
-  min-width: 44px;
+  min-width: 38px;
 }
 .flux-noms-panel input {
   flex: 1;
+  min-width: 0;
   padding: 6px 10px;
   border: 1px solid var(--teal-m);
   border-radius: 6px;
   font-size: 0.85rem;
+}
+@media (max-width: 900px) {
+  .flux-noms-panel #fluxNomsContainer {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .flux-noms-panel #fluxNomsContainer {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Sidebar totaux ───────────────────────────────────────── */
@@ -1165,7 +1180,8 @@ body {
         <table class="formation-table">
           <thead><tr>
             <th>Module</th>
-            <th>Durée std</th>
+            <th>Durée (j/sess)</th>
+            <th>Nb apprenants</th>
             <th>Sessions</th>
             <th>Jours total</th>
             <th>Max/session</th>
@@ -1388,8 +1404,13 @@ const moduleState = {
   customLabels: {},
   // Ordre personnalisé des prestations (tableau de keys, inclut standards + custom)
   prestationOrder: [],
+  // Overrides formation : {moduleKey: {nb, duree}} — valeurs manuelles qui remplacent le défaut
+  formationOverrides: {},
   // Concentrateur middleware standalone (indépendant de Mag)
   middlewareStandalone: false,
+  // Overrides manuels de la section formation (par module)
+  // Format : { biz: {jours: 4, nb: 7}, mag_siege: {jours: 1.5}, ... }
+  formationOverrides: {},
 };
 // Option FAB partage la remise de Biz (c'est la même tuile)
 // Caisses Mag partagent la remise de Mag
@@ -2299,23 +2320,45 @@ function calculateFormation() {
   tbody.innerHTML = '';
   let total = 0;
   let hasLines = false;
+  if (!moduleState.formationOverrides) moduleState.formationOverrides = {};
 
   FORMATION_DATA.forEach(f => {
     if (!isModActiveForFormation(f.activeFrom)) return;
-    const nb = f.fixedQty !== undefined ? f.fixedQty : getModQtyForFormation(f.qtyFrom);
-    if (!nb) return;
+
+    // Clé unique pour cette ligne dans les overrides (module + label si plusieurs Mag par ex.)
+    const key = f.module + ':' + f.label;
+    const ov = moduleState.formationOverrides[key] || {};
+
+    // Nb apprenants : priorité à l'override manuel, sinon calcul auto (users du module)
+    const nbDefault = f.fixedQty !== undefined ? f.fixedQty : getModQtyForFormation(f.qtyFrom);
+    const nb = (ov.nb !== undefined && ov.nb !== null) ? ov.nb : nbDefault;
+    if (!nb || nb <= 0) return;
     hasLines = true;
-    const sessions = Math.ceil(nb / f.maxSession);
-    const joursTotal = f.joursSd * sessions;
+
+    // Durée : priorité à l'override, sinon joursSd par défaut
+    const duree = (ov.duree !== undefined && ov.duree !== null) ? ov.duree : f.joursSd;
+    const sessions = Math.max(1, Math.ceil(nb / f.maxSession));
+    const joursTotal = duree * sessions;
     const cout = joursTotal * f.tjm;
     total += cout;
+
+    const safeKey = key.replace(/'/g, "\\'");
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${f.label}</td>
-      <td>${f.joursSd} j</td>
-      <td>${sessions}</td>
-      <td>${joursTotal % 1 === 0 ? joursTotal : joursTotal.toFixed(2)} j</td>
-      <td>${f.maxSession}</td>
+      <td class="center">
+        <input type="number" class="inline-qty" step="0.25" min="0"
+          value="${duree}" title="Durée en jours par session"
+          onchange="setFormationOverride('${safeKey}', 'duree', this.value)">
+      </td>
+      <td class="center">
+        <input type="number" class="inline-qty" step="1" min="0"
+          value="${nb}" title="Nombre d'apprenants"
+          onchange="setFormationOverride('${safeKey}', 'nb', this.value)">
+      </td>
+      <td class="center">${sessions}</td>
+      <td class="center">${joursTotal % 1 === 0 ? joursTotal : joursTotal.toFixed(2)} j</td>
+      <td class="center">${f.maxSession}</td>
       <td style="text-align:right;padding-right:12px;font-weight:700;color:var(--purple)">${fmtEur(cout)}</td>`;
     tbody.appendChild(tr);
   });
@@ -2329,12 +2372,12 @@ function calculateFormation() {
     // Ligne Qualiopi
     const trQ = document.createElement('tr');
     trQ.className = 'qualiopi-row';
-    trQ.innerHTML = `<td colspan="5">+ Frais de gestion Qualiopi (15%)</td><td style="text-align:right;padding-right:12px;">${fmtEur(qualiopi)}</td>`;
+    trQ.innerHTML = `<td colspan="6">+ Frais de gestion Qualiopi (15%)</td><td style="text-align:right;padding-right:12px;">${fmtEur(qualiopi)}</td>`;
     tbody.appendChild(trQ);
     // Total
     const trT = document.createElement('tr');
     trT.className = 'total-row';
-    trT.innerHTML = `<td colspan="5" style="font-weight:700;">Total formation (Qualiopi inclus)</td><td style="text-align:right;padding-right:12px;">${fmtEur(totalAvec)}</td>`;
+    trT.innerHTML = `<td colspan="6" style="font-weight:700;">Total formation (Qualiopi inclus)</td><td style="text-align:right;padding-right:12px;">${fmtEur(totalAvec)}</td>`;
     tbody.appendChild(trT);
 
     document.getElementById('total_formation').textContent = fmtEur(totalAvec);
@@ -2344,6 +2387,23 @@ function calculateFormation() {
   }
   sideBlock.style.display = 'none';
   return 0;
+}
+
+// Stocke/efface un override formation (durée ou nb apprenants)
+function setFormationOverride(key, field, value) {
+  if (!moduleState.formationOverrides) moduleState.formationOverrides = {};
+  const v = parseFloat(value);
+  if (!moduleState.formationOverrides[key]) moduleState.formationOverrides[key] = {};
+  if (value === '' || value === null || isNaN(v)) {
+    // Champ vidé : retour au calcul auto
+    delete moduleState.formationOverrides[key][field];
+    if (Object.keys(moduleState.formationOverrides[key]).length === 0) {
+      delete moduleState.formationOverrides[key];
+    }
+  } else {
+    moduleState.formationOverrides[key][field] = v;
+  }
+  calculate();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2719,16 +2779,21 @@ function exportConfig() {
 
   const totalPrest = lignesPrest.reduce((s,l)=>s+l.montant,0);
 
-  // Formation
+  // Formation (respecte les overrides manuels de nb apprenants et durée)
   const lignesFormation = [];
+  const formOv = ms.formationOverrides || {};
   FORMATION_DATA.forEach(f => {
     if (!isModActiveForFormation(f.activeFrom)) return;
-    const nb = f.fixedQty!==undefined ? f.fixedQty : getModQtyForFormation(f.qtyFrom);
-    if (!nb) return;
-    const sessions = Math.ceil(nb/f.maxSession);
-    const joursTotal = f.joursSd*sessions;
+    const key = f.module + ':' + f.label;
+    const ov = formOv[key] || {};
+    const nbDefault = f.fixedQty!==undefined ? f.fixedQty : getModQtyForFormation(f.qtyFrom);
+    const nb = (ov.nb !== undefined && ov.nb !== null) ? ov.nb : nbDefault;
+    if (!nb || nb <= 0) return;
+    const duree = (ov.duree !== undefined && ov.duree !== null) ? ov.duree : f.joursSd;
+    const sessions = Math.max(1, Math.ceil(nb/f.maxSession));
+    const joursTotal = duree*sessions;
     const cout = joursTotal*f.tjm;
-    lignesFormation.push({nom:f.label, jours_std:f.joursSd, sessions, jours_total:joursTotal, max_session:f.maxSession, nb_apprenants:nb, montant:cout});
+    lignesFormation.push({nom:f.label, jours_std:duree, sessions, jours_total:joursTotal, max_session:f.maxSession, nb_apprenants:nb, montant:cout});
   });
   const totalFormHT = lignesFormation.reduce((s,l)=>s+l.montant,0);
   const qualiopi = Math.round(totalFormHT*0.15*100)/100;
