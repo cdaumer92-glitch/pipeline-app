@@ -1230,6 +1230,7 @@ body {
 
     <div class="sidebar-title" style="margin-top:4px;">Actions</div>
     <button class="btn btn-primary btn-full" id="btnSaveInAffaire" onclick="openSaveInAffaireModal()" style="display:none;background:#059669;border-color:#059669;">💼 Enregistrer dans l'affaire</button>
+    <button class="btn btn-primary btn-full" id="btnGenererPropale" onclick="generateProposition()" style="background:#7b5ea7;border-color:#7b5ea7;">📝 Générer la proposition (Word)</button>
     <button class="btn btn-primary btn-full" onclick="exportConfig()">💾 Export JSON propale</button>
     <button class="btn btn-secondary btn-full btn-sm" onclick="exportExcel()">📊 Export Excel devis</button>
     <button class="btn btn-secondary btn-full btn-sm" onclick="document.getElementById('importInput').click()">📥 Importer JSON</button>
@@ -2632,9 +2633,12 @@ document.addEventListener('click', e => {
 // ══════════════════════════════════════════════════════════════
 // EXPORT / IMPORT
 // ══════════════════════════════════════════════════════════════
-function exportConfig() {
+// Construit l'objet config JSON à partir de l'état courant du configurateur.
+// Retourne null si la validation échoue (nom société manquant).
+// Utilisé par exportConfig() (download fichier) et generateProposition() (POST serveur).
+function buildConfigJson() {
   const societe = document.getElementById('societe').value.trim();
-  if (!societe || societe === 'Nom de la Société') { alert('Veuillez remplir le nom de la Société'); return; }
+  if (!societe || societe === 'Nom de la Société') { alert('Veuillez remplir le nom de la Société'); return null; }
 
   const parseEur = str => parseFloat((str||'0').replace(/[\s\u202f]/g,'').replace(',','.').replace(/[€]/g,'').replace('/mois','').replace('/an','')) || 0;
 
@@ -2817,12 +2821,77 @@ function exportConfig() {
     }
   };
 
+  return config;
+}
+
+// Téléchargement du JSON propale (comportement historique)
+function exportConfig() {
+  const config = buildConfigJson();
+  if (!config) return;
   const json = JSON.stringify(config, null, 2);
   const blob = new Blob([json], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = societe.replace(/[^a-zA-Z0-9]/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.json';
+  a.href = url; a.download = config.societe.replace(/[^a-zA-Z0-9]/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.json';
   a.click(); URL.revokeObjectURL(url);
+}
+
+// Génération automatique de la proposition .docx via l'API Claude (serveur)
+async function generateProposition() {
+  const config = buildConfigJson();
+  if (!config) return;
+
+  const btn = document.getElementById('btnGenererPropale');
+  const originalLabel = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Génération en cours...'; }
+
+  try {
+    // Récupérer le token JWT depuis la fenêtre parente (Pipeline app)
+    // Le configurateur est ouvert depuis l'app principale qui stocke le user en localStorage
+    let token = null;
+    try {
+      const userRaw = (window.parent && window.parent !== window ? window.parent : window).localStorage.getItem('user');
+      if (userRaw) {
+        const u = JSON.parse(userRaw);
+        token = u.token;
+      }
+    } catch (e) {
+      console.warn('Impossible de récupérer le token depuis localStorage:', e);
+    }
+
+    // URL de l'API : soit relative (configurateur servi par le même serveur), soit à configurer
+    const apiUrl = '/api/devis/generate-proposition';
+
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(config),
+    });
+
+    if (!res.ok) {
+      let errMsg = `Erreur ${res.status}`;
+      try { const j = await res.json(); if (j.error) errMsg = j.error; } catch(_) {}
+      throw new Error(errMsg);
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `propale_${config.societe.replace(/[^a-zA-Z0-9]/g,'_')}_${new Date().toISOString().slice(0,7).replace('-','')}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Erreur génération proposition:', err);
+    alert('Erreur lors de la génération de la proposition : ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = originalLabel; }
+  }
 }
 
 function handleImport(event) {
