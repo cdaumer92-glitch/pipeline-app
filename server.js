@@ -1540,6 +1540,137 @@ app.get('/api/devis/:id/download-pdf', auth, async (req, res) => {
 });
 
 // ==========================================
+// GÉNÉRATION PROPOSITION COMMERCIALE VIA CLAUDE API
+// ==========================================
+// POST /api/devis/generate-proposition
+// Body : le JSON d'export du configurateur (exportConfig())
+// Retourne : un fichier .docx à télécharger
+app.post('/api/devis/generate-proposition', auth, async (req, res) => {
+  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+  const SKILL_ID = process.env.ANTHROPIC_PROPALE_SKILL_ID;
+
+  if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY manquante sur le serveur' });
+  if (!SKILL_ID)         return res.status(500).json({ error: 'ANTHROPIC_PROPALE_SKILL_ID manquante sur le serveur' });
+
+  try {
+    const config = req.body;
+    if (!config || typeof config !== 'object') {
+      return res.status(400).json({ error: 'Corps de requête invalide' });
+    }
+
+    // Construire le prompt pour Claude : on lui donne le JSON et on lui demande d'exécuter la skill
+    const configJson = JSON.stringify(config, null, 2);
+    const userMessage = `Génère la proposition commerciale TexasWin en utilisant la skill "proposition-commerciale-texaswin".
+
+Voici la configuration JSON (au format attendu par le script generer_propale.py) :
+
+\`\`\`json
+${configJson}
+\`\`\`
+
+Étapes attendues :
+1. Écris cette config dans un fichier /tmp/config.json
+2. Exécute : python /mnt/skills/custom/proposition-commerciale-texaswin/scripts/generer_propale.py /tmp/config.json /tmp/propale.docx
+3. Le fichier .docx généré sera téléchargé automatiquement.
+
+Ne commente pas, exécute directement.`;
+
+    console.log('[Propale] Appel Anthropic API pour société:', config?.societe || '(inconnu)');
+
+    const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'code-execution-2025-08-25,skills-2025-10-02,files-api-2025-04-14',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5-20250929',
+        max_tokens: 4096,
+        container: {
+          skills: [
+            { type: 'custom', skill_id: SKILL_ID, version: 'latest' }
+          ]
+        },
+        tools: [
+          { type: 'code_execution_20250825', name: 'code_execution' }
+        ],
+        messages: [
+          { role: 'user', content: userMessage }
+        ],
+      }),
+    });
+
+    if (!apiRes.ok) {
+      const errText = await apiRes.text();
+      console.error('[Propale] Erreur Anthropic API:', apiRes.status, errText);
+      return res.status(502).json({ error: `Erreur API Anthropic (${apiRes.status}) : ${errText}` });
+    }
+
+    const apiData = await apiRes.json();
+
+    // Parcourir récursivement pour trouver tous les file_id créés
+    const fileIds = [];
+    const walk = (obj) => {
+      if (!obj) return;
+      if (Array.isArray(obj)) { obj.forEach(walk); return; }
+      if (typeof obj === 'object') {
+        if (obj.file_id && typeof obj.file_id === 'string') {
+          if (!fileIds.includes(obj.file_id)) fileIds.push(obj.file_id);
+        }
+        for (const k of Object.keys(obj)) walk(obj[k]);
+      }
+    };
+    walk(apiData);
+
+    if (fileIds.length === 0) {
+      console.error('[Propale] Aucun fichier généré. Réponse brute :', JSON.stringify(apiData).slice(0, 2000));
+      return res.status(500).json({
+        error: 'Aucun fichier généré par la skill',
+        details: apiData.content ? apiData.content : apiData
+      });
+    }
+
+    // On prend le dernier file_id généré (le .docx final)
+    const targetFileId = fileIds[fileIds.length - 1];
+    console.log('[Propale] file_id récupéré:', targetFileId);
+
+    // Télécharger le fichier via l'API Files
+    const fileRes = await fetch(`https://api.anthropic.com/v1/files/${targetFileId}/content`, {
+      method: 'GET',
+      headers: {
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'files-api-2025-04-14',
+      },
+    });
+
+    if (!fileRes.ok) {
+      const errText = await fileRes.text();
+      console.error('[Propale] Erreur download file:', fileRes.status, errText);
+      return res.status(502).json({ error: `Erreur téléchargement fichier (${fileRes.status})` });
+    }
+
+    const buffer = Buffer.from(await fileRes.arrayBuffer());
+
+    // Nom de fichier pour l'utilisateur
+    const societeSlug = (config.societe || 'propale').replace(/[^a-zA-Z0-9_-]/g, '');
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}`;
+    const filename = `propale_${societeSlug}_${dateStr}.docx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+    console.log('[Propale] Fichier envoyé :', filename, `(${buffer.length} octets)`);
+  } catch (err) {
+    console.error('[Propale] Erreur inattendue:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
 // ROUTES INTERLOCUTEURS
 // ==========================================
 
