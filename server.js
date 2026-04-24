@@ -1560,22 +1560,28 @@ app.post('/api/devis/generate-proposition', auth, async (req, res) => {
 
     // Construire le prompt pour Claude : on lui donne le JSON et on lui demande d'exécuter la skill
     const configJson = JSON.stringify(config, null, 2);
-    const userMessage = `Génère la proposition commerciale TexasWin en utilisant la skill "proposition-commerciale-texaswin".
+    const userMessage = `Tu dois IMPÉRATIVEMENT exécuter le script Python de la skill "proposition-commerciale-texaswin" pour générer une proposition commerciale au format .docx.
 
-Voici la configuration JSON (au format attendu par le script generer_propale.py) :
+**Ne rédige PAS toi-même la proposition. Ne manipule PAS le template Word à la main. Ton UNIQUE rôle est d'exécuter le script Python de la skill.**
+
+Configuration JSON (à passer tel quel au script) :
 
 \`\`\`json
 ${configJson}
 \`\`\`
 
-Étapes attendues :
-1. Écris cette config dans un fichier /tmp/config.json
-2. Exécute : python /mnt/skills/custom/proposition-commerciale-texaswin/scripts/generer_propale.py /tmp/config.json /tmp/propale.docx
-3. Le fichier .docx généré sera téléchargé automatiquement.
+Étapes OBLIGATOIRES dans cet ordre :
 
-Ne commente pas, exécute directement.`;
+1. Trouve le script : exécute \`find / -name "generer_propale.py" 2>/dev/null\` pour localiser le script de la skill
+2. Écris la config dans un fichier JSON : \`echo '<le_json>' > /tmp/config.json\` (ou via Python)
+3. Exécute le script : \`python <chemin_trouvé>/generer_propale.py /tmp/config.json /tmp/propale.docx\`
+4. Vérifie que /tmp/propale.docx existe et fait au moins 50 Ko : \`ls -la /tmp/propale.docx\`
+5. **Le fichier /tmp/propale.docx doit être créé — c'est le livrable final.**
+
+Si le script échoue, affiche TOUT le stderr et réessaye après correction. Ne génère AUCUN document de substitution.`;
 
     console.log('[Propale] Appel Anthropic API pour société:', config?.societe || '(inconnu)');
+    console.log('[Propale] Skill ID utilisé:', SKILL_ID);
 
     const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -1587,7 +1593,7 @@ Ne commente pas, exécute directement.`;
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 4096,
+        max_tokens: 16000,
         container: {
           skills: [
             { type: 'custom', skill_id: SKILL_ID, version: 'latest' }
@@ -1610,6 +1616,44 @@ Ne commente pas, exécute directement.`;
 
     const apiData = await apiRes.json();
 
+    // ── LOGS DE DEBUG : voir ce que Claude a fait ──
+    console.log('[Propale] stop_reason:', apiData.stop_reason);
+    console.log('[Propale] usage:', JSON.stringify(apiData.usage));
+    if (Array.isArray(apiData.content)) {
+      apiData.content.forEach((block, i) => {
+        if (block.type === 'text') {
+          console.log(`[Propale] content[${i}] TEXT:`, block.text?.slice(0, 500));
+        } else if (block.type === 'server_tool_use' || block.type === 'tool_use') {
+          console.log(`[Propale] content[${i}] ${block.type}:`, block.name, '| input:', JSON.stringify(block.input)?.slice(0, 300));
+        } else if (block.type === 'code_execution_tool_result' || block.type === 'tool_result') {
+          const content = block.content;
+          const preview = typeof content === 'string' ? content : JSON.stringify(content);
+          console.log(`[Propale] content[${i}] ${block.type}:`, preview?.slice(0, 500));
+        } else {
+          console.log(`[Propale] content[${i}] type=${block.type}`);
+        }
+      });
+    }
+
+    // ── Construction de la trace (pour mode debug) ──
+    const trace = [];
+    trace.push({ step: 'api_call', skill_id: SKILL_ID, stop_reason: apiData.stop_reason, usage: apiData.usage });
+    if (Array.isArray(apiData.content)) {
+      apiData.content.forEach((block, i) => {
+        if (block.type === 'text') {
+          trace.push({ step: i, type: 'text', text: block.text });
+        } else if (block.type === 'server_tool_use' || block.type === 'tool_use') {
+          trace.push({ step: i, type: block.type, name: block.name, input: block.input });
+        } else if (block.type === 'code_execution_tool_result' || block.type === 'tool_result') {
+          trace.push({ step: i, type: block.type, content: block.content });
+        } else {
+          trace.push({ step: i, type: block.type, raw: block });
+        }
+      });
+    }
+
+    const isDebug = req.query.debug === '1' || req.query.debug === 'true';
+
     // Parcourir récursivement pour trouver tous les file_id créés
     const fileIds = [];
     const walk = (obj) => {
@@ -1628,13 +1672,13 @@ Ne commente pas, exécute directement.`;
       console.error('[Propale] Aucun fichier généré. Réponse brute :', JSON.stringify(apiData).slice(0, 2000));
       return res.status(500).json({
         error: 'Aucun fichier généré par la skill',
-        details: apiData.content ? apiData.content : apiData
+        trace,
       });
     }
 
     // On prend le dernier file_id généré (le .docx final)
     const targetFileId = fileIds[fileIds.length - 1];
-    console.log('[Propale] file_id récupéré:', targetFileId);
+    console.log('[Propale] file_id récupéré:', targetFileId, `(${fileIds.length} fichier(s) au total)`);
 
     // Télécharger le fichier via l'API Files
     const fileRes = await fetch(`https://api.anthropic.com/v1/files/${targetFileId}/content`, {
@@ -1649,7 +1693,7 @@ Ne commente pas, exécute directement.`;
     if (!fileRes.ok) {
       const errText = await fileRes.text();
       console.error('[Propale] Erreur download file:', fileRes.status, errText);
-      return res.status(502).json({ error: `Erreur téléchargement fichier (${fileRes.status})` });
+      return res.status(502).json({ error: `Erreur téléchargement fichier (${fileRes.status})`, trace });
     }
 
     const buffer = Buffer.from(await fileRes.arrayBuffer());
@@ -1660,13 +1704,28 @@ Ne commente pas, exécute directement.`;
     const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}`;
     const filename = `propale_${societeSlug}_${dateStr}.docx`;
 
+    console.log('[Propale] Fichier envoyé :', filename, `(${buffer.length} octets, ${fileIds.length} file(s) générés)`);
+
+    // Mode debug : renvoyer un JSON avec la trace + le fichier en base64
+    if (isDebug) {
+      return res.json({
+        success: true,
+        filename,
+        size: buffer.length,
+        file_ids_count: fileIds.length,
+        all_file_ids: fileIds,
+        target_file_id: targetFileId,
+        file_base64: buffer.toString('base64'),
+        trace,
+      });
+    }
+
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(buffer);
-    console.log('[Propale] Fichier envoyé :', filename, `(${buffer.length} octets)`);
   } catch (err) {
     console.error('[Propale] Erreur inattendue:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message, stack: err.stack });
   }
 });
 
