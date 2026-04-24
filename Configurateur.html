@@ -423,6 +423,113 @@ body {
 .d-remise-box .d-qty { border-color: #fdba74; color: #c2410c; }
 .d-remise-box .d-unit { color: #c2410c; font-weight: 700; }
 
+/* Lignes custom — mini-cartes dans le drawer */
+.d-extras-box {
+  background: #f0f9ff;
+  border: 1px dashed #7dd3fc;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.d-extras-box .d-section-title { color: #0369a1; margin-bottom: 10px; }
+.extra-line {
+  background: white;
+  border: 1.5px solid #bae6fd;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  position: relative;
+}
+.extra-line .el-row1 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.extra-line .el-row1 input[type="text"] {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1.5px solid #e0f2fe;
+  border-radius: 6px;
+  font-family: 'Lato', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.extra-line .el-row1 input[type="text"]:focus { outline: none; border-color: #0369a1; background: #f0f9ff; }
+.extra-line .el-del {
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 6px 9px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.extra-line .el-del:hover { background: #fecaca; }
+.extra-line .el-row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 8px;
+}
+.extra-line .el-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.extra-line .el-field label {
+  font-size: 0.66rem;
+  color: #64748b;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.extra-line .el-field input,
+.extra-line .el-field select {
+  padding: 6px 8px;
+  border: 1.5px solid #bae6fd;
+  border-radius: 6px;
+  font-family: 'Lato', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  width: 100%;
+  box-sizing: border-box;
+  background: white;
+}
+.extra-line .el-field input[type="number"] { text-align: right; }
+.extra-line .el-field input:focus,
+.extra-line .el-field select:focus { outline: none; border-color: #0369a1; }
+.extra-line .el-total {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #bae6fd;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.8rem;
+}
+.extra-line .el-total .lab { color: #64748b; font-weight: 700; }
+.extra-line .el-total .val {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 800;
+  color: #0369a1;
+  font-size: 0.95rem;
+}
+.btn-add-line {
+  background: white;
+  border: 1.5px dashed #7dd3fc;
+  color: #0369a1;
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-family: 'Lato', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  width: 100%;
+  transition: all 0.15s;
+}
+.btn-add-line:hover { background: #f0f9ff; border-color: #0369a1; }
+
 .drawer-footer {
   padding: 16px 24px 20px;
   border-top: 1px solid var(--border);
@@ -886,6 +993,7 @@ body {
       <div class="global-opts" id="global-opts">
         <label><input type="checkbox" id="chk_comptaSage" onchange="moduleState.comptaSage=this.checked;renderAllSections();calculate();">Compta Sage</label>
         <label><input type="checkbox" id="chk_factElec" onchange="moduleState.facturationElec=this.checked;renderAllSections();calculate();">Facturation électronique</label>
+        <label><input type="checkbox" id="chk_middleware" onchange="moduleState.middlewareStandalone=this.checked;renderAllSections();calculate();">Middleware multi-magasin (99 €)</label>
       </div>
       <div class="module-config-area" id="module-config-area" style="display:none"></div>
       <!-- Flux noms -->
@@ -1182,6 +1290,13 @@ const moduleState = {
   // Remise commerciale par tuile module (% de 0 à 100)
   biz_remise:0, fab_remise:0, net_remise:0, mag_remise:0, vrp_remise:0,
   col_remise:0, log_remise:0, jet_remise:0, kub_remise:0, flu_remise:0,
+  // Lignes custom ajoutées par module (tableau d'objets {id, label, pu, qty, remise, unit})
+  biz_extra: [], fab_extra: [], net_extra: [], mag_extra: [], vrp_extra: [],
+  col_extra: [], log_extra: [], jet_extra: [], kub_extra: [], flu_extra: [],
+  // Prestations initiales ajoutées (section 4)
+  extra_prestations: [],
+  // Concentrateur middleware standalone (indépendant de Mag)
+  middlewareStandalone: false,
 };
 // Option FAB partage la remise de Biz (c'est la même tuile)
 // Caisses Mag partagent la remise de Mag
@@ -1217,25 +1332,45 @@ const MODULE_FIELDS = {
   flu: [{label:'Nombre de flux tiers', key:'fluxTiers', unit:'flux', prix:40}],
 };
 
-// Calcul brut (avant remise) du total mensuel d'une tuile module
+// Calcul brut (avant remise tuile) du total mensuel d'une tuile module
+// Les lignes custom ont leur propre remise par ligne — la remise tuile ne s'applique PAS dessus
 function calcTileTotalBrut(modId) {
-  if (modId === 'net') return getNetAboPrix().prix;
-  const fields = MODULE_FIELDS[modId];
-  if (!fields || fields === 'special') return 0;
   let total = 0;
-  fields.forEach(f => {
-    const v = parseFloat(moduleState[f.key]||0);
-    total += v * f.prix;
-    if (f.fixed && v > 0) total += f.fixed; // Mag concentrateur
+  if (modId === 'net') {
+    total = getNetAboPrix().prix;
+  } else {
+    const fields = MODULE_FIELDS[modId];
+    if (fields && fields !== 'special') {
+      fields.forEach(f => {
+        const v = parseFloat(moduleState[f.key]||0);
+        total += v * f.prix;
+        if (f.fixed && v > 0) total += f.fixed; // Mag concentrateur
+      });
+    }
+  }
+  return total;
+}
+
+// Total des lignes custom d'un module (net des remises de ligne)
+function calcTileExtraNet(modId) {
+  const extras = moduleState[modId + '_extra'] || [];
+  let total = 0;
+  extras.forEach(line => {
+    const pu = parseFloat(line.pu) || 0;
+    const qty = parseFloat(line.qty) || 0;
+    const remise = parseFloat(line.remise) || 0;
+    total += pu * qty * (1 - remise / 100);
   });
   return total;
 }
 
-// Total net après application de la remise de la tuile
+// Total net affiché : brut avec remise tuile + lignes custom (remises propres)
 function calcTileTotal(modId) {
   const brut = calcTileTotalBrut(modId);
   const remise = moduleState[modId + '_remise'] || 0;
-  return brut * (1 - remise / 100);
+  const netBase = brut * (1 - remise / 100);
+  const netExtras = calcTileExtraNet(modId);
+  return netBase + netExtras;
 }
 
 function updateNetDisplay() {
@@ -1247,16 +1382,17 @@ function updateNetDisplay() {
 function updateTileDisplay(modId) {
   const tile = document.getElementById('tile-' + modId);
   if (!tile) return;
-  const active = isModuleActive(modId);
+  const hasExtras = (moduleState[modId + '_extra'] || []).length > 0;
+  const active = isModuleActive(modId) || hasExtras;
   tile.classList.toggle('active', active);
   const brut = calcTileTotalBrut(modId);
   const remise = moduleState[modId + '_remise'] || 0;
-  const net = brut * (1 - remise / 100);
+  const netTotal = calcTileTotal(modId);
   const hasRemise = remise > 0 && brut > 0;
   tile.classList.toggle('has-remise', hasRemise);
   const mini = tile.querySelector('.tile-mini-total');
   if (mini) {
-    mini.textContent = active ? fmtNum(net) + ' €/mois' : '';
+    mini.textContent = active ? fmtNum(netTotal) + ' €/mois' : '';
   }
 }
 
@@ -1384,6 +1520,11 @@ function renderModuleDrawer(modId) {
           <span class="d-unit">%</span>
         </div>
       </div>
+      <div class="d-section d-extras-box">
+        <div class="d-section-title">Lignes supplémentaires</div>
+        <div id="extrasContainer_${modId}"></div>
+        <button type="button" class="btn-add-line" onclick="addExtraLine('${modId}')">➕ Ajouter une ligne</button>
+      </div>
     </div>
     <div class="drawer-footer" id="drawerFooter">
       <div class="df-sub"><span>Sous-total</span><span class="val" id="dfSub">0,00 €/mois</span></div>
@@ -1400,6 +1541,7 @@ function renderModuleDrawer(modId) {
     if (sel) sel.value = String(moduleState.net_agents_val || 0);
   }
 
+  renderExtraLines(modId);
   updateDrawerFooter(modId);
   if (modId === 'net') updateNetDisplay();
 }
@@ -1407,15 +1549,189 @@ function renderModuleDrawer(modId) {
 function updateDrawerFooter(modId) {
   const brut = calcTileTotalBrut(modId);
   const remise = moduleState[modId + '_remise'] || 0;
-  const net = brut * (1 - remise / 100);
+  const netBase = brut * (1 - remise / 100);
+  const netExtras = calcTileExtraNet(modId);
+  const net = netBase + netExtras;
   const footer = document.getElementById('drawerFooter');
   if (!footer) return;
-  const hasRemise = remise > 0 && brut > 0;
+  const hasRemise = (remise > 0 && brut > 0);
   footer.classList.toggle('has-remise', hasRemise);
   const subEl = document.getElementById('dfSub');
   const totEl = document.getElementById('dfTotal');
-  if (subEl) subEl.textContent = fmtNum(brut) + ' €/mois';
+  // Sous-total = tout sans remise tuile (brut + extras bruts)
+  const extrasBrut = (moduleState[modId + '_extra'] || []).reduce((s, l) => s + (parseFloat(l.pu)||0) * (parseFloat(l.qty)||0), 0);
+  if (subEl) subEl.textContent = fmtNum(brut + extrasBrut) + ' €/mois';
   if (totEl) totEl.textContent = fmtNum(net) + ' €/mois';
+}
+
+// ══════════════════════════════════════════════════════════════
+// LIGNES CUSTOM (modules + prestations)
+// ══════════════════════════════════════════════════════════════
+function genLineId() {
+  return 'ln_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+}
+
+function addExtraLine(modId) {
+  if (!Array.isArray(moduleState[modId + '_extra'])) moduleState[modId + '_extra'] = [];
+  moduleState[modId + '_extra'].push({
+    id: genLineId(),
+    label: '',
+    pu: 0,
+    qty: 1,
+    remise: 0,
+    unit: 'users'
+  });
+  renderExtraLines(modId);
+  onDrawerChange(modId);
+  // Focus sur la désignation de la ligne créée
+  setTimeout(() => {
+    const lines = document.querySelectorAll('#extrasContainer_' + modId + ' .extra-line input[type="text"]');
+    const last = lines[lines.length - 1];
+    if (last) last.focus();
+  }, 10);
+}
+
+function removeExtraLine(modId, lineId) {
+  const arr = moduleState[modId + '_extra'] || [];
+  moduleState[modId + '_extra'] = arr.filter(l => l.id !== lineId);
+  renderExtraLines(modId);
+  onDrawerChange(modId);
+}
+
+function updateExtraLine(modId, lineId, field, value) {
+  const arr = moduleState[modId + '_extra'] || [];
+  const line = arr.find(l => l.id === lineId);
+  if (!line) return;
+  if (field === 'label' || field === 'unit') {
+    line[field] = value;
+  } else {
+    line[field] = parseFloat(value) || 0;
+  }
+  // Re-render de la ligne pour rafraîchir le "Total ligne" en bas de la carte
+  // (mais uniquement si ce n'est pas le champ label/unit → sinon on perd le focus du texte en cours de saisie)
+  if (field !== 'label' && field !== 'unit') {
+    const container = document.getElementById('extrasContainer_' + modId);
+    if (container) {
+      // Update uniquement le span total de la ligne concernée
+      const lines = container.querySelectorAll('.extra-line');
+      const idx = arr.findIndex(l => l.id === lineId);
+      if (idx >= 0 && lines[idx]) {
+        const pu = parseFloat(line.pu) || 0;
+        const qty = parseFloat(line.qty) || 0;
+        const remise = parseFloat(line.remise) || 0;
+        const totalLigne = pu * qty * (1 - remise / 100);
+        const valEl = lines[idx].querySelector('.el-total .val');
+        if (valEl) valEl.textContent = fmtNum(totalLigne) + ' €/mois';
+      }
+    }
+  }
+  onDrawerChange(modId);
+}
+
+function renderExtraLines(modId) {
+  const container = document.getElementById('extrasContainer_' + modId);
+  if (!container) return;
+  const arr = moduleState[modId + '_extra'] || [];
+  if (arr.length === 0) {
+    container.innerHTML = '<div style="font-size:0.78rem;color:#64748b;font-style:italic;margin-bottom:10px;">Aucune ligne personnalisée. Cliquez sur "+ Ajouter une ligne" pour en créer une.</div>';
+    return;
+  }
+  const UNITS = ['users', 'lic', 'pièce', 'forfait', '€/mois', '€'];
+  const html = arr.map(line => {
+    const pu = parseFloat(line.pu) || 0;
+    const qty = parseFloat(line.qty) || 0;
+    const remise = parseFloat(line.remise) || 0;
+    const totalLigne = pu * qty * (1 - remise / 100);
+    const unitOpts = UNITS.map(u => `<option value="${u}" ${u === line.unit ? 'selected' : ''}>${u}</option>`).join('');
+    return `
+      <div class="extra-line">
+        <div class="el-row1">
+          <input type="text" placeholder="Désignation (ex: Jet — tarif volume)" value="${(line.label || '').replace(/"/g, '&quot;')}"
+            oninput="updateExtraLine('${modId}', '${line.id}', 'label', this.value)">
+          <button class="el-del" onclick="removeExtraLine('${modId}', '${line.id}')" title="Supprimer">🗑</button>
+        </div>
+        <div class="el-row2">
+          <div class="el-field">
+            <label>PU €</label>
+            <input type="number" step="0.01" min="0" value="${pu}"
+              oninput="updateExtraLine('${modId}', '${line.id}', 'pu', this.value)">
+          </div>
+          <div class="el-field">
+            <label>Quantité</label>
+            <input type="number" step="1" min="0" value="${qty}"
+              oninput="updateExtraLine('${modId}', '${line.id}', 'qty', this.value)">
+          </div>
+          <div class="el-field">
+            <label>Unité</label>
+            <select onchange="updateExtraLine('${modId}', '${line.id}', 'unit', this.value)">${unitOpts}</select>
+          </div>
+          <div class="el-field">
+            <label>Remise %</label>
+            <input type="number" step="1" min="0" max="100" value="${remise}"
+              oninput="updateExtraLine('${modId}', '${line.id}', 'remise', this.value)">
+          </div>
+        </div>
+        <div class="el-total">
+          <span class="lab">Total ligne</span>
+          <span class="val">${fmtNum(totalLigne)} €/mois</span>
+        </div>
+      </div>`;
+  }).join('');
+  container.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════════
+// PRESTATIONS CUSTOM (section 4)
+// ══════════════════════════════════════════════════════════════
+function addExtraPrestation() {
+  if (!Array.isArray(moduleState.extra_prestations)) moduleState.extra_prestations = [];
+  moduleState.extra_prestations.push({
+    id: genLineId(),
+    label: '',
+    pu: 1150,     // tarif jour standard TexasWin
+    qty: 1,
+    remise: 0,
+    unit: 'jour'
+  });
+  renderAllSections();
+  calculate();
+  // Focus sur la désignation de la ligne créée
+  setTimeout(() => {
+    const lines = document.querySelectorAll('#extraPrestContainer input[type="text"]');
+    const last = lines[lines.length - 1];
+    if (last) last.focus();
+  }, 10);
+}
+
+function removeExtraPrestation(lineId) {
+  moduleState.extra_prestations = (moduleState.extra_prestations || []).filter(l => l.id !== lineId);
+  renderAllSections();
+  calculate();
+}
+
+function updateExtraPrestation(lineId, field, value) {
+  const arr = moduleState.extra_prestations || [];
+  const line = arr.find(l => l.id === lineId);
+  if (!line) return;
+  if (field === 'label' || field === 'unit') {
+    line[field] = value;
+  } else {
+    line[field] = parseFloat(value) || 0;
+  }
+  renderAllSections();
+  calculate();
+}
+
+function calcExtraPrestationsTotal() {
+  const arr = moduleState.extra_prestations || [];
+  let total = 0;
+  arr.forEach(line => {
+    const pu = parseFloat(line.pu) || 0;
+    const qty = parseFloat(line.qty) || 0;
+    const remise = parseFloat(line.remise) || 0;
+    total += pu * qty * (1 - remise / 100);
+  });
+  return total;
 }
 
 function onDrawerChange(modId) {
@@ -1455,8 +1771,10 @@ function renderModuleConfigs() {
   // Synchroniser les checkboxes globales
   const cs = document.getElementById('chk_comptaSage');
   const cf = document.getElementById('chk_factElec');
+  const cm = document.getElementById('chk_middleware');
   if (cs) cs.checked = moduleState.comptaSage;
   if (cf) cf.checked = moduleState.facturationElec;
+  if (cm) cm.checked = !!moduleState.middlewareStandalone;
   // Mettre à jour les mini-totaux dans les tuiles
   MODULES_DEF.forEach(mod => updateTileDisplay(mod.id));
 }
@@ -1603,6 +1921,7 @@ function renderSection3() {
     { show: magCaisses, nom: `Support MAG — ${moduleState.mag_caisses} caisse(s)`, total: 15 * moduleState.mag_caisses, unite: '€/mois' },
     { show: flux,       nom: `Gestion des Flux (${fluxNoms.join(', ')})`,     total: 40 * moduleState.fluxTiers, unite: '€/mois' },
     { show: felec,      nom: 'Gestion Facturation électronique (réception)',  total: 40,                      unite: '€/mois' },
+    { show: moduleState.middlewareStandalone, nom: 'Concentrateur middleware multi-magasin', total: 99, unite: '€/mois' },
   ];
 
   items.forEach(it => {
@@ -1679,6 +1998,49 @@ function renderSection4() {
       <td class="right total-s4-${it.key}">${fmtEur(total)}</td>`;
     tbody.appendChild(tr);
   });
+
+  // Lignes personnalisées ajoutées par l'utilisateur
+  const extras = moduleState.extra_prestations || [];
+  extras.forEach(line => {
+    const pu = parseFloat(line.pu) || 0;
+    const qty = parseFloat(line.qty) || 0;
+    const remise = parseFloat(line.remise) || 0;
+    const total = pu * qty * (1 - remise / 100);
+    const tr = document.createElement('tr');
+    tr.style.background = '#f0f9ff';
+    tr.innerHTML = `
+      <td>
+        <input type="text" placeholder="Désignation (ex: Formation sur site, Paramétrage spécifique...)"
+          value="${(line.label || '').replace(/"/g, '&quot;')}"
+          style="width:100%;border:1.5px solid #bae6fd;border-radius:4px;padding:4px 6px;font-size:0.88rem;"
+          oninput="updateExtraPrestation('${line.id}', 'label', this.value)">
+        <div style="display:flex;gap:6px;align-items:center;margin-top:4px;font-size:0.75rem;color:#0369a1;">
+          <span>PU €</span>
+          <input type="number" step="0.01" min="0" value="${pu}" style="width:80px;border:1.5px solid #bae6fd;border-radius:4px;padding:2px 5px;font-size:0.78rem;text-align:right;"
+            oninput="updateExtraPrestation('${line.id}', 'pu', this.value)">
+          <select style="border:1.5px solid #bae6fd;border-radius:4px;padding:2px 4px;font-size:0.78rem;"
+            onchange="updateExtraPrestation('${line.id}', 'unit', this.value)">
+            ${['jour','forfait','heure','unité'].map(u => `<option value="${u}" ${u===(line.unit||'jour')?'selected':''}>${u}</option>`).join('')}
+          </select>
+          <button onclick="removeExtraPrestation('${line.id}')" style="margin-left:auto;background:#fee2e2;border:1px solid #fca5a5;color:#991b1b;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:0.75rem;">🗑 Suppr.</button>
+        </div>
+      </td>
+      <td class="center"><input type="number" class="inline-qty" value="${qty}" min="0" step="0.5"
+        oninput="updateExtraPrestation('${line.id}', 'qty', this.value)"></td>
+      <td class="center"><input type="number" class="inline-qty" value="${remise}" min="0" max="100"
+        oninput="updateExtraPrestation('${line.id}', 'remise', this.value)"></td>
+      <td class="right">${fmtEur(total)}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Ligne finale : bouton d'ajout
+  const trAdd = document.createElement('tr');
+  trAdd.innerHTML = `<td colspan="4" style="padding:6px 0;">
+    <button onclick="addExtraPrestation()" style="background:white;border:1.5px dashed #7dd3fc;color:#0369a1;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:700;font-size:0.85rem;width:100%;">
+      ➕ Ajouter une ligne de prestation
+    </button>
+  </td>`;
+  tbody.appendChild(trAdd);
 }
 
 function renderSection2() {
@@ -1826,6 +2188,12 @@ function calculate() {
   // Jet
   s1total += jet * 40 * rem('jet');
   // Flux : pas d'abonnement mensuel section1 (juste hébergement section3), remise non applicable
+
+  // Lignes custom ajoutées dans le drawer de chaque module (avec leurs propres remises de ligne)
+  ['biz','fab','net','kub','mag','vrp','col','log','jet','flu'].forEach(modId => {
+    s1total += calcTileExtraNet(modId);
+  });
+
   totalMensuel += s1total;
 
   // Section 3 : infrastructure
@@ -1838,6 +2206,8 @@ function calculate() {
   if (moduleState.facturationElec) s3total += 40;
   if (moduleState.comptaSage) s3total += 135;
   if (kub>0) s3total += calcHebKub();
+  // Concentrateur middleware standalone (indépendant de Mag)
+  if (moduleState.middlewareStandalone) s3total += 99;
   totalMensuel += s3total;
 
   document.getElementById('total_section1').textContent = fmtNum(s1total) + ' €/mois';
@@ -1885,6 +2255,10 @@ function calculate() {
     }
     s4total += 1150 * sv.qty * (1 - sv.remise/100);
   });
+
+  // Prestations personnalisées ajoutées via "+ Ajouter une ligne"
+  s4total += calcExtraPrestationsTotal();
+
   totalPrest += s4total;
   document.getElementById('total_section4').textContent = fmtNum(s4total) + ' €';
 
@@ -2048,6 +2422,26 @@ function exportConfig() {
   if (ms.facturationElec) addAbo('Gestion Facturation électronique (réception)', 40);
   if (ms.comptaSage) addAbo('Allocation ressources Sage', 135);
   if ((ms.kub||0)>0) addAbo('Hébergement serveur Kub', calcHebKub());
+  // Middleware standalone (99 € indépendant de Mag)
+  if (ms.middlewareStandalone) addAbo('Concentrateur middleware multi-magasin', 99);
+
+  // Lignes custom ajoutées dans le drawer de chaque module
+  ['biz','fab','net','kub','mag','vrp','col','log','jet','flu'].forEach(modId => {
+    const extras = ms[modId + '_extra'] || [];
+    extras.forEach(line => {
+      const pu = parseFloat(line.pu) || 0;
+      const qty = parseFloat(line.qty) || 0;
+      const remise = parseFloat(line.remise) || 0;
+      if (pu > 0 && qty > 0) {
+        const brut = pu * qty;
+        const net = brut * (1 - remise / 100);
+        const label = line.label || (`Ligne custom ${modId.toUpperCase()}`);
+        const ligne = { nom: label + ` (${qty} ${line.unit||''} × ${fmtNum(pu)} €)`, montant: net, unite: '€/mois' };
+        if (remise > 0) { ligne.prix_brut = brut; ligne.remise_pct = remise; }
+        lignesAbo.push(ligne);
+      }
+    });
+  });
 
   const totalMensuel = lignesAbo.reduce((s,l)=>s+l.montant,0);
 
@@ -2085,6 +2479,20 @@ function exportConfig() {
     if (forfaitKeys.includes(k)) addP(nom,'Forfait',forfaitPrices[k]);
     else addP(nom, sv.qty+' j', 1150*sv.qty*(1-sv.remise/100));
   });
+
+  // Prestations personnalisées ajoutées par l'utilisateur (section 4)
+  (ms.extra_prestations || []).forEach(line => {
+    const pu = parseFloat(line.pu) || 0;
+    const qty = parseFloat(line.qty) || 0;
+    const remise = parseFloat(line.remise) || 0;
+    if (pu > 0 && qty > 0) {
+      const net = pu * qty * (1 - remise / 100);
+      const label = line.label || 'Prestation personnalisée';
+      const duree = qty + ' ' + (line.unit || 'jour') + (qty > 1 ? 's' : '');
+      addP(label, duree, net);
+    }
+  });
+
   const totalPrest = lignesPrest.reduce((s,l)=>s+l.montant,0);
 
   // Formation
