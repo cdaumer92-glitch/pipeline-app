@@ -970,6 +970,29 @@
         }
       };
 
+      // ── Upload direct depuis la liste des devis (sans passer par le state devisPdfFile) ──
+      const handleUploadDevisPdfDirect = async (devisId, file) => {
+        if (!file) return;
+        try {
+          const formData = new FormData();
+          formData.append('pdf', file);
+          const res = await fetch(`${API_URL}/devis/${devisId}/upload-pdf`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${user.token}` },
+            body: formData
+          });
+          if (res.ok) {
+            if (selectedProspect) await fetchDevis(selectedProspect.id);
+          } else {
+            const err = await res.json().catch(() => ({}));
+            alert('Erreur lors de l\'upload du PDF : ' + (err.error || res.status));
+          }
+        } catch (err) {
+          console.error('Erreur handleUploadDevisPdfDirect:', err);
+          alert('Erreur : ' + err.message);
+        }
+      };
+
       const handleDeleteDevisPDF = async (devisId) => {
         if (!window.confirm('Supprimer le PDF de ce devis ?')) return;
 
@@ -1882,6 +1905,7 @@
               handleDeleteDevis={handleDeleteDevis}
               handleRattacherDevisAffaire={handleRattacherDevisAffaire}
               handleUploadDevisPdf={handleUploadDevisPdf}
+              handleUploadDevisPdfDirect={handleUploadDevisPdfDirect}
               handleDeleteDevisPDF={handleDeleteDevisPDF}
               affairesList={affairesList}
               selectedAffaireId={selectedAffaireId}
@@ -4341,7 +4365,7 @@
     }
 
 
-    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
+    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
@@ -5352,6 +5376,7 @@
                     handleSaveDevis={handleSaveDevis}
                     handleDeleteDevis={handleDeleteDevis}
                     handleDeleteDevisPDF={handleDeleteDevisPDF}
+                    handleUploadDevisPdfDirect={handleUploadDevisPdfDirect}
                     handleRattacherDevisAffaire={handleRattacherDevisAffaire}
                     selectedProspect={selectedProspect}
                   />
@@ -5957,7 +5982,7 @@
       );
     }
 
-    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleDeleteDevisPDF, handleRattacherDevisAffaire, selectedProspect }) {
+    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect }) {
       const [actionNotes, setActionNotes] = React.useState({});
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
@@ -6069,7 +6094,7 @@
                                       </div>
                                     </div>
                                     <div style={{display: 'flex', gap: '4px'}} onClick={e => e.stopPropagation()}>
-                                      {devis.pdf_url && (
+                                      {devis.pdf_url ? (
                                         <>
                                           <button
                                             onClick={async (e) => {
@@ -6101,6 +6126,30 @@
                                             title="Supprimer le PDF"
                                           >
                                             🗑️📄
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <input
+                                            type="file"
+                                            accept="application/pdf,.pdf"
+                                            id={`pdf-upload-${devis.id}`}
+                                            style={{display: 'none'}}
+                                            onChange={async (e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) await handleUploadDevisPdfDirect(devis.id, file);
+                                              e.target.value = '';
+                                            }}
+                                          />
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              document.getElementById(`pdf-upload-${devis.id}`).click();
+                                            }}
+                                            style={{padding: '3px 6px', backgroundColor: '#fff', color: '#007d89', border: '1px solid #007d89', borderRadius: '3px', cursor: 'pointer', fontSize: '12px'}}
+                                            title="Joindre un PDF"
+                                          >
+                                            📎
                                           </button>
                                         </>
                                       )}
