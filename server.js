@@ -1558,27 +1558,29 @@ app.post('/api/devis/generate-proposition', auth, async (req, res) => {
       return res.status(400).json({ error: 'Corps de requête invalide' });
     }
 
-    // Construire le prompt pour Claude : on lui donne le JSON et on lui demande d'exécuter la skill
-    const configJson = JSON.stringify(config, null, 2);
-    const userMessage = `Tu dois IMPÉRATIVEMENT exécuter le script Python de la skill "proposition-commerciale-texaswin" pour générer une proposition commerciale au format .docx.
+    // Filtrer le JSON pour ne garder QUE ce que le script Python lit (gros gain de tokens)
+    const minimalConfig = {
+      societe:         config.societe,
+      contact:         config.contact || '',
+      adresse:         config.adresse || '',
+      commercial:      config.commercial || 'christian',
+      modules_retenus: config.modules_retenus || [],
+      propale:         config.propale || {},
+    };
+    const configJson = JSON.stringify(minimalConfig);
 
-**Ne rédige PAS toi-même la proposition. Ne manipule PAS le template Word à la main. Ton UNIQUE rôle est d'exécuter le script Python de la skill.**
+    const userMessage = `Exécute le script Python de la skill "proposition-commerciale-texaswin" pour générer une proposition commerciale.
 
-Configuration JSON (à passer tel quel au script) :
+Étapes :
+1. Trouve le script avec : find / -name "generer_propale.py" 2>/dev/null
+2. Écris la config ci-dessous dans /tmp/config.json
+3. Exécute : python <chemin>/generer_propale.py /tmp/config.json /tmp/propale.docx
+4. /tmp/propale.docx doit exister et faire > 50 Ko
 
-\`\`\`json
+Config :
 ${configJson}
-\`\`\`
 
-Étapes OBLIGATOIRES dans cet ordre :
-
-1. Trouve le script : exécute \`find / -name "generer_propale.py" 2>/dev/null\` pour localiser le script de la skill
-2. Écris la config dans un fichier JSON : \`echo '<le_json>' > /tmp/config.json\` (ou via Python)
-3. Exécute le script : \`python <chemin_trouvé>/generer_propale.py /tmp/config.json /tmp/propale.docx\`
-4. Vérifie que /tmp/propale.docx existe et fait au moins 50 Ko : \`ls -la /tmp/propale.docx\`
-5. **Le fichier /tmp/propale.docx doit être créé — c'est le livrable final.**
-
-Si le script échoue, affiche TOUT le stderr et réessaye après correction. Ne génère AUCUN document de substitution.`;
+N'écris PAS le document toi-même. Exécute uniquement le script.`;
 
     console.log('[Propale] Appel Anthropic API pour société:', config?.societe || '(inconnu)');
     console.log('[Propale] Skill ID utilisé:', SKILL_ID);
