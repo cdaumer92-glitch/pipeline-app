@@ -1584,6 +1584,8 @@
           const created = { ...payload, id: data.id || data.prospect_id };
           // Fermer la modale, rafraîchir la liste, ouvrir la fiche créée
           setShowNewCompanyModal(false);
+          // Si on est sur le Dashboard, basculer sur "Suivi activités" pour voir la fiche
+          setIsDashboard(false);
           await fetchProspects();
           setSelectedProspect(created);
           setFormData(created);
