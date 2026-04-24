@@ -530,6 +530,95 @@ body {
 }
 .btn-add-line:hover { background: #f0f9ff; border-color: #0369a1; }
 
+/* === Section 4 : drag & drop + rename inline === */
+#tbody-section4 tr.drag-handle-row {
+  transition: background 0.15s;
+}
+#tbody-section4 tr.dragging {
+  opacity: 0.4;
+  background: #f0f9ff !important;
+}
+#tbody-section4 tr.drag-over-top { box-shadow: inset 0 3px 0 #0369a1; }
+#tbody-section4 tr.drag-over-bottom { box-shadow: inset 0 -3px 0 #0369a1; }
+
+.drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 22px;
+  margin-right: 6px;
+  color: #94a3b8;
+  cursor: grab;
+  font-size: 1rem;
+  line-height: 1;
+  user-select: none;
+  vertical-align: middle;
+}
+.drag-handle:hover { color: #0369a1; }
+.drag-handle:active { cursor: grabbing; }
+
+.prest-label-cell {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.prest-label-input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1.5px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  font-family: 'Lato', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text);
+  transition: all 0.15s;
+  min-width: 0;
+}
+.prest-label-input:hover { background: #f0f8f8; border-color: var(--border); }
+.prest-label-input:focus {
+  outline: none;
+  background: white;
+  border-color: #0369a1;
+  box-shadow: 0 0 0 2px rgba(3,105,161,0.1);
+}
+.prest-label-input.is-custom-line { color: #0369a1; font-weight: 600; }
+
+.prest-custom-subrow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+  margin-left: 24px;
+  font-size: 0.72rem;
+  color: #0369a1;
+}
+.prest-custom-subrow input,
+.prest-custom-subrow select {
+  border: 1.5px solid #bae6fd;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 0.76rem;
+  font-family: 'Lato', sans-serif;
+}
+.prest-custom-subrow input[type="number"] {
+  text-align: right;
+  font-weight: 700;
+  width: 80px;
+}
+.prest-custom-del {
+  margin-left: auto;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+.prest-custom-del:hover { background: #fecaca; }
+
 .drawer-footer {
   padding: 16px 24px 20px;
   border-top: 1px solid var(--border);
@@ -1295,6 +1384,10 @@ const moduleState = {
   col_extra: [], log_extra: [], jet_extra: [], kub_extra: [], flu_extra: [],
   // Prestations initiales ajoutées (section 4)
   extra_prestations: [],
+  // Renommage personnalisé des prestations (key → label)
+  customLabels: {},
+  // Ordre personnalisé des prestations (tableau de keys, inclut standards + custom)
+  prestationOrder: [],
   // Concentrateur middleware standalone (indépendant de Mag)
   middlewareStandalone: false,
 };
@@ -1715,9 +1808,11 @@ function updateExtraPrestation(lineId, field, value) {
   if (!line) return;
   if (field === 'label' || field === 'unit') {
     line[field] = value;
-  } else {
-    line[field] = parseFloat(value) || 0;
+    // Le label n'affecte pas les montants : on évite le re-render qui casse le focus.
+    // L'unit n'affecte pas les montants non plus.
+    return;
   }
+  line[field] = parseFloat(value) || 0;
   renderAllSections();
   calculate();
 }
@@ -1953,83 +2048,124 @@ function renderSection4() {
   const marge = (parseFloat(document.getElementById('margeSetup')?.value)||30)/100;
   const fasPrice = Math.round(1150/(1-marge)/5)*5;
 
+  // ── 1) Collecter toutes les lignes actives (standards + custom) ──
   const items = [];
-  if (biz)  items.push({key:'fas', nom:'FAS : Installation du logiciel TexasWin', prix:fasPrice, auto:true});
-  if (biz)  items.push({key:'setup_tw', nom:'Mise en place hébergement TexasWin', prix:setupTW, auto:true});
-  if (sage) items.push({key:'setup_sage', nom:'Mise en place hébergement Sage', prix:1150, auto:true});
-  if (biz)  items.push({key:'modif_etats', nom:'Biz/Fab : Modifications d\'états commerciaux', prix:1150, defaultQty:0.5});
-  if (biz)  items.push({key:'recup', nom:'Récupération des données', prix:1150, defaultQty:0});
-  if (net)  items.push({key:'net_install', nom:'Net : Installation et paramétrage', prix:1150, defaultQty:1});
-  if (net)  items.push({key:'net_accom', nom:'Net : Accompagnement Standard', prix:1150, defaultQty:0.5});
-  if (kub)  items.push({key:'kub_connect', nom:'Mise en oeuvre Connecteur Kub → MyReport', prix:2500, forfait:true, defaultQty:1});
-  if (mag)  items.push({key:'mag_siege', nom:'Mag : Installation Back office Siège', prix:1150, defaultQty:1});
-  if (mag)  items.push({key:'mag_mag', nom:'Mag : Installation Magasin', prix:525, defaultQty: moduleState.mag_caisses * 0.5});
-  if (vrp)  items.push({key:'vrp_install', nom:'VRP : Installation et paramétrage', prix:1150, defaultQty:1});
-  if (col)  items.push({key:'col_install', nom:'Col : Installation et paramétrage', prix:1150, defaultQty:1});
-  if (log)  items.push({key:'log_install', nom:'Log : Installation et paramétrage', prix:1150, defaultQty:1});
-  if (jet)  items.push({key:'jet_install', nom:'Jet : Installation et paramétrage', prix:1150, defaultQty: moduleState.jet * 0.5});
-  // Flux dynamiques
+  if (biz)  items.push({ key:'fas', kind:'auto', defaultLabel:'FAS : Installation du logiciel TexasWin', prix:fasPrice });
+  if (biz)  items.push({ key:'setup_tw', kind:'auto', defaultLabel:'Mise en place hébergement TexasWin', prix:setupTW });
+  if (sage) items.push({ key:'setup_sage', kind:'auto', defaultLabel:'Mise en place hébergement Sage', prix:1150 });
+  if (biz)  items.push({ key:'modif_etats', kind:'tjm', defaultLabel:"Biz/Fab : Modifications d'états commerciaux", prix:1150, defaultQty:0.5 });
+  if (biz)  items.push({ key:'recup', kind:'tjm', defaultLabel:'Récupération des données', prix:1150, defaultQty:0 });
+  if (net)  items.push({ key:'net_install', kind:'tjm', defaultLabel:'Net : Installation et paramétrage', prix:1150, defaultQty:1 });
+  if (net)  items.push({ key:'net_accom', kind:'tjm', defaultLabel:'Net : Accompagnement Standard', prix:1150, defaultQty:0.5 });
+  if (kub)  items.push({ key:'kub_connect', kind:'forfait', defaultLabel:'Mise en oeuvre Connecteur Kub → MyReport', prix:2500 });
+  if (mag)  items.push({ key:'mag_siege', kind:'tjm', defaultLabel:'Mag : Installation Back office Siège', prix:1150, defaultQty:1 });
+  if (mag)  items.push({ key:'mag_mag', kind:'tjm', defaultLabel:'Mag : Installation Magasin', prix:525, defaultQty: moduleState.mag_caisses * 0.5 });
+  if (vrp)  items.push({ key:'vrp_install', kind:'tjm', defaultLabel:'VRP : Installation et paramétrage', prix:1150, defaultQty:1 });
+  if (col)  items.push({ key:'col_install', kind:'tjm', defaultLabel:'Col : Installation et paramétrage', prix:1150, defaultQty:1 });
+  if (log)  items.push({ key:'log_install', kind:'tjm', defaultLabel:'Log : Installation et paramétrage', prix:1150, defaultQty:1 });
+  if (jet)  items.push({ key:'jet_install', kind:'tjm', defaultLabel:'Jet : Installation et paramétrage', prix:1150, defaultQty: moduleState.jet * 0.5 });
   for (let i = 1; i <= (moduleState.fluxTiers||0); i++) {
     const nom = fluxNoms[i-1] || ('Flux '+i);
-    items.push({key:'flux_'+i, nom:nom+' : Installation et paramétrage', prix:1150, defaultQty:0.5});
+    items.push({ key:'flux_'+i, kind:'tjm', defaultLabel:nom+' : Installation et paramétrage', prix:1150, defaultQty:0.5 });
   }
-  items.push({key:'dev_spec', nom:'Développement spécifique', prix:1150, defaultQty:0});
-  items.push({key:'gestion_proj', nom:'Gestion de projet et encadrement technique', prix:1150, defaultQty:0});
-  if (felec) items.push({key:'felec_param', nom:'Mise en oeuvre Facturation électronique', prix:1150, forfait:true, defaultQty:1});
+  items.push({ key:'dev_spec', kind:'tjm', defaultLabel:'Développement spécifique', prix:1150, defaultQty:0 });
+  items.push({ key:'gestion_proj', kind:'tjm', defaultLabel:'Gestion de projet et encadrement technique', prix:1150, defaultQty:0 });
+  if (felec) items.push({ key:'felec_param', kind:'forfait', defaultLabel:'Mise en oeuvre Facturation électronique', prix:1150 });
 
-  items.forEach(it => {
-    if (it.auto) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${it.nom}</td><td class="center">—</td><td class="center">—</td><td class="right">${fmtEur(it.prix)}</td>`;
-      tbody.appendChild(tr);
-      return;
-    }
-    // Restaurer valeur saved ou default
-    if (sectionValues.section4[it.key] === undefined) sectionValues.section4[it.key] = {qty: it.defaultQty||0, remise:0};
-    const sv = sectionValues.section4[it.key];
-    const total = it.forfait ? it.prix : it.prix * sv.qty * (1 - sv.remise/100);
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${it.nom}</td>
-      <td class="center">${it.forfait ? 'Forfait' : `<input type="number" class="inline-qty" value="${sv.qty}" min="0" step="0.5"
-        onchange="sectionValues.section4['${it.key}'].qty=parseFloat(this.value)||0;calculate()">`}</td>
-      <td class="center">${it.forfait ? '—' : `<input type="number" class="inline-qty" value="${sv.remise}" min="0" max="100"
-        onchange="sectionValues.section4['${it.key}'].remise=parseFloat(this.value)||0;calculate()">`}</td>
-      <td class="right total-s4-${it.key}">${fmtEur(total)}</td>`;
-    tbody.appendChild(tr);
-  });
-
-  // Lignes personnalisées ajoutées par l'utilisateur
+  // Ajouter les lignes custom (kind='custom') avec key = 'custom_<id>'
   const extras = moduleState.extra_prestations || [];
   extras.forEach(line => {
-    const pu = parseFloat(line.pu) || 0;
-    const qty = parseFloat(line.qty) || 0;
-    const remise = parseFloat(line.remise) || 0;
-    const total = pu * qty * (1 - remise / 100);
+    items.push({ key:'custom_'+line.id, kind:'custom', defaultLabel:'', customLine: line });
+  });
+
+  // ── 2) Appliquer l'ordre personnalisé ──
+  const activeKeys = items.map(i => i.key);
+  // Nettoyer prestationOrder des keys qui n'existent plus
+  moduleState.prestationOrder = (moduleState.prestationOrder || []).filter(k => activeKeys.includes(k));
+  // Ajouter les nouvelles keys (pas encore dans l'ordre) à la fin, en respectant leur ordre d'apparition dans items
+  activeKeys.forEach(k => {
+    if (!moduleState.prestationOrder.includes(k)) moduleState.prestationOrder.push(k);
+  });
+  // Trier items selon prestationOrder
+  const orderedItems = moduleState.prestationOrder
+    .map(k => items.find(i => i.key === k))
+    .filter(Boolean);
+
+  // ── 3) Rendre les lignes ──
+  orderedItems.forEach(it => {
+    const customLabel = moduleState.customLabels?.[it.key];
+    const displayLabel = customLabel !== undefined ? customLabel : it.defaultLabel;
     const tr = document.createElement('tr');
-    tr.style.background = '#f0f9ff';
-    tr.innerHTML = `
-      <td>
-        <input type="text" placeholder="Désignation (ex: Formation sur site, Paramétrage spécifique...)"
-          value="${(line.label || '').replace(/"/g, '&quot;')}"
-          style="width:100%;border:1.5px solid #bae6fd;border-radius:4px;padding:4px 6px;font-size:0.88rem;"
-          oninput="updateExtraPrestation('${line.id}', 'label', this.value)">
-        <div style="display:flex;gap:6px;align-items:center;margin-top:4px;font-size:0.75rem;color:#0369a1;">
+    tr.className = 'drag-handle-row';
+    tr.dataset.key = it.key;
+    tr.draggable = true;
+
+    // Label cell : poignée + input éditable (+ sous-ligne pour les custom)
+    let labelCellHtml = '';
+    if (it.kind === 'custom') {
+      const line = it.customLine;
+      const initialLabel = customLabel !== undefined ? customLabel : (line.label || '');
+      labelCellHtml = `
+        <div class="prest-label-cell">
+          <span class="drag-handle" title="Glisser pour réorganiser">⋮⋮</span>
+          <input type="text" class="prest-label-input is-custom-line" placeholder="Désignation prestation..."
+            value="${initialLabel.replace(/"/g, '&quot;')}"
+            oninput="setPrestationLabel('${it.key}', this.value);updateExtraPrestation('${line.id}', 'label', this.value)">
+        </div>
+        <div class="prest-custom-subrow">
           <span>PU €</span>
-          <input type="number" step="0.01" min="0" value="${pu}" style="width:80px;border:1.5px solid #bae6fd;border-radius:4px;padding:2px 5px;font-size:0.78rem;text-align:right;"
-            oninput="updateExtraPrestation('${line.id}', 'pu', this.value)">
-          <select style="border:1.5px solid #bae6fd;border-radius:4px;padding:2px 4px;font-size:0.78rem;"
-            onchange="updateExtraPrestation('${line.id}', 'unit', this.value)">
+          <input type="number" step="0.01" min="0" value="${parseFloat(line.pu)||0}"
+            onchange="updateExtraPrestation('${line.id}', 'pu', this.value)">
+          <select onchange="updateExtraPrestation('${line.id}', 'unit', this.value)">
             ${['jour','forfait','heure','unité'].map(u => `<option value="${u}" ${u===(line.unit||'jour')?'selected':''}>${u}</option>`).join('')}
           </select>
-          <button onclick="removeExtraPrestation('${line.id}')" style="margin-left:auto;background:#fee2e2;border:1px solid #fca5a5;color:#991b1b;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:0.75rem;">🗑 Suppr.</button>
-        </div>
-      </td>
-      <td class="center"><input type="number" class="inline-qty" value="${qty}" min="0" step="0.5"
-        oninput="updateExtraPrestation('${line.id}', 'qty', this.value)"></td>
-      <td class="center"><input type="number" class="inline-qty" value="${remise}" min="0" max="100"
-        oninput="updateExtraPrestation('${line.id}', 'remise', this.value)"></td>
-      <td class="right">${fmtEur(total)}</td>`;
+          <button class="prest-custom-del" onclick="removeExtraPrestation('${line.id}')">🗑 Supprimer</button>
+        </div>`;
+    } else {
+      labelCellHtml = `
+        <div class="prest-label-cell">
+          <span class="drag-handle" title="Glisser pour réorganiser">⋮⋮</span>
+          <input type="text" class="prest-label-input" value="${displayLabel.replace(/"/g, '&quot;')}"
+            oninput="setPrestationLabel('${it.key}', this.value)"
+            title="Cliquer pour renommer">
+        </div>`;
+    }
+
+    // Cellules qté / remise / total
+    let qtyCellHtml, remiseCellHtml, totalCellHtml;
+    if (it.kind === 'auto') {
+      qtyCellHtml = '<td class="center">—</td>';
+      remiseCellHtml = '<td class="center">—</td>';
+      totalCellHtml = `<td class="right">${fmtEur(it.prix)}</td>`;
+    } else if (it.kind === 'forfait') {
+      qtyCellHtml = '<td class="center">Forfait</td>';
+      remiseCellHtml = '<td class="center">—</td>';
+      totalCellHtml = `<td class="right">${fmtEur(it.prix)}</td>`;
+    } else if (it.kind === 'tjm') {
+      if (sectionValues.section4[it.key] === undefined) sectionValues.section4[it.key] = { qty: it.defaultQty||0, remise: 0 };
+      const sv = sectionValues.section4[it.key];
+      const total = it.prix * sv.qty * (1 - sv.remise/100);
+      qtyCellHtml = `<td class="center"><input type="number" class="inline-qty" value="${sv.qty}" min="0" step="0.5"
+        onchange="sectionValues.section4['${it.key}'].qty=parseFloat(this.value)||0;calculate()"></td>`;
+      remiseCellHtml = `<td class="center"><input type="number" class="inline-qty" value="${sv.remise}" min="0" max="100"
+        onchange="sectionValues.section4['${it.key}'].remise=parseFloat(this.value)||0;calculate()"></td>`;
+      totalCellHtml = `<td class="right total-s4-${it.key}">${fmtEur(total)}</td>`;
+    } else if (it.kind === 'custom') {
+      const line = it.customLine;
+      const pu = parseFloat(line.pu) || 0;
+      const qty = parseFloat(line.qty) || 0;
+      const remise = parseFloat(line.remise) || 0;
+      const total = pu * qty * (1 - remise/100);
+      qtyCellHtml = `<td class="center"><input type="number" class="inline-qty" value="${qty}" min="0" step="0.5"
+        onchange="updateExtraPrestation('${line.id}', 'qty', this.value)"></td>`;
+      remiseCellHtml = `<td class="center"><input type="number" class="inline-qty" value="${remise}" min="0" max="100"
+        onchange="updateExtraPrestation('${line.id}', 'remise', this.value)"></td>`;
+      totalCellHtml = `<td class="right">${fmtEur(total)}</td>`;
+    }
+
+    tr.innerHTML = `<td>${labelCellHtml}</td>${qtyCellHtml}${remiseCellHtml}${totalCellHtml}`;
+    if (it.kind === 'custom') tr.style.background = '#f0f9ff';
+    attachDragHandlers(tr);
     tbody.appendChild(tr);
   });
 
@@ -2042,6 +2178,72 @@ function renderSection4() {
   </td>`;
   tbody.appendChild(trAdd);
 }
+
+// ── Renommage persistant d'une prestation ──
+function setPrestationLabel(key, newLabel) {
+  if (!moduleState.customLabels) moduleState.customLabels = {};
+  // Si vide, on supprime le renommage (retour au label par défaut)
+  if (!newLabel || !newLabel.trim()) {
+    delete moduleState.customLabels[key];
+  } else {
+    moduleState.customLabels[key] = newLabel;
+  }
+  // Pas de re-render (sinon on perd le focus en cours de saisie)
+}
+
+// ── Drag & Drop des lignes de prestations ──
+let draggedRow = null;
+
+function attachDragHandlers(tr) {
+  tr.addEventListener('dragstart', (e) => {
+    draggedRow = tr;
+    tr.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    // Nécessaire pour Firefox
+    try { e.dataTransfer.setData('text/plain', tr.dataset.key); } catch {}
+  });
+  tr.addEventListener('dragend', () => {
+    tr.classList.remove('dragging');
+    document.querySelectorAll('#tbody-section4 tr').forEach(r => {
+      r.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+    draggedRow = null;
+  });
+  tr.addEventListener('dragover', (e) => {
+    if (!draggedRow || draggedRow === tr) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = tr.getBoundingClientRect();
+    const isTop = (e.clientY - rect.top) < rect.height / 2;
+    tr.classList.toggle('drag-over-top', isTop);
+    tr.classList.toggle('drag-over-bottom', !isTop);
+  });
+  tr.addEventListener('dragleave', () => {
+    tr.classList.remove('drag-over-top', 'drag-over-bottom');
+  });
+  tr.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (!draggedRow || draggedRow === tr) return;
+    const draggedKey = draggedRow.dataset.key;
+    const targetKey = tr.dataset.key;
+    const rect = tr.getBoundingClientRect();
+    const placeBefore = (e.clientY - rect.top) < rect.height / 2;
+
+    // Mise à jour de prestationOrder
+    const order = moduleState.prestationOrder;
+    const fromIdx = order.indexOf(draggedKey);
+    if (fromIdx < 0) return;
+    order.splice(fromIdx, 1);
+    let toIdx = order.indexOf(targetKey);
+    if (toIdx < 0) return;
+    if (!placeBefore) toIdx += 1;
+    order.splice(toIdx, 0, draggedKey);
+
+    renderSection4();
+  });
+}
+
+
 
 function renderSection2() {
   const kub = moduleState.kub > 0;
@@ -2445,52 +2647,74 @@ function exportConfig() {
 
   const totalMensuel = lignesAbo.reduce((s,l)=>s+l.montant,0);
 
-  // Lignes prestations
+  // Lignes prestations (avec renommage et ordre personnalisé)
   const lignesPrest = [];
   const addP = (nom, duree, montant) => { if(montant>0) lignesPrest.push({nom, duree, montant}); };
   const marge = (parseFloat(document.getElementById('margeSetup')?.value)||30)/100;
   const fasP = Math.round(1150/(1-marge)/5)*5;
   const setupP = calcSetupTW();
-  if ((ms.biz||0)>0||(ms.fab||0)>0) { addP('FAS : Installation TexasWin','Forfait',fasP); addP('Mise en place hébergement TexasWin','Forfait',setupP); }
-  if (ms.comptaSage) addP('Mise en place hébergement Sage','Forfait',1150);
 
-  Object.keys(sectionValues.section4).forEach(k => {
+  // Helper : applique le customLabel s'il existe, sinon le label par défaut
+  const lbl = (key, defaultLabel) => (ms.customLabels && ms.customLabels[key]) ? ms.customLabels[key] : defaultLabel;
+
+  // Map key → {kind, defaultLabel, compute: () => {duree, montant}}
+  const prestDef = {};
+  if ((ms.biz||0)>0||(ms.fab||0)>0) {
+    prestDef.fas = { defaultLabel: 'FAS : Installation TexasWin', duree: 'Forfait', montant: fasP };
+    prestDef.setup_tw = { defaultLabel: 'Mise en place hébergement TexasWin', duree: 'Forfait', montant: setupP };
+  }
+  if (ms.comptaSage) {
+    prestDef.setup_sage = { defaultLabel: 'Mise en place hébergement Sage', duree: 'Forfait', montant: 1150 };
+  }
+  // TJM depuis sectionValues
+  const nomMapTjm = {
+    modif_etats: "Biz/Fab : Modifications d'états commerciaux",
+    recup: 'Récupération des données', net_install:'Net : Installation et paramétrage',
+    net_accom:'Net : Accompagnement Standard',
+    mag_siege:'Mag : Installation Back office Siège', mag_mag:'Mag : Installation Magasin',
+    vrp_install:'VRP : Installation et paramétrage', col_install:'Col : Installation et paramétrage',
+    log_install:'Log : Installation et paramétrage', jet_install:'Jet : Installation et paramétrage',
+    dev_spec:'Développement spécifique', gestion_proj:'Gestion de projet et encadrement technique',
+  };
+  Object.keys(nomMapTjm).forEach(k => {
     const sv = sectionValues.section4[k];
     if (!sv || sv.qty === 0) return;
-    const nomMap = {
-      modif_etats: "Biz/Fab : Modifications d'états commerciaux",
-      recup: 'Récupération des données', net_install:'Net : Installation et paramétrage',
-      net_accom:'Net : Accompagnement Standard', kub_connect:'Mise en oeuvre Connecteur Kub → MyReport',
-      mag_siege:'Mag : Installation Back office Siège', mag_mag:'Mag : Installation Magasin',
-      vrp_install:'VRP : Installation et paramétrage', col_install:'Col : Installation et paramétrage',
-      log_install:'Log : Installation et paramétrage', jet_install:'Jet : Installation et paramétrage',
-      dev_spec:'Développement spécifique', gestion_proj:'Gestion de projet et encadrement technique',
-      felec_param:'Mise en oeuvre Facturation électronique',
-    };
-    if (k.startsWith('flux_')) {
-      const idx = parseInt(k.split('_')[1]);
-      const n = fluxNoms[idx-1] || ('Flux '+idx);
-      addP(n+' : Installation et paramétrage', sv.qty+' j', 1150*sv.qty*(1-sv.remise/100));
-      return;
-    }
-    const nom = nomMap[k]; if (!nom) return;
-    const forfaitKeys = ['kub_connect','felec_param'];
-    const forfaitPrices = {kub_connect:2500, felec_param:1150};
-    if (forfaitKeys.includes(k)) addP(nom,'Forfait',forfaitPrices[k]);
-    else addP(nom, sv.qty+' j', 1150*sv.qty*(1-sv.remise/100));
+    // Utiliser 525€/j pour mag_mag (prix spécifique), 1150€/j pour le reste
+    const puJour = (k === 'mag_mag') ? 525 : 1150;
+    prestDef[k] = { defaultLabel: nomMapTjm[k], duree: sv.qty + ' j', montant: puJour * sv.qty * (1 - sv.remise/100) };
   });
-
-  // Prestations personnalisées ajoutées par l'utilisateur (section 4)
+  // Flux
+  for (let i = 1; i <= (ms.fluxTiers||0); i++) {
+    const sv = sectionValues.section4['flux_' + i];
+    if (!sv || sv.qty === 0) continue;
+    const n = fluxNoms[i-1] || ('Flux '+i);
+    prestDef['flux_'+i] = { defaultLabel: n+' : Installation et paramétrage', duree: sv.qty+' j', montant: 1150*sv.qty*(1-sv.remise/100) };
+  }
+  // Forfaits
+  if ((ms.kub||0) > 0) prestDef.kub_connect = { defaultLabel: 'Mise en oeuvre Connecteur Kub → MyReport', duree: 'Forfait', montant: 2500 };
+  if (ms.facturationElec) prestDef.felec_param = { defaultLabel: 'Mise en oeuvre Facturation électronique', duree: 'Forfait', montant: 1150 };
+  // Custom
   (ms.extra_prestations || []).forEach(line => {
     const pu = parseFloat(line.pu) || 0;
     const qty = parseFloat(line.qty) || 0;
     const remise = parseFloat(line.remise) || 0;
     if (pu > 0 && qty > 0) {
-      const net = pu * qty * (1 - remise / 100);
-      const label = line.label || 'Prestation personnalisée';
       const duree = qty + ' ' + (line.unit || 'jour') + (qty > 1 ? 's' : '');
-      addP(label, duree, net);
+      prestDef['custom_'+line.id] = { defaultLabel: line.label || 'Prestation personnalisée', duree, montant: pu * qty * (1 - remise / 100) };
     }
+  });
+
+  // Respecter prestationOrder (puis ajouter les clés non ordonnées à la fin)
+  const orderedKeys = [];
+  (ms.prestationOrder || []).forEach(k => {
+    if (prestDef[k] && !orderedKeys.includes(k)) orderedKeys.push(k);
+  });
+  Object.keys(prestDef).forEach(k => {
+    if (!orderedKeys.includes(k)) orderedKeys.push(k);
+  });
+  orderedKeys.forEach(k => {
+    const p = prestDef[k];
+    addP(lbl(k, p.defaultLabel), p.duree, p.montant);
   });
 
   const totalPrest = lignesPrest.reduce((s,l)=>s+l.montant,0);
