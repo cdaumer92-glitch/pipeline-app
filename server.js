@@ -1544,48 +1544,42 @@ app.get('/api/devis/:id/download-pdf', auth, async (req, res) => {
 // ==========================================
 // GET /api/health-python : diagnostic Python sur le container
 app.get('/api/health-python', auth, async (req, res) => {
-  const { exec } = require('child_process');
-  const { promisify } = require('util');
-  const execp = promisify(exec);
+  const checks = { _warnings: [] };
 
-  const checks = {};
+  let execp = null;
+  try {
+    const { exec } = require('child_process');
+    const { promisify } = require('util');
+    execp = promisify(exec);
+    checks.child_process = 'OK';
+  } catch (e) {
+    checks.child_process = 'IMPOSSIBLE: ' + (e.message || '').slice(0, 200);
+    return res.json({ ok: false, checks });
+  }
 
-  // Python disponible ?
-  for (const cmd of ['python3', 'python']) {
+  const safeExec = async (cmd, label) => {
     try {
-      const { stdout } = await execp(`${cmd} --version 2>&1`);
-      checks[cmd] = stdout.trim();
+      const { stdout, stderr } = await execp(cmd, { timeout: 5000 });
+      return (stdout || stderr || '').trim().slice(0, 300) || 'OK';
     } catch (e) {
-      checks[cmd] = 'INDISPONIBLE: ' + (e.message || 'erreur').slice(0, 100);
+      return 'ERR: ' + (e.message || 'unknown').slice(0, 200);
     }
-  }
+  };
 
-  // Modules Python critiques
-  if (checks.python3 && !checks.python3.startsWith('INDISPONIBLE')) {
-    for (const mod of ['PIL', 'defusedxml', 'zipfile']) {
-      try {
-        await execp(`python3 -c "import ${mod}"`);
-        checks[`mod_${mod}`] = 'OK';
-      } catch (e) {
-        checks[`mod_${mod}`] = 'MANQUANT';
-      }
+  checks.python3 = await safeExec('python3 --version 2>&1', 'python3');
+  checks.python  = await safeExec('python --version 2>&1', 'python');
+  checks.which_python3 = await safeExec('which python3 || echo none', 'which');
+  checks.os = await safeExec('cat /etc/os-release 2>/dev/null | head -3 || uname -a', 'os');
+  checks.tmp_writable = await safeExec('echo test > /tmp/healthcheck && rm /tmp/healthcheck && echo OK || echo NON', 'tmp');
+  checks.pwd = await safeExec('pwd', 'pwd');
+  checks.cwd_listing = await safeExec('ls -la 2>&1 | head -20', 'ls');
+
+  // Si python3 dispo, tester les modules
+  if (!checks.python3.startsWith('ERR')) {
+    for (const mod of ['PIL', 'defusedxml', 'zipfile', 'json']) {
+      checks[`mod_${mod}`] = await safeExec(`python3 -c "import ${mod}; print('OK')" 2>&1`, mod);
     }
-  }
-
-  // Filesystem - peut-on ecrire ?
-  try {
-    await execp('echo test > /tmp/healthcheck && rm /tmp/healthcheck');
-    checks.tmp_writable = 'OK';
-  } catch {
-    checks.tmp_writable = 'NON';
-  }
-
-  // OS
-  try {
-    const { stdout } = await execp('cat /etc/os-release | head -3');
-    checks.os = stdout.trim();
-  } catch {
-    checks.os = 'inconnu';
+    checks.pip = await safeExec('python3 -m pip --version 2>&1', 'pip');
   }
 
   res.json({ ok: true, checks });
