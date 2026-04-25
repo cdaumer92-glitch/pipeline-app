@@ -1569,18 +1569,16 @@ app.post('/api/devis/generate-proposition', auth, async (req, res) => {
     };
     const configJson = JSON.stringify(minimalConfig);
 
-    const userMessage = `Exécute le script Python de la skill "proposition-commerciale-texaswin-v2" pour générer une proposition commerciale.
+    const userMessage = `Genere une proposition commerciale via le script du skill charge.
 
-Étapes :
-1. Trouve le script avec : find / -name "generer_propale.py" 2>/dev/null
-2. Écris la config ci-dessous dans /tmp/config.json
-3. Exécute : python <chemin>/generer_propale.py /tmp/config.json /tmp/propale.docx
-4. /tmp/propale.docx doit exister et faire > 50 Ko
+Trouve le script (chemin probable + fallback find) :
+SCRIPT=$(ls /mnt/skills/user/*/scripts/generer_propale.py 2>/dev/null | head -1); [ -z "$SCRIPT" ] && SCRIPT=$(ls /skill*/scripts/generer_propale.py 2>/dev/null | head -1); [ -z "$SCRIPT" ] && SCRIPT=$(find / -name "generer_propale.py" 2>/dev/null | head -1)
 
-Config :
+Ecris ce JSON dans /tmp/config.json puis execute : python "$SCRIPT" /tmp/config.json /tmp/propale.docx
+
 ${configJson}
 
-N'écris PAS le document toi-même. Exécute uniquement le script.`;
+Execute uniquement le script. Ne genere pas le document toi-meme.`;
 
     console.log('[Propale] Appel Anthropic API pour société:', config?.societe || '(inconnu)');
     console.log('[Propale] Skill ID utilisé:', SKILL_ID);
