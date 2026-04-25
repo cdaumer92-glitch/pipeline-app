@@ -2865,7 +2865,7 @@ async function generateProposition() {
 
     // Pendant que la requête tourne, on fait progresser la barre en simulé
     // (l'API ne nous donne pas de feedback de progression réel)
-    const progressInterval = animateProgress(20, 90, 18000); // De 20 à 90% sur ~18 secondes
+    const progressInterval = animateProgress(20, 97, 90000); // De 20 à 97% sur ~90 secondes (durée réaliste API)
 
     const apiUrl = '/api/devis/generate-proposition';
     const res = await fetch(apiUrl, {
@@ -2976,17 +2976,20 @@ function animateProgress(fromPct, toPct, durationMs) {
   const startTime = Date.now();
   const messages = [
     { pct: 30, msg: 'Claude exécute la skill de proposition...' },
-    { pct: 50, msg: 'Génération du template Word...' },
-    { pct: 70, msg: 'Insertion des tableaux de prix...' },
-    { pct: 85, msg: 'Finalisation du document...' },
+    { pct: 45, msg: 'Préparation du template Word...' },
+    { pct: 60, msg: 'Insertion des tableaux de prix...' },
+    { pct: 75, msg: 'Génération de la synthèse et règlement...' },
+    { pct: 88, msg: 'Finalisation du document...' },
+    { pct: 95, msg: 'Encore quelques secondes...' },
   ];
   let lastMsgIdx = -1;
 
   return setInterval(() => {
     const elapsed = Date.now() - startTime;
     const ratio = Math.min(elapsed / durationMs, 1);
-    // Courbe easing : rapide au début, lent à la fin (pour ne pas atteindre 90% trop tôt)
-    const eased = 1 - Math.pow(1 - ratio, 2);
+    // Courbe asymptotique : très rapide au début (~0-50% en 25% du temps), puis ralentit beaucoup
+    // La progression suit 1 - (1-x)^3 jusqu'à 1, donc plus on approche du toPct, plus c'est lent
+    const eased = 1 - Math.pow(1 - ratio, 3);
     const currentPct = fromPct + (toPct - fromPct) * eased;
 
     // Mettre à jour le message selon le palier atteint
