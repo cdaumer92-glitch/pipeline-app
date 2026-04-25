@@ -1569,7 +1569,7 @@ app.post('/api/devis/generate-proposition', auth, async (req, res) => {
     };
     const configJson = JSON.stringify(minimalConfig);
 
-    const userMessage = `Exécute le script Python de la skill "proposition-commerciale-texaswin" pour générer une proposition commerciale.
+    const userMessage = `Exécute le script Python de la skill "proposition-commerciale-texaswin-v2" pour générer une proposition commerciale.
 
 Étapes :
 1. Trouve le script avec : find / -name "generer_propale.py" 2>/dev/null
