@@ -1066,6 +1066,7 @@ body {
           <select class="field-input" id="commercial" style="cursor:pointer;margin-bottom:0">
             <option value="christian">Christian Daumer</option>
             <option value="roger">Roger Niddam</option>
+            <option value="frederic">Frédéric Anis</option>
           </select>
         </div>
       </div>
@@ -2841,13 +2842,14 @@ async function generateProposition() {
   const config = buildConfigJson();
   if (!config) return;
 
-  const btn = document.getElementById('btnGenererPropale');
-  const originalLabel = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Génération en cours...'; }
+  // Afficher la modale de progression
+  showProgressModal();
 
   try {
+    // Étape 1 : Envoi de la config
+    updateProgress(10, 'Envoi de la configuration...');
+
     // Récupérer le token JWT depuis la fenêtre parente (Pipeline app)
-    // Le configurateur est ouvert depuis l'app principale qui stocke le user en localStorage
     let token = null;
     try {
       const userRaw = (window.parent && window.parent !== window ? window.parent : window).localStorage.getItem('user');
@@ -2859,9 +2861,13 @@ async function generateProposition() {
       console.warn('Impossible de récupérer le token depuis localStorage:', e);
     }
 
-    // URL de l'API : soit relative (configurateur servi par le même serveur), soit à configurer
-    const apiUrl = '/api/devis/generate-proposition';
+    updateProgress(20, 'Claude analyse la configuration...');
 
+    // Pendant que la requête tourne, on fait progresser la barre en simulé
+    // (l'API ne nous donne pas de feedback de progression réel)
+    const progressInterval = animateProgress(20, 90, 18000); // De 20 à 90% sur ~18 secondes
+
+    const apiUrl = '/api/devis/generate-proposition';
     const res = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -2871,11 +2877,15 @@ async function generateProposition() {
       body: JSON.stringify(config),
     });
 
+    clearInterval(progressInterval);
+
     if (!res.ok) {
       let errMsg = `Erreur ${res.status}`;
       try { const j = await res.json(); if (j.error) errMsg = j.error; } catch(_) {}
       throw new Error(errMsg);
     }
+
+    updateProgress(95, 'Téléchargement du document Word...');
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -2886,12 +2896,123 @@ async function generateProposition() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+
+    updateProgress(100, '✅ Proposition générée avec succès !');
+    // Fermer la modale après 1,5s
+    setTimeout(hideProgressModal, 1500);
   } catch (err) {
     console.error('Erreur génération proposition:', err);
-    alert('Erreur lors de la génération de la proposition : ' + err.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = originalLabel; }
+    showProgressError(err.message);
   }
+}
+
+// ── Helpers pour la modale de progression ──
+function showProgressModal() {
+  let modal = document.getElementById('propaleProgressModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'propaleProgressModal';
+    modal.innerHTML = `
+      <div class="pp-overlay">
+        <div class="pp-box">
+          <div class="pp-header">
+            <div class="pp-spinner"></div>
+            <h3>Génération de la proposition</h3>
+          </div>
+          <div class="pp-status" id="ppStatus">Initialisation...</div>
+          <div class="pp-bar-wrap">
+            <div class="pp-bar" id="ppBar"></div>
+          </div>
+          <div class="pp-percent" id="ppPercent">0%</div>
+          <div class="pp-hint">Cela peut prendre jusqu'à 30 secondes. Claude exécute la génération dans un environnement sécurisé.</div>
+          <div class="pp-error" id="ppError" style="display:none;"></div>
+          <button id="ppCloseBtn" onclick="hideProgressModal()" style="display:none;margin-top:14px;padding:8px 18px;background:#607a7a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Fermer</button>
+        </div>
+      </div>
+      <style>
+        .pp-overlay { position:fixed; inset:0; background:rgba(0,51,102,0.45); backdrop-filter:blur(3px); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px; }
+        .pp-box { background:white; border-radius:14px; box-shadow:0 20px 50px rgba(0,0,0,0.3); width:100%; max-width:460px; padding:28px; font-family:'Lato',sans-serif; }
+        .pp-header { display:flex; align-items:center; gap:14px; margin-bottom:20px; }
+        .pp-header h3 { margin:0; font-family:'Poppins',sans-serif; color:#003366; font-size:1.1rem; }
+        .pp-spinner { width:28px; height:28px; border:3px solid #e0e0e0; border-top-color:#7b5ea7; border-radius:50%; animation:pp-spin 0.8s linear infinite; flex-shrink:0; }
+        @keyframes pp-spin { to { transform:rotate(360deg); } }
+        .pp-status { font-size:0.9rem; color:#607a7a; margin-bottom:10px; min-height:22px; font-weight:500; }
+        .pp-bar-wrap { background:#f0f4f4; border-radius:8px; overflow:hidden; height:10px; margin-bottom:8px; }
+        .pp-bar { height:100%; background:linear-gradient(90deg,#7b5ea7,#9b7bc5); border-radius:8px; width:0%; transition:width 0.4s ease; }
+        .pp-percent { font-size:0.85rem; color:#7b5ea7; font-weight:700; text-align:right; margin-bottom:14px; }
+        .pp-hint { font-size:0.78rem; color:#9eb5b5; font-style:italic; line-height:1.4; }
+        .pp-error { background:#fee2e2; border:1px solid #fca5a5; color:#991b1b; padding:10px 12px; border-radius:8px; font-size:0.85rem; margin-top:10px; white-space:pre-wrap; word-break:break-word; }
+      </style>
+    `;
+    document.body.appendChild(modal);
+  } else {
+    // Reset si réouverture
+    document.getElementById('ppBar').style.width = '0%';
+    document.getElementById('ppPercent').textContent = '0%';
+    document.getElementById('ppStatus').textContent = 'Initialisation...';
+    document.getElementById('ppError').style.display = 'none';
+    document.getElementById('ppCloseBtn').style.display = 'none';
+    modal.style.display = '';
+  }
+}
+
+function hideProgressModal() {
+  const modal = document.getElementById('propaleProgressModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function updateProgress(percent, status) {
+  const bar = document.getElementById('ppBar');
+  const pct = document.getElementById('ppPercent');
+  const st = document.getElementById('ppStatus');
+  if (bar) bar.style.width = percent + '%';
+  if (pct) pct.textContent = Math.round(percent) + '%';
+  if (st && status) st.textContent = status;
+}
+
+// Progression animée fluide entre deux % sur une durée (ms)
+// Retourne l'interval ID pour pouvoir le stopper
+function animateProgress(fromPct, toPct, durationMs) {
+  const startTime = Date.now();
+  const messages = [
+    { pct: 30, msg: 'Claude exécute la skill de proposition...' },
+    { pct: 50, msg: 'Génération du template Word...' },
+    { pct: 70, msg: 'Insertion des tableaux de prix...' },
+    { pct: 85, msg: 'Finalisation du document...' },
+  ];
+  let lastMsgIdx = -1;
+
+  return setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    const ratio = Math.min(elapsed / durationMs, 1);
+    // Courbe easing : rapide au début, lent à la fin (pour ne pas atteindre 90% trop tôt)
+    const eased = 1 - Math.pow(1 - ratio, 2);
+    const currentPct = fromPct + (toPct - fromPct) * eased;
+
+    // Mettre à jour le message selon le palier atteint
+    let msgToShow = null;
+    for (let i = 0; i < messages.length; i++) {
+      if (currentPct >= messages[i].pct && i > lastMsgIdx) {
+        msgToShow = messages[i].msg;
+        lastMsgIdx = i;
+      }
+    }
+
+    updateProgress(currentPct, msgToShow || undefined);
+  }, 300);
+}
+
+function showProgressError(message) {
+  updateProgress(0, '');
+  const err = document.getElementById('ppError');
+  const st = document.getElementById('ppStatus');
+  const closeBtn = document.getElementById('ppCloseBtn');
+  if (st) st.textContent = '❌ Erreur lors de la génération';
+  if (err) { err.style.display = 'block'; err.textContent = message; }
+  if (closeBtn) closeBtn.style.display = 'inline-block';
+  // Stopper le spinner (remplacer par ❌)
+  const spinner = document.querySelector('.pp-spinner');
+  if (spinner) { spinner.style.border = 'none'; spinner.style.animation = 'none'; spinner.innerHTML = '❌'; spinner.style.display='flex'; spinner.style.alignItems='center'; spinner.style.justifyContent='center'; spinner.style.fontSize='20px'; }
 }
 
 function handleImport(event) {
