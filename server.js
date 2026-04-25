@@ -1548,9 +1548,9 @@ app.get('/api/health-python', auth, async (req, res) => {
 
   let execp = null;
   try {
-    const { exec } = require('child_process');
-    const { promisify } = require('util');
-    execp = promisify(exec);
+    const cp = await import('child_process');
+    const util = await import('util');
+    execp = util.promisify(cp.exec);
     checks.child_process = 'OK';
   } catch (e) {
     checks.child_process = 'IMPOSSIBLE: ' + (e.message || '').slice(0, 200);
