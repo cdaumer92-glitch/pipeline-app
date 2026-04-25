@@ -1542,6 +1542,55 @@ app.get('/api/devis/:id/download-pdf', auth, async (req, res) => {
 // ==========================================
 // GÉNÉRATION PROPOSITION COMMERCIALE VIA CLAUDE API
 // ==========================================
+// GET /api/health-python : diagnostic Python sur le container
+app.get('/api/health-python', auth, async (req, res) => {
+  const { exec } = require('child_process');
+  const { promisify } = require('util');
+  const execp = promisify(exec);
+
+  const checks = {};
+
+  // Python disponible ?
+  for (const cmd of ['python3', 'python']) {
+    try {
+      const { stdout } = await execp(`${cmd} --version 2>&1`);
+      checks[cmd] = stdout.trim();
+    } catch (e) {
+      checks[cmd] = 'INDISPONIBLE: ' + (e.message || 'erreur').slice(0, 100);
+    }
+  }
+
+  // Modules Python critiques
+  if (checks.python3 && !checks.python3.startsWith('INDISPONIBLE')) {
+    for (const mod of ['PIL', 'defusedxml', 'zipfile']) {
+      try {
+        await execp(`python3 -c "import ${mod}"`);
+        checks[`mod_${mod}`] = 'OK';
+      } catch (e) {
+        checks[`mod_${mod}`] = 'MANQUANT';
+      }
+    }
+  }
+
+  // Filesystem - peut-on ecrire ?
+  try {
+    await execp('echo test > /tmp/healthcheck && rm /tmp/healthcheck');
+    checks.tmp_writable = 'OK';
+  } catch {
+    checks.tmp_writable = 'NON';
+  }
+
+  // OS
+  try {
+    const { stdout } = await execp('cat /etc/os-release | head -3');
+    checks.os = stdout.trim();
+  } catch {
+    checks.os = 'inconnu';
+  }
+
+  res.json({ ok: true, checks });
+});
+
 // POST /api/devis/generate-proposition
 // Body : le JSON d'export du configurateur (exportConfig())
 // Retourne : un fichier .docx à télécharger
