@@ -432,6 +432,7 @@
       const [selectedProspect, setSelectedProspect] = React.useState(null);
       const [showForm, setShowForm] = React.useState(false);
       const [showNewCompanyModal, setShowNewCompanyModal] = React.useState(false);
+      const [showAdminJsonModal, setShowAdminJsonModal] = React.useState(false);
       const [newCompanyData, setNewCompanyData] = React.useState({
         name: '', statut_societe: '', assigned_to: '',
         siren: '', tel_standard: '', website: '',
@@ -1736,6 +1737,7 @@
             prospects={isUserAdmin(user) ? prospects : prospects.filter(p => p.assigned_to === user.name)}
             onSelectProspect={handleSelectProspect}
             onNewProspect={handleNewProspect}
+            onAdminJson={() => setShowAdminJsonModal(true)}
           />
           
           {showSettings && <Settings onClose={() => setShowSettings(false)} user={user} />}
@@ -2235,9 +2237,329 @@
               </div>
             </div>
           )}
+
+          {/* ═══════ MODALE : RÉCUPÉRATION JSON DEVIS (ADMIN) ═══════ */}
+          {showAdminJsonModal && (
+            <AdminJsonModal
+              user={user}
+              API_URL={API_URL}
+              onClose={() => setShowAdminJsonModal(false)}
+            />
+          )}
         </div>
       );
     }
+    // ══════════════════════════════════════════════════
+    // COMPOSANT : AdminJsonModal — Récupérer le JSON d'un devis
+    // Cascade : Société (autocomplete) → Affaire → Devis → Télécharger
+    // ══════════════════════════════════════════════════
+    function AdminJsonModal({ user, API_URL, onClose }) {
+      const [societeQuery, setSocieteQuery] = React.useState('');
+      const [societeResults, setSocieteResults] = React.useState([]);
+      const [societeLoading, setSocieteLoading] = React.useState(false);
+      const [selectedSociete, setSelectedSociete] = React.useState(null);
+
+      const [affaires, setAffaires] = React.useState([]);
+      const [selectedAffaireId, setSelectedAffaireId] = React.useState('');
+
+      const [devis, setDevis] = React.useState([]);
+      const [selectedDevisId, setSelectedDevisId] = React.useState('');
+
+      const [downloading, setDownloading] = React.useState(false);
+      const [errorMsg, setErrorMsg] = React.useState('');
+
+      const authHeaders = { 'Authorization': `Bearer ${user.token}` };
+
+      // ── Autocomplete société (debounce 300ms) ──
+      React.useEffect(() => {
+        if (societeQuery.trim().length < 2) {
+          setSocieteResults([]);
+          return;
+        }
+        const t = setTimeout(async () => {
+          try {
+            setSocieteLoading(true);
+            const res = await fetch(`${API_URL}/admin/societes-with-json?q=${encodeURIComponent(societeQuery)}`, { headers: authHeaders });
+            if (res.ok) {
+              const data = await res.json();
+              setSocieteResults(data);
+            } else {
+              setSocieteResults([]);
+            }
+          } catch (e) {
+            setSocieteResults([]);
+          } finally {
+            setSocieteLoading(false);
+          }
+        }, 300);
+        return () => clearTimeout(t);
+      }, [societeQuery]);
+
+      // ── Charger affaires quand société sélectionnée ──
+      React.useEffect(() => {
+        if (!selectedSociete) {
+          setAffaires([]);
+          setSelectedAffaireId('');
+          return;
+        }
+        (async () => {
+          try {
+            const res = await fetch(`${API_URL}/admin/societes/${selectedSociete.id}/affaires-with-json`, { headers: authHeaders });
+            if (res.ok) {
+              const data = await res.json();
+              setAffaires(data);
+            } else {
+              setAffaires([]);
+            }
+            setSelectedAffaireId('');
+            setDevis([]);
+            setSelectedDevisId('');
+          } catch (e) {
+            setAffaires([]);
+          }
+        })();
+      }, [selectedSociete]);
+
+      // ── Charger devis quand affaire sélectionnée ──
+      React.useEffect(() => {
+        if (!selectedAffaireId) {
+          setDevis([]);
+          setSelectedDevisId('');
+          return;
+        }
+        (async () => {
+          try {
+            const res = await fetch(`${API_URL}/admin/affaires/${selectedAffaireId}/devis-with-json`, { headers: authHeaders });
+            if (res.ok) {
+              const data = await res.json();
+              setDevis(data);
+            } else {
+              setDevis([]);
+            }
+            setSelectedDevisId('');
+          } catch (e) {
+            setDevis([]);
+          }
+        })();
+      }, [selectedAffaireId]);
+
+      // ── Télécharger le JSON ──
+      const handleDownload = async () => {
+        if (!selectedDevisId) return;
+        setDownloading(true);
+        setErrorMsg('');
+        try {
+          const res = await fetch(`${API_URL}/admin/devis/${selectedDevisId}/config-json`, { headers: authHeaders });
+          if (!res.ok) {
+            const j = await res.json().catch(() => ({}));
+            throw new Error(j.error || `Erreur ${res.status}`);
+          }
+          const blob = await res.blob();
+          // Récupérer le filename depuis le header Content-Disposition si présent
+          let filename = `devis_${selectedDevisId}.json`;
+          const cd = res.headers.get('content-disposition');
+          if (cd) {
+            const m = cd.match(/filename="?([^"]+)"?/);
+            if (m) filename = m[1];
+          }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          setErrorMsg(e.message || 'Erreur lors du téléchargement');
+        } finally {
+          setDownloading(false);
+        }
+      };
+
+      const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—';
+
+      return (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0, 51, 102, 0.35)', backdropFilter: 'blur(2px)',
+            zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+            padding: '60px 20px', overflowY: 'auto'
+          }}>
+          <div style={{
+            background: 'white', borderRadius: '12px', width: '100%', maxWidth: '560px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.15)'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '20px 28px', borderBottom: '1px solid #cde8e8',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
+              <h2 style={{ margin: 0, fontFamily: 'Poppins,sans-serif', color: '#003366', fontSize: '1.2rem' }}>
+                🔧 Récupérer le JSON d'un devis
+              </h2>
+              <button onClick={onClose} style={{
+                background: '#f0f8f8', border: 'none', width: '34px', height: '34px',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '1.1rem', color: '#607a7a'
+              }}>✕</button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '24px 28px' }}>
+              <p style={{ margin: '0 0 18px', fontSize: '13px', color: '#607a7a' }}>
+                Seuls les devis ayant déjà fait l'objet d'une génération de propale apparaissent ici.
+              </p>
+
+              {/* Société */}
+              <div style={{ marginBottom: '16px', position: 'relative' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#003366', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  Société
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Tapez les premières lettres..."
+                  value={selectedSociete ? selectedSociete.name : societeQuery}
+                  onChange={(e) => {
+                    setSelectedSociete(null);
+                    setSocieteQuery(e.target.value);
+                  }}
+                  style={{
+                    width: '100%', padding: '10px 12px', fontSize: '14px',
+                    border: '1.5px solid #a8d0d3', borderRadius: '8px', boxSizing: 'border-box'
+                  }}
+                />
+                {!selectedSociete && societeQuery.length >= 2 && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0,
+                    background: 'white', border: '1px solid #cde8e8', borderRadius: '8px',
+                    marginTop: '4px', maxHeight: '220px', overflowY: 'auto',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 10
+                  }}>
+                    {societeLoading && (
+                      <div style={{ padding: '12px', fontSize: '13px', color: '#9eb5b5', textAlign: 'center' }}>
+                        Recherche...
+                      </div>
+                    )}
+                    {!societeLoading && societeResults.length === 0 && (
+                      <div style={{ padding: '12px', fontSize: '13px', color: '#9eb5b5', textAlign: 'center' }}>
+                        Aucun résultat
+                      </div>
+                    )}
+                    {!societeLoading && societeResults.map(s => (
+                      <div key={s.id}
+                        onClick={() => { setSelectedSociete(s); setSocieteQuery(''); setSocieteResults([]); }}
+                        style={{ padding: '10px 12px', cursor: 'pointer', fontSize: '13px', borderBottom: '1px solid #f0f0f0' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f0f8f8'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                      >
+                        {s.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Affaire */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#003366', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  Affaire
+                </label>
+                <select
+                  value={selectedAffaireId}
+                  onChange={(e) => setSelectedAffaireId(e.target.value)}
+                  disabled={!selectedSociete || affaires.length === 0}
+                  style={{
+                    width: '100%', padding: '10px 12px', fontSize: '14px',
+                    border: '1.5px solid #a8d0d3', borderRadius: '8px',
+                    background: !selectedSociete ? '#f5f5f5' : 'white',
+                    cursor: !selectedSociete ? 'not-allowed' : 'pointer',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="">
+                    {!selectedSociete ? '— Choisissez d\'abord une société —' :
+                     affaires.length === 0 ? '— Aucune affaire avec JSON —' :
+                     '— Sélectionner une affaire —'}
+                  </option>
+                  {affaires.map(a => (
+                    <option key={a.id} value={a.id}>
+                      {a.nom_affaire} {a.statut_global ? `(${a.statut_global})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Devis */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#003366', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  Devis
+                </label>
+                <select
+                  value={selectedDevisId}
+                  onChange={(e) => setSelectedDevisId(e.target.value)}
+                  disabled={!selectedAffaireId || devis.length === 0}
+                  style={{
+                    width: '100%', padding: '10px 12px', fontSize: '14px',
+                    border: '1.5px solid #a8d0d3', borderRadius: '8px',
+                    background: !selectedAffaireId ? '#f5f5f5' : 'white',
+                    cursor: !selectedAffaireId ? 'not-allowed' : 'pointer',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="">
+                    {!selectedAffaireId ? '— Choisissez d\'abord une affaire —' :
+                     devis.length === 0 ? '— Aucun devis avec JSON —' :
+                     '— Sélectionner un devis —'}
+                  </option>
+                  {devis.map(d => (
+                    <option key={d.id} value={d.id}>
+                      {d.devis_name || `Devis #${d.id}`} — {fmtDate(d.quote_date || d.created_at)} {d.devis_status ? `(${d.devis_status})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {errorMsg && (
+                <div style={{
+                  padding: '10px 12px', background: '#fdecea', color: '#c0392b',
+                  borderRadius: '6px', fontSize: '13px', marginBottom: '14px'
+                }}>
+                  {errorMsg}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '14px 28px', borderTop: '1px solid #cde8e8',
+              background: '#f0f8f8', display: 'flex', gap: '10px', justifyContent: 'flex-end',
+              borderRadius: '0 0 12px 12px'
+            }}>
+              <button onClick={onClose} style={{
+                padding: '10px 20px', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem',
+                cursor: 'pointer', background: 'white', color: '#607a7a', border: '1.5px solid #cde8e8'
+              }}>Annuler</button>
+              <button
+                onClick={handleDownload}
+                disabled={!selectedDevisId || downloading}
+                style={{
+                  padding: '10px 20px', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem',
+                  cursor: (!selectedDevisId || downloading) ? 'not-allowed' : 'pointer',
+                  background: (!selectedDevisId || downloading) ? '#a8c8c8' : '#007d89',
+                  color: 'white', border: 'none'
+                }}
+              >
+                {downloading ? '⏳ Téléchargement...' : '📥 Télécharger JSON'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     function RecapModal({ commercial, period, prospects, onClose, onNavigate, user, API_URL }) {
       const [recapData, setRecapData] = React.useState(null);
       const [loading, setLoading] = React.useState(true);
@@ -2711,7 +3033,7 @@
       );
     }
 
-    function Header({ user, onLogout, onDashboard, isDashboard, onSettings, onAttribution, showAttribution, prospects, onSelectProspect, onNewProspect }) {
+    function Header({ user, onLogout, onDashboard, isDashboard, onSettings, onAttribution, showAttribution, prospects, onSelectProspect, onNewProspect, onAdminJson }) {
       const [globalSearch, setGlobalSearch] = React.useState('');
       const [showResults, setShowResults] = React.useState(false);
       const [searchIndex, setSearchIndex] = React.useState(-1);
@@ -2802,6 +3124,9 @@
             <button className={`tw-nav-btn ${!isDashboard && !showAttribution ? 'tw-active' : ''}`} onClick={() => { if (isDashboard) onDashboard(); if (showAttribution) onDashboard(); }}>Suivi activités</button>
             {user.name === 'Christian' && (
               <button className={`tw-nav-btn ${showAttribution ? 'tw-active' : ''}`} onClick={onAttribution}>🎯 Attribution Sté</button>
+            )}
+            {isAdmin && (
+              <button className="tw-nav-btn" onClick={onAdminJson} title="Récupérer le JSON d'un devis">🔧 Récup. JSON</button>
             )}
           </nav>
 

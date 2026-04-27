@@ -2021,6 +2021,68 @@ app.get('/api/admin/devis/:id/config-json', requireAdmin, async (req, res) => {
   }
 });
 
+// ── Routes admin pour le panneau de récupération JSON (cascade Société → Affaire → Devis) ──
+
+// GET /api/admin/societes-with-json?q=xxx — Sociétés ayant au moins un devis avec config_json (autocomplete)
+app.get('/api/admin/societes-with-json', requireAdmin, async (req, res) => {
+  try {
+    const q = ((req.query.q || '').trim());
+    if (q.length < 2) return res.json([]);
+
+    const result = await pool.query(
+      `SELECT DISTINCT p.id, p.name
+       FROM prospects p
+       INNER JOIN devis d ON d.prospect_id = p.id
+       WHERE d.config_json IS NOT NULL
+         AND p.name ILIKE $1
+       ORDER BY p.name ASC
+       LIMIT 20`,
+      [`%${q}%`]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur GET /api/admin/societes-with-json:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/societes/:id/affaires-with-json — Affaires d'une société avec au moins un devis ayant config_json
+app.get('/api/admin/societes/:id/affaires-with-json', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT a.id, a.nom_affaire, a.statut_global
+       FROM affaires a
+       INNER JOIN devis d ON d.affaire_id = a.id
+       WHERE a.prospect_id = $1
+         AND d.config_json IS NOT NULL
+       ORDER BY a.created_at DESC`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur GET /api/admin/societes/:id/affaires-with-json:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/affaires/:id/devis-with-json — Devis d'une affaire qui ont config_json
+app.get('/api/admin/affaires/:id/devis-with-json', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, devis_name, devis_status, quote_date, created_at
+       FROM devis
+       WHERE affaire_id = $1
+         AND config_json IS NOT NULL
+       ORDER BY created_at DESC`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur GET /api/admin/affaires/:id/devis-with-json:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ===================== ROUTE OPTIMISÉE PROSPECTS ENRICHIS =====================
 // GET /api/prospects/enriched - Récupérer tous les prospects avec dernier devis actif + actions planifiées
 app.get('/api/prospects/enriched', auth, async (req, res) => {
