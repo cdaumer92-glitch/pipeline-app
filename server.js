@@ -2065,6 +2065,40 @@ app.get('/api/admin/societes/:id/affaires-with-json', requireAdmin, async (req, 
   }
 });
 
+// GET /api/admin/diag-json/:prospect_id — Route diagnostic : montre TOUS les devis d'une société avec leur état config_json
+// À utiliser pour comprendre pourquoi un devis n'apparaît pas dans le panneau admin
+app.get('/api/admin/diag-json/:prospect_id', requireAdmin, async (req, res) => {
+  try {
+    const prospect = await pool.query(
+      'SELECT id, name FROM prospects WHERE id = $1',
+      [req.params.prospect_id]
+    );
+    const devis = await pool.query(
+      `SELECT d.id, d.devis_name, d.affaire_id, d.prospect_id,
+              (d.config_json IS NOT NULL) AS has_json,
+              a.nom_affaire, a.prospect_id AS affaire_prospect_id
+       FROM devis d
+       LEFT JOIN affaires a ON a.id = d.affaire_id
+       WHERE d.prospect_id = $1
+       ORDER BY d.created_at DESC`,
+      [req.params.prospect_id]
+    );
+    res.json({
+      prospect: prospect.rows[0] || null,
+      devis: devis.rows,
+      summary: {
+        total_devis: devis.rows.length,
+        avec_json: devis.rows.filter(d => d.has_json).length,
+        sans_affaire_id: devis.rows.filter(d => !d.affaire_id).length,
+        affaire_orpheline: devis.rows.filter(d => d.affaire_id && d.affaire_prospect_id !== parseInt(req.params.prospect_id)).length,
+      }
+    });
+  } catch (err) {
+    console.error('Erreur GET /api/admin/diag-json:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/admin/affaires/:id/devis-with-json — Devis d'une affaire qui ont config_json
 app.get('/api/admin/affaires/:id/devis-with-json', requireAdmin, async (req, res) => {
   try {
