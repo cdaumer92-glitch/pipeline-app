@@ -1612,6 +1612,59 @@ app.post('/api/devis/generate-proposition', auth, async (req, res) => {
     };
     const configJson = JSON.stringify(minimalConfig);
 
+    // ── MODE HYBRIDE : essai propale-service en priorité ──
+    // Si le container propale-service est configuré, on tente une génération rapide (~2-3s)
+    // En cas d'échec (timeout, 5xx, réseau), fallback sur l'API skill Anthropic (~90s)
+    const PROPALE_SERVICE_URL = process.env.PROPALE_SERVICE_URL;
+    const PROPALE_SERVICE_SECRET = process.env.PROPALE_SERVICE_SECRET;
+
+    if (PROPALE_SERVICE_URL) {
+      const tStart = Date.now();
+      console.log('[Propale] Mode hybride : tentative via propale-service pour', config?.societe || '(inconnu)');
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s max
+
+        const svcRes = await fetch(`${PROPALE_SERVICE_URL}/generate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(PROPALE_SERVICE_SECRET ? { 'X-Service-Secret': PROPALE_SERVICE_SECRET } : {}),
+          },
+          body: JSON.stringify(minimalConfig),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!svcRes.ok) {
+          const errBody = await svcRes.text();
+          throw new Error(`propale-service HTTP ${svcRes.status}: ${errBody.slice(0, 200)}`);
+        }
+
+        const svcData = await svcRes.json();
+        if (!svcData.ok || !svcData.file_base64) {
+          throw new Error(`Réponse propale-service invalide : ${JSON.stringify(svcData).slice(0, 200)}`);
+        }
+
+        const buffer = Buffer.from(svcData.file_base64, 'base64');
+        const filename = svcData.filename || `propale_${(config.societe || 'sans-nom').replace(/[^a-zA-Z0-9_-]/g, '')}_${new Date().toISOString().slice(0, 7).replace('-', '')}.docx`;
+
+        console.log(`[Propale] ✅ Généré via propale-service en ${Date.now() - tStart}ms (${buffer.length} octets, elapsed_ms côté service: ${svcData.elapsed_ms})`);
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.send(buffer);
+
+      } catch (svcErr) {
+        console.warn(`[Propale] ⚠️ propale-service KO après ${Date.now() - tStart}ms (${svcErr.name || 'Error'}: ${svcErr.message}). Fallback sur API skill...`);
+        // Continue ci-dessous pour fallback sur l'API skill
+      }
+    } else {
+      console.log('[Propale] PROPALE_SERVICE_URL non configurée, appel direct API skill');
+    }
+    // ── FIN MODE HYBRIDE ──
+
     const userMessage = `Genere une proposition commerciale via le script du skill charge.
 
 Trouve le script (chemin probable + fallback find) :
