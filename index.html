@@ -2370,9 +2370,10 @@
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
+          // Fermer la modal après téléchargement réussi
+          onClose();
         } catch (e) {
           setErrorMsg(e.message || 'Erreur lors du téléchargement');
-        } finally {
           setDownloading(false);
         }
       };
