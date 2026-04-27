@@ -159,6 +159,11 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT NOW()
     )`);
 
+    // Migration : stockage du JSON de configuration de propale (admin SAV)
+    await client.query(`
+      ALTER TABLE devis ADD COLUMN IF NOT EXISTS config_json JSONB
+    `);
+
     // Table interlocuteurs
     await client.query(`CREATE TABLE IF NOT EXISTS interlocuteurs (
       id SERIAL PRIMARY KEY,
@@ -1601,6 +1606,9 @@ app.post('/api/devis/generate-proposition', auth, async (req, res) => {
       return res.status(400).json({ error: 'Corps de requête invalide' });
     }
 
+    // Récupérer l'ID du devis si fourni (pour stocker le JSON de la propale)
+    const devisId = req.body.devis_id || null;
+
     // Filtrer le JSON pour ne garder QUE ce que le script Python lit (gros gain de tokens)
     const minimalConfig = {
       societe:         config.societe,
@@ -1611,6 +1619,20 @@ app.post('/api/devis/generate-proposition', auth, async (req, res) => {
       propale:         config.propale || {},
     };
     const configJson = JSON.stringify(minimalConfig);
+
+    // Sauvegarder le JSON dans le devis (admin pourra le récupérer pour le SAV)
+    if (devisId) {
+      try {
+        await pool.query(
+          'UPDATE devis SET config_json = $1 WHERE id = $2',
+          [JSON.stringify(minimalConfig), devisId]
+        );
+        console.log('[Propale] JSON sauvegardé pour devis_id=', devisId);
+      } catch (saveErr) {
+        console.warn('[Propale] Erreur sauvegarde JSON devis:', saveErr.message);
+        // On continue malgré l'erreur, la génération propale doit aboutir
+      }
+    }
 
     // ── MODE HYBRIDE : essai propale-service en priorité ──
     // Si le container propale-service est configuré, on tente une génération rapide (~2-3s)
@@ -1963,6 +1985,39 @@ app.get('/api/admin/active-users', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Erreur récupération users actifs:', err);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/admin/devis/:id/config-json — Télécharger le JSON de config d'un devis (admin uniquement)
+app.get('/api/admin/devis/:id/config-json', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT d.config_json, d.devis_name, p.name as societe_name
+       FROM devis d
+       LEFT JOIN prospects p ON p.id = d.prospect_id
+       WHERE d.id = $1`,
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Devis non trouvé' });
+    }
+
+    const { config_json, societe_name } = result.rows[0];
+
+    if (!config_json) {
+      return res.status(404).json({ error: 'Aucun JSON de propale stocké pour ce devis (généré avant cette fonctionnalité, ou propale jamais générée)' });
+    }
+
+    const slug = (societe_name || 'devis').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `propale_${slug}_devis-${req.params.id}.json`;
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(JSON.stringify(config_json, null, 2));
+  } catch (err) {
+    console.error('Erreur GET /api/admin/devis/:id/config-json:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

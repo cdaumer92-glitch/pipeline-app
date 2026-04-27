@@ -1024,7 +1024,6 @@ body {
 <header class="app-header">
   <h1>TexasWin <span>·</span> Configurateur</h1>
   <div class="header-spacer"></div>
-  <input type="file" id="importInput" accept=".json" onchange="handleImport(event)" style="display:none">
 </header>
 
 <!-- ── Body ────────────────────────────────────────────────── -->
@@ -1232,9 +1231,7 @@ body {
     <div class="sidebar-title" style="margin-top:4px;">Actions</div>
     <button class="btn btn-primary btn-full" id="btnSaveInAffaire" onclick="openSaveInAffaireModal()" style="display:none;background:#059669;border-color:#059669;">💼 Enregistrer dans l'affaire</button>
     <button class="btn btn-primary btn-full" id="btnGenererPropale" onclick="generateProposition()" style="background:#7b5ea7;border-color:#7b5ea7;">📝 Générer la proposition (Word)</button>
-    <button class="btn btn-primary btn-full" onclick="exportConfig()">💾 Export JSON propale</button>
     <button class="btn btn-secondary btn-full btn-sm" onclick="exportExcel()">📊 Export Excel devis</button>
-    <button class="btn btn-secondary btn-full btn-sm" onclick="document.getElementById('importInput').click()">📥 Importer JSON</button>
   </aside>
 
 </div><!-- /app-body -->
@@ -2636,7 +2633,7 @@ document.addEventListener('click', e => {
 // ══════════════════════════════════════════════════════════════
 // Construit l'objet config JSON à partir de l'état courant du configurateur.
 // Retourne null si la validation échoue (nom société manquant).
-// Utilisé par exportConfig() (download fichier) et generateProposition() (POST serveur).
+// Utilisé par generateProposition() (POST serveur) et l'enregistrement dans l'affaire.
 function buildConfigJson() {
   const societe = document.getElementById('societe').value.trim();
   if (!societe || societe === 'Nom de la Société') { alert('Veuillez remplir le nom de la Société'); return null; }
@@ -2825,18 +2822,6 @@ function buildConfigJson() {
   return config;
 }
 
-// Téléchargement du JSON propale (comportement historique)
-function exportConfig() {
-  const config = buildConfigJson();
-  if (!config) return;
-  const json = JSON.stringify(config, null, 2);
-  const blob = new Blob([json], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = config.societe.replace(/[^a-zA-Z0-9]/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.json';
-  a.click(); URL.revokeObjectURL(url);
-}
-
 // Génération automatique de la proposition .docx via l'API Claude (serveur)
 async function generateProposition() {
   const config = buildConfigJson();
@@ -2874,7 +2859,7 @@ async function generateProposition() {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify(config),
+      body: JSON.stringify({ ...config, devis_id: CTX.devis_id || null }),
     });
 
     clearInterval(progressInterval);
@@ -3018,80 +3003,6 @@ function showProgressError(message) {
   if (spinner) { spinner.style.border = 'none'; spinner.style.animation = 'none'; spinner.innerHTML = '❌'; spinner.style.display='flex'; spinner.style.alignItems='center'; spinner.style.justifyContent='center'; spinner.style.fontSize='20px'; }
 }
 
-function handleImport(event) {
-  const file = event.target.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const config = JSON.parse(e.target.result);
-
-      // ── Champs prospect ───────────────────────────────────────
-      if (config.societe)          document.getElementById('societe').value = config.societe;
-      if (config.contact)          document.getElementById('contact').value = config.contact;
-      if (config.adresse)          document.getElementById('adresse').value = config.adresse;
-      if (config.commercial)       document.getElementById('commercial').value = config.commercial;
-      if (config.margeHebergement) document.getElementById('margeHebergement').value = config.margeHebergement;
-      if (config.margeSetup)       document.getElementById('margeSetup').value = config.margeSetup;
-
-      // ── Restaurer moduleState ─────────────────────────────────
-      // Reset complet d'abord
-      Object.keys(moduleState).forEach(k => moduleState[k] = 0);
-      moduleState.comptaSage = false;
-      moduleState.facturationElec = false;
-
-      if (config.moduleState) {
-        Object.assign(moduleState, config.moduleState);
-      } else {
-        // Fallback : reconstruire depuis modules_retenus et modules
-        const mr = config.modules_retenus || [];
-        const m  = config.modules || {};
-        if (mr.includes('biz')) moduleState.biz = parseInt(m.biz) || 0;
-        if (mr.includes('fab')) moduleState.fab = parseInt(m.fab) || 0;
-        if (mr.includes('net')) moduleState.net_siege = parseInt(m.net_siege) || 0;
-        if (mr.includes('mag')) { moduleState.mag = parseInt(m.mag) || 1; moduleState.mag_caisses = parseInt(m.mag) || 1; }
-        if (mr.includes('vrp')) moduleState.vrp = parseInt(m.vrp) || 0;
-        if (mr.includes('col')) moduleState.col = parseInt(m.col) || 0;
-        if (mr.includes('log')) moduleState.log = parseInt(m.log) || 0;
-        if (mr.includes('jet')) moduleState.jet = parseInt(m.jet) || 0;
-        if (mr.includes('kub')) moduleState.kub = parseInt(m.kub) || 0;
-        if (mr.includes('flu')) moduleState.fluxTiers = parseInt(m.fluxTiers) || 0;
-        moduleState.comptaSage = !!m.comptaSage;
-        moduleState.facturationElec = !!m.facturationElec;
-      }
-
-      // ── Activer/désactiver les tuiles ─────────────────────────
-      // (l'état actif est déduit automatiquement de moduleState par isModuleActive)
-
-      setTimeout(() => {
-        // Checkboxes globales
-        const cs = document.getElementById('chk_comptaSage');
-        const cf = document.getElementById('chk_factElec');
-        if (cs) cs.checked = moduleState.comptaSage;
-        if (cf) cf.checked = moduleState.facturationElec;
-
-        // Flux noms
-        if (config.flux_noms) {
-          fluxNoms = config.flux_noms;
-          updateFluxNoms();
-          config.flux_noms.forEach((nom, i) => {
-            const el = document.getElementById('flux_nom_' + (i+1));
-            if (el) el.value = nom;
-          });
-        }
-
-        // Mettre à jour l'affichage des tuiles (état actif + mini-total)
-        MODULES_DEF.forEach(mod => updateTileDisplay(mod.id));
-        renderAllSections();
-        calculate();
-      }, 50);
-
-    } catch(err) { alert('Erreur import JSON : ' + err.message); }
-  };
-  reader.readAsText(file);
-  event.target.value = '';
-}
-function importConfig() { document.getElementById('importInput').click(); }
-
 function exportExcel() {
   alert('Export Excel : fonctionnalité disponible dans la prochaine version.');
 }
@@ -3148,7 +3059,7 @@ function extractMontantsForSave() {
   return { monthly, annual, setup, training };
 }
 
-// Construit le JSON complet du devis (réutilise la logique d'exportConfig)
+// Construit le JSON complet du devis (utilisé pour l'enregistrement dans l'affaire)
 // Version simplifiée : on n'exporte pas en fichier, on remonte juste l'objet
 function buildConfigObject() {
   const ms = moduleState;
