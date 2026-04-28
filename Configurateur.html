@@ -2280,20 +2280,15 @@ const KUB_INDEX_EXTENSIONS = [5, 6, 7]; // Sage/EBP, Silae, Multi-sources
 // Appelée par renderSection2 quand Kub passe à actif
 function applyKubDefaults() {
   const kubQty = moduleState.kub || 0;
-  console.log('[KUB-DEBUG] applyKubDefaults appelé. kubQty=', kubQty, 'sv-Manager=', sectionValues['section2_'+KUB_INDEX_MANAGER], 'sv-User=', sectionValues['section2_'+KUB_INDEX_USER]);
   if (kubQty <= 0) return;
 
   // Manager : toujours 1 par défaut (cas où jamais initialisé)
   if (sectionValues['section2_' + KUB_INDEX_MANAGER] === undefined) {
     sectionValues['section2_' + KUB_INDEX_MANAGER] = { qty: 1, remise: 0, checked: true };
-    console.log('[KUB-DEBUG] Manager initialisé à qty=1');
   }
   // User : qtéKub - 1 par défaut
   if (sectionValues['section2_' + KUB_INDEX_USER] === undefined) {
     sectionValues['section2_' + KUB_INDEX_USER] = { qty: Math.max(0, kubQty - 1), remise: 0, checked: false };
-    console.log('[KUB-DEBUG] User initialisé à qty=', Math.max(0, kubQty - 1));
-  } else {
-    console.log('[KUB-DEBUG] User PAS initialisé (déjà défini, qty=', sectionValues['section2_' + KUB_INDEX_USER].qty, ')');
   }
   // Center : 0 par défaut
   if (sectionValues['section2_' + KUB_INDEX_CENTER] === undefined) {
