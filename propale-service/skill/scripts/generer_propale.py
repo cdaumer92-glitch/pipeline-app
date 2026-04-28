@@ -202,6 +202,8 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
     content=content.replace('Soci\xe9t\xe9\xa0NOM SOCIETE',societe)
 
     # 2. Contact + adresse (SANS fonction)
+    # NB: defusedxml.minidom convertit les entités &#xXXXX; en caractères Unicode bruts lors du pretty-print.
+    # Donc on doit chercher les caractères Unicode directement (pas les entités numériques) pour que str.replace match.
     old_c='''<w:p w14:paraId="39243FEE" w14:textId="77777777" w:rsidR="00EE4216" w:rsidRPr="00F366B5" w:rsidRDefault="00EE4216" w:rsidP="00F366B5">
       <w:pPr>
         <w:pStyle w:val="CoordonnesSt"/>
@@ -215,7 +217,7 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
         <w:rPr>
           <w:rFonts w:ascii="Poppins" w:hAnsi="Poppins"/>
         </w:rPr>
-        <w:t>A l&#x2019;attention de Nom Personne</w:t>
+        <w:t>A l\u2019attention de Nom Personne</w:t>
       </w:r>
     </w:p>'''
     new_c = (f'<w:p w14:paraId="39243FEE" w14:textId="77777777" w:rsidR="00EE4216" '
@@ -224,7 +226,7 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
              f'<w:ind w:left="5245"/><w:rPr><w:rFonts w:ascii="Poppins" w:hAnsi="Poppins"/>'
              f'</w:rPr></w:pPr>\n'
              f'      <w:r><w:rPr><w:rFonts w:ascii="Poppins" w:hAnsi="Poppins"/></w:rPr>'
-             f'<w:t>&#192; l&#x2019;attention de {contact}</w:t></w:r>\n'
+             f'<w:t>\u00c0 l\u2019attention de {contact}</w:t></w:r>\n'
              f'    </w:p>')
     if adresse:
         new_c += (f'\n    <w:p w14:paraId="39243FFE" w14:textId="77777777" w:rsidR="00EE4216" '
@@ -235,6 +237,13 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
                   f'      <w:r><w:rPr><w:rFonts w:ascii="Poppins" w:hAnsi="Poppins"/></w:rPr>'
                   f'<w:t>{adresse}</w:t></w:r>\n'
                   f'    </w:p>')
+    # Fail-safe : si le bloc cherché n'est pas trouvé, on logge un warning (sera visible dans Cockpit/Grafana)
+    # pour ne pas générer silencieusement une propale sans contact ni adresse.
+    if old_c not in content:
+        print("[WARN] Bloc contact/adresse introuvable dans le template. "
+              "Le template Master_Propale.docx a peut-être été modifié. "
+              "Contact + adresse NE SERONT PAS injectés dans la propale.",
+              file=sys.stderr)
     content=content.replace(old_c,new_c)
 
     # 3. Date + référence
