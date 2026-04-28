@@ -2733,12 +2733,24 @@ function buildConfigJson() {
   const ms = moduleState;
   const remPct = (modId) => ms[modId + '_remise'] || 0;
   const netMontant = (montant, modId) => montant * (1 - remPct(modId) / 100);
-  const addAbo = (nom, montant, modId) => {
-    if (montant <= 0) return;
-    const net = modId ? netMontant(montant, modId) : montant;
+  // Signature enrichie : addAbo(nom, qty, pu, modId, unite)
+  // - qty * pu = montant brut (avant remise module)
+  // - modId : si fourni, applique la remise du module
+  // - unite : par défaut '€/mois', overridable (ex: '€/mois/user')
+  // Pour les lignes infra forfaitaires (pas de qté/pu), passer qty=null et pu=null, montant en pu
+  const addAbo = (nom, qty, pu, modId, unite) => {
+    if (!unite) unite = '€/mois';
+    // Compatibilité : si qty/pu null, montant est dans pu (ancien comportement)
+    const brut = (qty != null && pu != null) ? qty * pu : pu;
+    if (brut <= 0) return;
+    const net = modId ? netMontant(brut, modId) : brut;
     const r = modId ? remPct(modId) : 0;
-    const ligne = { nom, montant: net, unite: '€/mois' };
-    if (r > 0) { ligne.prix_brut = montant; ligne.remise_pct = r; }
+    const ligne = { nom, montant: net, unite };
+    if (qty != null && pu != null) {
+      ligne.qty = qty;
+      ligne.prix_unitaire = pu;
+    }
+    if (r > 0) { ligne.prix_brut = brut; ligne.remise_pct = r; }
     lignesAbo.push(ligne);
     // Tri par catégorie : présence d'un modId = module métier, sinon = infrastructure
     if (modId) {
@@ -2747,27 +2759,28 @@ function buildConfigJson() {
       lignesInfra.push(ligne);
     }
   };
-  addAbo('Module BIZ (Négoce)', (ms.biz||0)*155, 'biz');
-  addAbo('Avec option Production (FAB)', (ms.biz_fab_opt||0)*68, 'biz');
-  addAbo('Module FAB Standalone (Production seule)', (ms.fab||0)*145.5, 'fab');
-  addAbo('Module Net B2B — Siège', (ms.net_siege||0)*328, 'net');
-  addAbo('Module Kub (Business Intelligence)', (ms.kub||0)*20, 'kub');
-  if ((ms.mag||0)>0) addAbo('Module Mag : Concentrateur', 99, 'mag');
-  addAbo('Module Mag (Nb Caisses déployées)', (ms.mag_caisses||0)*49, 'mag');
-  addAbo('Module VRP (Représentant)', (ms.vrp||0)*53, 'vrp');
-  addAbo('Module Col (Collection)', (ms.col||0)*20, 'col');
-  addAbo('Module Log (Logistique)', (ms.log||0)*155, 'log');
-  addAbo('Module Jet (Inventaire)', (ms.jet||0)*40, 'jet');
-  // Infrastructure (pas de remise comme convenu)
-  if ((ms.biz||0)>0||(ms.fab||0)>0) addAbo('Hébergement serveur TexasWin', calcHebTW());
-  if ((ms.mag||0)>0) addAbo('Gestion des Flux MAG', 40);
-  if ((ms.mag_caisses||0)>0) addAbo('Support MAG/Caisse déployée', 15*(ms.mag_caisses||0));
-  if ((ms.fluxTiers||0)>0) addAbo('Gestion des Flux ('+fluxNoms.join(', ')+')', 40*(ms.fluxTiers||0));
-  if (ms.facturationElec) addAbo('Gestion Facturation électronique (réception)', 40);
-  if (ms.comptaSage) addAbo('Allocation ressources Sage', 135);
-  if ((ms.kub||0)>0) addAbo('Hébergement serveur Kub', calcHebKub());
+  // Modules : avec qty + pu pour l'affichage propal
+  addAbo('Module BIZ (Négoce)', (ms.biz||0), 155, 'biz', '€/mois/user');
+  addAbo('Avec option Production (FAB)', (ms.biz_fab_opt||0), 68, 'biz', '€/mois/user');
+  addAbo('Module FAB Standalone (Production seule)', (ms.fab||0), 145.5, 'fab', '€/mois/user');
+  addAbo('Module Net B2B — Siège', (ms.net_siege||0), 328, 'net', '€/mois');
+  addAbo('Module Kub (Business Intelligence)', (ms.kub||0), 20, 'kub', '€/mois/user');
+  if ((ms.mag||0)>0) addAbo('Module Mag : Concentrateur', 1, 99, 'mag', '€/mois');
+  addAbo('Module Mag (Nb Caisses déployées)', (ms.mag_caisses||0), 49, 'mag', '€/mois/caisse');
+  addAbo('Module VRP (Représentant)', (ms.vrp||0), 53, 'vrp', '€/mois/user');
+  addAbo('Module Col (Collection)', (ms.col||0), 20, 'col', '€/mois/user');
+  addAbo('Module Log (Logistique)', (ms.log||0), 155, 'log', '€/mois/user');
+  addAbo('Module Jet (Inventaire)', (ms.jet||0), 40, 'jet', '€/mois/user');
+  // Infrastructure : forfait sans qté/pu (montant direct en 3e arg, qty=null)
+  if ((ms.biz||0)>0||(ms.fab||0)>0) addAbo('Hébergement serveur TexasWin', null, calcHebTW(), null, '€/mois');
+  if ((ms.mag||0)>0) addAbo('Gestion des Flux MAG', null, 40, null, '€/mois');
+  if ((ms.mag_caisses||0)>0) addAbo('Support MAG/Caisse déployée', null, 15*(ms.mag_caisses||0), null, '€/mois');
+  if ((ms.fluxTiers||0)>0) addAbo('Gestion des Flux ('+fluxNoms.join(', ')+')', null, 40*(ms.fluxTiers||0), null, '€/mois');
+  if (ms.facturationElec) addAbo('Gestion Facturation électronique (réception)', null, 40, null, '€/mois');
+  if (ms.comptaSage) addAbo('Allocation ressources Sage', null, 135, null, '€/mois');
+  if ((ms.kub||0)>0) addAbo('Hébergement serveur Kub', null, calcHebKub(), null, '€/mois');
   // Middleware standalone (99 € indépendant de Mag)
-  if (ms.middlewareStandalone) addAbo('Concentrateur middleware multi-magasin', 99);
+  if (ms.middlewareStandalone) addAbo('Concentrateur middleware multi-magasin', null, 99, null, '€/mois');
 
   // Lignes custom ajoutées dans le drawer de chaque module
   ['biz','fab','net','kub','mag','vrp','col','log','jet','flu'].forEach(modId => {
@@ -2780,7 +2793,8 @@ function buildConfigJson() {
         const brut = pu * qty;
         const net = brut * (1 - remise / 100);
         const label = line.label || (`Ligne custom ${modId.toUpperCase()}`);
-        const ligne = { nom: label + ` (${qty} ${line.unit||''} × ${fmtNum(pu)} €)`, montant: net, unite: '€/mois' };
+        const unite = line.unit ? `€/mois/${line.unit}` : '€/mois';
+        const ligne = { nom: label, qty, prix_unitaire: pu, montant: net, unite };
         if (remise > 0) { ligne.prix_brut = brut; ligne.remise_pct = remise; }
         lignesAbo.push(ligne);
         lignesModules.push(ligne); // Les lignes custom sont liées à un module → catégorie Modules
