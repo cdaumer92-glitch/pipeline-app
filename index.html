@@ -245,6 +245,44 @@
     console.log('[Pipeline] Version chargée: ' + new Date().toISOString());
     const API_URL = '/api';
 
+    // ================== INTERCEPTEUR 401 + DÉTECTEUR D'INACTIVITÉ ==================
+    // Patche window.fetch pour intercepter les 401 sur les routes /api/* et déclencher
+    // une déconnexion propre + redirection vers le login.
+    // Inclut un message contextuel selon la raison (session forcée / inactivité).
+    (function setupAuthInterceptor() {
+      const originalFetch = window.fetch;
+      let alreadyRedirecting = false;
+
+      window.fetch = async function(...args) {
+        const response = await originalFetch.apply(this, args);
+        // On n'intercepte que les 401 sur les routes API (pas les ressources externes ni les téléchargements)
+        const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || '';
+        if (response.status === 401 && url.startsWith('/api/') && !alreadyRedirecting) {
+          alreadyRedirecting = true;
+          try {
+            const errBody = await response.clone().json().catch(() => ({}));
+            const code = errBody.code;
+            let message = 'Votre session a expiré. Veuillez vous reconnecter.';
+            if (code === 'SESSION_INACTIVE') {
+              message = 'Votre session a été fermée par un administrateur. Veuillez vous reconnecter.';
+            } else if (code === 'SESSION_EXPIRED_INACTIVITY') {
+              message = 'Votre session a expiré après 1h d\'inactivité. Veuillez vous reconnecter.';
+            }
+            // Nettoyer le localStorage et rediriger
+            localStorage.removeItem('user');
+            alert(message);
+            window.location.href = '/';
+          } catch (e) {
+            // Si on n'arrive pas à parser la réponse, on déconnecte quand même
+            localStorage.removeItem('user');
+            window.location.href = '/';
+          }
+        }
+        return response;
+      };
+    })();
+    // ================== FIN INTERCEPTEUR ==================
+
     // ================== UTILITAIRES (définis avant App) ==================
     
     function getActionStatus(actions) {

@@ -455,24 +455,67 @@ async function initDB() {
 }
 
 // ===================== AUTH =====================
-const auth = (req, res, next) => {
+// Durée d'inactivité au-delà de laquelle une session est automatiquement fermée (en secondes)
+// 3600 = 1 heure
+const INACTIVITY_TIMEOUT_SECONDS = parseInt(process.env.INACTIVITY_TIMEOUT_SECONDS) || 3600;
+
+const auth = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Non authentifié' });
+  let decoded;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.userId = decoded.id;
-    req.userName = decoded.name;
+    decoded = jwt.verify(token, JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: 'Token invalide' });
+  }
 
-    // Mise à jour last_activity en fire-and-forget (non bloquant, pas d'impact perf)
-    // Permet à la page admin de voir l'activité réelle des utilisateurs
-    pool.query(
-      `UPDATE user_sessions SET last_activity = NOW() WHERE user_id = $1 AND is_active = true`,
+  req.userId = decoded.id;
+  req.userName = decoded.name;
+
+  // ── Phase 2 : vérification session active + auto-logout après inactivité ──
+  try {
+    const sessRes = await pool.query(
+      `SELECT id, is_active,
+              EXTRACT(EPOCH FROM (NOW() - last_activity))::int AS idle_seconds
+       FROM user_sessions
+       WHERE user_id = $1 AND is_active = true
+       ORDER BY login_time DESC
+       LIMIT 1`,
       [decoded.id]
+    );
+
+    if (sessRes.rows.length === 0) {
+      // Plus de session active → l'admin a déconnecté l'utilisateur, ou pas de trace en base
+      return res.status(401).json({ error: 'Session inactive', code: 'SESSION_INACTIVE' });
+    }
+
+    const session = sessRes.rows[0];
+
+    // Auto-logout si trop d'inactivité
+    if (session.idle_seconds > INACTIVITY_TIMEOUT_SECONDS) {
+      // Marquer la session comme expirée pour inactivité (fire-and-forget pour ne pas ralentir la réponse)
+      pool.query(
+        `UPDATE user_sessions
+         SET is_active = false,
+             logout_time = NOW(),
+             logout_reason = 'inactivity'
+         WHERE id = $1`,
+        [session.id]
+      ).catch(err => console.warn('[auth] inactivity logout update failed:', err.message));
+      return res.status(401).json({ error: 'Session expirée par inactivité', code: 'SESSION_EXPIRED_INACTIVITY' });
+    }
+
+    // Session valide : mettre à jour last_activity (fire-and-forget)
+    pool.query(
+      `UPDATE user_sessions SET last_activity = NOW() WHERE id = $1`,
+      [session.id]
     ).catch(err => console.warn('[auth] last_activity update failed:', err.message));
 
     next();
-  } catch {
-    res.status(401).json({ error: 'Token invalide' });
+  } catch (err) {
+    // En cas d'erreur DB, on log mais on laisse passer pour ne pas bloquer toute l'app
+    console.error('[auth] DB check failed, falling through:', err.message);
+    next();
   }
 };
 
