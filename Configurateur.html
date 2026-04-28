@@ -2069,17 +2069,26 @@ function renderSection4() {
   const fasPrice = 1150; // Forfait fixe : pas de marge appliquée à la FAS
 
   // ── 1) Collecter toutes les lignes actives (standards + custom) ──
+  // Ordre logique :
+  //   a. Forfaits (FAS, hébergements, connecteurs Kub & Facturation élec)
+  //   b. Sujets fonctionnels (modifs états, reprise données)
+  //   c. Installations modules (Mag, Net, VRP, Col, Log, Jet, Flux)
+  //   d. Pilotage (gestion projet, dév spécifique) en fin
   const items = [];
+  // -- a. Forfaits --
   if (biz)  items.push({ key:'fas', kind:'forfait', defaultLabel:'FAS : Installation du logiciel TexasWin', prix:fasPrice });
   if (biz)  items.push({ key:'setup_tw', kind:'auto', defaultLabel:'Mise en place hébergement TexasWin', prix:setupTW });
   if (sage) items.push({ key:'setup_sage', kind:'auto', defaultLabel:'Mise en place hébergement Sage', prix:1150 });
+  if (kub)  items.push({ key:'kub_connect', kind:'forfait', defaultLabel:'Mise en oeuvre Connecteur Kub → MyReport', prix:2500 });
+  if (felec) items.push({ key:'felec_param', kind:'forfait', defaultLabel:'Mise en oeuvre Facturation électronique', prix:1150 });
+  // -- b. Sujets fonctionnels --
   if (biz)  items.push({ key:'modif_etats', kind:'tjm', defaultLabel:"Biz/Fab : Modifications d'états commerciaux", prix:1150, defaultQty:0.5 });
   if (biz)  items.push({ key:'recup', kind:'tjm', defaultLabel:'Récupération des données', prix:1150, defaultQty:0 });
-  if (net)  items.push({ key:'net_install', kind:'tjm', defaultLabel:'Net : Installation et paramétrage', prix:1150, defaultQty:1 });
-  if (net)  items.push({ key:'net_accom', kind:'tjm', defaultLabel:'Net : Accompagnement Standard', prix:1150, defaultQty:0.5 });
-  if (kub)  items.push({ key:'kub_connect', kind:'forfait', defaultLabel:'Mise en oeuvre Connecteur Kub → MyReport', prix:2500 });
+  // -- c. Installations modules --
   if (mag)  items.push({ key:'mag_siege', kind:'tjm', defaultLabel:'Mag : Installation Back office Siège', prix:1150, defaultQty:1 });
   if (mag)  items.push({ key:'mag_mag', kind:'tjm', defaultLabel:'Mag : Installation Magasin', prix:525, defaultQty: moduleState.mag_caisses * 0.5 });
+  if (net)  items.push({ key:'net_install', kind:'tjm', defaultLabel:'Net : Installation et paramétrage', prix:1150, defaultQty:1 });
+  if (net)  items.push({ key:'net_accom', kind:'tjm', defaultLabel:'Net : Accompagnement Standard', prix:1150, defaultQty:0.5 });
   if (vrp)  items.push({ key:'vrp_install', kind:'tjm', defaultLabel:'VRP : Installation et paramétrage', prix:1150, defaultQty:1 });
   if (col)  items.push({ key:'col_install', kind:'tjm', defaultLabel:'Col : Installation et paramétrage', prix:1150, defaultQty:1 });
   if (log)  items.push({ key:'log_install', kind:'tjm', defaultLabel:'Log : Installation et paramétrage', prix:1150, defaultQty:1 });
@@ -2088,9 +2097,9 @@ function renderSection4() {
     const nom = fluxNoms[i-1] || ('Flux '+i);
     items.push({ key:'flux_'+i, kind:'tjm', defaultLabel:nom+' : Installation et paramétrage', prix:1150, defaultQty:0.5 });
   }
-  items.push({ key:'dev_spec', kind:'tjm', defaultLabel:'Développement spécifique', prix:1150, defaultQty:0 });
+  // -- d. Pilotage (en fin) --
   items.push({ key:'gestion_proj', kind:'tjm', defaultLabel:'Gestion de projet et encadrement technique', prix:1150, defaultQty:0 });
-  if (felec) items.push({ key:'felec_param', kind:'forfait', defaultLabel:'Mise en oeuvre Facturation électronique', prix:1150 });
+  items.push({ key:'dev_spec', kind:'tjm', defaultLabel:'Développement spécifique', prix:1150, defaultQty:0 });
 
   // Ajouter les lignes custom (kind='custom') avec key = 'custom_<id>'
   const extras = moduleState.extra_prestations || [];
