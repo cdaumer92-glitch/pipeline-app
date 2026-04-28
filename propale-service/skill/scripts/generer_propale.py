@@ -157,6 +157,12 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
     abo        = propale.get("abonnements",{})
     prest      = propale.get("prestations",{})
     form       = propale.get("formation",{})
+    # ── Nouvelles sections (Livraison 1 : modules / licences / infra) ──
+    # Si absentes (ancien CRM), fallback : tout va dans "modules" (les autres tableaux ne s'afficheront pas)
+    has_split  = any(k in propale for k in ("modules", "licences", "infra"))
+    modules_data  = propale.get("modules",  {"lignes": [], "total_mensuel": 0})
+    licences_data = propale.get("licences", {"lignes": [], "total_annuel": 0})
+    infra_data    = propale.get("infra",    {"lignes": [], "total_mensuel": 0})
     ref        = f"{societe.replace(' ','')}_{annee}{mois}"
 
     # Préparer dossier
@@ -302,16 +308,87 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
     rows_mod=[tbl[s:e] for s,e in zip(trs,tres)]; keep={i for i,m in enumerate(MODULE_ORDER) if m in modules}
     content=content[:tbl_s]+hdr2+''.join(r for i,r in enumerate(rows_mod) if i in keep)+'</w:tbl>'+content[tbl_e:]
 
-    # 7. Tableau abonnements + prestations → après §3.1
-    r_abo=row(cell_hdr("D\xe9signation",5000,"left"),cell_hdr("P\xe9riodicit\xe9",2013),cell_hdr("Montant HT",2013,"right"))
-    for l in abo.get("lignes",[]): r_abo+=row(cell_body(l["nom"],5000),cell_body("Mensuel",2013,"center"),cell_body(fmt(l["montant"]),2013,"right"))
-    r_abo+=row(cell_total("Total abonnement mensuel",5000,"left"),cell_total("Mensuel",2013,"center"),cell_total(fmt(abo.get("total_mensuel",0))+" HT",2013,"right"))
+    # 7. Tableaux abonnements + prestations → après §3.1
+    # Nouveau rendu (Livraison 2) : 4 tableaux distincts si le JSON est enrichi
+    # Sinon : ancien rendu (1 seul tableau abonnements + 1 prestations)
+    if has_split:
+        # ── Tableau 1 : Abonnements Mensuels Modules TexasWin (bleu) ──
+        r_modules = row(cell_hdr("Module / Abonnement", 5000, "left"),
+                        cell_hdr("Périodicité", 2013),
+                        cell_hdr("Montant HT", 2013, "right"))
+        for l in modules_data.get("lignes", []):
+            r_modules += row(cell_body(l["nom"], 5000),
+                             cell_body("Mensuel", 2013, "center"),
+                             cell_body(fmt(l["montant"]), 2013, "right"))
+        r_modules += row(cell_total("Total abonnements modules", 5000, "left"),
+                         cell_total("Mensuel", 2013, "center"),
+                         cell_total(fmt(modules_data.get("total_mensuel", 0)) + " HT", 2013, "right"))
 
-    r_prest=row(cell_hdr("Prestations initiales",5000,"left"),cell_hdr("Dur\xe9e",2013),cell_hdr("Montant HT",2013,"right"))
-    for l in prest.get("lignes",[]): r_prest+=row(cell_body(l["nom"],5000),cell_body(l.get("duree",""),2013,"center"),cell_body(fmt(l["montant"]),2013,"right"))
-    r_prest+=row(cell_total("Total prestations initiales",5000,"left"),cell_empty(2013),cell_total(fmt(prest.get("total",0))+" HT",2013,"right"))
+        # ── Tableau 2 : Licences complémentaires (bleu, périodicité Annuel) ──
+        # Ne s'affiche que si au moins une licence
+        r_licences = ""
+        if licences_data.get("lignes"):
+            r_licences = row(cell_hdr("Licence complémentaire", 5000, "left"),
+                             cell_hdr("Périodicité", 2013),
+                             cell_hdr("Montant HT", 2013, "right"))
+            for l in licences_data.get("lignes", []):
+                # Si qty + prix_unitaire dispo, on l'indique dans le nom (ex : "Licence My Report User (4 × 240 €)")
+                nom = l["nom"]
+                if l.get("qty") and l.get("prix_unitaire"):
+                    nom = f'{nom} ({int(l["qty"])} × {fmt(l["prix_unitaire"]).replace(chr(0xA0)+chr(0x20AC), " €")})'
+                r_licences += row(cell_body(nom, 5000),
+                                  cell_body("Annuel", 2013, "center"),
+                                  cell_body(fmt(l["montant"]), 2013, "right"))
+            r_licences += row(cell_total("Total licences annuelles", 5000, "left"),
+                              cell_total("Annuel", 2013, "center"),
+                              cell_total(fmt(licences_data.get("total_annuel", 0)) + " HT", 2013, "right"))
 
-    tbl_prix=tbl_wrap(r_abo)+sep("17110001")+tbl_wrap(r_prest)
+        # ── Tableau 3 : Infrastructure (bleu) ──
+        # Ne s'affiche que si au moins une ligne d'infra
+        r_infra = ""
+        if infra_data.get("lignes"):
+            r_infra = row(cell_hdr("Infrastructure", 5000, "left"),
+                          cell_hdr("Périodicité", 2013),
+                          cell_hdr("Montant HT", 2013, "right"))
+            for l in infra_data.get("lignes", []):
+                r_infra += row(cell_body(l["nom"], 5000),
+                               cell_body("Mensuel", 2013, "center"),
+                               cell_body(fmt(l["montant"]), 2013, "right"))
+            r_infra += row(cell_total("Total infrastructure mensuelle", 5000, "left"),
+                           cell_total("Mensuel", 2013, "center"),
+                           cell_total(fmt(infra_data.get("total_mensuel", 0)) + " HT", 2013, "right"))
+
+        # ── Tableau 4 : Prestations Initiales (orange : on garde le style header par défaut bleu pour cohérence) ──
+        r_prest = row(cell_hdr("Prestations initiales", 5000, "left"),
+                      cell_hdr("Durée", 2013),
+                      cell_hdr("Montant HT", 2013, "right"))
+        for l in prest.get("lignes", []):
+            r_prest += row(cell_body(l["nom"], 5000),
+                           cell_body(l.get("duree", ""), 2013, "center"),
+                           cell_body(fmt(l["montant"]), 2013, "right"))
+        r_prest += row(cell_total("Total prestations initiales", 5000, "left"),
+                       cell_empty(2013),
+                       cell_total(fmt(prest.get("total", 0)) + " HT", 2013, "right"))
+
+        # Assemblage : Modules → Licences → Infra → Prestations, avec séparateurs
+        tbl_prix = tbl_wrap(r_modules)
+        if r_licences:
+            tbl_prix += sep("17110002") + tbl_wrap(r_licences)
+        if r_infra:
+            tbl_prix += sep("17110003") + tbl_wrap(r_infra)
+        tbl_prix += sep("17110001") + tbl_wrap(r_prest)
+    else:
+        # ── Fallback : ancien rendu 2 tableaux (compatibilité avec ancien CRM) ──
+        r_abo = row(cell_hdr("Désignation", 5000, "left"), cell_hdr("Périodicité", 2013), cell_hdr("Montant HT", 2013, "right"))
+        for l in abo.get("lignes", []): r_abo += row(cell_body(l["nom"], 5000), cell_body("Mensuel", 2013, "center"), cell_body(fmt(l["montant"]), 2013, "right"))
+        r_abo += row(cell_total("Total abonnement mensuel", 5000, "left"), cell_total("Mensuel", 2013, "center"), cell_total(fmt(abo.get("total_mensuel", 0)) + " HT", 2013, "right"))
+
+        r_prest = row(cell_hdr("Prestations initiales", 5000, "left"), cell_hdr("Durée", 2013), cell_hdr("Montant HT", 2013, "right"))
+        for l in prest.get("lignes", []): r_prest += row(cell_body(l["nom"], 5000), cell_body(l.get("duree", ""), 2013, "center"), cell_body(fmt(l["montant"]), 2013, "right"))
+        r_prest += row(cell_total("Total prestations initiales", 5000, "left"), cell_empty(2013), cell_total(fmt(prest.get("total", 0)) + " HT", 2013, "right"))
+
+        tbl_prix = tbl_wrap(r_abo) + sep("17110001") + tbl_wrap(r_prest)
+
     anchor_prix='<w:t>Logiciel et prestations initiales</w:t>\n      </w:r>\n    </w:p>\n    <w:p w14:paraId="1D60B454"'
     if anchor_prix in content:
         content=content.replace(anchor_prix,'<w:t>Logiciel et prestations initiales</w:t>\n      </w:r>\n    </w:p>\n    '+tbl_prix+'\n    <w:p w14:paraId="1D60B454"')
