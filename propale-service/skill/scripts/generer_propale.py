@@ -146,6 +146,9 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
 
     societe    = data["societe"]
     contact    = data.get("contact","")
+    # Retirer la fonction si elle est saisie après une virgule (ex: "Nicolas BUISSON, PRÉSIDENT" → "Nicolas BUISSON")
+    if ',' in contact:
+        contact = contact.split(',', 1)[0].strip()
     adresse    = data.get("adresse","")
     commercial = data.get("commercial","christian").lower()
     modules    = [m.lower() for m in data.get("modules_retenus",[])]
