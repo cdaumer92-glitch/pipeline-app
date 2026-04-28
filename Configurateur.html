@@ -2725,7 +2725,10 @@ function buildConfigJson() {
   if ((moduleState.fluxTiers||0)>0) modulesRetenus.push('flu');
 
   // Lignes abonnements depuis le DOM
-  const lignesAbo = [];
+  // Split en 2 catégories : Modules (avec modId) et Infrastructure (sans modId)
+  const lignesAbo = [];      // total combiné — conservé pour compatibilité avec l'ancien Python
+  const lignesModules = [];  // NEW : modules métier (Biz, Fab, Net, Mag, VRP, Col, Log, Jet, Kub, Flu)
+  const lignesInfra = [];    // NEW : infrastructure (hébergement, gestion flux, support, allocation Sage, etc.)
   // Reconstruire depuis les valeurs (avec remises par module appliquées)
   const ms = moduleState;
   const remPct = (modId) => ms[modId + '_remise'] || 0;
@@ -2737,6 +2740,12 @@ function buildConfigJson() {
     const ligne = { nom, montant: net, unite: '€/mois' };
     if (r > 0) { ligne.prix_brut = montant; ligne.remise_pct = r; }
     lignesAbo.push(ligne);
+    // Tri par catégorie : présence d'un modId = module métier, sinon = infrastructure
+    if (modId) {
+      lignesModules.push(ligne);
+    } else {
+      lignesInfra.push(ligne);
+    }
   };
   addAbo('Module BIZ (Négoce)', (ms.biz||0)*155, 'biz');
   addAbo('Avec option Production (FAB)', (ms.biz_fab_opt||0)*68, 'biz');
@@ -2774,11 +2783,40 @@ function buildConfigJson() {
         const ligne = { nom: label + ` (${qty} ${line.unit||''} × ${fmtNum(pu)} €)`, montant: net, unite: '€/mois' };
         if (remise > 0) { ligne.prix_brut = brut; ligne.remise_pct = remise; }
         lignesAbo.push(ligne);
+        lignesModules.push(ligne); // Les lignes custom sont liées à un module → catégorie Modules
       }
     });
   });
 
   const totalMensuel = lignesAbo.reduce((s,l)=>s+l.montant,0);
+  const totalModules = lignesModules.reduce((s,l)=>s+l.montant,0);
+  const totalInfra = lignesInfra.reduce((s,l)=>s+l.montant,0);
+
+  // ── Licences complémentaires (Section 2 du configurateur : Sage 100, MyReport, Extensions Kub) ──
+  // Récupérées depuis sectionValues['section2_X'] et sectionsData.section2.items
+  const lignesLicences = [];
+  if (sectionsData && sectionsData.section2 && sectionsData.section2.items) {
+    sectionsData.section2.items.forEach((item, i) => {
+      const sv = sectionValues['section2_' + i];
+      if (!sv || sv.qty <= 0) return;
+      // Filtrer celles qui sont visibles dans le contexte courant
+      const showSage = item.dependModule === 'comptaSage' && ms.comptaSage;
+      const showKub = item.dependKub && (ms.kub||0) > 0;
+      if (!showSage && !showKub) return;
+      const prixBrut = item.prix * sv.qty;
+      const net = prixBrut * (1 - sv.remise/100);
+      const ligne = {
+        nom: item.nom,
+        qty: sv.qty,
+        prix_unitaire: item.prix,
+        montant: net,
+        unite: item.unite || '€/an'
+      };
+      if (sv.remise > 0) { ligne.prix_brut = prixBrut; ligne.remise_pct = sv.remise; }
+      lignesLicences.push(ligne);
+    });
+  }
+  const totalLicences = lignesLicences.reduce((s,l)=>s+l.montant,0);
 
   // Lignes prestations (avec renommage et ordre personnalisé)
   const lignesPrest = [];
@@ -2884,6 +2922,11 @@ function buildConfigJson() {
     nb_utilisateurs: ms.biz||ms.fab||0,
     moduleState: {...moduleState},
     propale: {
+      // ── Sections enrichies pour le nouveau rendu .docx (5 tableaux) ──
+      modules:    { lignes: lignesModules,  total_mensuel: totalModules },
+      licences:   { lignes: lignesLicences, total_annuel: totalLicences },
+      infra:      { lignes: lignesInfra,    total_mensuel: totalInfra },
+      // ── Section abonnements conservée pour compatibilité ascendante avec l'ancien Python ──
       abonnements: { lignes: lignesAbo, total_mensuel: totalMensuel },
       prestations: { lignes: lignesPrest, total: totalPrest },
       ...(lignesFormation.length ? { formation: { lignes: lignesFormation, qualiopi, total: totalForm } } : {})
