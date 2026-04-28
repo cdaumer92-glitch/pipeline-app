@@ -71,6 +71,14 @@ app.post('/generate', async (req, res) => {
       proc.on('error', err => reject(err));
     });
 
+    // Rejouer les sorties Python dans les logs Node (sinon elles sont invisibles dans Cockpit/Grafana)
+    if (result.stdout && result.stdout.trim()) {
+      console.log(`[python:stdout] ${result.stdout.trim()}`);
+    }
+    if (result.stderr && result.stderr.trim()) {
+      console.warn(`[python:stderr] ${result.stderr.trim()}`);
+    }
+
     const elapsed = Date.now() - startTs;
 
     if (!existsSync(outputPath)) {
