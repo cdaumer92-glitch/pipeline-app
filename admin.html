@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Administration — Pipeline TexasWin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Lato', sans-serif;
+      background: #f4f7f7;
+      color: #1a3535;
+      min-height: 100vh;
+    }
+    .topbar {
+      background: white;
+      border-bottom: 3px solid #007d89;
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .topbar h1 {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.3rem;
+      color: #1a3535;
+      letter-spacing: -0.3px;
+    }
+    .topbar h1 .accent { color: #007d89; font-weight: 300; }
+    .topbar h1 .badge {
+      display: inline-block;
+      margin-left: 12px;
+      padding: 3px 10px;
+      background: #fdecea;
+      color: #c0392b;
+      font-size: 0.7rem;
+      font-weight: 700;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      vertical-align: middle;
+    }
+    .back-link {
+      color: #007d89;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .back-link:hover { text-decoration: underline; }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 32px;
+    }
+
+    /* Auth gate */
+    #authGate {
+      max-width: 420px;
+      margin: 80px auto;
+      background: white;
+      padding: 32px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,125,137,0.1);
+      text-align: center;
+    }
+    #authGate h2 {
+      margin: 0 0 12px;
+      font-family: 'Poppins', sans-serif;
+      color: #1a3535;
+    }
+    #authGate p { color: #607a7a; font-size: 0.9rem; margin-bottom: 24px; }
+    #authGate .btn-login {
+      display: inline-block;
+      padding: 12px 28px;
+      background: #007d89;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 700;
+    }
+    #authGate .btn-login:hover { background: #006670; }
+
+    /* Stats cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: white;
+      padding: 18px 22px;
+      border-radius: 10px;
+      border: 1px solid #e0ecec;
+    }
+    .stat-card .label {
+      font-size: 0.7rem;
+      color: #9eb5b5;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .stat-card .value {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #007d89;
+      line-height: 1;
+    }
+    .stat-card .sub { font-size: 0.75rem; color: #9eb5b5; margin-top: 4px; }
+
+    /* Sections */
+    .section {
+      background: white;
+      border-radius: 10px;
+      border: 1px solid #e0ecec;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .section-header {
+      padding: 16px 22px;
+      border-bottom: 1px solid #e0ecec;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f9fbfb;
+    }
+    .section-header h2 {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      font-size: 1rem;
+      color: #1a3535;
+    }
+    .section-header .meta {
+      font-size: 0.8rem;
+      color: #9eb5b5;
+    }
+    .refresh-btn {
+      padding: 6px 14px;
+      background: #f0f8f8;
+      border: 1px solid #cde8e8;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: #007d89;
+      font-weight: 600;
+    }
+    .refresh-btn:hover { background: #e0f0f0; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th {
+      text-align: left;
+      padding: 10px 16px;
+      background: #f4f7f7;
+      color: #607a7a;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      font-weight: 700;
+      border-bottom: 1px solid #e0ecec;
+    }
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f0f0f0;
+      color: #1a3535;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafbfb; }
+    .empty {
+      padding: 32px 16px;
+      text-align: center;
+      color: #9eb5b5;
+      font-style: italic;
+      font-size: 0.9rem;
+    }
+
+    /* Avatar circle */
+    .avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #007d89;
+      color: white;
+      font-weight: 700;
+      font-size: 0.75rem;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+    .user-cell { display: flex; align-items: center; }
+    .user-name { font-weight: 600; }
+    .user-email { font-size: 0.75rem; color: #9eb5b5; }
+
+    /* Badges */
+    .badge-status {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .badge-active { background: #e8f8f0; color: #2ec27e; }
+    .badge-idle { background: #fff8e1; color: #f0932b; }
+    .badge-stale { background: #fdecea; color: #c0392b; }
+    .badge-logout { background: #f0f0f0; color: #607a7a; }
+    .badge-forced { background: #fdecea; color: #c0392b; }
+    .badge-inactive { background: #fff4e1; color: #f0932b; }
+
+    /* Action buttons */
+    .btn-disconnect {
+      padding: 6px 12px;
+      background: white;
+      border: 1px solid #f5b7b1;
+      border-radius: 6px;
+      color: #c0392b;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .btn-disconnect:hover { background: #fdecea; }
+    .btn-disconnect:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Loading state */
+    .loading {
+      padding: 32px 16px;
+      text-align: center;
+      color: #9eb5b5;
+    }
+    .loading::after {
+      content: '...';
+      display: inline-block;
+      animation: dots 1.4s infinite;
+    }
+    @keyframes dots {
+      0%, 20% { content: '.'; }
+      40% { content: '..'; }
+      60%, 100% { content: '...'; }
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 14px 20px;
+      border-radius: 8px;
+      color: white;
+      font-weight: 600;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+      z-index: 1000;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { background: #2ec27e; }
+    .toast.error { background: #c0392b; }
+
+    /* User stats grid */
+    .user-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      padding: 16px 22px;
+    }
+    .user-stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background: #f9fbfb;
+      border-radius: 8px;
+      border: 1px solid #e0ecec;
+    }
+    .user-stat-row .name { font-weight: 600; color: #1a3535; }
+    .user-stat-row .nb { font-weight: 700; color: #007d89; }
+  </style>
+</head>
+<body>
+
+<!-- Auth gate (affichée si pas connecté ou pas admin) -->
+<div id="authGate" style="display:none;">
+  <h2>🔒 Accès restreint</h2>
+  <p>Cette page est réservée aux administrateurs de Pipeline TexasWin.</p>
+  <a href="/" class="btn-login">Retour à Pipeline TexasWin</a>
+</div>
+
+<!-- Page admin -->
+<div id="adminPage" style="display:none;">
+  <div class="topbar">
+    <h1>
+      TexasWin <span class="accent">Pipeline</span>
+      <span class="badge">Administration</span>
+    </h1>
+    <a href="/" class="back-link">← Retour à Pipeline</a>
+  </div>
+
+  <div class="container">
+
+    <!-- STATS GLOBALES -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <div class="label">Connectés maintenant</div>
+        <div class="value" id="statActive">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Sessions aujourd'hui</div>
+        <div class="value" id="statToday">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Sessions ce mois</div>
+        <div class="value" id="statMonth">—</div>
+      </div>
+    </div>
+
+    <!-- SESSIONS ACTIVES -->
+    <div class="section">
+      <div class="section-header">
+        <h2>🟢 Sessions actives</h2>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <span class="meta" id="activeMeta">—</span>
+          <button class="refresh-btn" onclick="loadAll()">🔄 Rafraîchir</button>
+        </div>
+      </div>
+      <div id="activeContainer">
+        <div class="loading">Chargement</div>
+      </div>
+    </div>
+
+    <!-- ACTIVITÉ PAR UTILISATEUR (30j) -->
+    <div class="section">
+      <div class="section-header">
+        <h2>👥 Activité par utilisateur (30 derniers jours)</h2>
+      </div>
+      <div id="userStatsContainer">
+        <div class="loading">Chargement</div>
+      </div>
+    </div>
+
+    <!-- HISTORIQUE -->
+    <div class="section">
+      <div class="section-header">
+        <h2>📜 Historique récent (50 dernières sessions)</h2>
+      </div>
+      <div id="historyContainer">
+        <div class="loading">Chargement</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast notifications -->
+<div id="toast" class="toast"></div>
+
+<script>
+  // ─────────────────────────────────────────────────────────────
+  // Auth check : récupérer le user depuis localStorage
+  // ─────────────────────────────────────────────────────────────
+  const userRaw = localStorage.getItem('user');
+  if (!userRaw) {
+    document.getElementById('authGate').style.display = 'block';
+    throw new Error('Not authenticated');
+  }
+
+  let user;
+  try {
+    user = JSON.parse(userRaw);
+  } catch (e) {
+    document.getElementById('authGate').style.display = 'block';
+    throw new Error('Invalid user data');
+  }
+
+  // Vérification admin (même logique que l'app principale)
+  const isAdmin = ['Christian', 'Frédéric', 'Frederic'].includes(user.name);
+  if (!isAdmin) {
+    document.getElementById('authGate').style.display = 'block';
+    throw new Error('Not admin');
+  }
+
+  // OK, on affiche la page admin
+  document.getElementById('adminPage').style.display = 'block';
+
+  const authHeaders = { 'Authorization': `Bearer ${user.token}` };
+
+  // ─────────────────────────────────────────────────────────────
+  // Helpers
+  // ─────────────────────────────────────────────────────────────
+  const fmtDateTime = (d) => {
+    if (!d) return '—';
+    const date = new Date(d);
+    return date.toLocaleString('fr-FR', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  };
+
+  const fmtDuration = (seconds) => {
+    if (seconds == null) return '—';
+    if (seconds < 60) return `${seconds}s`;
+    const min = Math.floor(seconds / 60);
+    if (min < 60) return `${min} min`;
+    const h = Math.floor(min / 60);
+    const remMin = min % 60;
+    if (h < 24) return `${h}h${remMin > 0 ? ' ' + remMin + 'min' : ''}`;
+    const d = Math.floor(h / 24);
+    return `${d}j ${h % 24}h`;
+  };
+
+  const initials = (name) => {
+    if (!name) return '?';
+    return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const idleBadge = (idleSeconds) => {
+    if (idleSeconds < 120) return '<span class="badge-status badge-active">Actif</span>';
+    if (idleSeconds < 1800) return '<span class="badge-status badge-idle">Inactif ' + fmtDuration(idleSeconds) + '</span>';
+    return '<span class="badge-status badge-stale">Inactif ' + fmtDuration(idleSeconds) + '</span>';
+  };
+
+  const logoutReasonBadge = (reason, isActive) => {
+    if (isActive) return '<span class="badge-status badge-active">Active</span>';
+    if (reason === 'user_logout') return '<span class="badge-status badge-logout">Déconnexion</span>';
+    if (reason === 'admin_forced') return '<span class="badge-status badge-forced">Forcée admin</span>';
+    if (reason === 'inactivity') return '<span class="badge-status badge-inactive">Inactivité</span>';
+    return '<span class="badge-status badge-logout">Terminée</span>';
+  };
+
+  const showToast = (msg, type = 'success') => {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast ${type} show`;
+    setTimeout(() => { t.className = 'toast'; }, 3000);
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // Chargement des données
+  // ─────────────────────────────────────────────────────────────
+  async function loadStats() {
+    try {
+      const res = await fetch('/api/admin/sessions/stats', { headers: authHeaders });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Erreur stats');
+
+      document.getElementById('statActive').textContent = data.stats.active_now;
+      document.getElementById('statToday').textContent = data.stats.today;
+      document.getElementById('statMonth').textContent = data.stats.this_month;
+
+      // User stats
+      const usersDiv = document.getElementById('userStatsContainer');
+      if (!data.stats.by_user_30d || data.stats.by_user_30d.length === 0) {
+        usersDiv.innerHTML = '<div class="empty">Aucune connexion sur les 30 derniers jours</div>';
+      } else {
+        let html = '<div class="user-stats-grid">';
+        data.stats.by_user_30d.forEach(u => {
+          html += `
+            <div class="user-stat-row">
+              <div>
+                <div class="name">${u.user_name || 'Inconnu'}</div>
+                <div style="font-size:0.7rem;color:#9eb5b5">Dernier: ${fmtDateTime(u.last_login)}</div>
+              </div>
+              <div class="nb">${u.nb_sessions}</div>
+            </div>`;
+        });
+        html += '</div>';
+        usersDiv.innerHTML = html;
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Erreur chargement stats: ' + e.message, 'error');
+    }
+  }
+
+  async function loadActive() {
+    const container = document.getElementById('activeContainer');
+    const meta = document.getElementById('activeMeta');
+    container.innerHTML = '<div class="loading">Chargement</div>';
+
+    try {
+      const res = await fetch('/api/admin/active-users', { headers: authHeaders });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Erreur');
+
+      meta.textContent = data.users.length + ' session' + (data.users.length > 1 ? 's' : '');
+
+      if (data.users.length === 0) {
+        container.innerHTML = '<div class="empty">Aucune session active actuellement</div>';
+        return;
+      }
+
+      let html = '<table><thead><tr>'
+        + '<th>Utilisateur</th>'
+        + '<th>Connexion</th>'
+        + '<th>Durée</th>'
+        + '<th>Activité</th>'
+        + '<th>IP</th>'
+        + '<th style="text-align:right">Action</th>'
+        + '</tr></thead><tbody>';
+      data.users.forEach(u => {
+        html += `<tr>
+          <td>
+            <div class="user-cell">
+              <div class="avatar">${initials(u.user_name)}</div>
+              <div>
+                <div class="user-name">${u.user_name || '—'}</div>
+                <div class="user-email">${u.user_email || ''}</div>
+              </div>
+            </div>
+          </td>
+          <td>${fmtDateTime(u.login_time)}</td>
+          <td>${fmtDuration(u.session_seconds)}</td>
+          <td>${idleBadge(u.idle_seconds)}</td>
+          <td style="font-family:monospace;font-size:0.8rem;color:#607a7a">${u.ip_address || '—'}</td>
+          <td style="text-align:right">
+            <button class="btn-disconnect" onclick="disconnectSession(${u.id}, '${(u.user_name||'').replace(/'/g, "\\'")}')">Déconnecter</button>
+          </td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch (e) {
+      console.error(e);
+      container.innerHTML = '<div class="empty" style="color:#c0392b">Erreur: ' + e.message + '</div>';
+    }
+  }
+
+  async function loadHistory() {
+    const container = document.getElementById('historyContainer');
+    container.innerHTML = '<div class="loading">Chargement</div>';
+
+    try {
+      const res = await fetch('/api/admin/sessions/history?limit=50', { headers: authHeaders });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Erreur');
+
+      if (data.sessions.length === 0) {
+        container.innerHTML = '<div class="empty">Aucune session dans l\'historique</div>';
+        return;
+      }
+
+      let html = '<table><thead><tr>'
+        + '<th>Utilisateur</th>'
+        + '<th>Connexion</th>'
+        + '<th>Durée</th>'
+        + '<th>Statut</th>'
+        + '<th>IP</th>'
+        + '</tr></thead><tbody>';
+      data.sessions.forEach(s => {
+        html += `<tr>
+          <td>
+            <div class="user-cell">
+              <div class="avatar">${initials(s.user_name)}</div>
+              <div>
+                <div class="user-name">${s.user_name || '—'}</div>
+                <div class="user-email">${s.user_email || ''}</div>
+              </div>
+            </div>
+          </td>
+          <td>${fmtDateTime(s.login_time)}</td>
+          <td>${fmtDuration(s.session_seconds)}</td>
+          <td>${logoutReasonBadge(s.logout_reason, s.is_active)}</td>
+          <td style="font-family:monospace;font-size:0.8rem;color:#607a7a">${s.ip_address || '—'}</td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch (e) {
+      console.error(e);
+      container.innerHTML = '<div class="empty" style="color:#c0392b">Erreur: ' + e.message + '</div>';
+    }
+  }
+
+  async function disconnectSession(sessionId, userName) {
+    if (!confirm(`Déconnecter la session de ${userName} ?\n\nNote : pour cette première version, la déconnexion est déclarative (la session est marquée inactive en base, mais l'utilisateur reste fonctionnellement connecté tant que son token n'expire pas). La déconnexion forcée réelle viendra dans une prochaine mise à jour.`)) return;
+
+    try {
+      const res = await fetch(`/api/admin/sessions/${sessionId}/disconnect`, {
+        method: 'POST',
+        headers: authHeaders
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || 'HTTP ' + res.status);
+      }
+      showToast(`Session de ${userName} marquée comme déconnectée`);
+      loadAll();
+    } catch (e) {
+      console.error(e);
+      showToast('Erreur: ' + e.message, 'error');
+    }
+  }
+
+  function loadAll() {
+    loadStats();
+    loadActive();
+    loadHistory();
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Init + auto-refresh des sessions actives toutes les 30s
+  // ─────────────────────────────────────────────────────────────
+  loadAll();
+  setInterval(() => { loadActive(); loadStats(); }, 30000);
+
+  // Expose disconnectSession au scope global pour les onclick inline
+  window.disconnectSession = disconnectSession;
+  window.loadAll = loadAll;
+</script>
+
+</body>
+</html>

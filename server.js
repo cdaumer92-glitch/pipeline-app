@@ -236,6 +236,15 @@ async function initDB() {
       is_active BOOLEAN DEFAULT true
     )`);
 
+    // Migration : champ last_activity pour tracker l'activité (rolling timeout)
+    await client.query(`ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+    // Migration : champ logout_time + raison de fermeture (logout volontaire / forcé admin / inactivité)
+    await client.query(`ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS logout_time TIMESTAMP`);
+    await client.query(`ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS logout_reason VARCHAR(50)`);
+    // Index pour accélérer les requêtes admin (active sessions, history)
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON user_sessions(is_active, last_activity DESC)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_history ON user_sessions(login_time DESC)`);
+
     // ============ TABLES CLIENT (licences, boutiques, matériel) ============
 
     // Référentiel licences
@@ -453,6 +462,14 @@ const auth = (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.id;
     req.userName = decoded.name;
+
+    // Mise à jour last_activity en fire-and-forget (non bloquant, pas d'impact perf)
+    // Permet à la page admin de voir l'activité réelle des utilisateurs
+    pool.query(
+      `UPDATE user_sessions SET last_activity = NOW() WHERE user_id = $1 AND is_active = true`,
+      [decoded.id]
+    ).catch(err => console.warn('[auth] last_activity update failed:', err.message));
+
     next();
   } catch {
     res.status(401).json({ error: 'Token invalide' });
@@ -514,7 +531,9 @@ app.post('/api/auth/logout', auth, async (req, res) => {
   try {
     await pool.query(`
       UPDATE user_sessions 
-      SET is_active = false 
+      SET is_active = false,
+          logout_time = NOW(),
+          logout_reason = 'user_logout'
       WHERE user_id = $1 AND is_active = true
     `, [req.userId]);
     
@@ -1972,18 +1991,107 @@ app.get('/api/admin/active-users', requireAdmin, async (req, res) => {
     const result = await pool.query(`
       SELECT 
         id,
+        user_id,
         user_email,
         user_name,
         login_time,
-        ip_address
+        last_activity,
+        ip_address,
+        EXTRACT(EPOCH FROM (NOW() - login_time))::int AS session_seconds,
+        EXTRACT(EPOCH FROM (NOW() - last_activity))::int AS idle_seconds
       FROM user_sessions
       WHERE is_active = true
-      ORDER BY login_time DESC
+      ORDER BY last_activity DESC
     `);
     
     res.json({ success: true, users: result.rows });
   } catch (err) {
     console.error('Erreur récupération users actifs:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/admin/sessions/history?limit=50 — Historique des sessions récentes
+app.get('/api/admin/sessions/history', requireAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const result = await pool.query(`
+      SELECT 
+        id,
+        user_id,
+        user_email,
+        user_name,
+        login_time,
+        last_activity,
+        logout_time,
+        logout_reason,
+        is_active,
+        ip_address,
+        EXTRACT(EPOCH FROM (COALESCE(logout_time, last_activity, NOW()) - login_time))::int AS session_seconds
+      FROM user_sessions
+      ORDER BY login_time DESC
+      LIMIT $1
+    `, [limit]);
+    
+    res.json({ success: true, sessions: result.rows });
+  } catch (err) {
+    console.error('Erreur récupération historique sessions:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/admin/sessions/stats — Stats globales (sessions actives, par jour, par utilisateur)
+app.get('/api/admin/sessions/stats', requireAdmin, async (req, res) => {
+  try {
+    const [active, today, thisMonth, byUser] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS nb FROM user_sessions WHERE is_active = true`),
+      pool.query(`SELECT COUNT(*)::int AS nb FROM user_sessions WHERE login_time::date = CURRENT_DATE`),
+      pool.query(`SELECT COUNT(*)::int AS nb FROM user_sessions WHERE login_time >= DATE_TRUNC('month', CURRENT_DATE)`),
+      pool.query(`
+        SELECT user_name, COUNT(*)::int AS nb_sessions,
+               MAX(login_time) AS last_login
+        FROM user_sessions
+        WHERE login_time >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY user_name
+        ORDER BY last_login DESC
+      `)
+    ]);
+    
+    res.json({
+      success: true,
+      stats: {
+        active_now: active.rows[0].nb,
+        today: today.rows[0].nb,
+        this_month: thisMonth.rows[0].nb,
+        by_user_30d: byUser.rows
+      }
+    });
+  } catch (err) {
+    console.error('Erreur stats sessions:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/sessions/:id/disconnect — Déconnecter une session active (déclaratif pour Phase 1)
+app.post('/api/admin/sessions/:id/disconnect', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      UPDATE user_sessions
+      SET is_active = false,
+          logout_time = NOW(),
+          logout_reason = 'admin_forced'
+      WHERE id = $1 AND is_active = true
+      RETURNING id, user_name, user_email
+    `, [req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Session non trouvée ou déjà inactive' });
+    }
+
+    console.log(`[Admin] Session ${req.params.id} (${result.rows[0].user_name}) déconnectée par admin (déclaratif)`);
+    res.json({ success: true, session: result.rows[0] });
+  } catch (err) {
+    console.error('Erreur déconnexion session:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
