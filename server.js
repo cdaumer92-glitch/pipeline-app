@@ -2197,20 +2197,18 @@ app.get('/api/admin/societes-with-json', requireAdmin, async (req, res) => {
   }
 });
 
-// GET /api/admin/societes/:id/affaires-with-json — Affaires d'une société avec au moins un devis ayant config_json
+// GET /api/admin/societes/:id/affaires-with-json — Affaires d'une société (toutes, même sans propale)
+// Le filtrage par "ayant un JSON" est fait au niveau devis (via /api/admin/affaires/:id/devis-with-json)
 app.get('/api/admin/societes/:id/affaires-with-json', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT DISTINCT a.id, a.nom_affaire, a.statut_global, a.created_at
-       FROM affaires a
-       INNER JOIN devis d ON d.affaire_id = a.id
-       WHERE a.prospect_id = $1
-         AND d.config_json IS NOT NULL
-       ORDER BY a.created_at DESC`,
+      `SELECT id, nom_affaire, statut_global
+       FROM affaires
+       WHERE prospect_id = $1
+       ORDER BY created_at DESC`,
       [req.params.id]
     );
-    // On ne renvoie pas created_at au client (pas utile pour l'UI)
-    res.json(result.rows.map(r => ({ id: r.id, nom_affaire: r.nom_affaire, statut_global: r.statut_global })));
+    res.json(result.rows);
   } catch (err) {
     console.error('Erreur GET /api/admin/societes/:id/affaires-with-json:', err);
     res.status(500).json({ error: err.message });
