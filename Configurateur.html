@@ -2066,11 +2066,11 @@ function renderSection4() {
 
   const setupTW = calcSetupTW();
   const marge = (parseFloat(document.getElementById('margeSetup')?.value)||30)/100;
-  const fasPrice = Math.round(1150/(1-marge)/5)*5;
+  const fasPrice = 1150; // Forfait fixe : pas de marge appliquée à la FAS
 
   // ── 1) Collecter toutes les lignes actives (standards + custom) ──
   const items = [];
-  if (biz)  items.push({ key:'fas', kind:'auto', defaultLabel:'FAS : Installation du logiciel TexasWin', prix:fasPrice });
+  if (biz)  items.push({ key:'fas', kind:'forfait', defaultLabel:'FAS : Installation du logiciel TexasWin', prix:fasPrice });
   if (biz)  items.push({ key:'setup_tw', kind:'auto', defaultLabel:'Mise en place hébergement TexasWin', prix:setupTW });
   if (sage) items.push({ key:'setup_sage', kind:'auto', defaultLabel:'Mise en place hébergement Sage', prix:1150 });
   if (biz)  items.push({ key:'modif_etats', kind:'tjm', defaultLabel:"Biz/Fab : Modifications d'états commerciaux", prix:1150, defaultQty:0.5 });
@@ -2265,12 +2265,69 @@ function attachDragHandlers(tr) {
 
 
 
+// ─────────────────────────────────────────────────────────────
+// Bug 3 : Logique métier Kub / MyReport
+// Indices Section 2 : 2=Manager (mandatory), 3=User, 4=Center, 5/6/7=Extensions
+// Règle : Manager + User + Center DOIT == qté Kub
+// Défauts à l'activation Kub : Manager=1, User=qtéKub-1, Center=0, Extensions=0
+// ─────────────────────────────────────────────────────────────
+const KUB_INDEX_MANAGER = 2;
+const KUB_INDEX_USER = 3;
+const KUB_INDEX_CENTER = 4;
+const KUB_INDEX_EXTENSIONS = [5, 6, 7]; // Sage/EBP, Silae, Multi-sources
+
+// Pose les valeurs par défaut Kub si elles ne sont pas encore initialisées
+// Appelée par renderSection2 quand Kub passe à actif
+function applyKubDefaults() {
+  const kubQty = moduleState.kub || 0;
+  if (kubQty <= 0) return;
+
+  // Manager : toujours 1 par défaut (cas où jamais initialisé)
+  if (sectionValues['section2_' + KUB_INDEX_MANAGER] === undefined) {
+    sectionValues['section2_' + KUB_INDEX_MANAGER] = { qty: 1, remise: 0, checked: true };
+  }
+  // User : qtéKub - 1 par défaut
+  if (sectionValues['section2_' + KUB_INDEX_USER] === undefined) {
+    sectionValues['section2_' + KUB_INDEX_USER] = { qty: Math.max(0, kubQty - 1), remise: 0, checked: false };
+  }
+  // Center : 0 par défaut
+  if (sectionValues['section2_' + KUB_INDEX_CENTER] === undefined) {
+    sectionValues['section2_' + KUB_INDEX_CENTER] = { qty: 0, remise: 0, checked: false };
+  }
+  // Extensions Kub : 0 par défaut (au lieu de qtyFixed:1)
+  KUB_INDEX_EXTENSIONS.forEach(i => {
+    if (sectionValues['section2_' + i] === undefined) {
+      sectionValues['section2_' + i] = { qty: 0, remise: 0, checked: false };
+    }
+  });
+}
+
+// Vérifie la cohérence des licences MyReport.
+// Retourne null si OK, sinon un message d'erreur à afficher.
+function validateKubLicences() {
+  const kubQty = moduleState.kub || 0;
+  if (kubQty <= 0) return null; // Pas de Kub, rien à vérifier
+
+  const qManager = sectionValues['section2_' + KUB_INDEX_MANAGER]?.qty || 0;
+  const qUser = sectionValues['section2_' + KUB_INDEX_USER]?.qty || 0;
+  const qCenter = sectionValues['section2_' + KUB_INDEX_CENTER]?.qty || 0;
+  const total = qManager + qUser + qCenter;
+
+  if (total !== kubQty) {
+    return `Incohérence licences MyReport : Manager (${qManager}) + User (${qUser}) + Center (${qCenter}) = ${total}, mais la quantité Kub est ${kubQty}.\n\nMerci d'ajuster les quantités pour que le total soit égal à ${kubQty}.`;
+  }
+  return null;
+}
+
+
 function renderSection2() {
   const kub = moduleState.kub > 0;
   const sage = moduleState.comptaSage;
   const card = document.getElementById('card-section2');
   card.style.display = (kub || sage) ? '' : 'none';
   if (!kub && !sage) return;
+  // Bug 3 : poser les défauts Kub avant le rendu
+  if (kub) applyKubDefaults();
   const tbody = document.getElementById('tbody-section2');
   tbody.innerHTML = '';
   sectionsData.section2.items.forEach((item, i) => {
@@ -2287,7 +2344,7 @@ function renderSection2() {
         onchange="sectionValues['section2_${i}'].qty=parseFloat(this.value)||0;calculate()"></td>
       <td class="center"><input type="number" class="inline-qty" value="${sv.remise}" min="0" max="100"
         onchange="sectionValues['section2_${i}'].remise=parseFloat(this.value)||0;calculate()"></td>
-      <td class="right">${fmtEur(total)}</td>
+      <td class="right total-s2-${i}">${fmtEur(total)}</td>
       <td class="center">${item.unite}</td>`;
     tbody.appendChild(tr);
   });
@@ -2482,7 +2539,11 @@ function calculate() {
     if (!showKub && !showSage) return;
     const sv = sectionValues['section2_'+i];
     if (!sv) return;
-    s2total += item.prix * sv.qty * (1 - sv.remise/100);
+    const ligneTotal = item.prix * sv.qty * (1 - sv.remise/100);
+    s2total += ligneTotal;
+    // Bug 1 : MAJ du total affiché sur la ligne
+    const cell = document.querySelector('.total-s2-' + i);
+    if (cell) cell.textContent = fmtEur(ligneTotal);
   });
   totalAnnuel += s2total;
   if (s2total > 0) document.getElementById('total_section2').textContent = fmtNum(s2total) + ' €/an';
@@ -2490,7 +2551,7 @@ function calculate() {
   // Section 4 : prestations
   let s4total = 0;
   const marge = (parseFloat(document.getElementById('margeSetup')?.value)||30)/100;
-  const fasP = Math.round(1150/(1-marge)/5)*5;
+  const fasP = 1150; // Forfait fixe (pas de marge sur la FAS)
   const setupP = calcSetupTW();
   if (biz>0||fab>0) s4total += fasP;
   if (biz>0||fab>0) s4total += setupP;
@@ -2511,10 +2572,20 @@ function calculate() {
     }
     if (k.startsWith('flux_')) {
       const idx = parseInt(k.split('_')[1]);
-      if (idx <= flux) s4total += 1150 * sv.qty * (1 - sv.remise/100);
+      if (idx <= flux) {
+        const ligne = 1150 * sv.qty * (1 - sv.remise/100);
+        s4total += ligne;
+        // Bug 1 : MAJ du total affiché sur la ligne flux
+        const cell = document.querySelector('.total-s4-' + k);
+        if (cell) cell.textContent = fmtEur(ligne);
+      }
       return;
     }
-    s4total += 1150 * sv.qty * (1 - sv.remise/100);
+    const ligne = 1150 * sv.qty * (1 - sv.remise/100);
+    s4total += ligne;
+    // Bug 1 : MAJ du total affiché sur la ligne TJM
+    const cell = document.querySelector('.total-s4-' + k);
+    if (cell) cell.textContent = fmtEur(ligne);
   });
 
   // Prestations personnalisées ajoutées via "+ Ajouter une ligne"
@@ -2713,7 +2784,7 @@ function buildConfigJson() {
   const lignesPrest = [];
   const addP = (nom, duree, montant) => { if(montant>0) lignesPrest.push({nom, duree, montant}); };
   const marge = (parseFloat(document.getElementById('margeSetup')?.value)||30)/100;
-  const fasP = Math.round(1150/(1-marge)/5)*5;
+  const fasP = 1150; // Forfait fixe (pas de marge sur la FAS)
   const setupP = calcSetupTW();
 
   // Helper : applique le customLabel s'il existe, sinon le label par défaut
@@ -2826,6 +2897,13 @@ function buildConfigJson() {
 async function generateProposition() {
   const config = buildConfigJson();
   if (!config) return;
+
+  // Bug 3 : Validation cohérence licences MyReport (Manager + User + Center == qté Kub)
+  const kubError = validateKubLicences();
+  if (kubError) {
+    alert('⚠️ Validation licences Kub :\n\n' + kubError);
+    return;
+  }
 
   // Afficher la modale de progression
   showProgressModal();
@@ -3114,6 +3192,13 @@ function openSaveInAffaireModal() {
 
 // Confirme la sauvegarde : POST vers /api/affaires/:id/devis
 async function confirmSaveDevis() {
+  // Bug 3 : Validation cohérence licences MyReport (Manager + User + Center == qté Kub)
+  const kubError = validateKubLicences();
+  if (kubError) {
+    alert('⚠️ Validation licences Kub :\n\n' + kubError);
+    return;
+  }
+
   const token = getAuthToken();
   if (!token) {
     showSaveError("Session expirée. Fermez cet onglet, reconnectez-vous à Pipeline, puis réouvrez le configurateur depuis l'affaire.");
