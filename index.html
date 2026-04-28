@@ -2520,7 +2520,7 @@
                 >
                   <option value="">
                     {!selectedSociete ? '— Choisissez d\'abord une société —' :
-                     affaires.length === 0 ? '— Aucune affaire avec JSON —' :
+                     affaires.length === 0 ? '— Aucune propale n\'a encore été générée pour cette société —' :
                      '— Sélectionner une affaire —'}
                   </option>
                   {affaires.map(a => (
@@ -2550,7 +2550,7 @@
                 >
                   <option value="">
                     {!selectedAffaireId ? '— Choisissez d\'abord une affaire —' :
-                     devis.length === 0 ? '— Aucun devis avec JSON —' :
+                     devis.length === 0 ? '— Aucune propale générée dans cette affaire —' :
                      '— Sélectionner un devis —'}
                   </option>
                   {devis.map(d => (

@@ -2174,19 +2174,19 @@ app.get('/api/admin/devis/:id/config-json', requireAdmin, async (req, res) => {
 
 // ── Routes admin pour le panneau de récupération JSON (cascade Société → Affaire → Devis) ──
 
-// GET /api/admin/societes-with-json?q=xxx — Sociétés ayant au moins un devis avec config_json (autocomplete)
+// GET /api/admin/societes-with-json?q=xxx — Autocomplete toutes les sociétés (renommée mais filtre relâché)
+// Renvoie toutes les sociétés correspondant au texte ; le filtrage par "ayant un JSON" est fait après sélection
+// (dans /api/admin/societes/:id/affaires-with-json) pour donner un meilleur feedback à l'utilisateur.
 app.get('/api/admin/societes-with-json', requireAdmin, async (req, res) => {
   try {
     const q = ((req.query.q || '').trim());
     if (q.length < 2) return res.json([]);
 
     const result = await pool.query(
-      `SELECT DISTINCT p.id, p.name
-       FROM prospects p
-       INNER JOIN devis d ON d.prospect_id = p.id
-       WHERE d.config_json IS NOT NULL
-         AND p.name ILIKE $1
-       ORDER BY p.name ASC
+      `SELECT id, name
+       FROM prospects
+       WHERE name ILIKE $1
+       ORDER BY name ASC
        LIMIT 20`,
       [`%${q}%`]
     );
