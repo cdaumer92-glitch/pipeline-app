@@ -255,6 +255,88 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
               file=sys.stderr)
     content=content.replace(old_c,new_c)
 
+    # 2bis. Contexte de la propale (§1) : choix 1/2 et A/B + texte éventuellement modifié
+    # Identification par w14:paraId (unique dans le template)
+    contexte = propale.get("contexte")
+    if contexte:
+        choix1 = contexte.get("choix1")  # '1' ou '2'
+        choix2 = contexte.get("choix2")  # 'A' ou 'B'
+        text1 = contexte.get("text1", "").strip()
+        text2 = contexte.get("text2", "").strip()
+
+        # Mapping paraId → label de choix
+        para_ids = {
+            "0A216664": "1",  # 1ère proposition
+            "6B5616CA": "2",  # mise à jour
+            "5396531B": "A",  # client connaissant SaaS
+            "1DC3939D": "B",  # nouveau prospect
+        }
+
+        for para_id, label in para_ids.items():
+            # Localiser le paragraphe dans le XML pretty-printé
+            marker_attr = f'w14:paraId="{para_id}"'
+            idx_attr = content.find(marker_attr)
+            if idx_attr < 0:
+                print(f"[WARN] Paragraphe contexte paraId={para_id} ({label}) introuvable dans le template.",
+                      file=sys.stderr)
+                continue
+            # Remonter au '<w:p ' qui contient cet attribut
+            p_start = content.rfind("<w:p ", 0, idx_attr)
+            p_end = content.find("</w:p>", idx_attr) + len("</w:p>")
+            if p_start < 0 or p_end < len("</w:p>"):
+                print(f"[WARN] Bloc <w:p> du paraId={para_id} ({label}) mal délimité.", file=sys.stderr)
+                continue
+            old_block = content[p_start:p_end]
+
+            # Décider : on garde (avec texte custom) ou on supprime
+            keep = (label == choix1) or (label == choix2)
+            if keep:
+                # Remplacer le texte du paragraphe par le texte custom
+                new_text = text1 if label == choix1 else text2
+                # Stratégie : remplacer le contenu de tous les <w:t> du paragraphe par new_text dans le 1er <w:t>,
+                # supprimer les autres <w:t> du même paragraphe.
+                # En pratique : on cherche le 1er <w:t...>...</w:t> et on remplace son contenu.
+                import re as _re
+                # Trouver tous les <w:t> dans old_block
+                # On garde la structure du 1er <w:r><w:t>, on supprime les <w:r> suivants si plusieurs
+                # Approche simple : remplacer le contenu du 1er <w:t>...</w:t> et supprimer les <w:t> suivants
+                m_first = _re.search(r'(<w:t(?:\s+[^>]*)?>)([^<]*)(</w:t>)', old_block)
+                if not m_first:
+                    print(f"[WARN] Aucun <w:t> trouvé dans le paragraphe paraId={para_id} ({label}). Texte non remplacé.",
+                          file=sys.stderr)
+                    continue
+                # Échapper le texte pour XML (< > & ")
+                escaped = (new_text
+                           .replace('&', '&amp;')
+                           .replace('<', '&lt;')
+                           .replace('>', '&gt;'))
+                # Reconstruire le 1er <w:t> avec xml:space="preserve" pour conserver les espaces
+                new_first_wt = f'<w:t xml:space="preserve">{escaped}</w:t>'
+                new_block = old_block[:m_first.start()] + new_first_wt + old_block[m_first.end():]
+                # Supprimer tous les <w:t>...</w:t> suivants dans ce paragraphe (pour éviter les morceaux dupliqués)
+                # On garde le 1er <w:t> qu'on vient de poser et on supprime les autres
+                # Approche : remplacer toutes les occurrences <w:t...>...</w:t> sauf la 1ère par chaîne vide
+                # Pour simplifier, on retire les <w:r>...</w:r> qui suivent le 1er, sauf si déjà remplacés
+                # En réalité, le plus simple est : si new_block contient encore d'autres <w:t>, les supprimer
+                while True:
+                    # Chercher le 2ème <w:t>
+                    matches = list(_re.finditer(r'<w:t(?:\s+[^>]*)?>[^<]*</w:t>', new_block))
+                    if len(matches) <= 1:
+                        break
+                    # Trouver le <w:r> englobant du 2ème <w:t> et le supprimer
+                    second = matches[1]
+                    r_start = new_block.rfind("<w:r ", 0, second.start())
+                    if r_start < 0:
+                        r_start = new_block.rfind("<w:r>", 0, second.start())
+                    r_end = new_block.find("</w:r>", second.end()) + len("</w:r>")
+                    if r_start < 0 or r_end < len("</w:r>"):
+                        break
+                    new_block = new_block[:r_start] + new_block[r_end:]
+                content = content.replace(old_block, new_block)
+            else:
+                # Supprimer entièrement le paragraphe non choisi
+                content = content.replace(old_block, "")
+
     # 3. Date + référence
     content=content.replace('>2025<',f'>{date_fr}<')
     content=content.replace('>Master Propale<',f'>{ref}<')

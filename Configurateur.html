@@ -1260,6 +1260,63 @@ body {
   </div>
 </div>
 
+<!-- Modal de choix du contexte (avant génération propale) -->
+<div class="modal-overlay" id="contexteModal">
+  <div class="modal-box" style="max-width:720px;">
+    <div class="modal-title">📝 Contexte de la proposition</div>
+    <div class="modal-sub">Choisissez le ton de l'introduction. Vous pouvez modifier le texte si besoin.</div>
+
+    <!-- Section 1 : Type de proposition -->
+    <div style="margin-top:18px;">
+      <div style="font-size:0.85rem;color:#1a3535;font-weight:700;margin-bottom:10px;">1. Type de proposition</div>
+      <label style="display:flex;align-items:flex-start;gap:8px;padding:10px;border:1.5px solid #cde8e8;border-radius:6px;margin-bottom:8px;cursor:pointer;">
+        <input type="radio" name="ctxChoix1" value="1" onchange="onContexteChoix1Change()" style="margin-top:3px;">
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:0.85rem;">Première proposition</div>
+          <div style="font-size:0.78rem;color:#607a7a;">Proposition complète (périmètre + mise en œuvre + formation)</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:8px;padding:10px;border:1.5px solid #cde8e8;border-radius:6px;cursor:pointer;">
+        <input type="radio" name="ctxChoix1" value="2" onchange="onContexteChoix1Change()" style="margin-top:3px;">
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:0.85rem;">Mise à jour d'une proposition existante</div>
+          <div style="font-size:0.78rem;color:#607a7a;">Reprend le périmètre de la précédente proposition</div>
+        </div>
+      </label>
+      <textarea id="ctxText1" rows="3" placeholder="Sélectionnez une option ci-dessus pour afficher le texte modifiable..."
+        style="width:100%;margin-top:10px;padding:8px 10px;border:1.5px solid #a8d0d3;border-radius:6px;font-family:'Lato',sans-serif;font-size:0.85rem;line-height:1.5;display:none;"></textarea>
+    </div>
+
+    <!-- Section 2 : Présentation modèle tarifaire -->
+    <div style="margin-top:20px;">
+      <div style="font-size:0.85rem;color:#1a3535;font-weight:700;margin-bottom:10px;">2. Présentation du modèle tarifaire</div>
+      <label style="display:flex;align-items:flex-start;gap:8px;padding:10px;border:1.5px solid #cde8e8;border-radius:6px;margin-bottom:8px;cursor:pointer;">
+        <input type="radio" name="ctxChoix2" value="A" onchange="onContexteChoix2Change()" style="margin-top:3px;">
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:0.85rem;">Client connaissant déjà le modèle SaaS</div>
+          <div style="font-size:0.78rem;color:#607a7a;">"Comme nous vous l'avons indiqué..."</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:8px;padding:10px;border:1.5px solid #cde8e8;border-radius:6px;cursor:pointer;">
+        <input type="radio" name="ctxChoix2" value="B" onchange="onContexteChoix2Change()" style="margin-top:3px;">
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:0.85rem;">Nouveau prospect (présentation du SaaS)</div>
+          <div style="font-size:0.78rem;color:#607a7a;">"Notre modèle tarifaire en formule d'abonnement..."</div>
+        </div>
+      </label>
+      <textarea id="ctxText2" rows="3" placeholder="Sélectionnez une option ci-dessus pour afficher le texte modifiable..."
+        style="width:100%;margin-top:10px;padding:8px 10px;border:1.5px solid #a8d0d3;border-radius:6px;font-family:'Lato',sans-serif;font-size:0.85rem;line-height:1.5;display:none;"></textarea>
+    </div>
+
+    <div id="contexteError" style="display:none;background:#fee2e2;border:1px solid #fca5a5;color:#991b1b;padding:8px 12px;border-radius:6px;font-size:0.85rem;margin-top:14px;"></div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">
+      <button class="btn btn-secondary" onclick="document.getElementById('contexteModal').classList.remove('open')">Annuler</button>
+      <button class="btn btn-primary" id="contexteConfirmBtn" onclick="confirmContexteAndGenerate()" disabled style="background:#7b5ea7;border-color:#7b5ea7;opacity:0.5;cursor:not-allowed;">📝 Générer la proposition</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal contact picker -->
 <div class="modal-overlay" id="contactPickerModal">
   <div class="modal-box">
@@ -1407,6 +1464,14 @@ const moduleState = {
   // Tant que false, l'ordre par défaut (forfaits → fonctionnels → installations → pilotage) est imposé.
   // Sauvegardé avec le devis ; à la réouverture, l'ordre choisi par l'utilisateur est respecté.
   prestationOrderUserSet: false,
+  // Contexte de la propale (§1 du .docx)
+  // contexteChoix1 : '1' (proposition initiale) ou '2' (mise à jour de proposition existante)
+  // contexteChoix2 : 'A' (client connaissant déjà le SaaS) ou 'B' (nouveau prospect)
+  // contexteText1, contexteText2 : textes éventuellement modifiés par le commercial (sauvegardés tels quels)
+  contexteChoix1: '',
+  contexteChoix2: '',
+  contexteText1: '',
+  contexteText2: '',
   // Overrides formation : {moduleKey: {nb, duree}} — valeurs manuelles qui remplacent le défaut
   formationOverrides: {},
   // Concentrateur middleware standalone (indépendant de Mag)
@@ -2958,6 +3023,16 @@ function buildConfigJson() {
     nb_utilisateurs: ms.biz||ms.fab||0,
     moduleState: {...moduleState},
     propale: {
+      // ── Contexte (§1 du .docx) — choix entre 1/2 et A/B avec textes éventuellement modifiés ──
+      // Seulement présent si l'utilisateur a fait son choix (sinon le Python garde le template tel quel)
+      ...(ms.contexteChoix1 && ms.contexteChoix2 ? {
+        contexte: {
+          choix1: ms.contexteChoix1, // '1' ou '2'
+          text1: ms.contexteText1 || '',
+          choix2: ms.contexteChoix2, // 'A' ou 'B'
+          text2: ms.contexteText2 || ''
+        }
+      } : {}),
       // ── Sections enrichies pour le nouveau rendu .docx (5 tableaux) ──
       modules:    { lignes: lignesModules,  total_mensuel: totalModules },
       licences:   { lignes: lignesLicences, total_annuel: totalLicences },
@@ -2973,6 +3048,58 @@ function buildConfigJson() {
 }
 
 // Génération automatique de la proposition .docx via l'API Claude (serveur)
+// ─────────────────────────────────────────────────────────────
+// Phrases canoniques du contexte de la propale (§1 du .docx)
+// Doivent être identiques aux phrases du template Master_Propale.docx
+// ─────────────────────────────────────────────────────────────
+const CONTEXTE_PHRASES = {
+  '1': "1 – notre proposition commerciale qui reprend le périmètre technique et fonctionnel, le périmètre technique et fonctionnel, la prestation de mise en œuvre ainsi que la formation pour vos utilisateurs.",
+  '2': "2 - cette nouvelle proposition commerciale qui reprend le périmètre technique et fonctionnel de notre dernière proposition.",
+  'A': "A - Comme nous vous l'avons indiqué, nous avons transformé notre modèle tarifaire en formule d'abonnement, éliminant ainsi la nécessité d'un investissement initial conséquent. Les avantages de ce mode de licences sont nombreux.",
+  'B': "B - Notre modèle tarifaire en formule d'abonnement, élimine la nécessité d'un investissement initial conséquent. Les avantages de ce mode de licences sont nombreux."
+};
+
+// Quand le commercial choisit 1 ou 2, pré-remplir le textarea
+function onContexteChoix1Change() {
+  const choix = document.querySelector('input[name="ctxChoix1"]:checked')?.value;
+  if (!choix) return;
+  const ta = document.getElementById('ctxText1');
+  // Si le commercial a déjà saisi un texte custom pour ce choix, on le préserve. Sinon on prend la phrase canonique.
+  // Convention : on met le texte canonique uniquement si le textarea est vide ou contient l'autre choix.
+  const otherCanonical = CONTEXTE_PHRASES[choix === '1' ? '2' : '1'];
+  if (!ta.value.trim() || ta.value.trim() === otherCanonical) {
+    ta.value = CONTEXTE_PHRASES[choix];
+  }
+  ta.style.display = 'block';
+  updateContexteConfirmBtn();
+}
+
+function onContexteChoix2Change() {
+  const choix = document.querySelector('input[name="ctxChoix2"]:checked')?.value;
+  if (!choix) return;
+  const ta = document.getElementById('ctxText2');
+  const otherCanonical = CONTEXTE_PHRASES[choix === 'A' ? 'B' : 'A'];
+  if (!ta.value.trim() || ta.value.trim() === otherCanonical) {
+    ta.value = CONTEXTE_PHRASES[choix];
+  }
+  ta.style.display = 'block';
+  updateContexteConfirmBtn();
+}
+
+// Activer le bouton "Générer" uniquement si les 2 choix sont faits ET les textes non vides
+function updateContexteConfirmBtn() {
+  const choix1 = document.querySelector('input[name="ctxChoix1"]:checked')?.value;
+  const choix2 = document.querySelector('input[name="ctxChoix2"]:checked')?.value;
+  const text1 = document.getElementById('ctxText1').value.trim();
+  const text2 = document.getElementById('ctxText2').value.trim();
+  const btn = document.getElementById('contexteConfirmBtn');
+  const ok = choix1 && choix2 && text1 && text2;
+  btn.disabled = !ok;
+  btn.style.opacity = ok ? '1' : '0.5';
+  btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+}
+
+// Ouvre la modal de contexte (1ère étape de generateProposition)
 async function generateProposition() {
   const config = buildConfigJson();
   if (!config) return;
@@ -2983,6 +3110,65 @@ async function generateProposition() {
     alert('⚠️ Validation licences Kub :\n\n' + kubError);
     return;
   }
+
+  // Pré-remplir la modal avec les valeurs sauvegardées dans moduleState (si déjà fait précédemment)
+  const ms = moduleState;
+  // Restaurer les choix radios
+  document.querySelectorAll('input[name="ctxChoix1"]').forEach(r => r.checked = (r.value === ms.contexteChoix1));
+  document.querySelectorAll('input[name="ctxChoix2"]').forEach(r => r.checked = (r.value === ms.contexteChoix2));
+  // Restaurer les textes
+  const ta1 = document.getElementById('ctxText1');
+  const ta2 = document.getElementById('ctxText2');
+  ta1.value = ms.contexteText1 || (ms.contexteChoix1 ? CONTEXTE_PHRASES[ms.contexteChoix1] : '');
+  ta2.value = ms.contexteText2 || (ms.contexteChoix2 ? CONTEXTE_PHRASES[ms.contexteChoix2] : '');
+  ta1.style.display = ms.contexteChoix1 ? 'block' : 'none';
+  ta2.style.display = ms.contexteChoix2 ? 'block' : 'none';
+
+  // Listeners pour activer le bouton dynamiquement quand on tape
+  ta1.oninput = updateContexteConfirmBtn;
+  ta2.oninput = updateContexteConfirmBtn;
+
+  // Reset erreur éventuelle
+  document.getElementById('contexteError').style.display = 'none';
+
+  // Mettre à jour l'état du bouton
+  updateContexteConfirmBtn();
+
+  // Afficher la modal
+  document.getElementById('contexteModal').classList.add('open');
+}
+
+// Validation modal : sauvegarde les choix dans moduleState et lance la vraie génération
+async function confirmContexteAndGenerate() {
+  const choix1 = document.querySelector('input[name="ctxChoix1"]:checked')?.value;
+  const choix2 = document.querySelector('input[name="ctxChoix2"]:checked')?.value;
+  const text1 = document.getElementById('ctxText1').value.trim();
+  const text2 = document.getElementById('ctxText2').value.trim();
+
+  if (!choix1 || !choix2 || !text1 || !text2) {
+    const err = document.getElementById('contexteError');
+    err.textContent = 'Merci de sélectionner une option dans chaque section et de vérifier les textes.';
+    err.style.display = 'block';
+    return;
+  }
+
+  // Sauvegarder dans moduleState (sera persisté lors de la prochaine sauvegarde du devis)
+  moduleState.contexteChoix1 = choix1;
+  moduleState.contexteChoix2 = choix2;
+  moduleState.contexteText1 = text1;
+  moduleState.contexteText2 = text2;
+
+  // Fermer la modal
+  document.getElementById('contexteModal').classList.remove('open');
+
+  // Lancer la vraie génération
+  await _doGenerateProposition();
+}
+
+// La vraie fonction de génération (extraite de l'ancienne generateProposition)
+async function _doGenerateProposition() {
+  const config = buildConfigJson();
+  if (!config) return;
 
   // Afficher la modale de progression
   showProgressModal();
