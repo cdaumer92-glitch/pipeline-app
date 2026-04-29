@@ -284,6 +284,139 @@ body {
 .module-tile.has-remise .tile-mini-total { color: #c2410c; }
 .module-tile.has-remise .tile-mini-total::after { content: ' 🔖'; font-size: 0.8rem; }
 
+/* === APERÇU MODULES (sous les tuiles, collapsible) === */
+.apercu-modules {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: white;
+  overflow: hidden;
+}
+.apercu-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  font-family: 'Lato', sans-serif;
+  transition: background 0.15s;
+}
+.apercu-header:hover { background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%); }
+.apercu-modules:not(.collapsed) .apercu-header { border-bottom-color: var(--border); }
+.apercu-arrow {
+  display: inline-block;
+  font-size: 0.9rem;
+  color: var(--slate);
+  transition: transform 0.2s;
+  width: 14px;
+}
+.apercu-modules.collapsed .apercu-arrow { transform: rotate(-90deg); }
+.apercu-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--navy);
+  letter-spacing: 0.02em;
+}
+.apercu-count {
+  font-size: 0.78rem;
+  color: var(--slate);
+  background: rgba(15, 110, 86, 0.08);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.apercu-spacer { flex: 1; }
+.apercu-total-label {
+  font-size: 0.78rem;
+  color: var(--slate);
+  font-weight: 600;
+}
+.apercu-total {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--teal);
+  font-family: 'Poppins', sans-serif;
+}
+.apercu-body {
+  padding: 8px 16px 12px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+.apercu-modules.collapsed .apercu-body { display: none; }
+.apercu-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.apercu-table thead th {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 2px solid var(--border);
+  font-weight: 700;
+  color: var(--slate);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: white;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.apercu-table tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+}
+.apercu-table tbody tr:hover { background: #f8fafc; }
+.apercu-table tbody tr.dragging { opacity: 0.4; }
+.apercu-table tbody tr.drag-over { border-top: 2px solid var(--teal); }
+.apercu-table td {
+  padding: 7px 6px;
+  vertical-align: middle;
+}
+.ap-col-grip { width: 22px; cursor: grab; color: #cbd5e1; user-select: none; text-align: center; }
+.ap-col-grip:active { cursor: grabbing; }
+.ap-col-desig { min-width: 0; }
+.ap-col-qty { width: 56px; text-align: right; }
+.ap-col-pu  { width: 80px; text-align: right; font-variant-numeric: tabular-nums; }
+.ap-col-rem { width: 84px; text-align: center; }
+.ap-col-tot { width: 100px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+.ap-col-fact { width: 130px; font-size: 0.78rem; color: var(--slate); }
+.apercu-table .ap-rem-input {
+  width: 60px;
+  height: 26px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 0.82rem;
+  text-align: center;
+  font-family: inherit;
+  background: white;
+}
+.apercu-table .ap-rem-input:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 2px rgba(15, 110, 86, 0.15);
+}
+.apercu-table .ap-rem-input.inherited { background: #f8fafc; color: #64748b; }
+.apercu-help {
+  font-size: 0.72rem;
+  color: var(--slate);
+  margin-top: 8px;
+  padding: 6px 8px;
+  background: #f8fafc;
+  border-radius: 5px;
+  border-left: 3px solid var(--teal);
+  line-height: 1.5;
+}
+.apercu-empty {
+  text-align: center;
+  padding: 20px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
 /* === DRAWER LATÉRAL === */
 .drawer-overlay {
   position: fixed;
@@ -1094,6 +1227,38 @@ body {
       <div class="modules-grid" id="modules-grid">
         <!-- Généré par JS -->
       </div>
+
+      <!-- ── Aperçu propale Modules (collapsible, sous les tuiles) ─────────── -->
+      <div class="apercu-modules" id="apercu-modules" style="display:none;">
+        <div class="apercu-header" id="apercu-header" onclick="toggleApercu()">
+          <span class="apercu-arrow" id="apercu-arrow">▾</span>
+          <span class="apercu-title">📋 Aperçu propale — Modules</span>
+          <span class="apercu-count" id="apercu-count">0 lignes</span>
+          <span class="apercu-spacer"></span>
+          <span class="apercu-total-label">Total :</span>
+          <span class="apercu-total" id="apercu-total">0,00 €/mois</span>
+        </div>
+        <div class="apercu-body" id="apercu-body">
+          <table class="apercu-table">
+            <thead>
+              <tr>
+                <th class="ap-col-grip"></th>
+                <th class="ap-col-desig">Désignation</th>
+                <th class="ap-col-qty">Qté</th>
+                <th class="ap-col-pu">PU € H.T</th>
+                <th class="ap-col-rem">Remise %</th>
+                <th class="ap-col-tot">Total € H.T</th>
+                <th class="ap-col-fact">Facturation - Unité</th>
+              </tr>
+            </thead>
+            <tbody id="apercu-tbody"></tbody>
+          </table>
+          <div class="apercu-help">
+            Champ Remise vide = hérite de la remise du module. Une valeur saisie écrase la remise du module pour cette ligne uniquement. Glisser ⋮⋮ pour réorganiser.
+          </div>
+        </div>
+      </div>
+      <!-- ── /Aperçu propale Modules ───────────────────────────────────────── -->
       <div class="global-opts" id="global-opts">
         <label><input type="checkbox" id="chk_comptaSage" onchange="moduleState.comptaSage=this.checked;renderAllSections();calculate();">Compta Sage</label>
         <label><input type="checkbox" id="chk_factElec" onchange="moduleState.facturationElec=this.checked;renderAllSections();calculate();">Facturation électronique</label>
@@ -1463,6 +1628,16 @@ const moduleState = {
   // Lignes custom ajoutées par module (tableau d'objets {id, label, pu, qty, remise, unit})
   biz_extra: [], fab_extra: [], net_extra: [], mag_extra: [], vrp_extra: [],
   col_extra: [], log_extra: [], jet_extra: [], kub_extra: [], flu_extra: [],
+  // Aperçu Modules : remise % override par ligne (clé = ligne_key, valeur = % numérique)
+  // Si la clé n'existe pas → la ligne hérite de la remise du module (biz_remise, fab_remise, etc.)
+  // Si la clé existe avec une valeur → écrase la remise module (option C : override ligne gagne)
+  lignes_remises_overrides: {},
+  // Aperçu Modules : ordre personnalisé des lignes (drag-and-drop), liste de ligne_key
+  apercuOrder: [],
+  apercuOrderUserSet: false,
+  // Aperçu Modules : état déplié/replié (B : déplié si ≥1 module actif, replié sinon)
+  // null = jamais touché par user → comportement auto. true/false = choix manuel mémorisé.
+  apercuCollapsed: null,
   // Prestations initiales ajoutées (section 4)
   extra_prestations: [],
   // Renommage personnalisé des prestations (key → label)
@@ -2584,6 +2759,216 @@ function setFormationOverride(key, field, value) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// APERÇU PROPALE — MODULES (collapsible sous les tuiles)
+// ══════════════════════════════════════════════════════════════
+// Convertit l'unité interne (ex: '€/mois/user') vers le format affiché 'mois / user'
+function uniteToFacturationLabel(unite) {
+  if (!unite) return '';
+  // Format interne : '€/mois', '€/mois/user', '€/mois/caisse', '€/mois/lic', '€/an', '€/an/lic'...
+  // Format affiché : 'mois / forfait', 'mois / user', 'mois / caisse', 'mois / licence', 'an / licence'...
+  let s = unite.replace(/^€\//, '');           // 'mois/user'
+  const parts = s.split('/');                   // ['mois', 'user']
+  const periode = parts[0] || 'mois';           // mois ou an
+  let unit = parts[1] || 'forfait';             // user, caisse, lic, forfait, etc.
+  // Normalisations cosmétiques
+  if (unit === 'lic') unit = 'licence';
+  if (unit === 'term.' || unit === 'term') unit = 'terminal';
+  return periode + ' / ' + unit;
+}
+
+// Détermine l'état déplié/replié au chargement (B : auto si jamais touché)
+function shouldApercuBeCollapsed() {
+  const ms = moduleState;
+  // Si l'utilisateur a fait un choix manuel, on respecte
+  if (ms.apercuCollapsed === true || ms.apercuCollapsed === false) return ms.apercuCollapsed;
+  // Sinon : déplié si ≥1 module actif, replié sinon
+  const aucunModule = !((ms.biz||0) > 0 || (ms.fab||0) > 0
+    || ms.net_siege_active || (ms.net_agents_val||0) > 0
+    || (ms.kub||0) > 0 || (ms.mag||0) > 0 || (ms.mag_caisses||0) > 0
+    || (ms.vrp||0) > 0 || (ms.col||0) > 0 || (ms.log||0) > 0 || (ms.jet||0) > 0);
+  return aucunModule;
+}
+
+// Toggle clic sur le header → mémorise le choix manuel
+function toggleApercu() {
+  const wrap = document.getElementById('apercu-modules');
+  if (!wrap) return;
+  const wasCollapsed = wrap.classList.contains('collapsed');
+  if (wasCollapsed) {
+    wrap.classList.remove('collapsed');
+    moduleState.apercuCollapsed = false;
+  } else {
+    wrap.classList.add('collapsed');
+    moduleState.apercuCollapsed = true;
+  }
+}
+
+// Met à jour le % d'override d'une ligne (vide = supprime override = retour à l'héritage)
+function setLigneRemiseOverride(key, valStr) {
+  const overrides = moduleState.lignes_remises_overrides || (moduleState.lignes_remises_overrides = {});
+  const trimmed = (valStr == null ? '' : String(valStr).trim());
+  if (trimmed === '') {
+    // Champ vide → retour à l'héritage : on supprime l'override
+    delete overrides[key];
+  } else {
+    let v = parseFloat(trimmed.replace(',', '.'));
+    if (isNaN(v)) v = 0;
+    if (v < 0) v = 0;
+    if (v > 100) v = 100;
+    overrides[key] = v;
+  }
+  calculate();  // recalcul complet (totaux sidebar, propale, etc.)
+}
+
+// Drag-and-drop : applique le réordonnancement après un drop
+function applyApercuReorder(draggedKey, targetKey, position) {
+  const ms = moduleState;
+  // Construire l'ordre courant des lignes affichées
+  const currentOrder = (window._apercuLastKeys || []).slice();
+  if (!currentOrder.includes(draggedKey) || !currentOrder.includes(targetKey)) return;
+  if (draggedKey === targetKey) return;
+  const idxFrom = currentOrder.indexOf(draggedKey);
+  currentOrder.splice(idxFrom, 1);
+  let idxTo = currentOrder.indexOf(targetKey);
+  if (position === 'after') idxTo += 1;
+  currentOrder.splice(idxTo, 0, draggedKey);
+  ms.apercuOrder = currentOrder;
+  ms.apercuOrderUserSet = true;
+  calculate();
+}
+
+// Rendu principal du tableau Aperçu Modules
+function renderApercuModules(lignesModules, totalModules) {
+  const wrap = document.getElementById('apercu-modules');
+  const tbody = document.getElementById('apercu-tbody');
+  const countEl = document.getElementById('apercu-count');
+  const totalEl = document.getElementById('apercu-total');
+  if (!wrap || !tbody) return;
+
+  // Affiché seulement si au moins une ligne
+  if (!lignesModules || lignesModules.length === 0) {
+    wrap.style.display = 'none';
+    window._apercuLastKeys = [];
+    return;
+  }
+  wrap.style.display = '';
+
+  // État déplié/replié
+  if (shouldApercuBeCollapsed()) wrap.classList.add('collapsed');
+  else wrap.classList.remove('collapsed');
+
+  // Réordonner selon apercuOrder si l'user a explicitement réorganisé
+  let lignes = lignesModules.slice();
+  const ms = moduleState;
+  if (ms.apercuOrderUserSet && Array.isArray(ms.apercuOrder) && ms.apercuOrder.length) {
+    const ordered = [];
+    const seen = new Set();
+    ms.apercuOrder.forEach(k => {
+      const found = lignes.find(l => l._key === k);
+      if (found && !seen.has(k)) { ordered.push(found); seen.add(k); }
+    });
+    // Ajouter les lignes nouvelles (pas encore dans l'ordre user)
+    lignes.forEach(l => { if (l._key && !seen.has(l._key)) ordered.push(l); });
+    lignes = ordered;
+  }
+
+  // Mémoriser l'ordre actuel pour le drag-and-drop
+  window._apercuLastKeys = lignes.map(l => l._key).filter(Boolean);
+
+  // Header : compteur + total
+  countEl.textContent = lignes.length + (lignes.length > 1 ? ' lignes' : ' ligne');
+  totalEl.textContent = fmtNum(totalModules) + ' €/mois';
+
+  // Tbody
+  const overrides = ms.lignes_remises_overrides || {};
+  const rows = lignes.map(l => {
+    const key = l._key || '';
+    const hasOverride = key && Object.prototype.hasOwnProperty.call(overrides, key);
+    const remValue = hasOverride ? overrides[key] : '';
+    const inheritedClass = hasOverride ? '' : 'inherited';
+    // Pour les lignes infra forfaitaires (qty/prix_unitaire absents), on affiche '—'
+    const qtyStr = (l.qty != null) ? l.qty : '—';
+    const puStr  = (l.prix_unitaire != null) ? fmtNum(l.prix_unitaire) : '—';
+    const totStr = fmtNum(l.montant);
+    const factStr = uniteToFacturationLabel(l.unite);
+    // Si pas de qty/pu (forfait sans détail), pas d'édition de remise (pas de sens)
+    const remCell = (l.qty != null && l.prix_unitaire != null && key)
+      ? `<input type="number" class="ap-rem-input ${inheritedClass}" min="0" max="100" step="1"
+           placeholder="${l._modId ? (remPctSafe(l._modId)) : '0'}"
+           value="${remValue === '' ? '' : remValue}"
+           onchange="setLigneRemiseOverride('${key.replace(/'/g, '\\\'')}', this.value)"
+           onblur="setLigneRemiseOverride('${key.replace(/'/g, '\\\'')}', this.value)">`
+      : '<span style="color:#cbd5e1;">—</span>';
+    const grip = key
+      ? `<span draggable="true" ondragstart="apercuDragStart(event,'${key.replace(/'/g, '\\\'')}')" ondragend="apercuDragEnd(event)">⋮⋮</span>`
+      : '';
+    return `<tr data-key="${key}" ondragover="apercuDragOver(event)" ondrop="apercuDrop(event,'${key.replace(/'/g, '\\\'')}')" ondragleave="apercuDragLeave(event)">
+      <td class="ap-col-grip">${grip}</td>
+      <td class="ap-col-desig">${escapeHtml(l.nom)}</td>
+      <td class="ap-col-qty">${qtyStr}</td>
+      <td class="ap-col-pu">${puStr}</td>
+      <td class="ap-col-rem">${remCell}</td>
+      <td class="ap-col-tot">${totStr}</td>
+      <td class="ap-col-fact">${factStr}</td>
+    </tr>`;
+  });
+  tbody.innerHTML = rows.join('');
+}
+
+// Helper : remise module sécurisée (utilisé pour le placeholder de l'input)
+function remPctSafe(modId) { return moduleState[modId + '_remise'] || 0; }
+
+// Helper : escape HTML pour les noms de lignes
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Drag-and-drop handlers
+let _apercuDragKey = null;
+function apercuDragStart(ev, key) {
+  _apercuDragKey = key;
+  ev.dataTransfer.effectAllowed = 'move';
+  // Marquer la ligne pour feedback visuel
+  const tr = ev.target.closest('tr');
+  if (tr) tr.classList.add('dragging');
+}
+function apercuDragEnd(ev) {
+  document.querySelectorAll('#apercu-tbody tr').forEach(tr => {
+    tr.classList.remove('dragging');
+    tr.classList.remove('drag-over');
+  });
+  _apercuDragKey = null;
+}
+function apercuDragOver(ev) {
+  if (!_apercuDragKey) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  const tr = ev.target.closest('tr');
+  if (tr && tr.dataset.key !== _apercuDragKey) tr.classList.add('drag-over');
+}
+function apercuDragLeave(ev) {
+  const tr = ev.target.closest('tr');
+  if (tr) tr.classList.remove('drag-over');
+}
+function apercuDrop(ev, targetKey) {
+  ev.preventDefault();
+  if (!_apercuDragKey || _apercuDragKey === targetKey) {
+    apercuDragEnd(ev);
+    return;
+  }
+  // Position : si le drop est dans la moitié supérieure → before, sinon → after
+  const tr = ev.target.closest('tr');
+  let position = 'before';
+  if (tr) {
+    const rect = tr.getBoundingClientRect();
+    const offsetY = ev.clientY - rect.top;
+    position = (offsetY > rect.height / 2) ? 'after' : 'before';
+  }
+  applyApercuReorder(_apercuDragKey, targetKey, position);
+  apercuDragEnd(ev);
+}
+
+// ══════════════════════════════════════════════════════════════
 // CALCULATE
 // ══════════════════════════════════════════════════════════════
 function calculate() {
@@ -2854,9 +3239,24 @@ function buildConfigJson() {
   const ms = moduleState;
   const remPct = (modId) => ms[modId + '_remise'] || 0;
   const netMontant = (montant, modId) => montant * (1 - remPct(modId) / 100);
+  // Helper : calcule la clé déterministe d'une ligne pour les overrides remise par ligne et l'ordre.
+  // Format : "modId::nom_normalisé". Doit être stable entre rechargements du devis.
+  const ligneKey = (modId, nom) => (modId || 'infra') + '::' + nom;
+  // Helper : retourne le % de remise effectif appliqué à une ligne (option C)
+  // - Si override de ligne existe (clé présente dans lignes_remises_overrides) → override gagne
+  // - Sinon → hérite de la remise du module
+  const remiseEffectiveLigne = (modId, nom) => {
+    const overrides = ms.lignes_remises_overrides || {};
+    const k = ligneKey(modId, nom);
+    if (Object.prototype.hasOwnProperty.call(overrides, k)) {
+      const v = parseFloat(overrides[k]);
+      return isNaN(v) ? 0 : v;
+    }
+    return modId ? remPct(modId) : 0;
+  };
   // Signature enrichie : addAbo(nom, qty, pu, modId, unite)
-  // - qty * pu = montant brut (avant remise module)
-  // - modId : si fourni, applique la remise du module
+  // - qty * pu = montant brut (avant remise)
+  // - modId : si fourni, applique la remise effective (override ligne sinon remise module)
   // - unite : par défaut '€/mois', overridable (ex: '€/mois/user')
   // Pour les lignes infra forfaitaires (pas de qté/pu), passer qty=null et pu=null, montant en pu
   const addAbo = (nom, qty, pu, modId, unite) => {
@@ -2864,14 +3264,18 @@ function buildConfigJson() {
     // Compatibilité : si qty/pu null, montant est dans pu (ancien comportement)
     const brut = (qty != null && pu != null) ? qty * pu : pu;
     if (brut <= 0) return;
-    const net = modId ? netMontant(brut, modId) : brut;
-    const r = modId ? remPct(modId) : 0;
+    // Remise effective : override ligne si présent, sinon remise module
+    const r = remiseEffectiveLigne(modId, nom);
+    const net = brut * (1 - r / 100);
     const ligne = { nom, montant: net, unite };
     if (qty != null && pu != null) {
       ligne.qty = qty;
       ligne.prix_unitaire = pu;
     }
     if (r > 0) { ligne.prix_brut = brut; ligne.remise_pct = r; }
+    // Clé pour l'aperçu (drag-and-drop, override)
+    if (modId) ligne._key = ligneKey(modId, nom);
+    if (modId) ligne._modId = modId;
     lignesAbo.push(ligne);
     // Tri par catégorie : présence d'un modId = module métier, sinon = infrastructure
     if (modId) {
@@ -2944,6 +3348,10 @@ function buildConfigJson() {
   const totalMensuel = lignesAbo.reduce((s,l)=>s+l.montant,0);
   const totalModules = lignesModules.reduce((s,l)=>s+l.montant,0);
   const totalInfra = lignesInfra.reduce((s,l)=>s+l.montant,0);
+
+  // ── Aperçu propale Modules (collapsible sous les tuiles) ────────────────
+  // Doit être rendu après les calculs de lignesModules pour refléter l'état courant
+  renderApercuModules(lignesModules, totalModules);
 
   // ── Licences complémentaires (Section 2 du configurateur : Sage 100, MyReport, Extensions Kub) ──
   // Récupérées depuis sectionValues['section2_X'] et sectionsData.section2.items
