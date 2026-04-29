@@ -1403,6 +1403,10 @@ const moduleState = {
   customLabels: {},
   // Ordre personnalisé des prestations (tableau de keys, inclut standards + custom)
   prestationOrder: [],
+  // Flag : true si l'utilisateur a explicitement réorganisé via drag-and-drop.
+  // Tant que false, l'ordre par défaut (forfaits → fonctionnels → installations → pilotage) est imposé.
+  // Sauvegardé avec le devis ; à la réouverture, l'ordre choisi par l'utilisateur est respecté.
+  prestationOrderUserSet: false,
   // Overrides formation : {moduleKey: {nb, duree}} — valeurs manuelles qui remplacent le défaut
   formationOverrides: {},
   // Concentrateur middleware standalone (indépendant de Mag)
@@ -2109,19 +2113,17 @@ function renderSection4() {
 
   // ── 2) Appliquer l'ordre personnalisé ──
   const activeKeys = items.map(i => i.key);
-  // OPTION A : au premier rendu de la session, forcer l'ordre par défaut (écrase toute réorganisation antérieure).
-  // Après le premier rendu, le drag-and-drop fait foi.
-  // Cela garantit que tous les devis (nouveaux ET existants) démarrent avec l'ordre standard,
-  // tout en permettant à l'utilisateur de réorganiser librement durant sa session.
-  if (!window.__prestOrderInitialized) {
-    moduleState.prestationOrder = activeKeys.slice();
-    window.__prestOrderInitialized = true;
-  } else {
-    // Sessions suivantes : nettoyer les keys qui n'existent plus, ajouter les nouvelles à la fin
+  // Règle métier :
+  //  - Si l'utilisateur n'a JAMAIS drag-and-droppé sur ce devis : on impose l'ordre par défaut (forfaits → fonctionnels → installations → pilotage)
+  //  - Si l'utilisateur a déjà drag-and-droppé (flag prestationOrderUserSet=true) : on respecte son ordre
+  //    (en nettoyant les keys obsolètes et en ajoutant les nouvelles à la fin pour gérer l'ajout/suppression de modules)
+  if (moduleState.prestationOrderUserSet) {
     moduleState.prestationOrder = (moduleState.prestationOrder || []).filter(k => activeKeys.includes(k));
     activeKeys.forEach(k => {
       if (!moduleState.prestationOrder.includes(k)) moduleState.prestationOrder.push(k);
     });
+  } else {
+    moduleState.prestationOrder = activeKeys.slice();
   }
   // Trier items selon prestationOrder
   const orderedItems = moduleState.prestationOrder
@@ -2275,6 +2277,9 @@ function attachDragHandlers(tr) {
     if (toIdx < 0) return;
     if (!placeBefore) toIdx += 1;
     order.splice(toIdx, 0, draggedKey);
+
+    // Marquer que l'utilisateur a réorganisé : on respectera désormais son ordre, même au prochain rendu / réouverture
+    moduleState.prestationOrderUserSet = true;
 
     renderSection4();
   });
