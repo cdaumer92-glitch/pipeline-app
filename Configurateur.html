@@ -1268,7 +1268,7 @@ body {
 
     <!-- Section 1 : Type de proposition -->
     <div style="margin-top:18px;">
-      <div style="font-size:0.85rem;color:#1a3535;font-weight:700;margin-bottom:10px;">1. Type de proposition</div>
+      <div style="font-size:0.85rem;color:#1a3535;font-weight:700;margin-bottom:10px;">Type de proposition</div>
       <label style="display:flex;align-items:flex-start;gap:8px;padding:10px;border:1.5px solid #cde8e8;border-radius:6px;margin-bottom:8px;cursor:pointer;">
         <input type="radio" name="ctxChoix1" value="1" onchange="onContexteChoix1Change()" style="margin-top:3px;">
         <div style="flex:1;">
@@ -1289,7 +1289,7 @@ body {
 
     <!-- Section 2 : Présentation modèle tarifaire -->
     <div style="margin-top:20px;">
-      <div style="font-size:0.85rem;color:#1a3535;font-weight:700;margin-bottom:10px;">2. Présentation du modèle tarifaire</div>
+      <div style="font-size:0.85rem;color:#1a3535;font-weight:700;margin-bottom:10px;">Présentation du modèle tarifaire</div>
       <label style="display:flex;align-items:flex-start;gap:8px;padding:10px;border:1.5px solid #cde8e8;border-radius:6px;margin-bottom:8px;cursor:pointer;">
         <input type="radio" name="ctxChoix2" value="A" onchange="onContexteChoix2Change()" style="margin-top:3px;">
         <div style="flex:1;">
@@ -3053,10 +3053,10 @@ function buildConfigJson() {
 // Doivent être identiques aux phrases du template Master_Propale.docx
 // ─────────────────────────────────────────────────────────────
 const CONTEXTE_PHRASES = {
-  '1': "1 – notre proposition commerciale qui reprend le périmètre technique et fonctionnel, le périmètre technique et fonctionnel, la prestation de mise en œuvre ainsi que la formation pour vos utilisateurs.",
-  '2': "2 - cette nouvelle proposition commerciale qui reprend le périmètre technique et fonctionnel de notre dernière proposition.",
-  'A': "A - Comme nous vous l'avons indiqué, nous avons transformé notre modèle tarifaire en formule d'abonnement, éliminant ainsi la nécessité d'un investissement initial conséquent. Les avantages de ce mode de licences sont nombreux.",
-  'B': "B - Notre modèle tarifaire en formule d'abonnement, élimine la nécessité d'un investissement initial conséquent. Les avantages de ce mode de licences sont nombreux."
+  '1': "Notre proposition commerciale qui reprend le périmètre technique et fonctionnel, le périmètre technique et fonctionnel, la prestation de mise en œuvre ainsi que la formation pour vos utilisateurs.",
+  '2': "Cette nouvelle proposition commerciale qui reprend le périmètre technique et fonctionnel de notre dernière proposition.",
+  'A': "Comme nous vous l'avons indiqué, nous avons transformé notre modèle tarifaire en formule d'abonnement, éliminant ainsi la nécessité d'un investissement initial conséquent. Les avantages de ce mode de licences sont nombreux.",
+  'B': "Notre modèle tarifaire en formule d'abonnement, élimine la nécessité d'un investissement initial conséquent. Les avantages de ce mode de licences sont nombreux."
 };
 
 // Quand le commercial choisit 1 ou 2, pré-remplir le textarea
