@@ -343,8 +343,16 @@ body {
   padding: 8px 16px 12px;
   max-height: 600px;
   overflow-y: auto;
+  /* Transition pour repli/dépliement fluide (200ms) */
+  transition: max-height 0.2s ease-out, padding 0.2s ease-out, opacity 0.15s ease-out;
 }
-.apercu-modules.collapsed .apercu-body { display: none; }
+.apercu-modules.collapsed .apercu-body {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  overflow: hidden;
+}
 .apercu-table {
   width: 100%;
   border-collapse: collapse;
@@ -399,6 +407,24 @@ body {
   box-shadow: 0 0 0 2px rgba(15, 110, 86, 0.15);
 }
 .apercu-table .ap-rem-input.inherited { background: #f8fafc; color: #64748b; }
+
+/* Feedback visuel sur saisie invalide (clamp ou non numérique) */
+.input-error {
+  border-color: #dc2626 !important;
+  background: #fef2f2 !important;
+  color: #991b1b !important;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15) !important;
+}
+.input-shake {
+  animation: input-shake-anim 0.4s ease-in-out;
+}
+@keyframes input-shake-anim {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
 .apercu-help {
   font-size: 0.72rem;
   color: var(--slate);
@@ -3035,8 +3061,18 @@ const APERCU_MODULES_LIST = [
 ];
 
 // Quels modules ont au moins une ligne dans l'aperçu courant ?
+// Source de vérité : buildLignesModulesInfra() (pas de variable globale)
+function getCurrentApercuKeys() {
+  try {
+    const r = buildLignesModulesInfra();
+    return (r.lignesModules || []).map(l => l._key).filter(Boolean);
+  } catch(e) {
+    return [];
+  }
+}
+
 function getModulesActifsApercu() {
-  const keys = window._apercuLastKeys || [];
+  const keys = getCurrentApercuKeys();
   const set = new Set();
   keys.forEach(k => {
     const idx = k.indexOf('::');
@@ -3084,25 +3120,41 @@ function applyRemiseRapide() {
   if (!inputs.length) { toggleRemiseRapide(null, false); return; }
 
   // Récupérer les valeurs saisies (champ vide = pas d'application sur ce module)
+  // Validation : non-numérique → flash rouge et on ignore. Hors plage → clamp avec flash.
   const toApply = {};   // {modId: pct}
+  let hasInvalid = false;
   inputs.forEach(inp => {
     const v = inp.value.trim();
     if (v === '') return;
     const n = parseFloat(v.replace(',', '.'));
-    if (isNaN(n)) return;
-    const clamped = Math.max(0, Math.min(100, n));
+    if (isNaN(n)) {
+      flashInputError(inp, 'Valeur non numérique ignorée');
+      hasInvalid = true;
+      return;
+    }
+    let clamped = n;
+    let reason = null;
+    if (clamped < 0) { clamped = 0; reason = 'Valeur négative ramenée à 0%'; }
+    if (clamped > 100) { clamped = 100; reason = 'Valeur > 100% ramenée à 100%'; }
+    if (reason) {
+      flashInputError(inp, reason);
+      inp.value = clamped;
+    }
     toApply[inp.dataset.modid] = clamped;
   });
 
   if (Object.keys(toApply).length === 0) {
-    document.getElementById('ap-rapide-warn').textContent = 'Aucune valeur saisie.';
-    document.getElementById('ap-rapide-warn').style.display = 'block';
+    const warn = document.getElementById('ap-rapide-warn');
+    warn.textContent = hasInvalid ? 'Toutes les valeurs saisies sont invalides.' : 'Aucune valeur saisie.';
+    warn.style.display = 'block';
     return;
   }
+  // Reset warn si on en avait un précédemment
+  document.getElementById('ap-rapide-warn').style.display = 'none';
 
   // Vérifier si des overrides existants vont être écrasés
   const overrides = moduleState.lignes_remises_overrides || (moduleState.lignes_remises_overrides = {});
-  const keys = window._apercuLastKeys || [];
+  const keys = getCurrentApercuKeys();
   let nbExistingOverrides = 0;
   keys.forEach(k => {
     const idx = k.indexOf('::');
@@ -3145,18 +3197,50 @@ function resetAllOverrides() {
 }
 
 // Met à jour le % d'override d'une ligne (vide = supprime override = retour à l'héritage)
-function setLigneRemiseOverride(key, valStr) {
+// Helper : feedback visuel court sur input avec valeur invalide ou corrigée
+// Affiche un border rouge + animation shake pendant 600ms, puis nettoie.
+// Le 'reason' est affiché en title (tooltip) pendant la durée du flash.
+function flashInputError(inputEl, reason) {
+  if (!inputEl) return;
+  inputEl.classList.remove('input-error', 'input-shake');
+  // Force reflow pour relancer l'animation
+  void inputEl.offsetWidth;
+  inputEl.classList.add('input-error', 'input-shake');
+  if (reason) {
+    const oldTitle = inputEl.title;
+    inputEl.title = reason;
+    setTimeout(() => { inputEl.title = oldTitle || ''; }, 1500);
+  }
+  setTimeout(() => {
+    inputEl.classList.remove('input-error', 'input-shake');
+  }, 600);
+}
+
+function setLigneRemiseOverride(key, valStr, inputEl) {
   const overrides = moduleState.lignes_remises_overrides || (moduleState.lignes_remises_overrides = {});
   const trimmed = (valStr == null ? '' : String(valStr).trim());
   if (trimmed === '') {
     // Champ vide → retour à l'héritage : on supprime l'override
     delete overrides[key];
   } else {
+    // Validation : si non numérique → flash rouge et on ignore
     let v = parseFloat(trimmed.replace(',', '.'));
-    if (isNaN(v)) v = 0;
-    if (v < 0) v = 0;
-    if (v > 100) v = 100;
-    overrides[key] = v;
+    if (isNaN(v)) {
+      flashInputError(inputEl, 'Valeur non numérique ignorée');
+      // Restaurer l'affichage à l'override existant (ou vide si pas d'override)
+      if (inputEl) inputEl.value = (overrides[key] != null ? overrides[key] : '');
+      return;
+    }
+    // Clamp avec feedback si la valeur a été ajustée
+    let clamped = v;
+    let reason = null;
+    if (clamped < 0) { clamped = 0; reason = 'Valeur négative ramenée à 0%'; }
+    if (clamped > 100) { clamped = 100; reason = 'Valeur > 100% ramenée à 100%'; }
+    if (reason) {
+      flashInputError(inputEl, reason);
+      if (inputEl) inputEl.value = clamped;
+    }
+    overrides[key] = clamped;
   }
   calculate();  // recalcul complet (totaux sidebar, propale, etc.)
 }
@@ -3164,8 +3248,15 @@ function setLigneRemiseOverride(key, valStr) {
 // Drag-and-drop : applique le réordonnancement après un drop
 function applyApercuReorder(draggedKey, targetKey, position) {
   const ms = moduleState;
-  // Construire l'ordre courant des lignes affichées
-  const currentOrder = (window._apercuLastKeys || []).slice();
+  // Construire l'ordre courant des lignes affichées (clés depuis buildLignesModulesInfra,
+  // tri actuel = celui d'apercuOrder si user a réorganisé, sinon ordre naturel)
+  let currentOrder = getCurrentApercuKeys();
+  if (ms.apercuOrderUserSet && Array.isArray(ms.apercuOrder) && ms.apercuOrder.length) {
+    // Réordonner currentOrder selon apercuOrder pour que les indices correspondent à l'affichage
+    const inOrder = ms.apercuOrder.filter(k => currentOrder.includes(k));
+    const newKeys = currentOrder.filter(k => !inOrder.includes(k));
+    currentOrder = inOrder.concat(newKeys);
+  }
   if (!currentOrder.includes(draggedKey) || !currentOrder.includes(targetKey)) return;
   if (draggedKey === targetKey) return;
   const idxFrom = currentOrder.indexOf(draggedKey);
@@ -3189,7 +3280,6 @@ function renderApercuModules(lignesModules, totalModules) {
   // Affiché seulement si au moins une ligne
   if (!lignesModules || lignesModules.length === 0) {
     wrap.style.display = 'none';
-    window._apercuLastKeys = [];
     return;
   }
   wrap.style.display = '';
@@ -3213,9 +3303,6 @@ function renderApercuModules(lignesModules, totalModules) {
     lignes = ordered;
   }
 
-  // Mémoriser l'ordre actuel pour le drag-and-drop
-  window._apercuLastKeys = lignes.map(l => l._key).filter(Boolean);
-
   // Header : compteur + total
   countEl.textContent = lignes.length + (lignes.length > 1 ? ' lignes' : ' ligne');
   totalEl.textContent = fmtNum(totalModules) + ' €/mois';
@@ -3237,8 +3324,8 @@ function renderApercuModules(lignesModules, totalModules) {
       ? `<input type="number" class="ap-rem-input ${inheritedClass}" min="0" max="100" step="1"
            placeholder="${l._modId ? (remPctSafe(l._modId)) : '0'}"
            value="${remValue === '' ? '' : remValue}"
-           onchange="setLigneRemiseOverride('${key.replace(/'/g, '\\\'')}', this.value)"
-           onblur="setLigneRemiseOverride('${key.replace(/'/g, '\\\'')}', this.value)">`
+           onchange="setLigneRemiseOverride('${key.replace(/'/g, '\\\'')}', this.value, this)"
+           onblur="setLigneRemiseOverride('${key.replace(/'/g, '\\\'')}', this.value, this)">`
       : '<span style="color:#cbd5e1;">—</span>';
     const grip = key
       ? `<span draggable="true" ondragstart="apercuDragStart(event,'${key.replace(/'/g, '\\\'')}')" ondragend="apercuDragEnd(event)">⋮⋮</span>`
