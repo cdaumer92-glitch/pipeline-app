@@ -325,9 +325,18 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
             except Exception:
                 return str(q)
 
+        # Helper local : choisit singulier/pluriel selon le nombre de lignes
+        def _hdr_label(nb, sg, pl):
+            return pl if nb > 1 else sg
+
+        nb_modules_l = len(modules_data.get("lignes", []))
+        nb_licences_l = len(licences_data.get("lignes", []))
+        nb_infra_l = len(infra_data.get("lignes", []))
+        nb_prest_l = len(prest.get("lignes", []))
+
         # ── Tableau 1 : Abonnements Mensuels Modules TexasWin (5 colonnes) ──
         r_modules = row(
-            cell_hdr("Module / Abonnement", 4000, "left"),
+            cell_hdr(_hdr_label(nb_modules_l, "Module / Abonnement", "Modules / Abonnements"), 4000, "left"),
             cell_hdr("Qté", 900, "center"),
             cell_hdr("Prix unitaire", 1200, "right"),
             cell_hdr("Total HT", 1413, "right"),
@@ -355,7 +364,7 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
         r_licences = ""
         if licences_data.get("lignes"):
             r_licences = row(
-                cell_hdr("Licence complémentaire", 4000, "left"),
+                cell_hdr(_hdr_label(nb_licences_l, "Licence complémentaire", "Licences complémentaires"), 4000, "left"),
                 cell_hdr("Qté", 900, "center"),
                 cell_hdr("Prix unitaire", 1200, "right"),
                 cell_hdr("Total HT", 1413, "right"),
@@ -401,7 +410,7 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
 
         # ── Tableau 4 : Prestations Initiales (3 colonnes : Désignation / Durée / Total) ──
         r_prest = row(
-            cell_hdr("Prestations initiales", 5000, "left"),
+            cell_hdr(_hdr_label(nb_prest_l, "Prestation initiale", "Prestations initiales"), 5000, "left"),
             cell_hdr("Durée", 2013),
             cell_hdr("Montant HT", 2013, "right")
         )
@@ -469,7 +478,14 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
     content = _remove_dev_complementaires_and_add_page_break(content)
 
     # 9. Sections Synthèse + Règlement → remplacer toute l'ancienne section Règlement
-    content = _replace_synthese_reglement(content, abo, prest, form, data.get("matériel", data.get("materiel", {})))
+    # On passe modules+infra+licences si dispos (rendu Livraison 2), sinon abo seul (fallback)
+    content = _replace_synthese_reglement(
+        content, abo, prest, form,
+        data.get("matériel", data.get("materiel", {})),
+        modules_data=modules_data if has_split else None,
+        infra_data=infra_data if has_split else None,
+        licences_data=licences_data if has_split else None
+    )
 
     # 9b. Ajouter un espacement de 30pt AVANT le titre "Les 10 avantages pour votre entreprise"
     content = _add_spacing_before_les_10(content)
@@ -641,21 +657,79 @@ def _tbl_reglement(rows_xml):
             f'<w:tblGrid><w:gridCol w:w="2800"/><w:gridCol w:w="6200"/></w:tblGrid>'
             f'{rows_xml}</w:tbl>')
 
-def _replace_synthese_reglement(content, abo, prest, form, materiel):
-    """Remplace la section Règlement existante par Synthèse + nouveau Règlement."""
+def _replace_synthese_reglement(content, abo, prest, form, materiel,
+                                 modules_data=None, infra_data=None, licences_data=None):
+    """Remplace la section Règlement existante par Synthèse + nouveau Règlement.
+
+    Si modules_data + infra_data + licences_data sont fournis (rendu Livraison 2),
+    la synthèse fusionne modules+infra dans 'Abonnement(s) mensuel(s)' et ajoute
+    une ligne 'Licence(s) complémentaire(s) annuelle(s)'.
+    Sinon (fallback) : on utilise abo (ancien comportement).
+    """
     import re as _re
 
     # ── Construire §4 Synthèse ──
     synthese_lines = []
-    total_mensuel = abo.get("total_mensuel", 0)
-    total_prest   = prest.get("total", 0)
-    total_form    = form.get("total", 0) if form else 0
-    total_mat     = materiel.get("total", 0) if isinstance(materiel, dict) else (materiel or 0)
 
-    if total_mensuel > 0: synthese_lines.append(_para_synthese("Abonnement Mensuel", fmt_num(total_mensuel)))
-    if total_prest   > 0: synthese_lines.append(_para_synthese("Prestation initiale", fmt_num(total_prest)))
-    if total_form    > 0: synthese_lines.append(_para_synthese("Formations", fmt_num(total_form)))
-    if total_mat     > 0: synthese_lines.append(_para_synthese("Matériel", fmt_num(total_mat)))
+    # Helper : retourne 'singulier' ou 'pluriel' selon le nombre de lignes
+    def _label(nb_lignes, singulier, pluriel):
+        return pluriel if nb_lignes > 1 else singulier
+
+    if modules_data is not None and infra_data is not None and licences_data is not None:
+        # ── Mode Livraison 2 : 4 lignes (modules+infra fusionnés, licences à part) ──
+        nb_modules = len(modules_data.get("lignes", []))
+        nb_infra = len(infra_data.get("lignes", []))
+        nb_licences = len(licences_data.get("lignes", []))
+        nb_prest = len(prest.get("lignes", []))
+        nb_form = len(form.get("lignes", [])) if form else 0
+
+        # 1. Abonnement(s) mensuel(s) = total Modules + total Infrastructure
+        total_abo_mensuel = modules_data.get("total_mensuel", 0) + infra_data.get("total_mensuel", 0)
+        nb_abo_lignes = nb_modules + nb_infra
+        if total_abo_mensuel > 0:
+            label_abo = _label(nb_abo_lignes, "Abonnement mensuel", "Abonnements mensuels")
+            synthese_lines.append(_para_synthese(label_abo, fmt_num(total_abo_mensuel)))
+
+        # 2. Licence(s) complémentaire(s) annuelle(s)
+        total_licences = licences_data.get("total_annuel", 0)
+        if total_licences > 0:
+            label_lic = _label(nb_licences, "Licence complémentaire annuelle", "Licences complémentaires annuelles")
+            synthese_lines.append(_para_synthese(label_lic, fmt_num(total_licences)))
+
+        # 3. Prestation(s) initiale(s)
+        total_prest = prest.get("total", 0)
+        if total_prest > 0:
+            label_prest = _label(nb_prest, "Prestation initiale", "Prestations initiales")
+            synthese_lines.append(_para_synthese(label_prest, fmt_num(total_prest)))
+
+        # 4. Formation(s)
+        total_form = form.get("total", 0) if form else 0
+        if total_form > 0:
+            label_form = _label(nb_form, "Formation", "Formations")
+            synthese_lines.append(_para_synthese(label_form, fmt_num(total_form)))
+
+        # 5. Matériel (inchangé, conservé pour compat)
+        total_mat = materiel.get("total", 0) if isinstance(materiel, dict) else (materiel or 0)
+        if total_mat > 0:
+            synthese_lines.append(_para_synthese("Matériel", fmt_num(total_mat)))
+    else:
+        # ── Fallback : ancien comportement (abo seul, sans split modules/infra/licences) ──
+        total_mensuel = abo.get("total_mensuel", 0)
+        total_prest   = prest.get("total", 0)
+        total_form    = form.get("total", 0) if form else 0
+        total_mat     = materiel.get("total", 0) if isinstance(materiel, dict) else (materiel or 0)
+        nb_abo = len(abo.get("lignes", []))
+        nb_prest = len(prest.get("lignes", []))
+        nb_form = len(form.get("lignes", [])) if form else 0
+
+        if total_mensuel > 0:
+            synthese_lines.append(_para_synthese(_label(nb_abo, "Abonnement mensuel", "Abonnements mensuels"), fmt_num(total_mensuel)))
+        if total_prest   > 0:
+            synthese_lines.append(_para_synthese(_label(nb_prest, "Prestation initiale", "Prestations initiales"), fmt_num(total_prest)))
+        if total_form    > 0:
+            synthese_lines.append(_para_synthese(_label(nb_form, "Formation", "Formations"), fmt_num(total_form)))
+        if total_mat     > 0:
+            synthese_lines.append(_para_synthese("Matériel", fmt_num(total_mat)))
 
     synthese_xml = _titre2("Synthèse") + ''.join(synthese_lines)
 
