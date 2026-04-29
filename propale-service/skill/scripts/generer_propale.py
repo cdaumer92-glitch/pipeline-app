@@ -90,6 +90,46 @@ def fix_logo_tw(src, dst):
 def fmt(n):
     return f"{n:,.2f}".replace(",","\u202f").replace(".",",")+"\u00a0\u20ac"
 
+def fmt_no_eur(n):
+    """Comme fmt() mais sans le symbole €. Utilisé pour les cellules quand l'entête contient déjà '€ H.T'."""
+    return f"{n:,.2f}".replace(",","\u202f").replace(".",",")
+
+def fmt_pct(p):
+    """Formate un % de remise (entier si entier, sinon 1 décimale)."""
+    try:
+        pf = float(p)
+        if pf == int(pf): return f"{int(pf)} %"
+        return f"{pf:.1f}".replace(".", ",") + " %"
+    except Exception:
+        return ""
+
+def unite_to_facturation_label(unite, default_periode="mois"):
+    """Convertit une unité interne ('€/mois/user', '€/an/lic'...) vers le format affiché 'mois / user', 'an / licence'.
+
+    Règles :
+    - Mensuel + user → 'mois / user'
+    - Annuel + user → 'an / user'
+    - Annuel + licence → 'an / licence'
+    - Infra forfait (pas de spécifieur) → 'mois / forfait'
+    - Infra qté → 'mois / qté'
+    - Mensuel sans spécifieur → 'mois / forfait'
+    """
+    if not unite:
+        return f"{default_periode} / forfait"
+    s = str(unite)
+    # Format interne : '€/mois', '€/mois/user', '€/an/lic'...
+    if s.startswith("€/"):
+        s = s[2:]
+    parts = s.split("/")
+    periode = parts[0] if parts else default_periode
+    unit = parts[1] if len(parts) > 1 else "forfait"
+    # Normalisations cosmétiques
+    if unit == "lic":
+        unit = "licence"
+    if unit in ("term.", "term"):
+        unit = "terminal"
+    return f"{periode} / {unit}"
+
 def cell_hdr(txt,w,align="center",bg="003366"):
     return (f'<w:tc><w:tcPr><w:tcW w:w="{w}" w:type="dxa"/>'
             f'<w:shd w:val="clear" w:color="auto" w:fill="{bg}"/></w:tcPr>'
@@ -116,13 +156,13 @@ def cell_total(txt,w,align="left",color="003366",bg="D5E8F0"):
 
 def row(*cells): return '<w:tr>'+''.join(cells)+'</w:tr>'
 
-def tbl_wrap(rows_xml, cols="5000,2013,2013"):
-    """Tableau avec tblInd=720 pour s'aligner sur les §3.x (Titre2)."""
+def tbl_wrap(rows_xml, cols="5000,2013,2013", tbl_ind=360):
+    """Tableau avec tblInd configurable pour décaler à gauche (default 360 = ~0,6cm)."""
     ws = cols.split(',')
     grid = ''.join(f'<w:gridCol w:w="{w}"/>' for w in ws)
     total = sum(int(w) for w in ws)
     return (f'<w:tbl><w:tblPr><w:tblW w:w="{total}" w:type="dxa"/>'
-            f'<w:tblInd w:w="720" w:type="dxa"/>'
+            f'<w:tblInd w:w="{tbl_ind}" w:type="dxa"/>'
             f'<w:tblBorders>'
             f'<w:top w:val="single" w:sz="4" w:space="0" w:color="AAAAAA"/>'
             f'<w:left w:val="single" w:sz="4" w:space="0" w:color="AAAAAA"/>'
@@ -394,9 +434,6 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
     # Nouveau rendu (Livraison 2) : 4 tableaux distincts si le JSON est enrichi
     # Sinon : ancien rendu (1 seul tableau abonnements + 1 prestations)
     if has_split:
-        # Largeurs colonnes Modules/Licences : Désignation 4000 / Qté 900 / PU 1200 / Total 1413 / Unité 1513 (total 9026)
-        cols_5 = "4000,900,1200,1413,1513"
-
         def fmt_qty(q):
             """Formatte une quantité : entier si entier, sinon décimal."""
             if q is None: return ""
@@ -411,110 +448,217 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
         def _hdr_label(nb, sg, pl):
             return pl if nb > 1 else sg
 
+        # Helper : une ligne a-t-elle une remise > 0 ?
+        def _has_remise(l):
+            try:
+                return float(l.get("remise_pct", 0) or 0) > 0
+            except Exception:
+                return False
+
         nb_modules_l = len(modules_data.get("lignes", []))
         nb_licences_l = len(licences_data.get("lignes", []))
         nb_infra_l = len(infra_data.get("lignes", []))
         nb_prest_l = len(prest.get("lignes", []))
 
-        # ── Tableau 1 : Abonnements Mensuels Modules TexasWin (5 colonnes) ──
-        r_modules = row(
-            cell_hdr(_hdr_label(nb_modules_l, "Module / Abonnement", "Modules / Abonnements"), 4000, "left"),
-            cell_hdr("Qté", 900, "center"),
-            cell_hdr("Prix unitaire", 1200, "right"),
-            cell_hdr("Total HT", 1413, "right"),
-            cell_hdr("Unité", 1513, "center")
-        )
-        for l in modules_data.get("lignes", []):
-            qty_txt = fmt_qty(l.get("qty"))
-            pu_txt = fmt(l["prix_unitaire"]) if l.get("prix_unitaire") is not None else ""
-            r_modules += row(
-                cell_body(l["nom"], 4000),
-                cell_body(qty_txt, 900, "center"),
-                cell_body(pu_txt, 1200, "right"),
-                cell_body(fmt(l["montant"]), 1413, "right"),
-                cell_body(l.get("unite", "€/mois"), 1513, "center")
-            )
-        r_modules += row(
-            cell_total("Total abonnements modules", 4000, "left"),
-            cell_empty(900),
-            cell_empty(1200),
-            cell_total(fmt(modules_data.get("total_mensuel", 0)) + " HT", 1413, "right"),
-            cell_total("€/mois", 1513, "center")
-        )
+        # Détection : afficher la colonne Remise si au moins une ligne a remise > 0 (par tableau)
+        has_remise_modules = any(_has_remise(l) for l in modules_data.get("lignes", []))
+        has_remise_licences = any(_has_remise(l) for l in licences_data.get("lignes", []))
 
-        # ── Tableau 2 : Licences complémentaires (5 colonnes) ──
+        # Tri des lignes Modules selon l'ordre choisi par l'utilisateur dans l'aperçu (drag-and-drop CRM)
+        # Si moduleState.apercuOrderUserSet=True, les lignes sont réordonnées selon moduleState.apercuOrder
+        ms_state = data.get("moduleState", {})
+        if ms_state.get("apercuOrderUserSet") and isinstance(ms_state.get("apercuOrder"), list) and ms_state["apercuOrder"]:
+            order = ms_state["apercuOrder"]
+            current_lignes = modules_data.get("lignes", [])
+            ordered, seen = [], set()
+            for k in order:
+                for l in current_lignes:
+                    if l.get("_key") == k and k not in seen:
+                        ordered.append(l)
+                        seen.add(k)
+                        break
+            # Lignes nouvelles (pas dans l'ordre user) ajoutées à la fin
+            for l in current_lignes:
+                k = l.get("_key")
+                if k and k not in seen:
+                    ordered.append(l)
+                    seen.add(k)
+                elif not k:
+                    ordered.append(l)
+            modules_data = dict(modules_data)
+            modules_data["lignes"] = ordered
+
+        # ── Tableau 1 : Abonnements Mensuels Modules TexasWin ──
+        # Colonnes selon présence remise :
+        # - Sans remise : Désignation 4500 / Qté 700 / PU 1300 / Total 1500 / Facturation-Unité 2000 (total 10000)
+        # - Avec remise : Désignation 4000 / Qté 600 / PU 1200 / Remise 900 / Total 1400 / Facturation-Unité 1900 (total 10000)
+        if has_remise_modules:
+            cols_modules = "4000,600,1200,900,1400,1900"
+            r_modules = row(
+                cell_hdr(_hdr_label(nb_modules_l, "Module / Abonnement", "Modules / Abonnements"), 4000, "left"),
+                cell_hdr("Qté", 600, "center"),
+                cell_hdr("PU € H.T", 1200, "right"),
+                cell_hdr("Remise %", 900, "center"),
+                cell_hdr("Total € H.T", 1400, "right"),
+                cell_hdr("Facturation - Unité", 1900, "center")
+            )
+            for l in modules_data.get("lignes", []):
+                qty_txt = fmt_qty(l.get("qty"))
+                pu_txt = fmt_no_eur(l["prix_unitaire"]) if l.get("prix_unitaire") is not None else ""
+                rem_txt = fmt_pct(l["remise_pct"]) if _has_remise(l) else ""
+                fact_txt = unite_to_facturation_label(l.get("unite", "€/mois"))
+                r_modules += row(
+                    cell_body(l["nom"], 4000),
+                    cell_body(qty_txt, 600, "center"),
+                    cell_body(pu_txt, 1200, "right"),
+                    cell_body(rem_txt, 900, "center"),
+                    cell_body(fmt_no_eur(l["montant"]), 1400, "right"),
+                    cell_body(fact_txt, 1900, "center")
+                )
+            r_modules += row(
+                cell_total("Total abonnements modules", 4000, "left"),
+                cell_empty(600),
+                cell_empty(1200),
+                cell_empty(900),
+                cell_total(fmt_no_eur(modules_data.get("total_mensuel", 0)) + " HT", 1400, "right"),
+                cell_total("€/mois", 1900, "center")
+            )
+        else:
+            cols_modules = "4500,700,1300,1500,2000"
+            r_modules = row(
+                cell_hdr(_hdr_label(nb_modules_l, "Module / Abonnement", "Modules / Abonnements"), 4500, "left"),
+                cell_hdr("Qté", 700, "center"),
+                cell_hdr("PU € H.T", 1300, "right"),
+                cell_hdr("Total € H.T", 1500, "right"),
+                cell_hdr("Facturation - Unité", 2000, "center")
+            )
+            for l in modules_data.get("lignes", []):
+                qty_txt = fmt_qty(l.get("qty"))
+                pu_txt = fmt_no_eur(l["prix_unitaire"]) if l.get("prix_unitaire") is not None else ""
+                fact_txt = unite_to_facturation_label(l.get("unite", "€/mois"))
+                r_modules += row(
+                    cell_body(l["nom"], 4500),
+                    cell_body(qty_txt, 700, "center"),
+                    cell_body(pu_txt, 1300, "right"),
+                    cell_body(fmt_no_eur(l["montant"]), 1500, "right"),
+                    cell_body(fact_txt, 2000, "center")
+                )
+            r_modules += row(
+                cell_total("Total abonnements modules", 4500, "left"),
+                cell_empty(700),
+                cell_empty(1300),
+                cell_total(fmt_no_eur(modules_data.get("total_mensuel", 0)) + " HT", 1500, "right"),
+                cell_total("€/mois", 2000, "center")
+            )
+
+        # ── Tableau 2 : Licences complémentaires ──
         r_licences = ""
         if licences_data.get("lignes"):
-            r_licences = row(
-                cell_hdr(_hdr_label(nb_licences_l, "Licence complémentaire", "Licences complémentaires"), 4000, "left"),
-                cell_hdr("Qté", 900, "center"),
-                cell_hdr("Prix unitaire", 1200, "right"),
-                cell_hdr("Total HT", 1413, "right"),
-                cell_hdr("Unité", 1513, "center")
-            )
-            for l in licences_data.get("lignes", []):
-                qty_txt = fmt_qty(l.get("qty"))
-                pu_txt = fmt(l["prix_unitaire"]) if l.get("prix_unitaire") is not None else ""
-                r_licences += row(
-                    cell_body(l["nom"], 4000),
-                    cell_body(qty_txt, 900, "center"),
-                    cell_body(pu_txt, 1200, "right"),
-                    cell_body(fmt(l["montant"]), 1413, "right"),
-                    cell_body(l.get("unite", "€/an"), 1513, "center")
+            if has_remise_licences:
+                cols_licences = "4000,600,1200,900,1400,1900"
+                r_licences = row(
+                    cell_hdr(_hdr_label(nb_licences_l, "Licence complémentaire", "Licences complémentaires"), 4000, "left"),
+                    cell_hdr("Qté", 600, "center"),
+                    cell_hdr("PU € H.T", 1200, "right"),
+                    cell_hdr("Remise %", 900, "center"),
+                    cell_hdr("Total € H.T", 1400, "right"),
+                    cell_hdr("Facturation - Unité", 1900, "center")
                 )
-            r_licences += row(
-                cell_total("Total licences annuelles", 4000, "left"),
-                cell_empty(900),
-                cell_empty(1200),
-                cell_total(fmt(licences_data.get("total_annuel", 0)) + " HT", 1413, "right"),
-                cell_total("€/an", 1513, "center")
-            )
+                for l in licences_data.get("lignes", []):
+                    qty_txt = fmt_qty(l.get("qty"))
+                    pu_txt = fmt_no_eur(l["prix_unitaire"]) if l.get("prix_unitaire") is not None else ""
+                    rem_txt = fmt_pct(l["remise_pct"]) if _has_remise(l) else ""
+                    fact_txt = unite_to_facturation_label(l.get("unite", "€/an"))
+                    r_licences += row(
+                        cell_body(l["nom"], 4000),
+                        cell_body(qty_txt, 600, "center"),
+                        cell_body(pu_txt, 1200, "right"),
+                        cell_body(rem_txt, 900, "center"),
+                        cell_body(fmt_no_eur(l["montant"]), 1400, "right"),
+                        cell_body(fact_txt, 1900, "center")
+                    )
+                r_licences += row(
+                    cell_total("Total licences annuelles", 4000, "left"),
+                    cell_empty(600),
+                    cell_empty(1200),
+                    cell_empty(900),
+                    cell_total(fmt_no_eur(licences_data.get("total_annuel", 0)) + " HT", 1400, "right"),
+                    cell_total("€/an", 1900, "center")
+                )
+            else:
+                cols_licences = "4500,700,1300,1500,2000"
+                r_licences = row(
+                    cell_hdr(_hdr_label(nb_licences_l, "Licence complémentaire", "Licences complémentaires"), 4500, "left"),
+                    cell_hdr("Qté", 700, "center"),
+                    cell_hdr("PU € H.T", 1300, "right"),
+                    cell_hdr("Total € H.T", 1500, "right"),
+                    cell_hdr("Facturation - Unité", 2000, "center")
+                )
+                for l in licences_data.get("lignes", []):
+                    qty_txt = fmt_qty(l.get("qty"))
+                    pu_txt = fmt_no_eur(l["prix_unitaire"]) if l.get("prix_unitaire") is not None else ""
+                    fact_txt = unite_to_facturation_label(l.get("unite", "€/an"))
+                    r_licences += row(
+                        cell_body(l["nom"], 4500),
+                        cell_body(qty_txt, 700, "center"),
+                        cell_body(pu_txt, 1300, "right"),
+                        cell_body(fmt_no_eur(l["montant"]), 1500, "right"),
+                        cell_body(fact_txt, 2000, "center")
+                    )
+                r_licences += row(
+                    cell_total("Total licences annuelles", 4500, "left"),
+                    cell_empty(700),
+                    cell_empty(1300),
+                    cell_total(fmt_no_eur(licences_data.get("total_annuel", 0)) + " HT", 1500, "right"),
+                    cell_total("€/an", 2000, "center")
+                )
 
-        # ── Tableau 3 : Infrastructure (3 colonnes : Désignation / Total / Unité) ──
+        # ── Tableau 3 : Infrastructure (3 colonnes : Désignation / Total / Facturation-Unité) ──
         r_infra = ""
         if infra_data.get("lignes"):
             r_infra = row(
-                cell_hdr("Infrastructure", 5026, "left"),
-                cell_hdr("Total HT", 2500, "right"),
-                cell_hdr("Unité", 1500, "center")
+                cell_hdr("Infrastructure", 5500, "left"),
+                cell_hdr("Total € H.T", 2000, "right"),
+                cell_hdr("Facturation - Unité", 2500, "center")
             )
             for l in infra_data.get("lignes", []):
+                fact_txt = unite_to_facturation_label(l.get("unite", "€/mois"))
                 r_infra += row(
-                    cell_body(l["nom"], 5026),
-                    cell_body(fmt(l["montant"]), 2500, "right"),
-                    cell_body(l.get("unite", "€/mois"), 1500, "center")
+                    cell_body(l["nom"], 5500),
+                    cell_body(fmt_no_eur(l["montant"]), 2000, "right"),
+                    cell_body(fact_txt, 2500, "center")
                 )
             r_infra += row(
-                cell_total("Total infrastructure mensuelle", 5026, "left"),
-                cell_total(fmt(infra_data.get("total_mensuel", 0)) + " HT", 2500, "right"),
-                cell_total("€/mois", 1500, "center")
+                cell_total("Total infrastructure mensuelle", 5500, "left"),
+                cell_total(fmt_no_eur(infra_data.get("total_mensuel", 0)) + " HT", 2000, "right"),
+                cell_total("€/mois", 2500, "center")
             )
 
         # ── Tableau 4 : Prestations Initiales (3 colonnes : Désignation / Durée / Total) ──
         r_prest = row(
-            cell_hdr(_hdr_label(nb_prest_l, "Prestation initiale", "Prestations initiales"), 5000, "left"),
-            cell_hdr("Durée", 2013),
-            cell_hdr("Montant HT", 2013, "right")
+            cell_hdr(_hdr_label(nb_prest_l, "Prestation initiale", "Prestations initiales"), 5500, "left"),
+            cell_hdr("Durée", 2000, "center"),
+            cell_hdr("Total € H.T", 2500, "right")
         )
         for l in prest.get("lignes", []):
             r_prest += row(
-                cell_body(l["nom"], 5000),
-                cell_body(l.get("duree", ""), 2013, "center"),
-                cell_body(fmt(l["montant"]), 2013, "right")
+                cell_body(l["nom"], 5500),
+                cell_body(l.get("duree", ""), 2000, "center"),
+                cell_body(fmt_no_eur(l["montant"]), 2500, "right")
             )
         r_prest += row(
-            cell_total("Total prestations initiales", 5000, "left"),
-            cell_empty(2013),
-            cell_total(fmt(prest.get("total", 0)) + " HT", 2013, "right")
+            cell_total("Total prestations initiales", 5500, "left"),
+            cell_empty(2000),
+            cell_total(fmt_no_eur(prest.get("total", 0)) + " HT", 2500, "right")
         )
 
         # Assemblage : Modules → Licences → Infra → Prestations, avec séparateurs
-        tbl_prix = tbl_wrap(r_modules, cols=cols_5)
+        tbl_prix = tbl_wrap(r_modules, cols=cols_modules)
         if r_licences:
-            tbl_prix += sep("17110002") + tbl_wrap(r_licences, cols=cols_5)
+            tbl_prix += sep("17110002") + tbl_wrap(r_licences, cols=cols_licences)
         if r_infra:
-            tbl_prix += sep("17110003") + tbl_wrap(r_infra, cols="5026,2500,1500")
-        tbl_prix += sep("17110001") + tbl_wrap(r_prest)
+            tbl_prix += sep("17110003") + tbl_wrap(r_infra, cols="5500,2000,2500")
+        tbl_prix += sep("17110001") + tbl_wrap(r_prest, cols="5500,2000,2500")
     else:
         # ── Fallback : ancien rendu 2 tableaux (compatibilité avec ancien CRM) ──
         r_abo = row(cell_hdr("Désignation", 5000, "left"), cell_hdr("Périodicité", 2013), cell_hdr("Montant HT", 2013, "right"))
