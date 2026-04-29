@@ -2109,12 +2109,20 @@ function renderSection4() {
 
   // ── 2) Appliquer l'ordre personnalisé ──
   const activeKeys = items.map(i => i.key);
-  // Nettoyer prestationOrder des keys qui n'existent plus
-  moduleState.prestationOrder = (moduleState.prestationOrder || []).filter(k => activeKeys.includes(k));
-  // Ajouter les nouvelles keys (pas encore dans l'ordre) à la fin, en respectant leur ordre d'apparition dans items
-  activeKeys.forEach(k => {
-    if (!moduleState.prestationOrder.includes(k)) moduleState.prestationOrder.push(k);
-  });
+  // OPTION A : au premier rendu de la session, forcer l'ordre par défaut (écrase toute réorganisation antérieure).
+  // Après le premier rendu, le drag-and-drop fait foi.
+  // Cela garantit que tous les devis (nouveaux ET existants) démarrent avec l'ordre standard,
+  // tout en permettant à l'utilisateur de réorganiser librement durant sa session.
+  if (!window.__prestOrderInitialized) {
+    moduleState.prestationOrder = activeKeys.slice();
+    window.__prestOrderInitialized = true;
+  } else {
+    // Sessions suivantes : nettoyer les keys qui n'existent plus, ajouter les nouvelles à la fin
+    moduleState.prestationOrder = (moduleState.prestationOrder || []).filter(k => activeKeys.includes(k));
+    activeKeys.forEach(k => {
+      if (!moduleState.prestationOrder.includes(k)) moduleState.prestationOrder.push(k);
+    });
+  }
   // Trier items selon prestationOrder
   const orderedItems = moduleState.prestationOrder
     .map(k => items.find(i => i.key === k))
