@@ -2759,6 +2759,116 @@ function setFormationOverride(key, field, value) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// CONSTRUCTION DES LIGNES — Modules / Infrastructure / Abonnements
+// ══════════════════════════════════════════════════════════════
+// Factorisée pour être utilisée à la fois par :
+//   - calculate() (alimentation en temps réel de l'aperçu propale)
+//   - buildConfigJson() (génération du .docx)
+// Retourne { lignesAbo, lignesModules, lignesInfra, totalMensuel, totalModules, totalInfra }
+function buildLignesModulesInfra() {
+  const lignesAbo = [];      // total combiné — conservé pour compatibilité avec l'ancien Python
+  const lignesModules = [];  // modules métier (Biz, Fab, Net, Mag, VRP, Col, Log, Jet, Kub, Flu)
+  const lignesInfra = [];    // infrastructure (hébergement, gestion flux, support, allocation Sage, etc.)
+  const ms = moduleState;
+  const remPct = (modId) => ms[modId + '_remise'] || 0;
+  const ligneKey = (modId, nom) => (modId || 'infra') + '::' + nom;
+  const remiseEffectiveLigne = (modId, nom) => {
+    const overrides = ms.lignes_remises_overrides || {};
+    const k = ligneKey(modId, nom);
+    if (Object.prototype.hasOwnProperty.call(overrides, k)) {
+      const v = parseFloat(overrides[k]);
+      return isNaN(v) ? 0 : v;
+    }
+    return modId ? remPct(modId) : 0;
+  };
+  const addAbo = (nom, qty, pu, modId, unite) => {
+    if (!unite) unite = '€/mois';
+    const brut = (qty != null && pu != null) ? qty * pu : pu;
+    if (brut <= 0) return;
+    const r = remiseEffectiveLigne(modId, nom);
+    const net = brut * (1 - r / 100);
+    const ligne = { nom, montant: net, unite };
+    if (qty != null && pu != null) {
+      ligne.qty = qty;
+      ligne.prix_unitaire = pu;
+    }
+    if (r > 0) { ligne.prix_brut = brut; ligne.remise_pct = r; }
+    if (modId) { ligne._key = ligneKey(modId, nom); ligne._modId = modId; }
+    lignesAbo.push(ligne);
+    if (modId) lignesModules.push(ligne); else lignesInfra.push(ligne);
+  };
+
+  // Modules : avec qty + pu pour l'affichage propal
+  addAbo('Module BIZ (Négoce)', (ms.biz||0), 155, 'biz', '€/mois/user');
+  addAbo('Avec option Production (FAB)', (ms.biz_fab_opt||0), 68, 'biz', '€/mois/user');
+  addAbo('Module FAB Standalone (Production seule)', (ms.fab||0), 145.5, 'fab', '€/mois/user');
+  // Module Net B2B : 3 cas (siège seul / agents seul / siège+agents)
+  const netSiegeActif = !!ms.net_siege_active;
+  const netAgentsVal = ms.net_agents_val || 0;
+  if (netSiegeActif || netAgentsVal > 0) {
+    const palier = netPaliers.find(p => p.max === netAgentsVal);
+    if (palier && netSiegeActif) {
+      addAbo(`Module Net B2B — Siège + Agents ${palier.label}`, null, palier.both, 'net', '€/mois');
+    } else if (palier && !netSiegeActif) {
+      addAbo(`Module Net B2B — Agents ${palier.label}`, null, palier.agents_only, 'net', '€/mois');
+    } else if (netSiegeActif) {
+      addAbo('Module Net B2B — Siège', null, 328, 'net', '€/mois');
+    }
+  }
+  addAbo('Module Kub (Business Intelligence)', (ms.kub||0), 20, 'kub', '€/mois/user');
+  if ((ms.mag||0)>0) addAbo('Module Mag : Concentrateur', 1, 99, 'mag', '€/mois');
+  addAbo('Module Mag (Nb Caisses déployées)', (ms.mag_caisses||0), 49, 'mag', '€/mois/caisse');
+  addAbo('Module VRP (Représentant)', (ms.vrp||0), 53, 'vrp', '€/mois/user');
+  addAbo('Module Col (Collection)', (ms.col||0), 20, 'col', '€/mois/user');
+  addAbo('Module Log (Logistique)', (ms.log||0), 155, 'log', '€/mois/user');
+  addAbo('Module Jet (Inventaire)', (ms.jet||0), 40, 'jet', '€/mois/user');
+
+  // Infrastructure : forfait sans qté/pu
+  if ((ms.biz||0)>0||(ms.fab||0)>0) addAbo('Hébergement serveur TexasWin', null, calcHebTW(), null, '€/mois');
+  if ((ms.mag||0)>0) addAbo('Gestion des Flux MAG', null, 40, null, '€/mois');
+  if ((ms.mag_caisses||0)>0) addAbo('Support MAG/Caisse déployée', null, 15*(ms.mag_caisses||0), null, '€/mois');
+  // Récupérer les noms de flux depuis le DOM (utilisés dans la génération propale)
+  const _fluxNomsLocal = (typeof fluxNoms !== 'undefined' && fluxNoms.length)
+    ? fluxNoms
+    : Array.from(document.querySelectorAll('#fluxNomsContainer input')).map(i => i.value || '');
+  if ((ms.fluxTiers||0)>0) addAbo('Gestion des Flux ('+_fluxNomsLocal.join(', ')+')', null, 40*(ms.fluxTiers||0), null, '€/mois');
+  if (ms.facturationElec) addAbo('Gestion Facturation électronique (réception)', null, 40, null, '€/mois');
+  if (ms.comptaSage) addAbo('Allocation ressources Sage', null, 135, null, '€/mois');
+  if ((ms.kub||0)>0) addAbo('Hébergement serveur Kub', null, calcHebKub(), null, '€/mois');
+  if (ms.middlewareStandalone) addAbo('Concentrateur middleware multi-magasin', null, 99, null, '€/mois');
+
+  // Lignes custom ajoutées dans le drawer de chaque module
+  ['biz','fab','net','kub','mag','vrp','col','log','jet','flu'].forEach(modId => {
+    const extras = ms[modId + '_extra'] || [];
+    extras.forEach(line => {
+      const pu = parseFloat(line.pu) || 0;
+      const qty = parseFloat(line.qty) || 0;
+      const remise = parseFloat(line.remise) || 0;
+      if (pu > 0 && qty > 0) {
+        const brut = pu * qty;
+        const net = brut * (1 - remise / 100);
+        const label = line.label || (`Ligne custom ${modId.toUpperCase()}`);
+        const unite = line.unit ? `€/mois/${line.unit}` : '€/mois';
+        const ligne = { nom: label, qty, prix_unitaire: pu, montant: net, unite };
+        if (remise > 0) { ligne.prix_brut = brut; ligne.remise_pct = remise; }
+        // Clé pour permettre drag-and-drop / override sur lignes custom aussi
+        ligne._key = (modId || 'infra') + '::' + label;
+        ligne._modId = modId;
+        lignesAbo.push(ligne);
+        lignesModules.push(ligne);
+      }
+    });
+  });
+
+  const totalMensuel = lignesAbo.reduce((s,l)=>s+l.montant,0);
+  const totalModules = lignesModules.reduce((s,l)=>s+l.montant,0);
+  const totalInfra = lignesInfra.reduce((s,l)=>s+l.montant,0);
+
+  return { lignesAbo, lignesModules, lignesInfra, totalMensuel, totalModules, totalInfra };
+}
+
+
+// ══════════════════════════════════════════════════════════════
 // APERÇU PROPALE — MODULES (collapsible sous les tuiles)
 // ══════════════════════════════════════════════════════════════
 // Convertit l'unité interne (ex: '€/mois/user') vers le format affiché 'mois / user'
@@ -3110,6 +3220,15 @@ function calculate() {
 
   const grandTotal = totalMensuel * 12 + totalAnnuel + totalPrest + totalFormation;
   document.getElementById('totalGeneral').textContent = fmtEur(grandTotal);
+
+  // ── Aperçu propale Modules : rafraîchissement temps réel ──────────────
+  // Construit les lignes via la fonction factorisée et les passe à renderApercuModules
+  try {
+    const apr = buildLignesModulesInfra();
+    renderApercuModules(apr.lignesModules, apr.totalModules);
+  } catch(e) {
+    console.error('[apercu] erreur rendu :', e);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -3231,127 +3350,15 @@ function buildConfigJson() {
   if ((moduleState.fluxTiers||0)>0) modulesRetenus.push('flu');
 
   // Lignes abonnements depuis le DOM
-  // Split en 2 catégories : Modules (avec modId) et Infrastructure (sans modId)
-  const lignesAbo = [];      // total combiné — conservé pour compatibilité avec l'ancien Python
-  const lignesModules = [];  // NEW : modules métier (Biz, Fab, Net, Mag, VRP, Col, Log, Jet, Kub, Flu)
-  const lignesInfra = [];    // NEW : infrastructure (hébergement, gestion flux, support, allocation Sage, etc.)
-  // Reconstruire depuis les valeurs (avec remises par module appliquées)
+  // Construction factorisée (utilisée aussi par calculate() pour l'aperçu propale)
+  const _lmi = buildLignesModulesInfra();
+  const lignesAbo = _lmi.lignesAbo;
+  const lignesModules = _lmi.lignesModules;
+  const lignesInfra = _lmi.lignesInfra;
   const ms = moduleState;
-  const remPct = (modId) => ms[modId + '_remise'] || 0;
-  const netMontant = (montant, modId) => montant * (1 - remPct(modId) / 100);
-  // Helper : calcule la clé déterministe d'une ligne pour les overrides remise par ligne et l'ordre.
-  // Format : "modId::nom_normalisé". Doit être stable entre rechargements du devis.
-  const ligneKey = (modId, nom) => (modId || 'infra') + '::' + nom;
-  // Helper : retourne le % de remise effectif appliqué à une ligne (option C)
-  // - Si override de ligne existe (clé présente dans lignes_remises_overrides) → override gagne
-  // - Sinon → hérite de la remise du module
-  const remiseEffectiveLigne = (modId, nom) => {
-    const overrides = ms.lignes_remises_overrides || {};
-    const k = ligneKey(modId, nom);
-    if (Object.prototype.hasOwnProperty.call(overrides, k)) {
-      const v = parseFloat(overrides[k]);
-      return isNaN(v) ? 0 : v;
-    }
-    return modId ? remPct(modId) : 0;
-  };
-  // Signature enrichie : addAbo(nom, qty, pu, modId, unite)
-  // - qty * pu = montant brut (avant remise)
-  // - modId : si fourni, applique la remise effective (override ligne sinon remise module)
-  // - unite : par défaut '€/mois', overridable (ex: '€/mois/user')
-  // Pour les lignes infra forfaitaires (pas de qté/pu), passer qty=null et pu=null, montant en pu
-  const addAbo = (nom, qty, pu, modId, unite) => {
-    if (!unite) unite = '€/mois';
-    // Compatibilité : si qty/pu null, montant est dans pu (ancien comportement)
-    const brut = (qty != null && pu != null) ? qty * pu : pu;
-    if (brut <= 0) return;
-    // Remise effective : override ligne si présent, sinon remise module
-    const r = remiseEffectiveLigne(modId, nom);
-    const net = brut * (1 - r / 100);
-    const ligne = { nom, montant: net, unite };
-    if (qty != null && pu != null) {
-      ligne.qty = qty;
-      ligne.prix_unitaire = pu;
-    }
-    if (r > 0) { ligne.prix_brut = brut; ligne.remise_pct = r; }
-    // Clé pour l'aperçu (drag-and-drop, override)
-    if (modId) ligne._key = ligneKey(modId, nom);
-    if (modId) ligne._modId = modId;
-    lignesAbo.push(ligne);
-    // Tri par catégorie : présence d'un modId = module métier, sinon = infrastructure
-    if (modId) {
-      lignesModules.push(ligne);
-    } else {
-      lignesInfra.push(ligne);
-    }
-  };
-  // Modules : avec qty + pu pour l'affichage propal
-  addAbo('Module BIZ (Négoce)', (ms.biz||0), 155, 'biz', '€/mois/user');
-  addAbo('Avec option Production (FAB)', (ms.biz_fab_opt||0), 68, 'biz', '€/mois/user');
-  addAbo('Module FAB Standalone (Production seule)', (ms.fab||0), 145.5, 'fab', '€/mois/user');
-  // Module Net B2B : 3 cas possibles selon Siège B2B coché et palier Agents sélectionné
-  // Cas 1 : Siège seul → ligne "Module Net B2B — Siège" forfait 328€
-  // Cas 2 : Agents seuls → ligne "Module Net B2B — Agents palier X" forfait palier.agents_only
-  // Cas 3 : Siège + Agents → ligne "Module Net B2B — Siège + Agents palier X" forfait palier.both
-  const netSiegeActif = !!ms.net_siege_active;
-  const netAgentsVal = ms.net_agents_val || 0;
-  if (netSiegeActif || netAgentsVal > 0) {
-    const palier = netPaliers.find(p => p.max === netAgentsVal);
-    if (palier && netSiegeActif) {
-      // Cas 3 : forfait combiné
-      addAbo(`Module Net B2B — Siège + Agents ${palier.label}`, null, palier.both, 'net', '€/mois');
-    } else if (palier && !netSiegeActif) {
-      // Cas 2 : agents seuls
-      addAbo(`Module Net B2B — Agents ${palier.label}`, null, palier.agents_only, 'net', '€/mois');
-    } else if (netSiegeActif) {
-      // Cas 1 : siège seul (forfait fixe 328€, pas de qté/PU)
-      addAbo('Module Net B2B — Siège', null, 328, 'net', '€/mois');
-    }
-  }
-  addAbo('Module Kub (Business Intelligence)', (ms.kub||0), 20, 'kub', '€/mois/user');
-  if ((ms.mag||0)>0) addAbo('Module Mag : Concentrateur', 1, 99, 'mag', '€/mois');
-  addAbo('Module Mag (Nb Caisses déployées)', (ms.mag_caisses||0), 49, 'mag', '€/mois/caisse');
-  addAbo('Module VRP (Représentant)', (ms.vrp||0), 53, 'vrp', '€/mois/user');
-  addAbo('Module Col (Collection)', (ms.col||0), 20, 'col', '€/mois/user');
-  addAbo('Module Log (Logistique)', (ms.log||0), 155, 'log', '€/mois/user');
-  addAbo('Module Jet (Inventaire)', (ms.jet||0), 40, 'jet', '€/mois/user');
-  // Infrastructure : forfait sans qté/pu (montant direct en 3e arg, qty=null)
-  if ((ms.biz||0)>0||(ms.fab||0)>0) addAbo('Hébergement serveur TexasWin', null, calcHebTW(), null, '€/mois');
-  if ((ms.mag||0)>0) addAbo('Gestion des Flux MAG', null, 40, null, '€/mois');
-  if ((ms.mag_caisses||0)>0) addAbo('Support MAG/Caisse déployée', null, 15*(ms.mag_caisses||0), null, '€/mois');
-  if ((ms.fluxTiers||0)>0) addAbo('Gestion des Flux ('+fluxNoms.join(', ')+')', null, 40*(ms.fluxTiers||0), null, '€/mois');
-  if (ms.facturationElec) addAbo('Gestion Facturation électronique (réception)', null, 40, null, '€/mois');
-  if (ms.comptaSage) addAbo('Allocation ressources Sage', null, 135, null, '€/mois');
-  if ((ms.kub||0)>0) addAbo('Hébergement serveur Kub', null, calcHebKub(), null, '€/mois');
-  // Middleware standalone (99 € indépendant de Mag)
-  if (ms.middlewareStandalone) addAbo('Concentrateur middleware multi-magasin', null, 99, null, '€/mois');
-
-  // Lignes custom ajoutées dans le drawer de chaque module
-  ['biz','fab','net','kub','mag','vrp','col','log','jet','flu'].forEach(modId => {
-    const extras = ms[modId + '_extra'] || [];
-    extras.forEach(line => {
-      const pu = parseFloat(line.pu) || 0;
-      const qty = parseFloat(line.qty) || 0;
-      const remise = parseFloat(line.remise) || 0;
-      if (pu > 0 && qty > 0) {
-        const brut = pu * qty;
-        const net = brut * (1 - remise / 100);
-        const label = line.label || (`Ligne custom ${modId.toUpperCase()}`);
-        const unite = line.unit ? `€/mois/${line.unit}` : '€/mois';
-        const ligne = { nom: label, qty, prix_unitaire: pu, montant: net, unite };
-        if (remise > 0) { ligne.prix_brut = brut; ligne.remise_pct = remise; }
-        lignesAbo.push(ligne);
-        lignesModules.push(ligne); // Les lignes custom sont liées à un module → catégorie Modules
-      }
-    });
-  });
-
-  const totalMensuel = lignesAbo.reduce((s,l)=>s+l.montant,0);
-  const totalModules = lignesModules.reduce((s,l)=>s+l.montant,0);
-  const totalInfra = lignesInfra.reduce((s,l)=>s+l.montant,0);
-
-  // ── Aperçu propale Modules (collapsible sous les tuiles) ────────────────
-  // Doit être rendu après les calculs de lignesModules pour refléter l'état courant
-  renderApercuModules(lignesModules, totalModules);
+  const totalMensuel = _lmi.totalMensuel;
+  const totalModules = _lmi.totalModules;
+  const totalInfra = _lmi.totalInfra;
 
   // ── Licences complémentaires (Section 2 du configurateur : Sage 100, MyReport, Extensions Kub) ──
   // Récupérées depuis sectionValues['section2_X'] et sectionsData.section2.items
