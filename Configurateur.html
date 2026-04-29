@@ -417,6 +417,106 @@ body {
   font-style: italic;
 }
 
+/* === Toolbar Aperçu (Remise rapide + Reset) === */
+.apercu-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--border);
+}
+.ap-btn-rapide {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: linear-gradient(180deg, #fff7ed 0%, #fed7aa 100%);
+  border: 1px solid #fb923c;
+  border-radius: 6px;
+  color: #9a3412;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ap-btn-rapide:hover { background: linear-gradient(180deg, #fed7aa 0%, #fdba74 100%); }
+.ap-btn-rapide .ap-btn-arrow { font-size: 0.75rem; transition: transform 0.2s; }
+.ap-btn-rapide.open .ap-btn-arrow { transform: rotate(180deg); }
+.ap-btn-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--slate);
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ap-btn-reset:hover { background: #f1f5f9; color: #b91c1c; border-color: #fecaca; }
+
+.apercu-rapide {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.ap-rapide-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #9a3412;
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+}
+.ap-rapide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ap-rapide-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: white;
+  border: 1px solid #fed7aa;
+  border-radius: 5px;
+}
+.ap-rapide-cell label { flex: 1; font-size: 0.82rem; color: var(--navy); font-weight: 600; }
+.ap-rapide-cell input {
+  width: 56px;
+  height: 26px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.82rem;
+  text-align: center;
+  font-family: inherit;
+}
+.ap-rapide-cell input:focus { outline: none; border-color: #fb923c; box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.2); }
+.ap-rapide-cell .ap-rapide-pct { color: var(--slate); font-size: 0.78rem; }
+.ap-rapide-warn {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #78350f;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  margin-bottom: 8px;
+}
+.ap-rapide-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* === DRAWER LATÉRAL === */
 .drawer-overlay {
   position: fixed;
@@ -1239,6 +1339,24 @@ body {
           <span class="apercu-total" id="apercu-total">0,00 €/mois</span>
         </div>
         <div class="apercu-body" id="apercu-body">
+          <div class="apercu-toolbar">
+            <button type="button" class="ap-btn-rapide" onclick="toggleRemiseRapide(event)">
+              ⚡ <span>Remise rapide par module</span>
+              <span class="ap-btn-arrow" id="ap-btn-rapide-arrow">▾</span>
+            </button>
+            <button type="button" class="ap-btn-reset" onclick="resetAllOverrides()" title="Effacer toutes les remises saisies dans l'aperçu">
+              ↺ Réinitialiser remises
+            </button>
+          </div>
+          <div class="apercu-rapide" id="apercu-rapide" style="display:none;">
+            <div class="ap-rapide-title">Appliquer une remise % à toutes les lignes d'un module</div>
+            <div class="ap-rapide-grid" id="ap-rapide-grid"></div>
+            <div class="ap-rapide-warn" id="ap-rapide-warn" style="display:none;"></div>
+            <div class="ap-rapide-actions">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="toggleRemiseRapide(null, false)">Fermer</button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="applyRemiseRapide()">Appliquer</button>
+            </div>
+          </div>
           <table class="apercu-table">
             <thead>
               <tr>
@@ -1254,7 +1372,7 @@ body {
             <tbody id="apercu-tbody"></tbody>
           </table>
           <div class="apercu-help">
-            Champ Remise vide = hérite de la remise du module. Une valeur saisie écrase la remise du module pour cette ligne uniquement. Glisser ⋮⋮ pour réorganiser.
+            Champ Remise vide = aucune remise. Saisir une valeur applique la remise à cette ligne uniquement. Pour appliquer une remise à toutes les lignes d'un module en un clic, utiliser <strong>⚡ Remise rapide par module</strong> ci-dessus. Glisser ⋮⋮ pour réorganiser.
           </div>
         </div>
       </div>
@@ -1888,16 +2006,6 @@ function renderModuleDrawer(modId) {
       <div class="d-section">
         <div class="d-section-title">Utilisateurs & options</div>
         ${fieldsHtml}
-      </div>
-      <div class="d-section d-remise-box">
-        <div class="d-section-title">Remise commerciale</div>
-        <div class="d-field">
-          <label>Remise accordée sur l'abonnement mensuel</label>
-          <input type="number" class="d-qty" id="dq_remise" min="0" max="100"
-            value="${moduleState[remiseKey] || 0}"
-            oninput="moduleState['${remiseKey}']=parseFloat(this.value)||0;onDrawerChange('${modId}')">
-          <span class="d-unit">%</span>
-        </div>
       </div>
       <div class="d-section d-extras-box">
         <div class="d-section-title">Lignes supplémentaires</div>
@@ -2913,6 +3021,129 @@ function toggleApercu() {
   }
 }
 
+// Liste des modules potentiellement actifs (pour le formulaire Remise rapide)
+const APERCU_MODULES_LIST = [
+  { id: 'biz', label: 'Biz' },
+  { id: 'fab', label: 'Fab' },
+  { id: 'net', label: 'Net' },
+  { id: 'kub', label: 'Kub' },
+  { id: 'mag', label: 'Mag' },
+  { id: 'vrp', label: 'Vrp' },
+  { id: 'col', label: 'Col' },
+  { id: 'log', label: 'Log' },
+  { id: 'jet', label: 'Jet' },
+];
+
+// Quels modules ont au moins une ligne dans l'aperçu courant ?
+function getModulesActifsApercu() {
+  const keys = window._apercuLastKeys || [];
+  const set = new Set();
+  keys.forEach(k => {
+    const idx = k.indexOf('::');
+    if (idx > 0) set.add(k.substring(0, idx));
+  });
+  return APERCU_MODULES_LIST.filter(m => set.has(m.id));
+}
+
+// Toggle du panneau Remise rapide (bouton ⚡)
+function toggleRemiseRapide(ev, forceState) {
+  if (ev) ev.stopPropagation();
+  const panel = document.getElementById('apercu-rapide');
+  const btn = document.querySelector('.ap-btn-rapide');
+  if (!panel || !btn) return;
+  const willOpen = (forceState !== undefined) ? forceState : (panel.style.display === 'none');
+  if (willOpen) {
+    // Construire la grille des modules actifs
+    const modules = getModulesActifsApercu();
+    const grid = document.getElementById('ap-rapide-grid');
+    if (modules.length === 0) {
+      grid.innerHTML = '<div style="color:var(--slate);font-size:0.85rem;font-style:italic;">Aucun module actif. Activez un module d\'abord.</div>';
+    } else {
+      grid.innerHTML = modules.map(m => `
+        <div class="ap-rapide-cell">
+          <label>${m.label}</label>
+          <input type="number" min="0" max="100" step="1" placeholder="0"
+            id="ap-rapide-input-${m.id}" data-modid="${m.id}">
+          <span class="ap-rapide-pct">%</span>
+        </div>
+      `).join('');
+    }
+    document.getElementById('ap-rapide-warn').style.display = 'none';
+    panel.style.display = 'block';
+    btn.classList.add('open');
+  } else {
+    panel.style.display = 'none';
+    btn.classList.remove('open');
+  }
+}
+
+// Appliquer les remises saisies dans le formulaire Remise rapide
+// Option α : écrase TOUS les overrides existants des modules concernés (avec confirmation si overrides existaient)
+function applyRemiseRapide() {
+  const inputs = document.querySelectorAll('#ap-rapide-grid input[data-modid]');
+  if (!inputs.length) { toggleRemiseRapide(null, false); return; }
+
+  // Récupérer les valeurs saisies (champ vide = pas d'application sur ce module)
+  const toApply = {};   // {modId: pct}
+  inputs.forEach(inp => {
+    const v = inp.value.trim();
+    if (v === '') return;
+    const n = parseFloat(v.replace(',', '.'));
+    if (isNaN(n)) return;
+    const clamped = Math.max(0, Math.min(100, n));
+    toApply[inp.dataset.modid] = clamped;
+  });
+
+  if (Object.keys(toApply).length === 0) {
+    document.getElementById('ap-rapide-warn').textContent = 'Aucune valeur saisie.';
+    document.getElementById('ap-rapide-warn').style.display = 'block';
+    return;
+  }
+
+  // Vérifier si des overrides existants vont être écrasés
+  const overrides = moduleState.lignes_remises_overrides || (moduleState.lignes_remises_overrides = {});
+  const keys = window._apercuLastKeys || [];
+  let nbExistingOverrides = 0;
+  keys.forEach(k => {
+    const idx = k.indexOf('::');
+    if (idx <= 0) return;
+    const modId = k.substring(0, idx);
+    if (toApply.hasOwnProperty(modId) && Object.prototype.hasOwnProperty.call(overrides, k)) {
+      nbExistingOverrides++;
+    }
+  });
+
+  if (nbExistingOverrides > 0) {
+    const ok = confirm(`Cette action va écraser ${nbExistingOverrides} remise(s) déjà saisie(s) dans l'aperçu pour les modules concernés. Continuer ?`);
+    if (!ok) return;
+  }
+
+  // Appliquer : pour chaque ligne d'un module concerné, écrire l'override
+  keys.forEach(k => {
+    const idx = k.indexOf('::');
+    if (idx <= 0) return;
+    const modId = k.substring(0, idx);
+    if (toApply.hasOwnProperty(modId)) {
+      overrides[k] = toApply[modId];
+    }
+  });
+
+  // Fermer le panneau et recalculer
+  toggleRemiseRapide(null, false);
+  calculate();
+}
+
+// Reset : efface tous les overrides (toutes les remises ligne saisies)
+function resetAllOverrides() {
+  const overrides = moduleState.lignes_remises_overrides || {};
+  const nb = Object.keys(overrides).length;
+  if (nb === 0) { alert('Aucune remise saisie à effacer.'); return; }
+  const ok = confirm(`Effacer ${nb} remise(s) saisie(s) dans l'aperçu ? Cette action ne peut pas être annulée.`);
+  if (!ok) return;
+  moduleState.lignes_remises_overrides = {};
+  calculate();
+}
+
 // Met à jour le % d'override d'une ligne (vide = supprime override = retour à l'héritage)
 function setLigneRemiseOverride(key, valStr) {
   const overrides = moduleState.lignes_remises_overrides || (moduleState.lignes_remises_overrides = {});
@@ -3084,8 +3315,6 @@ function apercuDrop(ev, targetKey) {
 function calculate() {
   let totalMensuel = 0, totalAnnuel = 0, totalPrest = 0;
 
-  // Section 1 : abonnements modules (avec remises par tuile)
-  let s1total = 0;
   const biz = moduleState.biz||0;
   const bizFabOpt = moduleState.biz_fab_opt||0;
   const fab = moduleState.fab||0;
@@ -3099,49 +3328,15 @@ function calculate() {
   const jet = moduleState.jet||0;
   const flux = moduleState.fluxTiers||0;
 
-  // Helper : applique la remise d'un module à un montant
-  const rem = (modId) => 1 - ((moduleState[modId + '_remise'] || 0) / 100);
-
-  // Biz + option FAB partagent la remise "biz_remise"
-  s1total += (biz * 155 + bizFabOpt * 68) * rem('biz');
-  // Fab standalone
-  s1total += fab * 145.5 * rem('fab');
-  // Net (siège + agents)
-  const { prix: netPrix } = getNetAboPrix();
-  s1total += netPrix * rem('net');
-  // Kub (mensuel)
-  s1total += kub * 20 * rem('kub');
-  // Mag : concentrateur (99€ si caisses > 0) + caisses * 49
-  s1total += ((magC > 0 ? 99 : 0) + magC * 49) * rem('mag');
-  // VRP
-  s1total += vrp * 53 * rem('vrp');
-  // Col
-  s1total += col * 20 * rem('col');
-  // Log
-  s1total += log * 155 * rem('log');
-  // Jet
-  s1total += jet * 40 * rem('jet');
-  // Flux : pas d'abonnement mensuel section1 (juste hébergement section3), remise non applicable
-
-  // Lignes custom ajoutées dans le drawer de chaque module (avec leurs propres remises de ligne)
-  ['biz','fab','net','kub','mag','vrp','col','log','jet','flu'].forEach(modId => {
-    s1total += calcTileExtraNet(modId);
-  });
-
+  // Sections 1 (Modules) + 3 (Infrastructure) : calculées via buildLignesModulesInfra()
+  // qui est la source unique de vérité (utilisée aussi par l'aperçu et la propale).
+  // Les remises par ligne (overrides) sont prises en compte automatiquement.
+  const _lmiCalc = buildLignesModulesInfra();
+  const s1total = _lmiCalc.totalModules;
   totalMensuel += s1total;
 
-  // Section 3 : infrastructure
-  let s3total = 0;
-  if (biz>0||fab>0) s3total += calcHebTW();
-  if ((moduleState.net_siege||0)>0 || (moduleState.net_agents_val||0)>0) s3total += calcHebNet();
-  if (mag>0) s3total += 40; // flux mag
-  if (magC>0) s3total += 15 * magC;
-  if (flux>0) s3total += 40 * flux;
-  if (moduleState.facturationElec) s3total += 40;
-  if (moduleState.comptaSage) s3total += 135;
-  if (kub>0) s3total += calcHebKub();
-  // Concentrateur middleware standalone (indépendant de Mag)
-  if (moduleState.middlewareStandalone) s3total += 99;
+  // Section 3 : infrastructure (issue du même calcul)
+  const s3total = _lmiCalc.totalInfra;
   totalMensuel += s3total;
 
   document.getElementById('total_section1').textContent = fmtNum(s1total) + ' €/mois';
@@ -3222,10 +3417,9 @@ function calculate() {
   document.getElementById('totalGeneral').textContent = fmtEur(grandTotal);
 
   // ── Aperçu propale Modules : rafraîchissement temps réel ──────────────
-  // Construit les lignes via la fonction factorisée et les passe à renderApercuModules
+  // Réutilise _lmiCalc déjà calculé en début de fonction (évite double calcul)
   try {
-    const apr = buildLignesModulesInfra();
-    renderApercuModules(apr.lignesModules, apr.totalModules);
+    renderApercuModules(_lmiCalc.lignesModules, _lmiCalc.totalModules);
   } catch(e) {
     console.error('[apercu] erreur rendu :', e);
   }
