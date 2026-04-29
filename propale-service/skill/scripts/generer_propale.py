@@ -435,12 +435,18 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
     # Sinon : ancien rendu (1 seul tableau abonnements + 1 prestations)
     if has_split:
         def fmt_qty(q):
-            """Formatte une quantité : entier si entier, sinon décimal."""
+            """Formatte une quantité avec virgule française.
+            - Entier : '4' (pas '4,00')
+            - Demi : '0,5' (pas '0,50')
+            - 2 décimales : '1,25'
+            """
             if q is None: return ""
             try:
                 qf = float(q)
                 if qf == int(qf): return str(int(qf))
-                return f"{qf:.2f}".replace(".", ",")
+                # Formater avec 2 décimales puis enlever zéros traînants
+                s = f"{qf:.2f}".rstrip("0").rstrip(".")
+                return s.replace(".", ",")
             except Exception:
                 return str(q)
 
@@ -634,22 +640,48 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
                 cell_total("€/mois", 2500, "center")
             )
 
-        # ── Tableau 4 : Prestations Initiales (3 colonnes : Désignation / Durée / Total) ──
+        # ── Tableau 4 : Prestations Initiales ──
+        # 5 colonnes cohérentes avec Modules : Désignation | Qté | PU € H.T | Total € H.T | Facturation - Unité
+        # Pas de colonne Remise (prestations négociées en interne)
+        cols_prest = "4500,700,1300,1500,2000"
         r_prest = row(
-            cell_hdr(_hdr_label(nb_prest_l, "Prestation initiale", "Prestations initiales"), 5500, "left"),
-            cell_hdr("Durée", 2000, "center"),
-            cell_hdr("Total € H.T", 2500, "right")
+            cell_hdr(_hdr_label(nb_prest_l, "Prestation initiale", "Prestations initiales"), 4500, "left"),
+            cell_hdr("Qté", 700, "center"),
+            cell_hdr("PU € H.T", 1300, "right"),
+            cell_hdr("Total € H.T", 1500, "right"),
+            cell_hdr("Facturation - Unité", 2000, "center")
         )
         for l in prest.get("lignes", []):
+            qty_txt = fmt_qty(l.get("qty"))
+            pu_txt = fmt_no_eur(l["prix_unitaire"]) if l.get("prix_unitaire") is not None else ""
+            # Facturation/Unité : forfait pour les forfaits, jour pour les TJM, etc.
+            unite = l.get("unite") or ""
+            if unite:
+                # Format identique à Modules : '€/forfait', '€/jour' → 'forfait', 'jour'
+                u = unite.replace("€/", "")
+                fact_txt = u
+            else:
+                # Fallback : déduire à partir de la durée ('Forfait', '1 j', etc.)
+                duree_str = str(l.get("duree", "")).strip()
+                if duree_str.lower() == "forfait":
+                    fact_txt = "forfait"
+                elif " j" in duree_str.lower() or duree_str.lower().endswith("j"):
+                    fact_txt = "jour"
+                else:
+                    fact_txt = "forfait"
             r_prest += row(
-                cell_body(l["nom"], 5500),
-                cell_body(l.get("duree", ""), 2000, "center"),
-                cell_body(fmt_no_eur(l["montant"]), 2500, "right")
+                cell_body(l["nom"], 4500),
+                cell_body(qty_txt, 700, "center"),
+                cell_body(pu_txt, 1300, "right"),
+                cell_body(fmt_no_eur(l["montant"]), 1500, "right"),
+                cell_body(fact_txt, 2000, "center")
             )
         r_prest += row(
-            cell_total("Total prestations initiales", 5500, "left"),
-            cell_empty(2000),
-            cell_total(fmt_no_eur(prest.get("total", 0)) + " HT", 2500, "right")
+            cell_total("Total prestations initiales", 4500, "left"),
+            cell_empty(700),
+            cell_empty(1300),
+            cell_total(fmt_no_eur(prest.get("total", 0)) + " HT", 1500, "right"),
+            cell_empty(2000)
         )
 
         # Assemblage : Modules → Licences → Infra → Prestations, avec séparateurs
@@ -658,7 +690,7 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
             tbl_prix += sep("17110002") + tbl_wrap(r_licences, cols=cols_licences)
         if r_infra:
             tbl_prix += sep("17110003") + tbl_wrap(r_infra, cols="5500,2000,2500")
-        tbl_prix += sep("17110001") + tbl_wrap(r_prest, cols="5500,2000,2500")
+        tbl_prix += sep("17110001") + tbl_wrap(r_prest, cols=cols_prest)
     else:
         # ── Fallback : ancien rendu 2 tableaux (compatibilité avec ancien CRM) ──
         r_abo = row(cell_hdr("Désignation", 5000, "left"), cell_hdr("Périodicité", 2013), cell_hdr("Montant HT", 2013, "right"))

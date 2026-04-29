@@ -3581,8 +3581,19 @@ function buildConfigJson() {
   const totalLicences = lignesLicences.reduce((s,l)=>s+l.montant,0);
 
   // Lignes prestations (avec renommage et ordre personnalisé)
+  // Chaque ligne porte : {nom, duree, montant, qty, prix_unitaire, unite}
+  // - Forfaits : qty=1, prix_unitaire=montant, unite='€/forfait'
+  // - TJM     : qty=nb jours, prix_unitaire=TJM (1150 ou 525), unite='€/jour'
+  // - Custom  : qty et pu issus du formulaire
   const lignesPrest = [];
-  const addP = (nom, duree, montant) => { if(montant>0) lignesPrest.push({nom, duree, montant}); };
+  const addP = (nom, duree, montant, qty, prix_unitaire, unite) => {
+    if (montant <= 0) return;
+    const ligne = { nom, duree, montant };
+    if (qty != null) ligne.qty = qty;
+    if (prix_unitaire != null) ligne.prix_unitaire = prix_unitaire;
+    if (unite) ligne.unite = unite;
+    lignesPrest.push(ligne);
+  };
   const marge = (parseFloat(document.getElementById('margeSetup')?.value)||30)/100;
   const fasP = 1150; // Forfait fixe (pas de marge sur la FAS)
   const setupP = calcSetupTW();
@@ -3591,13 +3602,14 @@ function buildConfigJson() {
   const lbl = (key, defaultLabel) => (ms.customLabels && ms.customLabels[key]) ? ms.customLabels[key] : defaultLabel;
 
   // Map key → {kind, defaultLabel, compute: () => {duree, montant}}
+  // qty=1, prix_unitaire=montant, unite='€/forfait' pour les forfaits
   const prestDef = {};
   if ((ms.biz||0)>0||(ms.fab||0)>0) {
-    prestDef.fas = { defaultLabel: 'FAS : Installation TexasWin', duree: 'Forfait', montant: fasP };
-    prestDef.setup_tw = { defaultLabel: 'Mise en place hébergement TexasWin', duree: 'Forfait', montant: setupP };
+    prestDef.fas = { defaultLabel: 'FAS : Installation TexasWin', duree: 'Forfait', montant: fasP, qty: 1, prix_unitaire: fasP, unite: '€/forfait' };
+    prestDef.setup_tw = { defaultLabel: 'Mise en place hébergement TexasWin', duree: 'Forfait', montant: setupP, qty: 1, prix_unitaire: setupP, unite: '€/forfait' };
   }
   if (ms.comptaSage) {
-    prestDef.setup_sage = { defaultLabel: 'Mise en place hébergement Sage', duree: 'Forfait', montant: 1150 };
+    prestDef.setup_sage = { defaultLabel: 'Mise en place hébergement Sage', duree: 'Forfait', montant: 1150, qty: 1, prix_unitaire: 1150, unite: '€/forfait' };
   }
   // TJM depuis sectionValues
   const nomMapTjm = {
@@ -3614,18 +3626,20 @@ function buildConfigJson() {
     if (!sv || sv.qty === 0) return;
     // Utiliser 525€/j pour mag_mag (prix spécifique), 1150€/j pour le reste
     const puJour = (k === 'mag_mag') ? 525 : 1150;
-    prestDef[k] = { defaultLabel: nomMapTjm[k], duree: sv.qty + ' j', montant: puJour * sv.qty * (1 - sv.remise/100) };
+    const montant = puJour * sv.qty * (1 - sv.remise/100);
+    prestDef[k] = { defaultLabel: nomMapTjm[k], duree: sv.qty + ' j', montant, qty: sv.qty, prix_unitaire: puJour, unite: '€/jour' };
   });
   // Flux
   for (let i = 1; i <= (ms.fluxTiers||0); i++) {
     const sv = sectionValues.section4['flux_' + i];
     if (!sv || sv.qty === 0) continue;
     const n = fluxNoms[i-1] || ('Flux '+i);
-    prestDef['flux_'+i] = { defaultLabel: n+' : Installation et paramétrage', duree: sv.qty+' j', montant: 1150*sv.qty*(1-sv.remise/100) };
+    const montant = 1150 * sv.qty * (1 - sv.remise/100);
+    prestDef['flux_'+i] = { defaultLabel: n+' : Installation et paramétrage', duree: sv.qty+' j', montant, qty: sv.qty, prix_unitaire: 1150, unite: '€/jour' };
   }
   // Forfaits
-  if ((ms.kub||0) > 0) prestDef.kub_connect = { defaultLabel: 'Mise en oeuvre Connecteur Kub → MyReport', duree: 'Forfait', montant: 2500 };
-  if (ms.facturationElec) prestDef.felec_param = { defaultLabel: 'Mise en oeuvre Facturation électronique', duree: 'Forfait', montant: 1150 };
+  if ((ms.kub||0) > 0) prestDef.kub_connect = { defaultLabel: 'Mise en oeuvre Connecteur Kub → MyReport', duree: 'Forfait', montant: 2500, qty: 1, prix_unitaire: 2500, unite: '€/forfait' };
+  if (ms.facturationElec) prestDef.felec_param = { defaultLabel: 'Mise en oeuvre Facturation électronique', duree: 'Forfait', montant: 1150, qty: 1, prix_unitaire: 1150, unite: '€/forfait' };
   // Custom
   (ms.extra_prestations || []).forEach(line => {
     const pu = parseFloat(line.pu) || 0;
@@ -3633,7 +3647,9 @@ function buildConfigJson() {
     const remise = parseFloat(line.remise) || 0;
     if (pu > 0 && qty > 0) {
       const duree = qty + ' ' + (line.unit || 'jour') + (qty > 1 ? 's' : '');
-      prestDef['custom_'+line.id] = { defaultLabel: line.label || 'Prestation personnalisée', duree, montant: pu * qty * (1 - remise / 100) };
+      const montant = pu * qty * (1 - remise / 100);
+      const unite = '€/' + (line.unit || 'jour');
+      prestDef['custom_'+line.id] = { defaultLabel: line.label || 'Prestation personnalisée', duree, montant, qty, prix_unitaire: pu, unite };
     }
   });
 
@@ -3647,7 +3663,7 @@ function buildConfigJson() {
   });
   orderedKeys.forEach(k => {
     const p = prestDef[k];
-    addP(lbl(k, p.defaultLabel), p.duree, p.montant);
+    addP(lbl(k, p.defaultLabel), p.duree, p.montant, p.qty, p.prix_unitaire, p.unite);
   });
 
   const totalPrest = lignesPrest.reduce((s,l)=>s+l.montant,0);
