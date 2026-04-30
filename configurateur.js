@@ -126,15 +126,12 @@ const moduleState = {
   net_users: 0,
   mag:0, mag_caisses:0, vrp:0, col:0, log:0, jet:0,
   fluxTiers:0, comptaSage:false, facturationElec:false,
-  // Remise commerciale par tuile module (% de 0 à 100)
-  biz_remise:0, fab_remise:0, net_remise:0, mag_remise:0, vrp_remise:0,
-  col_remise:0, log_remise:0, jet_remise:0, kub_remise:0, flu_remise:0,
   // Lignes custom ajoutées par module (tableau d'objets {id, label, pu, qty, remise, unit})
   biz_extra: [], fab_extra: [], net_extra: [], mag_extra: [], vrp_extra: [],
   col_extra: [], log_extra: [], jet_extra: [], kub_extra: [], flu_extra: [],
   // Aperçu Modules : remise % override par ligne (clé = ligne_key, valeur = % numérique)
-  // Si la clé n'existe pas → la ligne hérite de la remise du module (biz_remise, fab_remise, etc.)
-  // Si la clé existe avec une valeur → écrase la remise module (option C : override ligne gagne)
+  // Si la clé n'existe pas → la ligne est sans remise (0%)
+  // Si la clé existe avec une valeur → applique cette remise sur la ligne
   lignes_remises_overrides: {},
   // Aperçu Modules : ordre personnalisé des lignes (drag-and-drop), liste de ligne_key
   apercuOrder: [],
@@ -234,13 +231,12 @@ function calcTileExtraNet(modId) {
   return total;
 }
 
-// Total net affiché : brut avec remise tuile + lignes custom (remises propres)
+// Total net affiché : brut module + lignes custom (avec leurs propres remises de ligne)
+// La remise commerciale ne s'applique plus au niveau tuile mais ligne par ligne (lignes_remises_overrides)
 function calcTileTotal(modId) {
   const brut = calcTileTotalBrut(modId);
-  const remise = moduleState[modId + '_remise'] || 0;
-  const netBase = brut * (1 - remise / 100);
   const netExtras = calcTileExtraNet(modId);
-  return netBase + netExtras;
+  return brut + netExtras;
 }
 
 function updateNetDisplay() {
@@ -255,11 +251,7 @@ function updateTileDisplay(modId) {
   const hasExtras = (moduleState[modId + '_extra'] || []).length > 0;
   const active = isModuleActive(modId) || hasExtras;
   tile.classList.toggle('active', active);
-  const brut = calcTileTotalBrut(modId);
-  const remise = moduleState[modId + '_remise'] || 0;
   const netTotal = calcTileTotal(modId);
-  const hasRemise = remise > 0 && brut > 0;
-  tile.classList.toggle('has-remise', hasRemise);
   const mini = tile.querySelector('.tile-mini-total');
   if (mini) {
     mini.textContent = active ? fmtNum(netTotal) + ' €/mois' : '';
@@ -378,7 +370,6 @@ function renderModuleDrawer(modId) {
     }
   }
 
-  const remiseKey = modId + '_remise';
   drawer.innerHTML = `
     <div class="drawer-header">
       <div class="d-icon">${mod.label}</div>
@@ -421,17 +412,13 @@ function renderModuleDrawer(modId) {
 
 function updateDrawerFooter(modId) {
   const brut = calcTileTotalBrut(modId);
-  const remise = moduleState[modId + '_remise'] || 0;
-  const netBase = brut * (1 - remise / 100);
   const netExtras = calcTileExtraNet(modId);
-  const net = netBase + netExtras;
+  const net = brut + netExtras;
   const footer = document.getElementById('drawerFooter');
   if (!footer) return;
-  const hasRemise = (remise > 0 && brut > 0);
-  footer.classList.toggle('has-remise', hasRemise);
   const subEl = document.getElementById('dfSub');
   const totEl = document.getElementById('dfTotal');
-  // Sous-total = tout sans remise tuile (brut + extras bruts)
+  // Sous-total = brut module + extras bruts (sans remises de ligne)
   const extrasBrut = (moduleState[modId + '_extra'] || []).reduce((s, l) => s + (parseFloat(l.pu)||0) * (parseFloat(l.qty)||0), 0);
   if (subEl) subEl.textContent = fmtNum(brut + extrasBrut) + ' €/mois';
   if (totEl) totEl.textContent = fmtNum(net) + ' €/mois';
@@ -633,7 +620,6 @@ function removeModuleFromDrawer(modId) {
   }
   if (modId === 'flu') { moduleState.fluxTiers = 0; updateFluxNoms(); }
   if (modId === 'biz') { moduleState.biz = 0; moduleState.biz_fab_opt = 0; }
-  moduleState[modId + '_remise'] = 0;
   updateTileDisplay(modId);
   renderAllSections();
   calculate();
@@ -1264,7 +1250,6 @@ function buildLignesModulesInfra() {
   const lignesModules = [];  // modules métier (Biz, Fab, Net, Mag, VRP, Col, Log, Jet, Kub, Flu)
   const lignesInfra = [];    // infrastructure (hébergement, gestion flux, support, allocation Sage, etc.)
   const ms = moduleState;
-  const remPct = (modId) => ms[modId + '_remise'] || 0;
   const ligneKey = (modId, nom) => (modId || 'infra') + '::' + nom;
   const remiseEffectiveLigne = (modId, nom) => {
     const overrides = ms.lignes_remises_overrides || {};
@@ -1273,7 +1258,7 @@ function buildLignesModulesInfra() {
       const v = parseFloat(overrides[k]);
       return isNaN(v) ? 0 : v;
     }
-    return modId ? remPct(modId) : 0;
+    return 0;
   };
   const addAbo = (nom, qty, pu, modId, unite) => {
     if (!unite) unite = '€/mois';
@@ -1682,7 +1667,7 @@ function renderApercuModules(lignesModules, totalModules) {
     // Si pas de qty/pu (forfait sans détail), pas d'édition de remise (pas de sens)
     const remCell = (l.qty != null && l.prix_unitaire != null && key)
       ? `<input type="number" class="ap-rem-input ${inheritedClass}" min="0" max="100" step="1"
-           placeholder="${l._modId ? (remPctSafe(l._modId)) : '0'}"
+           placeholder="0"
            value="${remValue === '' ? '' : remValue}"
            onchange="setLigneRemiseOverride('${key.replace(/'/g, '\\\'')}', this.value, this)"
            onblur="setLigneRemiseOverride('${key.replace(/'/g, '\\\'')}', this.value, this)">`
@@ -1702,9 +1687,6 @@ function renderApercuModules(lignesModules, totalModules) {
   });
   tbody.innerHTML = rows.join('');
 }
-
-// Helper : remise module sécurisée (utilisé pour le placeholder de l'input)
-function remPctSafe(modId) { return moduleState[modId + '_remise'] || 0; }
 
 // Helper : escape HTML pour les noms de lignes
 function escapeHtml(s) {

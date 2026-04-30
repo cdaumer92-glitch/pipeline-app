@@ -154,7 +154,7 @@ def cell_total(txt,w,align="left",color="003366",bg="D5E8F0"):
             f'<w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="{color}"/></w:rPr>'
             f'<w:t>{txt}</w:t></w:r></w:p></w:tc>')
 
-def row(*cells): return '<w:tr>'+''.join(cells)+'</w:tr>'
+def row(*cells): return '<w:tr><w:trPr><w:cantSplit/></w:trPr>'+''.join(cells)+'</w:tr>'
 
 def tbl_wrap(rows_xml, cols="5000,2013,2013", tbl_ind=360):
     """Tableau avec tblInd configurable pour décaler à gauche (default 360 = ~0,6cm)."""
@@ -176,6 +176,14 @@ def tbl_wrap(rows_xml, cols="5000,2013,2013", tbl_ind=360):
 def sep(pid):
     return (f'<w:p w14:paraId="{pid}" w14:textId="77777777" '
             f'w:rsidR="{pid}" w:rsidRDefault="{pid}"/>')
+
+def sep_kn(pid):
+    """Variante de sep() avec keepNext : utiliser quand on veut que le séparateur
+    reste collé au contenu qui le suit (typiquement avant un tableau qu'on veut
+    garder solidaire d'une intro précédente)."""
+    return (f'<w:p w14:paraId="{pid}" w14:textId="77777777" '
+            f'w:rsidR="{pid}" w:rsidRDefault="{pid}">'
+            f'<w:pPr><w:keepNext/></w:pPr></w:p>')
 
 
 def generer_propale(data: dict, output_path: str, work_dir: Path):
@@ -684,13 +692,14 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
             cell_empty(2000)
         )
 
-        # Assemblage : Modules → Licences → Infra → Prestations, avec séparateurs
+        # Assemblage : Modules → Licences → Infra → [Titre 3.x Prestations] → Prestations
         tbl_prix = tbl_wrap(r_modules, cols=cols_modules)
         if r_licences:
             tbl_prix += sep("17110002") + tbl_wrap(r_licences, cols=cols_licences)
         if r_infra:
             tbl_prix += sep("17110003") + tbl_wrap(r_infra, cols="5500,2000,2500")
-        tbl_prix += sep("17110001") + tbl_wrap(r_prest, cols=cols_prest)
+        # Titre 3.x "Prestations initiales" inséré ici (numérotation auto via style Titre2)
+        tbl_prix += _titre2("Prestations initiales") + tbl_wrap(r_prest, cols=cols_prest)
     else:
         # ── Fallback : ancien rendu 2 tableaux (compatibilité avec ancien CRM) ──
         r_abo = row(cell_hdr("Désignation", 5000, "left"), cell_hdr("Périodicité", 2013), cell_hdr("Montant HT", 2013, "right"))
@@ -701,11 +710,19 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
         for l in prest.get("lignes", []): r_prest += row(cell_body(l["nom"], 5000), cell_body(l.get("duree", ""), 2013, "center"), cell_body(fmt(l["montant"]), 2013, "right"))
         r_prest += row(cell_total("Total prestations initiales", 5000, "left"), cell_empty(2013), cell_total(fmt(prest.get("total", 0)) + " HT", 2013, "right"))
 
-        tbl_prix = tbl_wrap(r_abo) + sep("17110001") + tbl_wrap(r_prest)
+        # Titre 3.x "Prestations initiales" inséré ici (numérotation auto via style Titre2)
+        tbl_prix = tbl_wrap(r_abo) + _titre2("Prestations initiales") + tbl_wrap(r_prest)
 
     anchor_prix='<w:t>Logiciel et prestations initiales</w:t>\n      </w:r>\n    </w:p>\n    <w:p w14:paraId="1D60B454"'
     if anchor_prix in content:
         content=content.replace(anchor_prix,'<w:t>Logiciel et prestations initiales</w:t>\n      </w:r>\n    </w:p>\n    '+tbl_prix+'\n    <w:p w14:paraId="1D60B454"')
+
+    # Renommer le titre 3.1 du template : "Logiciel et prestations initiales" → "Abonnements"
+    # (Le titre "Prestations initiales" est désormais inséré dynamiquement avant son tableau)
+    content = content.replace(
+        '<w:t>Logiciel et prestations initiales</w:t>',
+        '<w:t>Abonnements</w:t>'
+    )
 
     # 8. Tableau formation → après §3.3 (bookmarkEnd id=1)
     if form.get("lignes"):
@@ -726,7 +743,28 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
         r_form+=row(cell_total("Total formation (Qualiopi inclus)",3500,"left","7B5EA7","EDE7F6"),
             cell_empty(1000,"EDE7F6"),cell_empty(900,"EDE7F6"),cell_empty(1000,"EDE7F6"),cell_empty(900,"EDE7F6"),
             cell_total(fmt(form.get("total",0))+" HT",1583,"right","7B5EA7","EDE7F6"))
-        tbl_form=sep("17110002")+tbl_wrap(r_form,cols_f)
+        # Post-traitement : ajouter keepNext sur les paragraphes des cellules sauf la dernière ligne
+        # Cela rend le tableau Formation indissociable (toutes les lignes solidaires entre elles)
+        # sans que la dernière ligne ne tire le contenu suivant.
+        # Découper r_form en lignes <w:tr>...</w:tr>, ajouter keepNext sur toutes sauf la dernière
+        import re as _re_form
+        rows_list = _re_form.findall(r'<w:tr>.*?</w:tr>', r_form, _re_form.DOTALL)
+        if len(rows_list) > 1:
+            # Toutes les lignes sauf la dernière : ajouter keepNext aux paragraphes des cellules
+            patched = []
+            for i, rr in enumerate(rows_list):
+                if i < len(rows_list) - 1:
+                    # Insérer keepNext dans chaque <w:p><w:pPr>...</w:pPr> de cette ligne
+                    rr_new = _re_form.sub(
+                        r'<w:p><w:pPr>',
+                        '<w:p><w:pPr><w:keepNext/>',
+                        rr
+                    )
+                    patched.append(rr_new)
+                else:
+                    patched.append(rr)
+            r_form = ''.join(patched)
+        tbl_form=tbl_wrap(r_form,cols_f)
         anchor_form='<w:bookmarkEnd w:id="1"/>\n    <w:p w14:paraId="1A4BE0D4"'
         if anchor_form in content:
             content=content.replace(anchor_form,'<w:bookmarkEnd w:id="1"/>\n    '+tbl_form+'\n    <w:p w14:paraId="1A4BE0D4"')
@@ -747,6 +785,14 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
 
     # 9b. Ajouter un espacement de 30pt AVANT le titre "Les 10 avantages pour votre entreprise"
     content = _add_spacing_before_les_10(content)
+
+    # 9c. Convertir le saut de page explicite avant "Proposition commerciale" en pageBreakBefore.
+    content = _convert_break_to_pagebreakbefore(content, "Proposition commerciale", "Titre1")
+
+    # 9d. Forcer keepNext sur titre Formation + ses 2 paragraphes intro (du template),
+    # supprimer le paragraphe vide qui suit bookmarkEnd id=1.
+    # Sans ça, l'intro reste orpheline en bas de page quand le tableau passe à la page suivante.
+    content = _force_keepnext_intro_formation(content)
 
     # 10. Saut de page avant "ANNEXES : Présentation des modules proposés"
     content = _insert_page_break_before_annexes(content)
@@ -792,8 +838,8 @@ def _insert_page_break_before_annexes(content):
 
 
 def _remove_dev_complementaires_and_add_page_break(content):
-    """Supprime le titre '§3.2 Développements complémentaires' et les paragraphes vides qui suivent,
-    jusqu'au titre 'Formation'. Insère un saut de page à la place (Formation sur nouvelle page)."""
+    """Supprime le titre '§3.x Développements complémentaires' et les paragraphes vides qui suivent,
+    jusqu'au titre 'Formation'. La Formation s'enchaîne naturellement après (pas de saut forcé)."""
     import re as _re
 
     # Début : paragraphe Titre2 "Développements complémentaires"
@@ -823,9 +869,169 @@ def _remove_dev_complementaires_and_add_page_break(content):
     start_idx = m_start.start()
     end_idx = m_start.end() + idx_p_start
 
-    # Remplacer par un saut de page (Formation commencera sur nouvelle page)
-    page_break = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
-    return content[:start_idx] + page_break + content[end_idx:]
+    # ── L1 : suppression nette de la section "Développements complémentaires" ──
+    # On NE force PAS de saut de page avant Formation : le moteur de mise en page
+    # placera Formation à la suite des Prestations s'il y a la place, ou en haut
+    # de la page suivante sinon (comportement naturel souhaité).
+    return content[:start_idx] + content[end_idx:]
+
+
+def _convert_break_to_pagebreakbefore(content, target_text, target_style="Titre1"):
+    """Cherche un paragraphe vide-ish contenant <w:br type="page"/>, suivi d'un titre dont
+    le texte est target_text et le style target_style. Supprime le paragraphe-saut et
+    injecte <w:pageBreakBefore/> dans le pPr du titre suivant.
+
+    Avantage : Word/LibreOffice ne créent une page blanche que si le contenu précédent
+    n'a pas naturellement rempli la page. Sinon, le titre commence en haut de la page
+    suivante de façon naturelle, et la page précédente n'est pas gaspillée par un saut
+    forcé qui aurait laissé du blanc.
+
+    Idempotent : si <w:pageBreakBefore/> est déjà présent, ne fait rien.
+    """
+    import re as _re
+
+    # Pattern du paragraphe-saut : <w:p>...<w:br type="page"/>...</w:p>
+    # Suivi de : <w:p ...>...<w:pPr>...<w:pStyle val="<style>"/>...</w:pPr>...<w:t>target</w:t>...</w:p>
+    pattern = _re.compile(
+        r'<w:p[^>]*>\s*<w:r[^>]*>\s*<w:br\s+w:type="page"\s*/>\s*</w:r>\s*</w:p>'
+        r'(\s*)'  # whitespace optionnel
+        r'(<w:p\s[^>]*>(?:(?!</w:p>).)*?'
+        r'<w:pStyle\s+w:val="' + _re.escape(target_style) + r'"\s*/>(?:(?!</w:p>).)*?'
+        r'<w:t[^>]*>' + _re.escape(target_text) + r'</w:t>(?:(?!</w:p>).)*?</w:p>)',
+        _re.DOTALL
+    )
+    m = pattern.search(content)
+    if not m:
+        return content
+
+    ws, p_block = m.group(1), m.group(2)
+
+    # Si pageBreakBefore déjà présent, on retire juste le saut et on ne touche pas au titre
+    if '<w:pageBreakBefore/>' in p_block:
+        new_block = ws + p_block
+    else:
+        # Injecter <w:pageBreakBefore/> juste après <w:pStyle .../> (ordre OOXML strict)
+        m_pstyle = _re.search(r'<w:pStyle\s+w:val="' + _re.escape(target_style) + r'"\s*/>', p_block)
+        if m_pstyle:
+            ins = m_pstyle.end()
+            new_block = ws + p_block[:ins] + '<w:pageBreakBefore/>' + p_block[ins:]
+        else:
+            # Fallback (improbable) : on laisse le saut explicite si on ne sait pas où injecter
+            return content
+
+    return content[:m.start()] + new_block + content[m.end():]
+
+
+def _force_keepnext_between(content, start_marker, end_marker):
+    """Force <w:keepNext/> sur tous les <w:p> situés entre start_marker et end_marker.
+    But : empêcher qu'une intro (titre + paragraphes intro) soit séparée du contenu suivant
+    (typiquement un tableau) lors d'un saut de page.
+
+    start_marker : chaîne qui marque le début de la zone (incluse)
+    end_marker   : chaîne qui marque la fin de la zone (incluse)
+    """
+    import re as _re
+
+    idx_start = content.find(start_marker)
+    if idx_start == -1:
+        return content
+    idx_end = content.find(end_marker, idx_start)
+    if idx_end == -1:
+        return content
+    idx_end_full = idx_end + len(end_marker)
+
+    zone = content[idx_start:idx_end_full]
+
+    # Pour chaque <w:p> dans la zone, ajouter keepNext si absent.
+    # Respecter l'ordre OOXML : keepNext doit venir juste après pStyle (ou en début de pPr si pas de pStyle).
+    def process_p(m_p):
+        p_xml = m_p.group(0)
+        if '<w:keepNext/>' in p_xml:
+            return p_xml
+        # Vérifier que le pPr est conforme (pStyle en première position si présent)
+        m_ppr = _re.search(r'<w:pPr>([\s\S]*?)</w:pPr>', p_xml)
+        if not m_ppr:
+            # Pas de pPr : créer un avec juste keepNext
+            m_open = _re.match(r'<w:p\b[^>]*>', p_xml)
+            if m_open:
+                ins = m_open.end()
+                return p_xml[:ins] + '<w:pPr><w:keepNext/></w:pPr>' + p_xml[ins:]
+            return p_xml
+
+        ppr_inner = m_ppr.group(1)
+        first_tag = _re.search(r'<w:(\w+)\b', ppr_inner)
+        if first_tag and first_tag.group(1) == 'pStyle':
+            # OK conforme : insérer keepNext après pStyle
+            m_pstyle = _re.search(r'<w:pStyle\s[^/]*/>', ppr_inner)
+            if m_pstyle:
+                new_inner = ppr_inner[:m_pstyle.end()] + '<w:keepNext/>' + ppr_inner[m_pstyle.end():]
+                return p_xml[:m_ppr.start() + len('<w:pPr>')] + new_inner + p_xml[m_ppr.end() - len('</w:pPr>'):]
+        elif not first_tag:
+            # pPr vide : ajouter keepNext dedans
+            return p_xml.replace('<w:pPr>', '<w:pPr><w:keepNext/>', 1)
+        # Ordre non-conforme (pStyle pas en 1er) : on ne touche pas pour éviter d'aggraver
+        return p_xml
+
+    new_zone = _re.sub(r'<w:p\b[^>]*>([\s\S]*?)</w:p>', process_p, zone)
+    return content[:idx_start] + new_zone + content[idx_end_full:]
+
+
+def _force_keepnext_intro_formation(content):
+    """Force keepNext sur le titre Formation + ses 2 paragraphes intro du template,
+    pour qu'ils tirent le tableau Formation avec eux lors d'un saut de page.
+    Aussi : supprime le paragraphe vide (paraId=1A4BE0D4) qui suit bookmarkEnd id=1
+    et qui sépare visuellement l'intro du tableau."""
+    import re as _re
+
+    # 1. Titre Formation : injecter keepNext dans son pPr (juste après pStyle Titre2)
+    # Localiser le titre par son texte, puis remonter au pPr et injecter keepNext après pStyle
+    idx_titre = content.find('<w:t>Formation</w:t>')
+    if idx_titre != -1:
+        # Remonter au <w:pPr>...</w:pPr> qui précède
+        ppr_close = content.rfind('</w:pPr>', 0, idx_titre)
+        if ppr_close != -1:
+            ppr_open = content.rfind('<w:pPr>', 0, ppr_close)
+            if ppr_open != -1:
+                ppr_inner = content[ppr_open + len('<w:pPr>'):ppr_close]
+                # Vérifier que c'est bien le pPr d'un Titre2 (pas un autre paragraphe au-dessus)
+                if 'w:val="Titre2"' in ppr_inner and '<w:keepNext/>' not in ppr_inner:
+                    m_ps = _re.search(r'<w:pStyle\s[^/]*/>', ppr_inner)
+                    if m_ps:
+                        new_inner = ppr_inner[:m_ps.end()] + '<w:keepNext/>' + ppr_inner[m_ps.end():]
+                        content = (content[:ppr_open + len('<w:pPr>')] + new_inner
+                                   + content[ppr_close:])
+
+    # 2. Paragraphes intro "Nos formations..." et "Les formations peuvent être dispensées..."
+    for intro_marker in [
+        'Nos formations, dispensées par des experts certifiés',
+        'Les formations peuvent être dispensées à distance',
+    ]:
+        idx = content.find(intro_marker)
+        if idx == -1:
+            continue
+        ppr_close = content.rfind('</w:pPr>', 0, idx)
+        if ppr_close == -1:
+            continue
+        ppr_open = content.rfind('<w:pPr>', 0, ppr_close)
+        if ppr_open == -1:
+            continue
+        ppr_inner = content[ppr_open + len('<w:pPr>'):ppr_close]
+        if '<w:keepNext/>' in ppr_inner:
+            continue
+        m_ps = _re.search(r'<w:pStyle\s[^/]*/>', ppr_inner)
+        if m_ps:
+            new_inner = ppr_inner[:m_ps.end()] + '<w:keepNext/>' + ppr_inner[m_ps.end():]
+            content = content[:ppr_open + len('<w:pPr>')] + new_inner + content[ppr_close:]
+
+    # 3. Supprimer le paragraphe vide entre bookmarkEnd id=1 et le tableau Formation
+    content = _re.sub(
+        r'(<w:bookmarkEnd w:id="1"/>\s*)'
+        r'<w:p w14:paraId="1A4BE0D4"[^/]*/>',
+        r'\1',
+        content
+    )
+
+    return content
 
 
 def _add_spacing_before_les_10(content):
@@ -851,23 +1057,36 @@ def _add_spacing_before_les_10(content):
         )
     else:
         # Sinon on ajoute un nouveau <w:spacing w:before="600"/>
-        new_ppr_content = '<w:spacing w:before="600"/>' + ppr_content
+        # Ordre OOXML : pStyle, keepNext, keepLines, pageBreakBefore, framePr, widowControl,
+        #              numPr, suppressLineNumbers, pBdr, shd, tabs, suppressAutoHyphens,
+        #              kinsoku, wordWrap, overflowPunct, topLinePunct, autoSpaceDE, autoSpaceDN,
+        #              bidi, adjustRightInd, snapToGrid, spacing, ind, ...
+        # Donc spacing doit venir APRÈS pStyle (et après keepNext/keepLines/numPr/etc.).
+        # On insère le nouveau <w:spacing> juste avant <w:ind>, ou avant </w:pPr> si pas d'ind.
+        spacing_xml = '<w:spacing w:before="600"/>'
+        if '<w:ind' in ppr_content:
+            new_ppr_content = ppr_content.replace('<w:ind', spacing_xml + '<w:ind', 1)
+        else:
+            # Insérer en fin de pPr (juste avant </w:pPr>) — c'est conforme OOXML car spacing
+            # vient après tous les éléments précédents
+            new_ppr_content = ppr_content + spacing_xml
     return content[:m.start()] + p_open + ppr_open + new_ppr_content + ppr_close + p_rest + content[m.end():]
 
 
 # ── Helpers pour §4 Synthèse + §5 Règlement ──────────────────────────────
 
 def _titre2(text):
-    """Paragraphe Titre2 (bleu, gras)"""
-    return (f'<w:p><w:pPr><w:pStyle w:val="Titre2"/></w:pPr>'
+    """Paragraphe Titre2 (bleu, gras) avec keepNext (toujours collé au contenu suivant)"""
+    return (f'<w:p><w:pPr><w:pStyle w:val="Titre2"/><w:keepNext/><w:keepLines/></w:pPr>'
             f'<w:r><w:t xml:space="preserve">{_xml_escape(text)}</w:t></w:r></w:p>')
 
 def _para_synthese(label, montant_str):
     """Ligne de synthèse avec tabulations : 'Label ........ X € H.T' (indentée sur titre 3.x)"""
+    # Ordre OOXML strict dans w:pPr : tabs, spacing, ind, ...
     return (f'<w:p><w:pPr>'
-            f'<w:ind w:left="720"/>'
             f'<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="9000"/></w:tabs>'
             f'<w:spacing w:after="80"/>'
+            f'<w:ind w:left="720"/>'
             f'</w:pPr>'
             f'<w:r><w:t xml:space="preserve">{_xml_escape(label)} </w:t></w:r>'
             f'<w:r><w:tab/></w:r>'
@@ -887,18 +1106,18 @@ def _row_reglement(label, texte):
     label_esc = _xml_escape(label)
     texte_esc = _xml_escape(texte)
     cell_label = (f'<w:tc><w:tcPr><w:tcW w:w="2800" w:type="dxa"/>'
-                  f'<w:tcMar><w:top w:w="80" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tcMar>'
+                  f'<w:tcMar><w:top w:w="80" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tcMar>'
                   f'</w:tcPr>'
                   f'<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>'
                   f'<w:r><w:rPr><w:b/><w:color w:val="003366"/><w:sz w:val="20"/></w:rPr>'
                   f'<w:t xml:space="preserve">{label_esc}</w:t></w:r></w:p></w:tc>')
     cell_text = (f'<w:tc><w:tcPr><w:tcW w:w="6200" w:type="dxa"/>'
-                 f'<w:tcMar><w:top w:w="80" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tcMar>'
+                 f'<w:tcMar><w:top w:w="80" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tcMar>'
                  f'</w:tcPr>'
                  f'<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>'
                  f'<w:r><w:rPr><w:sz w:val="20"/></w:rPr>'
                  f'<w:t xml:space="preserve">{texte_esc}</w:t></w:r></w:p></w:tc>')
-    return f'<w:tr>{cell_label}{cell_text}</w:tr>'
+    return f'<w:tr><w:trPr><w:cantSplit/></w:trPr>{cell_label}{cell_text}</w:tr>'
 
 def _tbl_reglement(rows_xml):
     """Tableau 2 colonnes sans bordure visible"""
@@ -1133,11 +1352,11 @@ def _write_footer_first(footer_path):
       <w:tc>
         <w:tcPr><w:tcW w:w="4238" w:type="dxa"/></w:tcPr>
         <w:p>
-          <w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
+          <w:pPr><w:spacing w:after="0"/><w:jc w:val="right"/></w:pPr>
           <w:r><w:rPr><w:color w:val="607a7a"/><w:sz w:val="18"/></w:rPr><w:t>19 rue de la Résistance</w:t></w:r>
         </w:p>
         <w:p>
-          <w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
+          <w:pPr><w:spacing w:after="0"/><w:jc w:val="right"/></w:pPr>
           <w:r><w:rPr><w:color w:val="607a7a"/><w:sz w:val="18"/></w:rPr><w:t>42312 Roanne, France</w:t></w:r>
         </w:p>
       </w:tc>
