@@ -5,20 +5,21 @@
 const PIPELINE_API = '/api/public/companies/search';
 
 const MODULES_DEF = [
-  { id:'biz',  label:'Biz',  sublabel:'Négoce',      color:'#1a9fdb', img:'https://raw.githubusercontent.com/cdaumer92-glitch/pipeline-app/main/assets/biz.png' },
-  { id:'fab',  label:'Fab',  sublabel:'Production',   color:'#1a9fdb', img:'' },
-  { id:'net',  label:'Net',  sublabel:'B2B',          color:'#1a9fdb', img:'' },
-  { id:'mag',  label:'Mag',  sublabel:'Magasin',      color:'#E72E7B', img:'' },
-  { id:'vrp',  label:'VRP',  sublabel:'Représentant', color:'#E72E7B', img:'' },
-  { id:'col',  label:'Col',  sublabel:'Collection',   color:'#E72E7B', img:'' },
-  { id:'log',  label:'Log',  sublabel:'Logistique',   color:'#FBC02D', img:'' },
-  { id:'jet',  label:'Jet',  sublabel:'Inventaire',   color:'#FBC02D', img:'' },
-  { id:'kub',  label:'Kub',  sublabel:'BI',           color:'#64B340', img:'' },
-  { id:'flu',  label:'Flux', sublabel:'Tiers',        color:'#607a7a', img:'' },
+  { id:'biz',   label:'Biz',     sublabel:'Négoce',          color:'#1a9fdb', img:'https://raw.githubusercontent.com/cdaumer92-glitch/pipeline-app/main/assets/biz.png' },
+  { id:'mixte', label:'Biz+Fab', sublabel:'Négoce + Production', color:'#1a9fdb', img:'' },
+  { id:'fab',   label:'Fab',     sublabel:'Production',       color:'#1a9fdb', img:'' },
+  { id:'net',   label:'Net',     sublabel:'B2B',              color:'#1a9fdb', img:'' },
+  { id:'mag',   label:'Mag',     sublabel:'Magasin',          color:'#E72E7B', img:'' },
+  { id:'vrp',   label:'VRP',     sublabel:'Représentant',     color:'#E72E7B', img:'' },
+  { id:'col',   label:'Col',     sublabel:'Collection',       color:'#E72E7B', img:'' },
+  { id:'log',   label:'Log',     sublabel:'Logistique',       color:'#FBC02D', img:'' },
+  { id:'jet',   label:'Jet',     sublabel:'Inventaire',       color:'#FBC02D', img:'' },
+  { id:'kub',   label:'Kub',     sublabel:'BI',               color:'#64B340', img:'' },
+  { id:'flu',   label:'Flux',    sublabel:'Tiers',            color:'#607a7a', img:'' },
 ];
 
 // Couleurs des modules (pour le CSS variable)
-const MOD_COLORS = {biz:'#1a9fdb',fab:'#1a9fdb',net:'#1a9fdb',mag:'#E72E7B',vrp:'#E72E7B',col:'#E72E7B',log:'#FBC02D',jet:'#FBC02D',kub:'#64B340',flu:'#607a7a'};
+const MOD_COLORS = {biz:'#1a9fdb',mixte:'#1a9fdb',fab:'#1a9fdb',net:'#1a9fdb',mag:'#E72E7B',vrp:'#E72E7B',col:'#E72E7B',log:'#FBC02D',jet:'#FBC02D',kub:'#64B340',flu:'#607a7a'};
 
 // ── Net paliers ───────────────────────────────────────────────
 const netPaliers = [
@@ -51,7 +52,7 @@ const tarifSetupServeur = {1:200,2:200,3:200,4:595,5:595,6:595,7:800,8:800,9:800
 const sectionsData = {
   section1: { items: [
     {nom:"Module BIZ (Négoce)", prix:155, unite:"€/mois", dependModule:'biz', moduleColor:'#1a9fdb'},
-    {nom:"Avec option Production (FAB)", prix:68, unite:"€/mois", dependModule:'biz', optionFab:true, moduleColor:'#1a9fdb'},
+    {nom:"Module BIZ avec option FAB", prix:223, unite:"€/mois", dependModule:'mixte', moduleColor:'#1a9fdb'},
     {nom:"Module FAB Standalone (Production seule)", prix:145.5, unite:"€/mois", dependModule:'fab', moduleColor:'#1a9fdb'},
     {nom:"Module Net B2B — Siège", prix:328, unite:"€/mois", dependModule:'net', netSiege:true, moduleColor:'#1a9fdb'},
     {nom:"Module Net B2B — Agents", prix:0, unite:"€/mois", dependModule:'net', netAgents:true, moduleColor:'#1a9fdb'},
@@ -120,14 +121,15 @@ const FORMATION_DATA = [
 
 // État modules actifs et quantités
 const moduleState = {
-  biz:0, fab:0, net_siege:0, net_agents:'none', kub:0,
+  biz:0, mixte:0, fab:0, net_siege:0, net_agents:'none', kub:0,
   // Net : siège en booléen (forfait 328€, pas par user) + nb users séparé pour formation/hébergement
   net_siege_active: false,
   net_users: 0,
   mag:0, mag_caisses:0, vrp:0, col:0, log:0, jet:0,
   fluxTiers:0, comptaSage:false, facturationElec:false,
   // Lignes custom ajoutées par module (tableau d'objets {id, label, pu, qty, remise, unit})
-  biz_extra: [], fab_extra: [], net_extra: [], mag_extra: [], vrp_extra: [],
+  biz_extra: [], mixte_extra: [], fab_extra: [], net_extra: [], mag_extra: [], vrp_extra: [],
+  col_extra: [], log_extra: [], jet_extra: [], kub_extra: [], flu_extra: [],
   col_extra: [], log_extra: [], jet_extra: [], kub_extra: [], flu_extra: [],
   // Aperçu Modules : remise % override par ligne (clé = ligne_key, valeur = % numérique)
   // Si la clé n'existe pas → la ligne est sans remise (0%)
@@ -184,11 +186,9 @@ function fmtEur(n) { return fmtNum(n) + ' €'; }
 // ══════════════════════════════════════════════════════════════
 // Config fields par module
 const MODULE_FIELDS = {
-  biz: [
-    {label:'Utilisateurs Biz', key:'biz', unit:'users', prix:155},
-    {label:'Option FAB (licences)', key:'biz_fab_opt', unit:'lic', prix:68, note:'68€/lic/mois'},
-  ],
-  fab: [{label:'Licences FAB Standalone', key:'fab', unit:'lic', prix:145.5}],
+  biz:   [{label:'Utilisateurs Biz seul', key:'biz', unit:'users', prix:155}],
+  mixte: [{label:'Utilisateurs Biz + Fab', key:'mixte', unit:'users', prix:223}],
+  fab:   [{label:'Licences FAB Standalone', key:'fab', unit:'lic', prix:145.5}],
   net: 'special', // Géré spécialement dans buildTileNet
   mag: [{label:'Caisses déployées', key:'mag_caisses', unit:'caisses', prix:49, fixed:99}],
   vrp: [{label:'Représentants VRP', key:'vrp', unit:'users', prix:53}],
@@ -290,7 +290,7 @@ function isModuleActive(modId) {
     return (moduleState.fluxTiers || 0) > 0;
   }
   if (modId === 'biz') {
-    return (moduleState.biz || 0) > 0 || (moduleState.biz_fab_opt || 0) > 0;
+    return (moduleState.biz || 0) > 0;
   }
   const fields = MODULE_FIELDS[modId];
   if (!Array.isArray(fields)) return false;
@@ -619,7 +619,7 @@ function removeModuleFromDrawer(modId) {
     moduleState.net_agents_val = 0;
   }
   if (modId === 'flu') { moduleState.fluxTiers = 0; updateFluxNoms(); }
-  if (modId === 'biz') { moduleState.biz = 0; moduleState.biz_fab_opt = 0; }
+  if (modId === 'biz') { moduleState.biz = 0; }
   updateTileDisplay(modId);
   renderAllSections();
   calculate();
@@ -707,9 +707,11 @@ function refreshFluxNames() {
 // ══════════════════════════════════════════════════════════════
 function getMaxUsers() {
   const biz = moduleState.biz || 0;
-  const fabOpt = moduleState.biz_fab_opt || 0;
+  const mixte = moduleState.mixte || 0;
   const fab = moduleState.fab || 0;
-  return Math.max(biz, fabOpt) + fab;
+  // Total users = Biz seul + Mixte (Biz+Fab) + Fab Standalone
+  // Chaque user = 1 licence serveur (les 3 cas s'additionnent)
+  return biz + mixte + fab;
 }
 function getKubQty() { return moduleState.kub || 0; }
 function getNetSiege() { return moduleState.net_siege || 0; }
@@ -766,7 +768,7 @@ function renderAllSections() {
 function renderSection3() {
   const tbody = document.getElementById('tbody-section3');
   tbody.innerHTML = '';
-  const biz = moduleState.biz > 0 || moduleState.fab > 0;
+  const biz = moduleState.biz > 0 || moduleState.mixte > 0 || moduleState.fab > 0;
   const mag = moduleState.mag > 0;
   const magCaisses = moduleState.mag_caisses > 0;
   const kub = moduleState.kub > 0;
@@ -806,7 +808,7 @@ function renderSection3() {
 function renderSection4() {
   const tbody = document.getElementById('tbody-section4');
   tbody.innerHTML = '';
-  const biz = moduleState.biz > 0 || moduleState.fab > 0;
+  const biz = moduleState.biz > 0 || moduleState.mixte > 0 || moduleState.fab > 0;
   const mag = moduleState.mag > 0;
   const net = (moduleState.net_siege || 0) > 0 || (moduleState.net_agents_val || 0) > 0;
   const kub = moduleState.kub > 0;
@@ -1134,12 +1136,18 @@ function getModQtyForFormation(qtyFrom) {
   if (qtyFrom === 'net_users') return moduleState.net_users || 0;
   if (qtyFrom === 'net_siege') return moduleState.net_siege || 0; // legacy
   if (qtyFrom === 'mag_caisses') return moduleState.mag_caisses || 0;
+  // Users mixtes (Biz+Fab) : comptent pour la formation Biz ET la formation Fab
+  if (qtyFrom === 'biz') return (moduleState.biz || 0) + (moduleState.mixte || 0);
+  if (qtyFrom === 'fab') return (moduleState.fab || 0) + (moduleState.mixte || 0);
   return moduleState[qtyFrom] || 0;
 }
 function isModActiveForFormation(activeFrom) {
   if (activeFrom === 'net_siege_active') return !!moduleState.net_siege_active;
   if (activeFrom === 'net_siege') return (moduleState.net_siege||0) > 0; // legacy
   if (activeFrom === 'mag_caisses') return (moduleState.mag||0)>0 && (moduleState.mag_caisses||0)>0;
+  // Users mixtes (Biz+Fab) : déclenchent l'activation des formations Biz ET Fab
+  if (activeFrom === 'biz') return (moduleState.biz || 0) > 0 || (moduleState.mixte || 0) > 0;
+  if (activeFrom === 'fab') return (moduleState.fab || 0) > 0 || (moduleState.mixte || 0) > 0;
   // Booléens (true/false) ou nombres (>0)
   const val = moduleState[activeFrom];
   if (typeof val === 'boolean') return val;
@@ -1279,7 +1287,7 @@ function buildLignesModulesInfra() {
 
   // Modules : avec qty + pu pour l'affichage propal
   addAbo('Module BIZ (Négoce)', (ms.biz||0), 155, 'biz', '€/mois/user');
-  addAbo('Avec option Production (FAB)', (ms.biz_fab_opt||0), 68, 'biz', '€/mois/user');
+  addAbo('Module BIZ avec option FAB', (ms.mixte||0), 223, 'mixte', '€/mois/user');
   addAbo('Module FAB Standalone (Production seule)', (ms.fab||0), 145.5, 'fab', '€/mois/user');
   // Module Net B2B : 3 cas (siège seul / agents seul / siège+agents)
   const netSiegeActif = !!ms.net_siege_active;
@@ -1303,7 +1311,7 @@ function buildLignesModulesInfra() {
   addAbo('Module Jet (Inventaire)', (ms.jet||0), 40, 'jet', '€/mois/user');
 
   // Infrastructure : forfait sans qté/pu
-  if ((ms.biz||0)>0||(ms.fab||0)>0) addAbo('Hébergement serveur TexasWin', null, calcHebTW(), null, '€/mois');
+  if ((ms.biz||0)>0||(ms.mixte||0)>0||(ms.fab||0)>0) addAbo('Hébergement serveur TexasWin', null, calcHebTW(), null, '€/mois');
   if ((ms.mag||0)>0) addAbo('Gestion des Flux MAG', null, 40, null, '€/mois');
   if ((ms.mag_caisses||0)>0) addAbo('Support MAG/Caisse déployée', null, 15*(ms.mag_caisses||0), null, '€/mois');
   // Récupérer les noms de flux depuis le DOM (utilisés dans la génération propale)
@@ -1317,7 +1325,7 @@ function buildLignesModulesInfra() {
   if (ms.middlewareStandalone) addAbo('Concentrateur middleware multi-magasin', null, 99, null, '€/mois');
 
   // Lignes custom ajoutées dans le drawer de chaque module
-  ['biz','fab','net','kub','mag','vrp','col','log','jet','flu'].forEach(modId => {
+  ['biz','mixte','fab','net','kub','mag','vrp','col','log','jet','flu'].forEach(modId => {
     const extras = ms[modId + '_extra'] || [];
     extras.forEach(line => {
       const pu = parseFloat(line.pu) || 0;
@@ -1745,7 +1753,7 @@ function calculate() {
   let totalMensuel = 0, totalAnnuel = 0, totalPrest = 0;
 
   const biz = moduleState.biz||0;
-  const bizFabOpt = moduleState.biz_fab_opt||0;
+  const mixte = moduleState.mixte||0;
   const fab = moduleState.fab||0;
   const net = moduleState.net_siege||0;
   const kub = moduleState.kub||0;
@@ -1959,10 +1967,11 @@ function buildConfigJson() {
 
   const parseEur = str => parseFloat((str||'0').replace(/[\s\u202f]/g,'').replace(',','.').replace(/[€]/g,'').replace('/mois','').replace('/an','')) || 0;
 
-  // Modules retenus
+  // Modules retenus (utilisé pour les logos & présentation dans la propale)
+  // Un user mixte (Biz+Fab) déclenche les 2 modules Biz et Fab
   const modulesRetenus = [];
-  if ((moduleState.biz||0)>0||(moduleState.biz_fab_opt||0)>0) modulesRetenus.push('biz');
-  if ((moduleState.fab||0)>0) modulesRetenus.push('fab');
+  if ((moduleState.biz||0)>0 || (moduleState.mixte||0)>0) modulesRetenus.push('biz');
+  if ((moduleState.fab||0)>0 || (moduleState.mixte||0)>0) modulesRetenus.push('fab');
   if ((moduleState.net_siege||0)>0) modulesRetenus.push('net');
   if ((moduleState.mag||0)>0) modulesRetenus.push('mag');
   if ((moduleState.vrp||0)>0) modulesRetenus.push('vrp');
