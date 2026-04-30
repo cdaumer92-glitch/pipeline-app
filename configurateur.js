@@ -386,6 +386,35 @@ function renderModuleDrawer(modId) {
     }
   }
 
+  // Section "Noms des flux" : affichée uniquement pour le module Flux quand qty > 0
+  // Permet à l'utilisateur de personnaliser le nom de chaque flux (ex: "Shopify", "Joor")
+  let fluxNomsHtml = '';
+  if (modId === 'flu') {
+    const qty = moduleState.fluxTiers || 0;
+    if (qty > 0) {
+      // S'assurer que fluxNoms a la bonne longueur (sans écraser les valeurs existantes)
+      while (fluxNoms.length < qty) fluxNoms.push('');
+      fluxNoms.length = qty;
+      const rows = [];
+      for (let i = 0; i < qty; i++) {
+        const val = (fluxNoms[i] || '').replace(/"/g, '&quot;');
+        rows.push(`
+          <div class="d-field" style="grid-template-columns:80px 1fr;gap:8px;align-items:center;">
+            <label>Flux ${i+1}</label>
+            <input type="text" id="flux_nom_${i+1}" placeholder="ex : Shopify, Joor..."
+              value="${val}"
+              oninput="fluxNoms[${i}]=this.value;refreshFluxNames();"
+              style="width:100%;padding:6px 10px;border:1px solid #ccc;border-radius:6px;">
+          </div>`);
+      }
+      fluxNomsHtml = `
+      <div class="d-section">
+        <div class="d-section-title">Noms des flux</div>
+        ${rows.join('')}
+      </div>`;
+    }
+  }
+
   drawer.innerHTML = `
     <div class="drawer-header">
       <div class="d-icon">${mod.label}</div>
@@ -400,6 +429,7 @@ function renderModuleDrawer(modId) {
         <div class="d-section-title">Utilisateurs & options</div>
         ${fieldsHtml}
       </div>
+      ${fluxNomsHtml}
       <div class="d-section d-extras-box">
         <div class="d-section-title">Lignes supplémentaires</div>
         <div id="extrasContainer_${modId}"></div>
@@ -681,37 +711,34 @@ function updateModQty(key, val) {
 // ══════════════════════════════════════════════════════════════
 function updateFluxNoms() {
   const qty = moduleState.fluxTiers || 0;
+
+  // Cacher l'ancien panel séparé s'il existe encore dans le HTML (compat)
+  // Les inputs sont désormais rendus dans le drawer Flux directement.
   const panel = document.getElementById('fluxNomsPanel');
-  const container = document.getElementById('fluxNomsContainer');
-  panel.style.display = qty > 0 ? 'block' : 'none';
+  if (panel) panel.style.display = 'none';
 
-  // Sauvegarder valeurs existantes
-  const existing = {};
-  container.querySelectorAll('input[id^="flux_nom_"]').forEach(inp => { existing[inp.id] = inp.value; });
+  // Ajuster la longueur du tableau fluxNoms (préserver les valeurs existantes)
+  while (fluxNoms.length < qty) fluxNoms.push('');
+  fluxNoms.length = qty;
 
-  container.innerHTML = '';
-  for (let i = 1; i <= qty; i++) {
-    const id = 'flux_nom_' + i;
-    const row = document.createElement('div');
-    row.className = 'flux-nom-row';
-    row.innerHTML = `<span class="flux-num">Flux ${i}</span>
-      <input type="text" id="${id}" placeholder="ex : Shopify, Joor..."
-        value="${existing[id]||''}" onchange="refreshFluxNames()">`;
-    container.appendChild(row);
+  // Si le drawer Flux est ouvert, le re-render pour afficher/cacher les inputs noms
+  const drawer = document.getElementById('moduleDrawer');
+  if (drawer && drawer.classList.contains('open')
+      && drawer.querySelector('.d-icon')?.textContent === 'Flux') {
+    renderModuleDrawer('flu');
   }
-  fluxNoms = Array.from({length:qty}, (_,i) => {
-    const el = document.getElementById('flux_nom_'+(i+1));
-    return el?.value.trim() || ('Flux '+(i+1));
-  });
+
   refreshFluxNames();
 }
 
 function refreshFluxNames() {
-  fluxNoms = [];
   const qty = moduleState.fluxTiers || 0;
-  for (let i = 1; i <= qty; i++) {
-    const el = document.getElementById('flux_nom_'+i);
-    fluxNoms.push(el?.value.trim() || ('Flux '+i));
+  // Compléter fluxNoms avec des valeurs par défaut "Flux N" pour les noms vides,
+  // utilisé pour le rendu de la propale et des sections.
+  // On ne modifie PAS le tableau fluxNoms lui-même (qui peut contenir des chaînes vides
+  // que l'utilisateur veut remplir) — on construit une vue propre pour l'aval.
+  for (let i = 0; i < qty; i++) {
+    if (typeof fluxNoms[i] === 'undefined') fluxNoms[i] = '';
   }
   // Mettre à jour les lignes section4 flux dynamiques
   updateDynamicFluxRows();
@@ -806,7 +833,7 @@ function renderSection3() {
     { show: sage,       nom: 'Allocation ressources Sage',                    total: 135,                     unite: '€/mois' },
     { show: mag,        nom: 'Gestion des Flux MAG',                          total: 40,                      unite: '€/mois' },
     { show: magCaisses, nom: `Support MAG — ${moduleState.mag_caisses} caisse(s)`, total: 15 * moduleState.mag_caisses, unite: '€/mois' },
-    { show: flux,       nom: `Gestion des Flux (${fluxNoms.join(', ')})`,     total: 40 * moduleState.fluxTiers, unite: '€/mois' },
+    { show: flux,       nom: `Gestion des Flux (${fluxNoms.map((n,i)=>n||('Flux '+(i+1))).join(', ')})`, total: 40 * moduleState.fluxTiers, unite: '€/mois' },
     { show: felec,      nom: 'Gestion Facturation électronique (réception)',  total: 40,                      unite: '€/mois' },
     { show: moduleState.middlewareStandalone, nom: 'Concentrateur middleware multi-magasin', total: 99, unite: '€/mois' },
   ];
@@ -1331,11 +1358,10 @@ function buildLignesModulesInfra() {
   if ((ms.biz||0)>0||(ms.mixte||0)>0||(ms.fab||0)>0) addAbo('Hébergement serveur TexasWin', null, calcHebTW(), null, '€/mois');
   if ((ms.mag||0)>0) addAbo('Gestion des Flux MAG', null, 40, null, '€/mois');
   if ((ms.mag_caisses||0)>0) addAbo('Support MAG/Caisse déployée', null, 15*(ms.mag_caisses||0), null, '€/mois');
-  // Récupérer les noms de flux depuis le DOM (utilisés dans la génération propale)
-  const _fluxNomsLocal = (typeof fluxNoms !== 'undefined' && fluxNoms.length)
-    ? fluxNoms
-    : Array.from(document.querySelectorAll('#fluxNomsContainer input')).map(i => i.value || '');
-  if ((ms.fluxTiers||0)>0) addAbo('Gestion des Flux ('+_fluxNomsLocal.join(', ')+')', null, 40*(ms.fluxTiers||0), null, '€/mois');
+  // Noms de flux : on utilise la variable globale fluxNoms (synchronisée par le drawer)
+  // Avec fallback "Flux N" pour les entrées vides
+  const _fluxNomsLocal = (fluxNoms || []).map((n, i) => n || ('Flux ' + (i+1)));
+  if ((ms.fluxTiers||0)>0) addAbo('Gestion des Flux ('+_fluxNomsLocal.slice(0, ms.fluxTiers).join(', ')+')', null, 40*(ms.fluxTiers||0), null, '€/mois');
   if (ms.facturationElec) addAbo('Gestion Facturation électronique (réception)', null, 40, null, '€/mois');
   if (ms.comptaSage) addAbo('Allocation ressources Sage', null, 135, null, '€/mois');
   if ((ms.kub||0)>0) addAbo('Hébergement serveur Kub', null, calcHebKub(), null, '€/mois');
@@ -2798,12 +2824,11 @@ async function loadDevisForEdit() {
     renderAllSections();
     calculate();
 
-    // Remplir les inputs noms de flux s'ils existent
+    // Remplir le tableau fluxNoms s'il existe (les inputs du drawer le liront depuis la variable)
     if (Array.isArray(modulesObj.flux_noms)) {
-      modulesObj.flux_noms.forEach((nom, i) => {
-        const el = document.getElementById('flux_nom_' + (i+1));
-        if (el) el.value = nom;
-      });
+      fluxNoms = modulesObj.flux_noms.slice();
+      // Re-render des sections + drawer si ouvert
+      if (typeof updateFluxNoms === 'function') updateFluxNoms();
     }
 
     console.log('[configurateur] devis ' + CTX.devis_id + ' chargé pour édition');
