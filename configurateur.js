@@ -52,7 +52,7 @@ const tarifSetupServeur = {1:200,2:200,3:200,4:595,5:595,6:595,7:800,8:800,9:800
 const sectionsData = {
   section1: { items: [
     {nom:"Module BIZ (Négoce)", prix:155, unite:"€/mois", dependModule:'biz', moduleColor:'#1a9fdb'},
-    {nom:"Module BIZ avec option FAB", prix:223, unite:"€/mois", dependModule:'mixte', moduleColor:'#1a9fdb'},
+    {nom:"Module BIZ et FAB", prix:223, unite:"€/mois", dependModule:'mixte', moduleColor:'#1a9fdb'},
     {nom:"Module FAB Standalone (Production seule)", prix:145.5, unite:"€/mois", dependModule:'fab', moduleColor:'#1a9fdb'},
     {nom:"Module Net B2B — Siège", prix:328, unite:"€/mois", dependModule:'net', netSiege:true, moduleColor:'#1a9fdb'},
     {nom:"Module Net B2B — Agents", prix:0, unite:"€/mois", dependModule:'net', netAgents:true, moduleColor:'#1a9fdb'},
@@ -122,6 +122,8 @@ const FORMATION_DATA = [
 // État modules actifs et quantités
 const moduleState = {
   biz:0, mixte:0, fab:0, net_siege:0, net_agents:'none', kub:0,
+  // PU éditable de la tuile Mixte (Biz+Fab) : par défaut 223€/user, négociable
+  mixte_pu: 223,
   // Net : siège en booléen (forfait 328€, pas par user) + nb users séparé pour formation/hébergement
   net_siege_active: false,
   net_users: 0,
@@ -210,7 +212,11 @@ function calcTileTotalBrut(modId) {
     if (fields && fields !== 'special') {
       fields.forEach(f => {
         const v = parseFloat(moduleState[f.key]||0);
-        total += v * f.prix;
+        // Tuile Mixte : utiliser le PU éditable (mixte_pu) au lieu du PU catalogue (f.prix)
+        const pu = (modId === 'mixte' && f.key === 'mixte')
+          ? (parseFloat(moduleState.mixte_pu) || f.prix)
+          : f.prix;
+        total += v * pu;
         if (f.fixed && v > 0) total += f.fixed; // Mag concentrateur
       });
     }
@@ -358,15 +364,25 @@ function renderModuleDrawer(modId) {
   } else {
     const fields = MODULE_FIELDS[modId];
     if (Array.isArray(fields)) {
-      fieldsHtml = fields.map(f => `
+      fieldsHtml = fields.map(f => {
+        // Tuile Mixte (Biz+Fab) : le PU est éditable (négociable avec le client)
+        // Pour les autres modules : PU en lecture seule
+        const puCell = (modId === 'mixte' && f.key === 'mixte')
+          ? `<input type="number" class="d-pu" id="dpu_${f.key}" min="0" step="0.01"
+              style="width:80px;text-align:right;border:none;background:transparent;font:inherit;color:inherit;padding:0;"
+              value="${fmtNum(moduleState.mixte_pu || f.prix)}"
+              oninput="moduleState.mixte_pu=parseFloat(this.value.replace(',','.'))||0;onDrawerChange('${modId}')"> €`
+          : `<span class="d-pu">${fmtNum(f.prix)} €</span>`;
+        return `
         <div class="d-field">
           <label>${f.label}${f.note ? `<span class="d-note">${f.note}</span>` : ''}</label>
-          <span class="d-pu">${fmtNum(f.prix)} €</span>
+          ${puCell}
           <input type="number" class="d-qty" id="dq_${f.key}" min="0" max="999"
             value="${moduleState[f.key] || 0}"
             oninput="moduleState['${f.key}']=parseFloat(this.value)||0;${modId === 'mag' ? 'moduleState.mag=(parseFloat(this.value)||0)>0?1:0;' : ''}onDrawerChange('${modId}')">
           <span class="d-unit">${f.unit}</span>
-        </div>`).join('');
+        </div>`;
+      }).join('');
     }
   }
 
@@ -620,6 +636,7 @@ function removeModuleFromDrawer(modId) {
   }
   if (modId === 'flu') { moduleState.fluxTiers = 0; updateFluxNoms(); }
   if (modId === 'biz') { moduleState.biz = 0; }
+  if (modId === 'mixte') { moduleState.mixte = 0; moduleState.mixte_pu = 223; }
   updateTileDisplay(modId);
   renderAllSections();
   calculate();
@@ -1287,7 +1304,7 @@ function buildLignesModulesInfra() {
 
   // Modules : avec qty + pu pour l'affichage propal
   addAbo('Module BIZ (Négoce)', (ms.biz||0), 155, 'biz', '€/mois/user');
-  addAbo('Module BIZ avec option FAB', (ms.mixte||0), 223, 'mixte', '€/mois/user');
+  addAbo('Module BIZ et FAB', (ms.mixte||0), parseFloat(ms.mixte_pu)||223, 'mixte', '€/mois/user');
   addAbo('Module FAB Standalone (Production seule)', (ms.fab||0), 145.5, 'fab', '€/mois/user');
   // Module Net B2B : 3 cas (siège seul / agents seul / siège+agents)
   const netSiegeActif = !!ms.net_siege_active;
