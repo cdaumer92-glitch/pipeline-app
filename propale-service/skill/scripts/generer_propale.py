@@ -156,6 +156,23 @@ def cell_total(txt,w,align="left",color="003366",bg="D5E8F0"):
 
 def row(*cells): return '<w:tr><w:trPr><w:cantSplit/></w:trPr>'+''.join(cells)+'</w:tr>'
 
+def _make_table_unbreakable(rows_xml):
+    """Ajoute <w:keepNext/> dans le pPr des cellules de toutes les lignes SAUF la dernière.
+    Effet : le tableau reste indissociable (chaque ligne tire la suivante), mais la dernière
+    ligne ne tire pas le contenu qui suit le tableau."""
+    import re as _re
+    rows_list = _re.findall(r'<w:tr>.*?</w:tr>', rows_xml, _re.DOTALL)
+    if len(rows_list) <= 1:
+        return rows_xml
+    patched = []
+    for i, rr in enumerate(rows_list):
+        if i < len(rows_list) - 1:
+            rr_new = _re.sub(r'<w:p><w:pPr>', '<w:p><w:pPr><w:keepNext/>', rr)
+            patched.append(rr_new)
+        else:
+            patched.append(rr)
+    return ''.join(patched)
+
 def tbl_wrap(rows_xml, cols="5000,2013,2013", tbl_ind=360):
     """Tableau avec tblInd configurable pour décaler à gauche (default 360 = ~0,6cm)."""
     ws = cols.split(',')
@@ -693,13 +710,14 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
         )
 
         # Assemblage : Modules → Licences → Infra → [Titre 3.x Prestations] → Prestations
-        tbl_prix = tbl_wrap(r_modules, cols=cols_modules)
+        # Chaque tableau passe dans _make_table_unbreakable pour rester indissociable
+        tbl_prix = tbl_wrap(_make_table_unbreakable(r_modules), cols=cols_modules)
         if r_licences:
-            tbl_prix += sep("17110002") + tbl_wrap(r_licences, cols=cols_licences)
+            tbl_prix += sep("17110002") + tbl_wrap(_make_table_unbreakable(r_licences), cols=cols_licences)
         if r_infra:
-            tbl_prix += sep("17110003") + tbl_wrap(r_infra, cols="5500,2000,2500")
+            tbl_prix += sep("17110003") + tbl_wrap(_make_table_unbreakable(r_infra), cols="5500,2000,2500")
         # Titre 3.x "Prestations initiales" inséré ici (numérotation auto via style Titre2)
-        tbl_prix += _titre2("Prestations initiales") + tbl_wrap(r_prest, cols=cols_prest)
+        tbl_prix += _titre2("Prestations initiales") + tbl_wrap(_make_table_unbreakable(r_prest), cols=cols_prest)
     else:
         # ── Fallback : ancien rendu 2 tableaux (compatibilité avec ancien CRM) ──
         r_abo = row(cell_hdr("Désignation", 5000, "left"), cell_hdr("Périodicité", 2013), cell_hdr("Montant HT", 2013, "right"))
@@ -711,7 +729,7 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
         r_prest += row(cell_total("Total prestations initiales", 5000, "left"), cell_empty(2013), cell_total(fmt(prest.get("total", 0)) + " HT", 2013, "right"))
 
         # Titre 3.x "Prestations initiales" inséré ici (numérotation auto via style Titre2)
-        tbl_prix = tbl_wrap(r_abo) + _titre2("Prestations initiales") + tbl_wrap(r_prest)
+        tbl_prix = tbl_wrap(_make_table_unbreakable(r_abo)) + _titre2("Prestations initiales") + tbl_wrap(_make_table_unbreakable(r_prest))
 
     anchor_prix='<w:t>Logiciel et prestations initiales</w:t>\n      </w:r>\n    </w:p>\n    <w:p w14:paraId="1D60B454"'
     if anchor_prix in content:
@@ -743,27 +761,8 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
         r_form+=row(cell_total("Total formation (Qualiopi inclus)",3500,"left","7B5EA7","EDE7F6"),
             cell_empty(1000,"EDE7F6"),cell_empty(900,"EDE7F6"),cell_empty(1000,"EDE7F6"),cell_empty(900,"EDE7F6"),
             cell_total(fmt(form.get("total",0))+" HT",1583,"right","7B5EA7","EDE7F6"))
-        # Post-traitement : ajouter keepNext sur les paragraphes des cellules sauf la dernière ligne
-        # Cela rend le tableau Formation indissociable (toutes les lignes solidaires entre elles)
-        # sans que la dernière ligne ne tire le contenu suivant.
-        # Découper r_form en lignes <w:tr>...</w:tr>, ajouter keepNext sur toutes sauf la dernière
-        import re as _re_form
-        rows_list = _re_form.findall(r'<w:tr>.*?</w:tr>', r_form, _re_form.DOTALL)
-        if len(rows_list) > 1:
-            # Toutes les lignes sauf la dernière : ajouter keepNext aux paragraphes des cellules
-            patched = []
-            for i, rr in enumerate(rows_list):
-                if i < len(rows_list) - 1:
-                    # Insérer keepNext dans chaque <w:p><w:pPr>...</w:pPr> de cette ligne
-                    rr_new = _re_form.sub(
-                        r'<w:p><w:pPr>',
-                        '<w:p><w:pPr><w:keepNext/>',
-                        rr
-                    )
-                    patched.append(rr_new)
-                else:
-                    patched.append(rr)
-            r_form = ''.join(patched)
+        # Post-traitement : tableau Formation indissociable (toutes lignes sauf dernière en keepNext)
+        r_form = _make_table_unbreakable(r_form)
         tbl_form=tbl_wrap(r_form,cols_f)
         anchor_form='<w:bookmarkEnd w:id="1"/>\n    <w:p w14:paraId="1A4BE0D4"'
         if anchor_form in content:
