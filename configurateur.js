@@ -286,11 +286,16 @@ function initModulesGrid() {
       const wrapper = document.createElement('div');
       wrapper.className = 'flux-tile-wrapper';
       wrapper.id = 'flux-tile-wrapper';
-      wrapper.style.cssText = 'grid-column: span 4; display:flex; align-items:stretch; gap:14px;';
+      // grid-column: span 4 → wrapper occupe 4 colonnes de la grille parent
+      // align-items: start → la tuile garde sa hauteur naturelle (n'est pas étirée)
+      // La tuile s'auto-dimensionne (1 fraction min-content), badges prennent le reste
+      wrapper.style.cssText = 'grid-column: span 4; display:grid; grid-template-columns: min-content 1fr; align-items: start; gap:14px;';
       wrapper.appendChild(tile);
       const badges = document.createElement('div');
       badges.id = 'flux-badges';
-      badges.style.cssText = 'display:flex; flex-direction:column; justify-content:center; gap:6px; flex-wrap:wrap;';
+      // Auto-flow column : remplit verticalement, puis crée une nouvelle colonne après 4 items
+      // grid-auto-rows pour hauteur fixe par badge, max 4 lignes par colonne
+      badges.style.cssText = 'display:grid; grid-auto-flow: column; grid-template-rows: repeat(4, auto); grid-auto-columns: max-content; gap: 6px 12px; align-content: center; align-self: stretch;';
       wrapper.appendChild(badges);
       grid.appendChild(wrapper);
     } else {
