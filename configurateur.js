@@ -370,7 +370,7 @@ function renderModuleDrawer(modId) {
         const puCell = (modId === 'mixte' && f.key === 'mixte')
           ? `<input type="number" class="d-pu" id="dpu_${f.key}" min="0" step="0.01"
               style="width:80px;text-align:right;border:none;background:transparent;font:inherit;color:inherit;padding:0;"
-              value="${fmtNum(moduleState.mixte_pu || f.prix)}"
+              value="${moduleState.mixte_pu || f.prix}"
               oninput="moduleState.mixte_pu=parseFloat(this.value.replace(',','.'))||0;onDrawerChange('${modId}')"> €`
           : `<span class="d-pu">${fmtNum(f.prix)} €</span>`;
         return `
