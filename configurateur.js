@@ -278,8 +278,43 @@ function initModulesGrid() {
       <div class="mod-label">${mod.sublabel}</div>
       <div class="tile-mini-total"></div>`;
     tile.addEventListener('click', () => openModuleDrawer(mod.id));
-    grid.appendChild(tile);
+
+    // Pour le module Flux : on enveloppe la tuile dans un wrapper qui s'étend sur 4 colonnes
+    // de la grille, pour permettre d'afficher les badges des noms de flux à droite.
+    // (La tuile Flux est seule sur sa ligne dans la grille 5 colonnes.)
+    if (mod.id === 'flu') {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'flux-tile-wrapper';
+      wrapper.id = 'flux-tile-wrapper';
+      wrapper.style.cssText = 'grid-column: span 4; display:flex; align-items:stretch; gap:14px;';
+      wrapper.appendChild(tile);
+      const badges = document.createElement('div');
+      badges.id = 'flux-badges';
+      badges.style.cssText = 'display:flex; flex-direction:column; justify-content:center; gap:6px; flex-wrap:wrap;';
+      wrapper.appendChild(badges);
+      grid.appendChild(wrapper);
+    } else {
+      grid.appendChild(tile);
+    }
   });
+}
+
+// Mise à jour de l'affichage des badges de noms de flux à droite de la tuile Flux
+function updateFluxBadges() {
+  const container = document.getElementById('flux-badges');
+  if (!container) return;
+  const qty = moduleState.fluxTiers || 0;
+  if (qty === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  const badges = [];
+  for (let i = 0; i < qty; i++) {
+    const nom = (fluxNoms[i] && fluxNoms[i].trim()) || ('Flux ' + (i+1));
+    const safe = nom.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    badges.push(`<span style="display:inline-block;padding:4px 12px;background:#e7eded;color:#3a4a4a;border-radius:12px;font-size:12px;white-space:nowrap;">${safe}</span>`);
+  }
+  container.innerHTML = badges.join('');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -743,6 +778,8 @@ function refreshFluxNames() {
   // Mettre à jour les lignes section4 flux dynamiques
   updateDynamicFluxRows();
   renderSection3();
+  // Rafraîchir les badges affichés à côté de la tuile Flux dans la grille
+  if (typeof updateFluxBadges === 'function') updateFluxBadges();
   calculate();
 }
 
