@@ -679,6 +679,14 @@
         adresse: '', code_naf: '', marques: [], notes: ''
       });
       const [newCompanyErrors, setNewCompanyErrors] = React.useState({});
+
+      // États du modal SocieteInfo (recherche + résultats + sélection)
+      const [showSInfoModal, setShowSInfoModal] = React.useState(false);
+      const [sInfoQuery, setSInfoQuery] = React.useState('');
+      const [sInfoLoading, setSInfoLoading] = React.useState(false);
+      const [sInfoResults, setSInfoResults] = React.useState([]);
+      const [sInfoError, setSInfoError] = React.useState('');
+
       const [formData, setFormData] = React.useState(getEmptyProspect());
       const [interlocuteurs, setInterlocuteurs] = React.useState([]);
       const [showInterlocuteurForm, setShowInterlocuteurForm] = React.useState(false);
@@ -1808,6 +1816,90 @@
         setShowNewCompanyModal(true);
       };
 
+      // ── Recherche SocieteInfo : ouvre le modal et lance une recherche ──
+      const openSInfoSearch = (initialQuery = '') => {
+        setSInfoQuery(initialQuery);
+        setSInfoResults([]);
+        setSInfoError('');
+        setShowSInfoModal(true);
+        if (initialQuery.trim().length >= 2) {
+          handleSInfoSearch(initialQuery);
+        }
+      };
+
+      const handleSInfoSearch = async (q) => {
+        const query = (q !== undefined ? q : sInfoQuery).trim();
+        if (query.length < 2) {
+          setSInfoError('Tapez au moins 2 caractères');
+          return;
+        }
+        setSInfoError('');
+        setSInfoLoading(true);
+        try {
+          const data = await window.SInfo.searchByName(query);
+          // L'API SocieteInfo renvoie typiquement { success, total, items: [...] } ou { results: [...] }
+          // On normalise vers un tableau plat
+          const items = data.items || data.results || data.companies || [];
+          setSInfoResults(Array.isArray(items) ? items : []);
+          if (items.length === 0) {
+            setSInfoError('Aucun résultat pour "' + query + '"');
+          }
+        } catch (err) {
+          setSInfoError(err.message || 'Erreur SocieteInfo');
+          setSInfoResults([]);
+        } finally {
+          setSInfoLoading(false);
+        }
+      };
+
+      // Au choix d'une société dans la liste : récupère les détails complets, vérifie doublon, autofill
+      const handleSInfoSelect = async (item) => {
+        const siren = String(item.siren || item.companyId || item.id || '').replace(/\D/g, '');
+        if (!siren) {
+          window.showToast({title:'SIREN manquant dans le résultat', type:'error'});
+          return;
+        }
+        // 1. Vérifier doublon
+        try {
+          const existing = await window.SInfo.checkDuplicateBySiren(siren);
+          if (existing) {
+            window.showToast({title:'Société déjà dans la base : ' + existing.name, type:'warning'});
+            setShowSInfoModal(false);
+            return;
+          }
+        } catch (e) { /* on continue, le serveur bloquera si vraiment doublon */ }
+
+        // 2. Récupérer les détails complets
+        setSInfoLoading(true);
+        try {
+          const data = await window.SInfo.getCompany(siren);
+          const company = data.result || data.company || data;
+          const mapped = window.SInfo.companyToProspect(company);
+
+          // 3. Autofill du modal "Nouvelle société"
+          setNewCompanyData(prev => ({
+            ...prev,
+            name:         mapped.name || prev.name,
+            siren:        mapped.siren || prev.siren,
+            adresse:      mapped.adresse || prev.adresse,
+            tel_standard: mapped.tel_standard || prev.tel_standard,
+            website:      mapped.website || prev.website,
+            code_naf:     mapped.code_naf || prev.code_naf,
+            marques:      (mapped.marques && mapped.marques.length) ? mapped.marques : prev.marques,
+            // Métadonnées de traçabilité (envoyées au backend lors de la création)
+            import_source: 'SInfo',
+            import_ref:    mapped.siren
+          }));
+
+          window.showToast({title:'Société importée depuis SocieteInfo', type:'success'});
+          setShowSInfoModal(false);
+        } catch (err) {
+          setSInfoError('Erreur récupération détails : ' + err.message);
+        } finally {
+          setSInfoLoading(false);
+        }
+      };
+
       // ── Création depuis la modale "Nouvelle société" ──
       const handleNewCompanyChange = (field, value) => {
         setNewCompanyData(d => ({ ...d, [field]: value }));
@@ -2315,6 +2407,28 @@
 
                 {/* Body */}
                 <div style={{ padding: '24px 28px' }}>
+
+                  {/* Bouton + SocieteInfo : recherche et autofill */}
+                  <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: '#f0f8f8', border: '0.5px dashed #a8d0d3', borderRadius: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#607a7a', flex: 1 }}>
+                      Vous connaissez le nom ou la marque ? Lancez une recherche dans la base SocieteInfo pour préremplir.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => openSInfoSearch(newCompanyData.name)}
+                      style={{
+                        background: '#1a3535', color: 'white', border: 'none',
+                        padding: '7px 14px', borderRadius: '7px',
+                        fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+                        display: 'inline-flex', alignItems: 'center', gap: '6px',
+                        fontFamily: "'DM Sans', sans-serif"
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                      SocieteInfo
+                    </button>
+                  </div>
+
                   {/* Champs obligatoires */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px 18px', marginBottom: '14px' }}>
                     <div style={{ gridColumn: 'span 3' }}>
@@ -2487,6 +2601,131 @@
                     padding: '10px 20px', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem',
                     cursor: 'pointer', background: '#007d89', color: 'white', border: 'none'
                   }}>💾 Enregistrer et ouvrir la fiche</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══════ MODALE : RECHERCHE SOCIETEINFO ═══════ */}
+          {showSInfoModal && (
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) setShowSInfoModal(false); }}
+              style={{
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'rgba(26, 53, 53, 0.5)', backdropFilter: 'blur(2px)',
+                zIndex: 1100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+                padding: '60px 20px', overflowY: 'auto'
+              }}>
+              <div style={{
+                background: 'white', borderRadius: '12px', width: '100%', maxWidth: '640px',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.18)', border: '0.5px solid #e0ecec'
+              }}>
+                {/* Header */}
+                <div style={{
+                  padding: '18px 24px', borderBottom: '0.5px solid #e0ecec',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                }}>
+                  <h2 style={{ margin: 0, fontFamily: 'DM Sans, sans-serif', color: '#1a3535', fontSize: '1.05rem', fontWeight: 600 }}>
+                    Rechercher dans SocieteInfo
+                  </h2>
+                  <button onClick={() => setShowSInfoModal(false)} style={{
+                    background: '#f4f7f7', border: 'none', width: '30px', height: '30px',
+                    borderRadius: '7px', cursor: 'pointer', fontSize: '1rem', color: '#607a7a'
+                  }}>✕</button>
+                </div>
+
+                {/* Body */}
+                <div style={{ padding: '20px 24px' }}>
+                  {/* Input recherche */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="Nom de société ou de marque (ex: Gérard Darel)"
+                      value={sInfoQuery}
+                      onChange={(e) => setSInfoQuery(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSInfoSearch(); }}
+                      style={{
+                        flex: 1, padding: '10px 14px', fontSize: '14px',
+                        border: '0.5px solid #cde0e0', borderRadius: '8px',
+                        outline: 'none', fontFamily: "'DM Sans', sans-serif"
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSInfoSearch()}
+                      disabled={sInfoLoading || sInfoQuery.trim().length < 2}
+                      style={{
+                        padding: '10px 18px', fontSize: '13px', fontWeight: 500,
+                        background: '#1a3535', color: 'white', border: 'none',
+                        borderRadius: '8px', cursor: 'pointer',
+                        opacity: (sInfoLoading || sInfoQuery.trim().length < 2) ? 0.5 : 1
+                      }}
+                    >
+                      {sInfoLoading ? '…' : 'Rechercher'}
+                    </button>
+                  </div>
+
+                  {/* Erreur */}
+                  {sInfoError && (
+                    <div style={{
+                      padding: '10px 14px', marginBottom: '12px',
+                      background: '#fef3f2', border: '0.5px solid #fecaca', borderRadius: '7px',
+                      color: '#a52d2d', fontSize: '12px'
+                    }}>
+                      {sInfoError}
+                    </div>
+                  )}
+
+                  {/* Liste de résultats */}
+                  {sInfoResults.length > 0 && (
+                    <div style={{ borderTop: '0.5px solid #e0ecec', paddingTop: '12px' }}>
+                      <div style={{ fontSize: '11px', color: '#7a9090', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '8px', fontWeight: 500 }}>
+                        {sInfoResults.length} résultat{sInfoResults.length > 1 ? 's' : ''}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '420px', overflowY: 'auto' }}>
+                        {sInfoResults.map((item, idx) => {
+                          const name = item.brandName || item.commercialName || item.companyName || item.name || '(sans nom)';
+                          const siren = item.siren || item.companyId || '';
+                          const ville = (item.address && item.address.city) || item.city || '';
+                          const naf = item.naf || item.nafLabel || '';
+                          return (
+                            <button
+                              key={siren || idx}
+                              type="button"
+                              onClick={() => handleSInfoSelect(item)}
+                              disabled={sInfoLoading}
+                              style={{
+                                textAlign: 'left', padding: '10px 14px',
+                                background: 'white', border: '0.5px solid #e0ecec',
+                                borderRadius: '8px', cursor: 'pointer',
+                                fontFamily: "'DM Sans', sans-serif",
+                                transition: 'background .15s, border-color .15s'
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = '#f4f7f7'; e.currentTarget.style.borderColor = '#007d89'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = '#e0ecec'; }}
+                            >
+                              <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a3535', marginBottom: '3px' }}>
+                                {name}
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#7a9090', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                {siren && <span>SIREN {siren}</span>}
+                                {ville && <span>· {ville}</span>}
+                                {naf && <span>· {naf}</span>}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* État vide initial */}
+                  {!sInfoLoading && !sInfoError && sInfoResults.length === 0 && (
+                    <div style={{ padding: '24px', textAlign: 'center', color: '#7a9090', fontSize: '12px' }}>
+                      Tapez un nom de société ou une marque puis appuyez sur Entrée.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
