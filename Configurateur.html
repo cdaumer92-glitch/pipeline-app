@@ -29,29 +29,27 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:#007d89"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           Prospect
         </span>
-        <div style="position:relative;flex:1;max-width:340px;">
-          <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#7a9090;width:13px;height:13px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <!-- Search masquée volontairement (cf configurateur-2026.css) -->
+        <div class="pipeline-search-hidden" style="position:relative;flex:1;max-width:340px;">
           <input type="text" id="pipelineSearch" placeholder="Rechercher dans Pipeline..."
             oninput="searchPipeline(this.value)"
-            style="width:100%;padding:7px 12px 7px 32px;border:1.5px solid rgba(255,255,255,0.35);border-radius:8px;background:rgba(255,255,255,0.15);color:white;font-family:Lato,sans-serif;font-size:0.85rem;caret-color:white;" class="pipeline-header-input"
-            onfocus="this.style.background='rgba(255,255,255,0.2)';this.style.borderColor='var(--teal)'"
-            onblur="this.style.background='rgba(255,255,255,0.12)';this.style.borderColor='rgba(255,255,255,0.25)'">
-          <div id="pipelineSpinner" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--teal)">⏳</div>
+            class="pipeline-header-input">
+          <div id="pipelineSpinner" style="display:none;"></div>
           <div class="pipeline-results" id="pipelineResults" style="top:calc(100% + 4px);"></div>
         </div>
       </div>
       <div class="prospect-grid">
-        <!-- Colonne gauche -->
+        <!-- Colonne gauche : Société -->
         <div class="prospect-col">
-
+          <div class="prospect-col-title">Société</div>
           <label class="field-label">Nom de la Société</label>
           <input type="text" class="field-input" id="societe" value="Nom de la Société">
           <label class="field-label">Adresse</label>
           <input type="text" class="field-input" id="adresse" placeholder="Adresse complète" style="margin-bottom:0">
         </div>
-        <!-- Colonne droite -->
+        <!-- Colonne droite : Coordonnées -->
         <div class="prospect-col">
-          <div style="font-size:0.72rem;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:16px;">Coordonnées</div>
+          <div class="prospect-col-title">Coordonnées</div>
           <label class="field-label">Contact</label>
           <input type="text" class="field-input" id="contact" placeholder="Prénom Nom, Fonction">
           <label class="field-label">Commercial</label>

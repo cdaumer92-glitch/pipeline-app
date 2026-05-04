@@ -671,3 +671,32 @@ body {
   background: #4d5868;
   border-radius: 3px;
 }
+
+/* ── MASQUER LA SEARCH DANS LE CARD-HEADER PROSPECT ── */
+.pipeline-search-hidden {
+  display: none !important;
+}
+
+/* ── PROSPECT-COL : titre de colonne + alignement parfait ── */
+.prospect-col-title {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: var(--c26-muted) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  margin-bottom: 12px !important;
+  font-family: 'DM Sans', 'Inter', sans-serif !important;
+}
+
+/* Garantir l'alignement vertical entre les deux colonnes
+   (titre + paire label/input + paire label/input) */
+.prospect-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 24px !important;
+  align-items: start !important;
+}
+.prospect-col {
+  display: flex !important;
+  flex-direction: column !important;
+}
