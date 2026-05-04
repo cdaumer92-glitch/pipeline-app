@@ -1837,9 +1837,13 @@
         setSInfoLoading(true);
         try {
           const data = await window.SInfo.searchByName(query);
-          // L'API SocieteInfo renvoie typiquement { success, total, items: [...] } ou { results: [...] }
-          // On normalise vers un tableau plat
-          const items = data.items || data.results || data.companies || [];
+          // SocieteInfo renvoie { success, total, result: [...], ... }
+          // (attention : 'result' au singulier dans cette API, pas 'results')
+          let items = data.result || data.results || data.items || data.companies || [];
+          // Selon les modes, 'result' peut aussi être un objet contenant un tableau
+          if (!Array.isArray(items) && items && typeof items === 'object') {
+            items = items.items || items.companies || items.list || [];
+          }
           setSInfoResults(Array.isArray(items) ? items : []);
           if (items.length === 0) {
             setSInfoError('Aucun résultat pour "' + query + '"');
