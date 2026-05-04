@@ -1858,7 +1858,7 @@
 
       // Au choix d'une société dans la liste : récupère les détails complets, vérifie doublon, autofill
       const handleSInfoSelect = async (item) => {
-        const siren = String(item.siren || item.companyId || item.id || '').replace(/\D/g, '');
+        const siren = String(item.registration_number || item.siren || item.companyId || item.id || '').replace(/\D/g, '').slice(0, 9);
         if (!siren) {
           window.showToast({title:'SIREN manquant dans le résultat', type:'error'});
           return;
@@ -2689,10 +2689,10 @@
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '420px', overflowY: 'auto' }}>
                         {sInfoResults.map((item, idx) => {
-                          const name = item.brandName || item.commercialName || item.companyName || item.name || '(sans nom)';
-                          const siren = item.siren || item.companyId || '';
-                          const ville = (item.address && item.address.city) || item.city || '';
-                          const naf = item.naf || item.nafLabel || '';
+                          const name = item.name || item.brandName || item.commercialName || item.companyName || '(sans nom)';
+                          const siren = item.registration_number || item.siren || item.companyId || '';
+                          const ville = item.formatted_address || (item.address && item.address.city) || item.city || '';
+                          const naf = item.activity || item.naf || item.nafLabel || '';
                           return (
                             <button
                               key={siren || idx}

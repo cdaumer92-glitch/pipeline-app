@@ -163,31 +163,32 @@
    */
   function companyToProspect(si) {
     if (!si) return {};
-    // Nom : on prend le nom commercial s'il existe, sinon la raison sociale
-    const name = si.brandName || si.commercialName || si.companyName || si.name || '';
+    // Nom : priorité au nom commercial / marque, sinon raison sociale
+    const name = si.name || si.brandName || si.commercialName || si.companyName || '';
 
-    // SIREN (parfois sous .siren ou .companyId)
-    const siren = String(si.siren || si.companyId || si.id || '').replace(/\D/g, '').slice(0, 9);
+    // SIREN : registration_number (vrai nom dans l'API SocieteInfo) ou fallbacks
+    const siren = String(si.registration_number || si.siren || si.companyId || '').replace(/\D/g, '').slice(0, 9);
 
     // Code NAF
-    const code_naf = si.naf || si.nafCode || si.activityCode || '';
+    const code_naf = si.naf_code || si.naf || si.nafCode || si.activityCode || '';
 
-    // Adresse + CP + Ville (différents formats possibles selon l'API SocieteInfo)
-    let adresse = '';
+    // Adresse : SocieteInfo renvoie souvent formatted_address (CP + ville déjà concaténés)
+    let adresseComplete = '';
     let cp = '';
     let ville = '';
-    if (si.address && typeof si.address === 'object') {
-      adresse = si.address.street || si.address.line1 || '';
+    if (si.formatted_address) {
+      adresseComplete = si.formatted_address;
+      // Extraire CP + ville depuis "93160 NOISY-LE-GRAND"
+      const m = si.formatted_address.match(/^(\d{5})\s+(.+)$/);
+      if (m) { cp = m[1]; ville = m[2]; }
+    } else if (si.address && typeof si.address === 'object') {
+      const street = si.address.street || si.address.line1 || '';
       cp = si.address.postCode || si.address.postalCode || si.address.zip || '';
       ville = si.address.city || si.address.locality || '';
+      adresseComplete = [street, cp, ville].filter(Boolean).join(' ').trim();
     } else {
-      adresse = si.address || si.addressLine || '';
-      cp = si.postCode || si.postalCode || si.zip || '';
-      ville = si.city || si.locality || '';
+      adresseComplete = si.address || si.addressLine || '';
     }
-    // Si on a une adresse en une seule string, on la concatène pour cohérence avec
-    // l'ancien comportement (le champ `adresse` du CRM contient parfois le tout)
-    const adresseComplete = [adresse, cp, ville].filter(Boolean).join(' ').trim();
 
     // Téléphone
     const tel_standard = si.phone || si.phoneNumber || si.tel || '';
@@ -199,25 +200,25 @@
     let marques = [];
     if (Array.isArray(si.brands)) {
       marques = si.brands.map(b => (typeof b === 'string' ? b : (b.name || b.brand || ''))).filter(Boolean);
-    } else if (si.brandName && si.brandName !== si.companyName) {
+    } else if (si.brandName && si.brandName !== si.name) {
       marques = [si.brandName];
     }
 
-    // Secteur (libellé NAF)
-    const secteur = si.nafLabel || si.activityLabel || si.activity || '';
+    // Secteur (libellé NAF / activité)
+    const secteur = si.activity || si.nafLabel || si.activityLabel || '';
 
     return {
       name,
       siren,
       code_naf,
-      adresse: adresseComplete || adresse,
+      adresse: adresseComplete,
       cp,
       ville,
       tel_standard,
       website,
       marques,
       secteur,
-      // Métadonnées de traçabilité (pour l'insert BDD)
+      // Métadonnées de traçabilité
       import_source: 'SInfo',
       import_ref: siren
     };
