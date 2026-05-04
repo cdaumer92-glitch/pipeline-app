@@ -686,6 +686,12 @@
       const [sInfoLoading, setSInfoLoading] = React.useState(false);
       const [sInfoResults, setSInfoResults] = React.useState([]);
       const [sInfoError, setSInfoError] = React.useState('');
+      // Étape 2 : société sélectionnée + dirigeants
+      const [sInfoStep, setSInfoStep] = React.useState(1); // 1 = recherche, 2 = soc. + dirigeants
+      const [sInfoSelectedCompany, setSInfoSelectedCompany] = React.useState(null);
+      const [sInfoContacts, setSInfoContacts] = React.useState([]);
+      const [sInfoSelectedContacts, setSInfoSelectedContacts] = React.useState({}); // { contact_id: true }
+      const [sInfoFetchEmails, setSInfoFetchEmails] = React.useState(false); // checkbox "récupérer emails (consomme du quota)"
 
       const [formData, setFormData] = React.useState(getEmptyProspect());
       const [interlocuteurs, setInterlocuteurs] = React.useState([]);
@@ -1821,6 +1827,11 @@
         setSInfoQuery(initialQuery);
         setSInfoResults([]);
         setSInfoError('');
+        setSInfoStep(1);
+        setSInfoSelectedCompany(null);
+        setSInfoContacts([]);
+        setSInfoSelectedContacts({});
+        setSInfoFetchEmails(false);
         setShowSInfoModal(true);
         if (initialQuery.trim().length >= 2) {
           handleSInfoSearch(initialQuery);
@@ -1856,7 +1867,8 @@
         }
       };
 
-      // Au choix d'une société dans la liste : récupère les détails complets, vérifie doublon, autofill
+      // Au choix d'une société dans la liste : on passe à l'étape 2 (dirigeants)
+      // → on autofill aussi les champs Société dans le modal Nouvelle société en background
       const handleSInfoSelect = async (item) => {
         const siren = String(item.registration_number || item.siren || item.companyId || item.id || '').replace(/\D/g, '').slice(0, 9);
         if (!siren) {
@@ -1873,14 +1885,14 @@
           }
         } catch (e) { /* on continue, le serveur bloquera si vraiment doublon */ }
 
-        // 2. Récupérer les détails complets
+        // 2. Mapper les infos société (déjà disponibles dans `item` issu de la liste)
+        //    → on évite getCompany() pour ne pas consommer un crédit en plus.
         setSInfoLoading(true);
         try {
-          const data = await window.SInfo.getCompany(siren);
-          const company = data.result || data.company || data;
-          const mapped = window.SInfo.companyToProspect(company);
+          const mapped = window.SInfo.companyToProspect(item);
+          setSInfoSelectedCompany({ ...item, _mapped: mapped });
 
-          // 3. Autofill du modal "Nouvelle société"
+          // 3. Autofill du modal "Nouvelle société" (en arrière-plan)
           setNewCompanyData(prev => ({
             ...prev,
             name:         mapped.name || prev.name,
@@ -1890,18 +1902,91 @@
             website:      mapped.website || prev.website,
             code_naf:     mapped.code_naf || prev.code_naf,
             marques:      (mapped.marques && mapped.marques.length) ? mapped.marques : prev.marques,
-            // Métadonnées de traçabilité (envoyées au backend lors de la création)
             import_source: 'SInfo',
             import_ref:    mapped.siren
           }));
 
-          window.showToast({title:'Société importée depuis SocieteInfo', type:'success'});
-          setShowSInfoModal(false);
+          // 4. Charger les dirigeants (gratuit en mode anonymized)
+          try {
+            const cdata = await window.SInfo.getContacts(siren);
+            const contacts = cdata.result || cdata.results || cdata.items || [];
+            setSInfoContacts(Array.isArray(contacts) ? contacts : []);
+          } catch (e) {
+            console.warn('[SInfo] getContacts:', e.message);
+            setSInfoContacts([]);
+          }
+
+          // 5. Passer à l'étape 2
+          setSInfoStep(2);
+          setSInfoSelectedContacts({});
         } catch (err) {
-          setSInfoError('Erreur récupération détails : ' + err.message);
+          setSInfoError('Erreur : ' + err.message);
         } finally {
           setSInfoLoading(false);
         }
+      };
+
+      // Étape 2 : valide la sélection des dirigeants → crée les interlocuteurs
+      const handleSInfoConfirmContacts = async () => {
+        const selectedIds = Object.keys(sInfoSelectedContacts).filter(id => sInfoSelectedContacts[id]);
+        // Si l'utilisateur a coché "récupérer emails", on appelle getContactsDetails (consomme du quota)
+        let contactsToImport = sInfoContacts.filter(c => selectedIds.includes(String(c.id)));
+
+        if (selectedIds.length > 0 && sInfoFetchEmails) {
+          setSInfoLoading(true);
+          try {
+            const siren = sInfoSelectedCompany._mapped.siren;
+            const dets = await window.SInfo.getContactsDetails(siren, selectedIds);
+            const enriched = dets.result || dets.results || [];
+            // Merger les détails avec la liste de base (par id)
+            contactsToImport = contactsToImport.map(c => {
+              const det = enriched.find(d => String(d.id) === String(c.id));
+              return det ? { ...c, ...det } : c;
+            });
+          } catch (e) {
+            window.showToast({title: 'Erreur récupération emails: ' + e.message, type:'error'});
+            setSInfoLoading(false);
+            return;
+          }
+          setSInfoLoading(false);
+        }
+
+        // Mapper les dirigeants vers le format interlocuteur du CRM et les ajouter à la liste
+        const newInterlocuteurs = contactsToImport.map(c => {
+          const mapped = window.SInfo.contactToInterlocuteur(c);
+          return {
+            // L'app utilise un id local pour les interlocuteurs en cours de création
+            _localId: 'sinfo-' + (c.id || Math.random().toString(36).slice(2)),
+            civilite: mapped.civilite,
+            prenom:   mapped.prenom,
+            nom:      mapped.nom,
+            fonction: mapped.fonction,
+            email:    mapped.email || '',
+            telephone: mapped.telephone || '',
+            telephone_direct: '',
+            mobile: '',
+            notes: ''
+          };
+        });
+
+        // Toast de feedback
+        if (newInterlocuteurs.length > 0) {
+          window.showToast({
+            title: `${newInterlocuteurs.length} dirigeant${newInterlocuteurs.length > 1 ? 's' : ''} importé${newInterlocuteurs.length > 1 ? 's' : ''}`,
+            type: 'success'
+          });
+        } else {
+          window.showToast({title: 'Société importée (sans dirigeants)', type: 'success'});
+        }
+
+        // Stocker les interlocuteurs SocieteInfo dans newCompanyData pour qu'ils soient
+        // créés au moment du submit du modal Nouvelle société.
+        setNewCompanyData(prev => ({
+          ...prev,
+          _sinfo_interlocuteurs: newInterlocuteurs
+        }));
+
+        setShowSInfoModal(false);
       };
 
       // ── Création depuis la modale "Nouvelle société" ──
@@ -1939,6 +2024,10 @@
           marques: newCompanyData.marques,
           notes: newCompanyData.notes.trim(),
           status: 'Prospection',
+          // Traçabilité (import depuis SocieteInfo le cas échéant)
+          import_source: newCompanyData.import_source || 'Manuel',
+          import_date:   newCompanyData.import_source ? new Date().toISOString() : null,
+          import_ref:    newCompanyData.import_ref || null,
         };
 
         try {
@@ -1956,6 +2045,36 @@
           }
           const data = await res.json();
           const created = { ...payload, id: data.id || data.prospect_id };
+
+          // Si des dirigeants SocieteInfo ont été sélectionnés, les créer comme interlocuteurs
+          const sInfoInter = newCompanyData._sinfo_interlocuteurs || [];
+          if (sInfoInter.length > 0) {
+            for (const inter of sInfoInter) {
+              try {
+                await fetch(`${API_URL}/prospects/${created.id}/interlocuteurs`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${user.token}`
+                  },
+                  body: JSON.stringify({
+                    civilite: inter.civilite || '',
+                    prenom:   inter.prenom || '',
+                    nom:      inter.nom || '',
+                    fonction: inter.fonction || '',
+                    email:    inter.email || '',
+                    telephone: inter.telephone || '',
+                    telephone_direct: inter.telephone_direct || '',
+                    mobile:   inter.mobile || '',
+                    notes:    inter.notes || ''
+                  })
+                });
+              } catch (e) {
+                console.warn('[SInfo] Erreur création interlocuteur:', e.message);
+              }
+            }
+          }
+
           // Fermer la modale, rafraîchir la liste, ouvrir la fiche créée
           setShowNewCompanyModal(false);
           // Si on est sur le Dashboard, basculer sur "Suivi activités" pour voir la fiche
@@ -2629,8 +2748,9 @@
                   padding: '18px 24px', borderBottom: '0.5px solid #e0ecec',
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                 }}>
-                  <h2 style={{ margin: 0, fontFamily: 'DM Sans, sans-serif', color: '#1a3535', fontSize: '1.05rem', fontWeight: 600 }}>
-                    Rechercher dans SocieteInfo
+                  <h2 style={{ margin: 0, fontFamily: 'DM Sans, sans-serif', color: '#1a3535', fontSize: '1.05rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {sInfoStep === 1 ? 'Rechercher dans SocieteInfo' : 'Confirmer l\'import'}
+                    <span style={{ fontSize: '11px', color: '#7a9090', fontWeight: 400 }}>· Étape {sInfoStep}/2</span>
                   </h2>
                   <button onClick={() => setShowSInfoModal(false)} style={{
                     background: '#f4f7f7', border: 'none', width: '30px', height: '30px',
@@ -2638,7 +2758,8 @@
                   }}>✕</button>
                 </div>
 
-                {/* Body */}
+                {/* ═══ ÉTAPE 1 : RECHERCHE ═══ */}
+                {sInfoStep === 1 && (
                 <div style={{ padding: '20px 24px' }}>
                   {/* Input recherche */}
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
@@ -2731,6 +2852,130 @@
                     </div>
                   )}
                 </div>
+                )}
+
+                {/* ═══ ÉTAPE 2 : SOCIÉTÉ + DIRIGEANTS À IMPORTER ═══ */}
+                {sInfoStep === 2 && sInfoSelectedCompany && (
+                <div style={{ padding: '20px 24px' }}>
+                  {/* Résumé de la société sélectionnée */}
+                  <div style={{
+                    padding: '12px 14px', marginBottom: '16px',
+                    background: '#f4f7f7', border: '0.5px solid #e0ecec', borderRadius: '8px'
+                  }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a3535', marginBottom: '4px' }}>
+                      {sInfoSelectedCompany._mapped.name}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#607a7a', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                      {sInfoSelectedCompany._mapped.siren && <span>SIREN {sInfoSelectedCompany._mapped.siren}</span>}
+                      {sInfoSelectedCompany._mapped.adresse && <span>· {sInfoSelectedCompany._mapped.adresse}</span>}
+                    </div>
+                  </div>
+
+                  {/* Liste de dirigeants */}
+                  <div style={{ fontSize: '11px', color: '#7a9090', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '8px', fontWeight: 500 }}>
+                    Dirigeants — sélectionnez ceux à importer
+                  </div>
+
+                  {sInfoLoading && (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#7a9090', fontSize: '12px' }}>
+                      Chargement…
+                    </div>
+                  )}
+
+                  {!sInfoLoading && sInfoContacts.length === 0 && (
+                    <div style={{ padding: '16px', textAlign: 'center', color: '#7a9090', fontSize: '12px', background: '#fafafa', borderRadius: '7px' }}>
+                      Aucun dirigeant trouvé pour cette société.
+                    </div>
+                  )}
+
+                  {!sInfoLoading && sInfoContacts.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '300px', overflowY: 'auto', marginBottom: '16px' }}>
+                      {sInfoContacts.map((c) => {
+                        const cid = String(c.id || c.contact_id || '');
+                        const checked = !!sInfoSelectedContacts[cid];
+                        const civ = c.gender === 'M' ? 'M.' : c.gender === 'F' ? 'Mme' : '';
+                        const fullName = [civ, c.firstName || c.firstname, c.lastName || c.lastname || c.name].filter(Boolean).join(' ');
+                        const fonction = c.position || c.title || c.function || c.role || '';
+                        return (
+                          <label
+                            key={cid}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '10px',
+                              padding: '8px 12px', borderRadius: '7px',
+                              border: '0.5px solid ' + (checked ? '#007d89' : '#e0ecec'),
+                              background: checked ? '#e6f4f5' : 'white',
+                              cursor: 'pointer', transition: 'all .15s'
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => setSInfoSelectedContacts(prev => ({ ...prev, [cid]: e.target.checked }))}
+                              style={{ accentColor: '#007d89', cursor: 'pointer' }}
+                            />
+                            <div style={{ flex: 1, fontFamily: "'DM Sans', sans-serif" }}>
+                              <div style={{ fontSize: '13px', color: '#1a3535', fontWeight: 500 }}>{fullName || '(sans nom)'}</div>
+                              {fonction && <div style={{ fontSize: '11px', color: '#607a7a' }}>{fonction}</div>}
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Option : récupérer les emails (consomme du quota) */}
+                  {!sInfoLoading && sInfoContacts.length > 0 && (
+                    <label style={{
+                      display: 'flex', alignItems: 'flex-start', gap: '10px',
+                      padding: '10px 12px', marginBottom: '16px',
+                      background: '#fff8e1', border: '0.5px solid #efc274', borderRadius: '7px',
+                      cursor: 'pointer'
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={sInfoFetchEmails}
+                        onChange={(e) => setSInfoFetchEmails(e.target.checked)}
+                        style={{ accentColor: '#b06e2a', cursor: 'pointer', marginTop: '2px' }}
+                      />
+                      <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                        <div style={{ fontSize: '12px', color: '#1a3535', fontWeight: 500 }}>Récupérer les emails et téléphones</div>
+                        <div style={{ fontSize: '11px', color: '#7a5520' }}>Consomme du quota SocieteInfo (1 crédit par contact sélectionné). Sinon les noms et fonctions sont importés mais sans email/tél.</div>
+                      </div>
+                    </label>
+                  )}
+
+                  {/* Footer : Retour + Valider */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '0.5px solid #e0ecec', paddingTop: '14px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSInfoStep(1)}
+                      disabled={sInfoLoading}
+                      style={{
+                        padding: '8px 14px', fontSize: '12px',
+                        background: 'white', color: '#607a7a',
+                        border: '0.5px solid #cde0e0', borderRadius: '7px', cursor: 'pointer'
+                      }}
+                    >
+                      ← Retour
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSInfoConfirmContacts}
+                      disabled={sInfoLoading}
+                      style={{
+                        padding: '9px 18px', fontSize: '13px', fontWeight: 500,
+                        background: '#1a3535', color: 'white', border: 'none',
+                        borderRadius: '8px', cursor: 'pointer',
+                        opacity: sInfoLoading ? 0.5 : 1
+                      }}
+                    >
+                      {Object.values(sInfoSelectedContacts).filter(Boolean).length > 0
+                        ? `Importer (${Object.values(sInfoSelectedContacts).filter(Boolean).length})`
+                        : 'Importer la société'}
+                    </button>
+                  </div>
+                </div>
+                )}
               </div>
             </div>
           )}

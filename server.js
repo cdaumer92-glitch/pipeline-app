@@ -718,7 +718,8 @@ app.post('/api/prospects', auth, async (req, res) => {
     name, contact_name, email, phone, adresse, website, tel_standard, statut_societe,
     status, setup_amount, monthly_amount, annual_amount,
     training_amount, chance_percent, assigned_to, quote_date,
-    decision_maker, solutions_en_place, notes, siren, code_naf, marques
+    decision_maker, solutions_en_place, notes, siren, code_naf, marques,
+    import_source, import_date, import_ref
   } = req.body;
 
   try {
@@ -727,16 +728,18 @@ app.post('/api/prospects', auth, async (req, res) => {
         name, contact_name, email, phone, adresse, website, tel_standard, statut_societe,
         status, setup_amount, monthly_amount, annual_amount,
         training_amount, chance_percent, assigned_to, quote_date,
-        decision_maker, solutions_en_place, notes, siren, code_naf, marques, user_id, status_date
+        decision_maker, solutions_en_place, notes, siren, code_naf, marques, user_id, status_date,
+        import_source, import_date, import_ref
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,CURRENT_DATE)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,CURRENT_DATE,$24,$25,$26)
       RETURNING id`,
       [
         name, contact_name, email || null, phone || null, adresse || null, website || null, tel_standard || null, statut_societe || 'Prospect',
         status || 'Prospection', setup_amount || 0, monthly_amount || 0, annual_amount || 0,
         training_amount || 0, chance_percent || 20, assigned_to, quote_date || null,
         decision_maker || null, solutions_en_place || null, notes || null, siren || null, code_naf || null,
-        (Array.isArray(marques) && marques.length > 0) ? marques : null, req.userId
+        (Array.isArray(marques) && marques.length > 0) ? marques : null, req.userId,
+        import_source || null, import_date || null, import_ref || null
       ]
     );
     res.json({ id: result.rows[0].id });
