@@ -712,7 +712,7 @@
       const [filterSocietyType, setFilterSocietyType] = React.useState('Tous');
       const [filterStatus, setFilterStatus] = React.useState('Tous');
       const [filterCommercial, setFilterCommercial] = React.useState('Tous');
-      const [filterAttribution, setFilterAttribution] = React.useState('NonAttribuees');
+      const [filterAttribution, setFilterAttribution] = React.useState('Toutes');
       const [searchTerm, setSearchTerm] = React.useState('');
       const [sortBy, setSortBy] = React.useState('name');
 
@@ -4010,33 +4010,112 @@
     }
 
     function LeftPanel({ prospects, allProspects, selectedProspect, onSelect, filterSocietyType, onFilterSocietyTypeChange, filterStatus, onFilterChange, filterCommercial, onFilterCommercialChange, searchTerm, onSearchChange, sortBy, onSortChange, prospectActionsInfo, onNewProspect, isAdmin, filterAttribution, onFilterAttributionChange, currentUser }) {
-      // Style commun pour les <select> du filtre (cohérent avec le design moderne)
-      const selectStyle = {
-        width:'100%',padding:'7px 10px',fontSize:'13px',border:'0.5px solid var(--tw-border)',
-        borderRadius:'7px',background:'white',color:'var(--tw-ink)',cursor:'pointer',
-        fontFamily:"'DM Sans',sans-serif",appearance:'none',
-        backgroundImage:'url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2710%27 height=%2710%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23607a7a%27 stroke-width=%272%27><polyline points=%276 9 12 15 18 9%27/></svg>")',
-        backgroundRepeat:'no-repeat',backgroundPosition:'right 10px center',paddingRight:'28px'
+      // ================================================================
+      // === PALETTE ANTHRACITE / COCKPIT (LeftPanel uniquement) ===
+      // ================================================================
+      const A = {
+        bg:        '#2d3540',  // fond panel
+        bgSoft:    '#363f4d',  // fond items
+        bgHover:   '#3d4856',  // hover
+        bgActive:  '#454f60',  // item sélectionné
+        border:    '#3d4856',  // bordures internes
+        text:      '#ffffff',  // texte principal
+        textDim:   '#aab4c2',  // texte secondaire
+        textMuted: '#7a8595',  // texte étiquettes
+        teal:      '#5DCAA5',  // accent vert (KPI gain, signé)
+        blue:      '#85B7EB',  // accent bleu (info, en cours)
+        amber:     '#EFC274',  // accent ambre (devis, attention)
+        red:       '#F09595',  // accent rouge (perdu, retard)
       };
-      const labelStyle = {fontSize:'11px',fontWeight:500,color:'var(--tw-muted)',marginBottom:'5px',display:'block',textTransform:'uppercase',letterSpacing:'.4px'};
-      const filterContainer = {padding:'0 14px',marginTop:'12px'};
+
+      // === KPIs calculés depuis les données réelles ===
+      const today = new Date(); today.setHours(0,0,0,0);
+      const pipelineActif = prospects.filter(p => p.real_status && ['Devis','Démo','Négociation','Discussion','Envoyé'].includes(p.real_status));
+      const aboMensuel = pipelineActif.reduce((s,p) => s + (parseFloat(p.real_monthly_amount || p.monthly_amount) || 0), 0);
+      const aboPondere = pipelineActif.reduce((s,p) => s + (parseFloat(p.real_monthly_amount || p.monthly_amount) || 0) * ((p.real_probability||0)/100), 0);
+      const nbActifs = pipelineActif.length;
+      const nbRetard = Object.values(prospectActionsInfo || {}).filter(a => a && a.isLate).length;
+
+      // === Mini sparkline : répartition par statut ===
+      const statusCounts = {
+        'Devis':    prospects.filter(p => p.real_status === 'Devis').length,
+        'Démo':     prospects.filter(p => p.real_status === 'Démo').length,
+        'Négo':     prospects.filter(p => p.real_status === 'Négociation').length,
+        'Signé':    prospects.filter(p => p.real_status === 'Gagné' || p.real_status === 'Signé').length,
+      };
+      const maxCount = Math.max(1, ...Object.values(statusCounts));
+
+      // === Format des montants (compact) ===
+      const fmtK = (n) => {
+        if (n >= 1000) return (n/1000).toFixed(1).replace('.0','') + ' K€';
+        return Math.round(n) + ' €';
+      };
+
+      // === Style des selects (adapté au fond sombre) ===
+      const selectStyle = {
+        width:'100%', padding:'7px 10px', fontSize:'12px', border:'0.5px solid '+A.border,
+        borderRadius:'7px', background:A.bgSoft, color:A.text, cursor:'pointer',
+        fontFamily:"'DM Sans',sans-serif", appearance:'none',
+        backgroundImage:'url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2710%27 height=%2710%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23aab4c2%27 stroke-width=%272%27><polyline points=%276 9 12 15 18 9%27/></svg>")',
+        backgroundRepeat:'no-repeat', backgroundPosition:'right 10px center', paddingRight:'28px'
+      };
+      const labelStyle = {fontSize:'10px',fontWeight:500,color:A.textMuted,marginBottom:'5px',display:'block',textTransform:'uppercase',letterSpacing:'.5px'};
 
       return (
-        <div style={styles.leftPanel}>
+        <div style={{...styles.leftPanel, background:A.bg, borderRight:'0.5px solid '+A.border}}>
 
-          {/* Toggle Attribution — admin uniquement */}
+          {/* === KPIs cockpit === */}
+          <div style={{padding:'14px 14px 0'}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'8px'}}>
+              <div style={{background:A.bgSoft,borderRadius:'8px',padding:'10px 12px'}}>
+                <div style={{fontSize:'9px',color:A.textMuted,textTransform:'uppercase',letterSpacing:'.5px',fontWeight:500,marginBottom:'4px'}}>Pipeline</div>
+                <div style={{fontSize:'17px',fontWeight:600,color:A.teal,fontVariantNumeric:'tabular-nums',letterSpacing:'-.3px'}}>{fmtK(aboMensuel)}</div>
+                <div style={{fontSize:'10px',color:A.textDim,marginTop:'2px'}}>pondéré : {fmtK(aboPondere)}</div>
+              </div>
+              <div style={{background:A.bgSoft,borderRadius:'8px',padding:'10px 12px'}}>
+                <div style={{fontSize:'9px',color:A.textMuted,textTransform:'uppercase',letterSpacing:'.5px',fontWeight:500,marginBottom:'4px'}}>Actifs</div>
+                <div style={{fontSize:'17px',fontWeight:600,color:A.blue,fontVariantNumeric:'tabular-nums'}}>{nbActifs}</div>
+                <div style={{fontSize:'10px',color: nbRetard > 0 ? A.red : A.textDim,marginTop:'2px'}}>{nbRetard > 0 ? `${nbRetard} en retard` : 'à jour'}</div>
+              </div>
+            </div>
+
+            {/* Mini-graph : répartition par statut */}
+            <div style={{background:A.bgSoft,borderRadius:'8px',padding:'10px 12px',marginBottom:'10px'}}>
+              <div style={{fontSize:'9px',color:A.textMuted,textTransform:'uppercase',letterSpacing:'.5px',fontWeight:500,marginBottom:'8px'}}>Répartition</div>
+              <div style={{display:'flex',gap:'4px',alignItems:'flex-end',height:'36px'}}>
+                {Object.entries(statusCounts).map(([k, v], idx) => {
+                  const pct = (v / maxCount) * 100;
+                  const colors = [A.amber, A.blue, A.amber, A.teal];
+                  return (
+                    <div key={k} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:'4px'}}>
+                      <div style={{width:'100%',height:`${Math.max(3,pct)}%`,background:colors[idx],borderRadius:'2px 2px 0 0',transition:'height .3s'}}></div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{display:'flex',gap:'4px',marginTop:'5px'}}>
+                {Object.entries(statusCounts).map(([k, v]) => (
+                  <div key={k} style={{flex:1,textAlign:'center',fontSize:'9px',color:A.textDim}}>
+                    <div style={{color:A.text,fontWeight:500,fontSize:'10px'}}>{v}</div>
+                    <div>{k}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* === Toggle Attribution === */}
           {isAdmin && (
-            <div style={{margin:'12px 14px 0',display:'flex',background:'var(--tw-bg)',border:'0.5px solid var(--tw-border)',borderRadius:'8px',padding:'2px',gap:'2px'}}>
+            <div style={{margin:'4px 14px 0',display:'flex',background:A.bgSoft,border:'0.5px solid '+A.border,borderRadius:'7px',padding:'2px',gap:'2px'}}>
               {[
                 {id:'Toutes', label:'Toutes'},
                 {id:'Mes', label:'Mes sociétés'},
-                {id:'NonAttribuees', label:'Non attribuées'},
+                {id:'NonAttribuees', label:'Non attr.'},
               ].map(opt => (
                 <button key={opt.id} onClick={() => onFilterAttributionChange(opt.id)}
-                  style={{flex:1,padding:'5px 4px',border:'none',borderRadius:'6px',fontSize:'11px',fontWeight: filterAttribution===opt.id ? 500 : 400,
-                    background: filterAttribution===opt.id ? 'white' : 'transparent',
-                    color: filterAttribution===opt.id ? 'var(--tw-ink)' : 'var(--tw-slate)',
-                    boxShadow: filterAttribution===opt.id ? '0 1px 2px rgba(0,0,0,.04), 0 0 0 0.5px var(--tw-border)' : 'none',
+                  style={{flex:1,padding:'5px 4px',border:'none',borderRadius:'5px',fontSize:'10px',fontWeight: filterAttribution===opt.id ? 600 : 500,
+                    background: filterAttribution===opt.id ? A.bgActive : 'transparent',
+                    color: filterAttribution===opt.id ? A.text : A.textDim,
                     cursor:'pointer',transition:'all .15s',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>
                   {opt.label}
                 </button>
@@ -4044,22 +4123,19 @@
             </div>
           )}
 
-          {/* Type de société */}
-          <div style={filterContainer}>
-            <label style={labelStyle}>Type de société</label>
+          {/* === Filtres === */}
+          <div style={{padding:'10px 14px 0'}}>
+            <label style={labelStyle}>Type</label>
             <select value={filterSocietyType} onChange={(e) => onFilterSocietyTypeChange(e.target.value)} style={selectStyle}>
               {['Tous', 'Suspect', 'Prospect', 'Client'].map(type => {
-                const count = type === 'Tous'
-                  ? allProspects.length
-                  : allProspects.filter(p => p.statut_societe === type).length;
+                const count = type === 'Tous' ? allProspects.length : allProspects.filter(p => p.statut_societe === type).length;
                 const label = type + (type === 'Suspect' || type === 'Prospect' || type === 'Client' ? 's' : '');
                 return <option key={type} value={type}>{label} ({count})</option>;
               })}
             </select>
           </div>
 
-          {/* Statut */}
-          <div style={filterContainer}>
+          <div style={{padding:'10px 14px 0'}}>
             <label style={labelStyle}>Statut</label>
             <select value={filterStatus} onChange={(e) => onFilterChange(e.target.value)} style={selectStyle}>
               {['Tous', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Ajourné N+1', 'Éliminé par nous', 'Perdu'].map(status => (
@@ -4068,9 +4144,8 @@
             </select>
           </div>
 
-          {/* Commercial - admins only */}
           {isAdmin && (
-            <div style={filterContainer}>
+            <div style={{padding:'10px 14px 0'}}>
               <label style={labelStyle}>Commercial</label>
               <select value={filterCommercial} onChange={(e) => onFilterCommercialChange(e.target.value)} style={selectStyle}>
                 {['Tous', 'Roger', 'Christian', 'Frédéric'].map(commercial => {
@@ -4081,16 +4156,15 @@
             </div>
           )}
 
-          {/* Trier par */}
-          <div style={filterContainer}>
+          {/* === Trier par === */}
+          <div style={{padding:'10px 14px 12px'}}>
             <label style={labelStyle}>Trier par</label>
-            <div style={{display:'flex',background:'var(--tw-bg)',border:'0.5px solid var(--tw-border)',borderRadius:'8px',padding:'2px',gap:'2px'}}>
+            <div style={{display:'flex',background:A.bgSoft,border:'0.5px solid '+A.border,borderRadius:'7px',padding:'2px',gap:'2px'}}>
               {[{label:'Nom', value:'name'}, {label:'Ancienneté', value:'ancienneté'}, {label:'Probabilité', value:'probabilité'}].map(option => (
                 <button key={option.value} onClick={() => onSortChange(option.value)}
-                  style={{flex:1,padding:'5px 4px',border:'none',borderRadius:'6px',fontSize:'11px',fontWeight: sortBy===option.value ? 500 : 400,
-                    background: sortBy===option.value ? 'white' : 'transparent',
-                    color: sortBy===option.value ? 'var(--tw-ink)' : 'var(--tw-slate)',
-                    boxShadow: sortBy===option.value ? '0 1px 2px rgba(0,0,0,.04), 0 0 0 0.5px var(--tw-border)' : 'none',
+                  style={{flex:1,padding:'5px 4px',border:'none',borderRadius:'5px',fontSize:'10px',fontWeight: sortBy===option.value ? 600 : 500,
+                    background: sortBy===option.value ? A.bgActive : 'transparent',
+                    color: sortBy===option.value ? A.text : A.textDim,
                     cursor:'pointer',transition:'all .15s',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>
                   {option.label}
                 </button>
@@ -4098,93 +4172,112 @@
             </div>
           </div>
 
-          {(() => {
-            let statusesToInclude = [];
-            let filterLabel = filterStatus;
-            
-            if (filterStatus === 'Tous hors suspects') { statusesToInclude = ['Devis', 'Démo', 'Négociation']; filterLabel = 'Tous hors suspects'; }
-            else if (filterStatus === 'Suspects') { statusesToInclude = []; filterLabel = 'Suspects'; }
-            else if (filterStatus === 'Prospection') { statusesToInclude = ['Négociation']; filterLabel = 'Prospection'; }
-            else if (filterStatus === 'Devis') { statusesToInclude = ['Devis']; filterLabel = 'Devis'; }
-            else if (filterStatus === 'Démo') { statusesToInclude = ['Démo']; filterLabel = 'Démo'; }
-            else if (filterStatus === 'Négociation') { statusesToInclude = ['Négociation']; filterLabel = 'Négociation'; }
-            else if (filterStatus === 'Signé') { statusesToInclude = ['Signé']; filterLabel = 'Signé'; }
-            else if (filterStatus === 'Perdu') { statusesToInclude = ['Perdu']; filterLabel = 'Perdu'; }
-            
-            const cumulMonthly = prospects.filter(p => statusesToInclude.includes(p.real_status)).reduce((s, p) => s + (parseFloat(p.real_monthly_amount || p.monthly_amount) || 0), 0);
-            const cumulAnnual  = prospects.filter(p => statusesToInclude.includes(p.real_status)).reduce((s, p) => s + (parseFloat(p.real_annual_amount  || p.annual_amount)  || 0), 0);
+          {/* === Liste des sociétés === */}
+          <div style={{borderTop:'0.5px solid '+A.border,flex:1,overflowY:'auto'}}>
+            {prospects.map(prospect => {
+              const isActive = selectedProspect?.id === prospect.id;
+              const ai = prospectActionsInfo[prospect.id];
+              const hasAction = ai && ai.hasAction;
+              const isLate = ai && ai.isLate;
+              const statut = prospect.statut_societe || 'Prospect';
 
-            return (
-              <div style={{margin:'14px 14px 8px',padding:'12px 14px',background:'var(--tw-bg)',borderRadius:'8px',border:'0.5px solid var(--tw-border)'}}>
-                <div style={{fontSize:'11px',color:'var(--tw-muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'.4px',fontWeight:500}}>Cumul Abonnement {filterLabel}</div>
-                <div style={{fontSize:'15px',fontWeight:500,color:'var(--tw-ink)',fontVariantNumeric:'tabular-nums'}}>{formatCurrency(cumulMonthly)}<span style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:400}}> /mois</span></div>
-                {cumulAnnual > 0 && <div style={{fontSize:'13px',fontWeight:500,color:'var(--tw-slate)',fontVariantNumeric:'tabular-nums',marginTop:'2px'}}>{formatCurrency(cumulAnnual)}<span style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:400}}> /an</span></div>}
-              </div>
-            );
-          })()}
+              // Couleur de la bordure latérale
+              let leftBorderColor = 'transparent';
+              if (prospect.real_status === 'Ajourné N+1') leftBorderColor = A.amber;
+              else if (prospect.real_status === 'Éliminé par nous' || prospect.real_status === 'Perdu') leftBorderColor = A.textMuted;
+              else if (!prospect.real_status && !hasAction) leftBorderColor = A.red;
+              else if (hasAction && !isLate) leftBorderColor = A.teal;
+              else if (isLate) leftBorderColor = A.red;
 
-          <div style={styles.prospectsList}>
-            {prospects.map(prospect => (
-              <div
-                key={prospect.id}
-                onClick={() => onSelect(prospect)}
-                style={{
-                  ...styles.prospectItem,
-                  ...(selectedProspect?.id === prospect.id ? styles.prospectItemActive : {}),
+              // Couleur pill de statut société
+              const pillStyle = statut === 'Client'
+                ? {background:'rgba(93,202,165,.15)', color:A.teal}
+                : statut === 'Suspect'
+                ? {background:'rgba(170,180,194,.15)', color:A.textDim}
+                : {background:'rgba(239,194,116,.15)', color:A.amber};
 
-                  ...(prospect.real_status === 'Ajourné N+1' ? { backgroundColor: '#fff8e1', borderLeft: '3px solid #b06e2a' } : {}),
-                  ...(prospect.real_status === 'Éliminé par nous' ? { backgroundColor: 'var(--tw-bg)', borderLeft: '3px solid var(--tw-muted)' } : {}),
-                  ...(!prospect.real_status && !prospectActionsInfo[prospect.id]?.hasAction ? { borderLeft: '3px solid var(--tw-red)' } : {}),
-                  ...(!prospect.real_status && prospectActionsInfo[prospect.id]?.hasAction ? { borderLeft: '3px solid var(--tw-green)' } : {})
-                }}
-              >
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px'}}>
-                  <div style={styles.prospectName}>{prospectDisplayName(prospect)}</div>
-                  <span style={{fontSize:'11px',fontWeight:500,padding:'2px 8px',borderRadius:'10px',flexShrink:0,
-                    color: (prospect.statut_societe||'Prospect')==='Client'?'var(--tw-teal)':(prospect.statut_societe||'Prospect')==='Suspect'?'var(--tw-slate)':'#b06e2a',
-                    background: (prospect.statut_societe||'Prospect')==='Client'?'var(--tw-teal-light)':(prospect.statut_societe||'Prospect')==='Suspect'?'var(--tw-bg)':'#fff8e1'
-                  }}>{prospect.statut_societe||'Prospect'}</span>
-                </div>
-                <div style={styles.prospectSubtitle}>{prospect.contact_name}</div>
-                <div style={styles.prospectStatusRow}>
-                  {prospect.real_status ? (
-                    <span style={{...styles.prospectStatus,
-                      color: prospect.real_status==='Perdu'?'var(--tw-red)':
-                             prospect.real_status==='Gagné'?'var(--tw-green)':
-                             prospect.real_status==='Discussion'?'var(--tw-blue)':
-                             prospect.real_status==='Envoyé'?'#b06e2a':
-                             'var(--tw-teal)'}}>
-                      {prospect.real_status}
-                      {prospect.real_probability && prospect.real_probability > 0 && (
-                        <span style={{fontWeight:500, marginLeft:'5px'}}>({prospect.real_probability}%)</span>
-                      )}
+              // Couleur du real_status
+              const statusColor = prospect.real_status === 'Perdu' ? A.red
+                                : prospect.real_status === 'Gagné' || prospect.real_status === 'Signé' ? A.teal
+                                : prospect.real_status === 'Discussion' ? A.blue
+                                : prospect.real_status === 'Envoyé' ? A.amber
+                                : prospect.real_status ? A.text
+                                : A.textMuted;
+
+              return (
+                <div key={prospect.id}
+                  onClick={() => onSelect(prospect)}
+                  style={{
+                    padding:'10px 14px',
+                    background: isActive ? A.bgActive : 'transparent',
+                    borderBottom:'0.5px solid '+A.border,
+                    borderLeft:'3px solid '+leftBorderColor,
+                    cursor:'pointer',
+                    transition:'background .15s'
+                  }}
+                  onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = A.bgHover; }}
+                  onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  {/* Ligne 1 : nom + pill statut société */}
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px'}}>
+                    <div style={{fontSize:'13px',fontWeight:500,color:A.text,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                      {prospectDisplayName(prospect)}
+                    </div>
+                    <span style={{fontSize:'10px',fontWeight:500,padding:'2px 7px',borderRadius:'10px',flexShrink:0,...pillStyle}}>
+                      {statut}
                     </span>
-                  ) : (
-                    <span style={{...styles.prospectStatus, color:'var(--tw-muted)', fontStyle:'italic'}}>Aucun devis actif</span>
+                  </div>
+
+                  {/* Ligne 2 : contact */}
+                  {prospect.contact_name && (
+                    <div style={{fontSize:'11px',color:A.textDim,marginTop:'2px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{prospect.contact_name}</div>
                   )}
-                  {prospect.real_quote_date && <span style={styles.prospectQuoteDate}>{new Date(prospect.real_quote_date).toLocaleDateString('fr-FR')}</span>}
-                </div>
-                <div style={{fontSize:'12px', marginTop:'6px', color:'var(--tw-slate)'}}>
-                  {prospectActionsInfo[prospect.id]?.hasAction ? (() => {
-                    const ai = prospectActionsInfo[prospect.id];
-                    const isLate = ai.isLate || (ai.nextActionDate && new Date(ai.nextActionDate) < new Date(new Date().toDateString()));
-                    const dateStr = ai.nextActionDate ? new Date(ai.nextActionDate).toLocaleDateString('fr-FR') : '';
-                    return (
-                      <span>
-                        {ai.nextActionType && <span style={{fontWeight:500, color:'var(--tw-ink)'}}>{ai.nextActionType} </span>}
-                        {dateStr && <span style={{fontWeight:500, color: isLate ? 'var(--tw-red)' : 'var(--tw-slate)'}}>· {dateStr}{isLate ? ' (en retard)' : ''}</span>}
-                        {ai.nextActionActor && <span style={{color:'var(--tw-muted)'}}> · {ai.nextActionActor}{ai.nextActionContact ? ' → ' + ai.nextActionContact : ''}</span>}
+
+                  {/* Ligne 3 : status devis + date */}
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'4px'}}>
+                    {prospect.real_status ? (
+                      <span style={{fontSize:'11px',fontWeight:500,color:statusColor}}>
+                        {prospect.real_status}
+                        {prospect.real_probability > 0 && (
+                          <span style={{fontWeight:400,marginLeft:'4px',color:A.textDim}}>· {prospect.real_probability}%</span>
+                        )}
                       </span>
-                    );
-                  })() : (
-                    <span style={{color:'var(--tw-red)'}}>Aucune action planifiée</span>
+                    ) : (
+                      <span style={{fontSize:'11px',color:A.textMuted,fontStyle:'italic'}}>Aucun devis actif</span>
+                    )}
+                    {prospect.real_quote_date && (
+                      <span style={{fontSize:'10px',color:A.textMuted}}>{new Date(prospect.real_quote_date).toLocaleDateString('fr-FR')}</span>
+                    )}
+                  </div>
+
+                  {/* Ligne 4 : prochaine action ou alerte */}
+                  <div style={{fontSize:'11px',marginTop:'4px',color:A.textDim}}>
+                    {hasAction ? (() => {
+                      const dateStr = ai.nextActionDate ? new Date(ai.nextActionDate).toLocaleDateString('fr-FR') : '';
+                      return (
+                        <span>
+                          {ai.nextActionType && <span style={{color:A.text,fontWeight:500}}>{ai.nextActionType}</span>}
+                          {dateStr && <span style={{color: isLate ? A.red : A.textDim,fontWeight: isLate ? 500 : 400}}> · {dateStr}{isLate ? ' (retard)' : ''}</span>}
+                          {ai.nextActionActor && <span style={{color:A.textMuted}}> · {ai.nextActionActor}{ai.nextActionContact ? ' → ' + ai.nextActionContact : ''}</span>}
+                        </span>
+                      );
+                    })() : (
+                      <span style={{color:A.red}}>Aucune action planifiée</span>
+                    )}
+                  </div>
+
+                  {/* Ligne 5 : montants */}
+                  {(prospect.real_monthly_amount || prospect.monthly_amount) > 0 && (
+                    <div style={{fontSize:'11px',marginTop:'4px',color:A.text,fontVariantNumeric:'tabular-nums',fontWeight:500}}>
+                      {fmtK(parseFloat(prospect.real_monthly_amount || prospect.monthly_amount) || 0)}<span style={{color:A.textMuted,fontWeight:400}}> /mois</span>
+                      {(prospect.real_annual_amount || prospect.annual_amount) > 0 && (
+                        <span> + {fmtK(parseFloat(prospect.real_annual_amount || prospect.annual_amount) || 0)}<span style={{color:A.textMuted,fontWeight:400}}> /an</span></span>
+                      )}
+                    </div>
                   )}
                 </div>
-                <div style={styles.prospectAmount}>
-                  {formatCurrency(prospect.real_monthly_amount || prospect.monthly_amount)}/mois + {formatCurrency(prospect.real_annual_amount || prospect.annual_amount)}/an
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       );
