@@ -316,10 +316,64 @@ function updateFluxBadges() {
   const badges = [];
   for (let i = 0; i < qty; i++) {
     const nom = (fluxNoms[i] && fluxNoms[i].trim()) || ('Flux ' + (i+1));
-    const safe = nom.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    badges.push(`<span style="display:inline-block;padding:4px 12px;background:#e7eded;color:#3a4a4a;border-radius:12px;font-size:12px;white-space:nowrap;">${safe}</span>`);
+    const safe = nom.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    // Badge cliquable : data-flux-idx contient l'index (0-based) pour l'édition
+    badges.push(
+      `<span class="flux-badge" data-flux-idx="${i}" `
+      + `onclick="startEditFluxBadge(event, ${i})" `
+      + `style="display:inline-block;padding:4px 12px;background:#e7eded;color:#3a4a4a;`
+      + `border-radius:12px;font-size:12px;white-space:nowrap;cursor:pointer;`
+      + `border:1px solid transparent;transition:background 0.15s, border-color 0.15s;" `
+      + `onmouseover="this.style.background='#d5dcdc';this.style.borderColor='#b0b8b8';" `
+      + `onmouseout="this.style.background='#e7eded';this.style.borderColor='transparent';" `
+      + `title="Cliquer pour modifier">${safe}</span>`
+    );
   }
   container.innerHTML = badges.join('');
+}
+
+// Édition inline d'un badge Flux : remplace le span par un input, sauve à Entrée/blur,
+// annule à Échap. Au clic sur le badge, on ne déclenche PAS l'ouverture du drawer
+// (event.stopPropagation), pour ne pas perturber l'utilisateur.
+function startEditFluxBadge(ev, idx) {
+  ev.stopPropagation();
+  const span = ev.currentTarget;
+  const oldVal = (fluxNoms[idx] && fluxNoms[idx].trim()) || '';
+  const placeholder = 'Flux ' + (idx + 1);
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = oldVal;
+  input.placeholder = placeholder;
+  input.style.cssText = 'padding:3px 10px;background:#fff;color:#3a4a4a;border-radius:12px;'
+    + 'font-size:12px;border:1px solid #b0b8b8;outline:none;width:120px;';
+
+  let committed = false;
+  const commit = () => {
+    if (committed) return;
+    committed = true;
+    fluxNoms[idx] = input.value.trim();
+    refreshFluxNames();
+    // Si le drawer Flux est ouvert, mettre à jour son input correspondant aussi
+    const drawerInput = document.getElementById('flux_nom_' + (idx + 1));
+    if (drawerInput) drawerInput.value = fluxNoms[idx];
+  };
+  const cancel = () => {
+    if (committed) return;
+    committed = true;
+    updateFluxBadges(); // re-render = rétablit l'ancienne valeur depuis fluxNoms
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter')  { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  });
+  input.addEventListener('blur', commit);
+
+  span.replaceWith(input);
+  input.focus();
+  input.select();
 }
 
 // ══════════════════════════════════════════════════════════════
