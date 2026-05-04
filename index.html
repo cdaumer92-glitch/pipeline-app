@@ -4109,22 +4109,20 @@
 
             {/* Mini-graph : répartition par statut */}
             <div style={{background:A.bgSoft,borderRadius:'8px',padding:'10px 12px',marginBottom:'10px'}}>
-              <div style={{fontSize:'9px',color:A.textMuted,textTransform:'uppercase',letterSpacing:'.5px',fontWeight:500,marginBottom:'8px'}}>Répartition</div>
-              <div style={{display:'flex',gap:'4px',alignItems:'flex-end',height:'36px'}}>
+              <div style={{fontSize:'9px',color:A.textMuted,textTransform:'uppercase',letterSpacing:'.5px',fontWeight:500,marginBottom:'6px'}}>Répartition</div>
+              <div style={{display:'flex',gap:'6px',alignItems:'flex-end',height:'32px'}}>
                 {Object.entries(statusCounts).map(([k, v], idx) => {
                   const pct = (v / maxCount) * 100;
                   const colors = [A.amber, A.amber, A.blue, A.teal];
                   return (
-                    <div key={k} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:'4px'}}>
-                      <div style={{width:'100%',height:`${Math.max(3,pct)}%`,background:colors[idx],borderRadius:'2px 2px 0 0',transition:'height .3s'}}></div>
-                    </div>
+                    <div key={k} style={{flex:1,height:`${Math.max(4,pct)}%`,background:colors[idx],borderRadius:'2px 2px 0 0',transition:'height .3s',opacity: v === 0 ? 0.3 : 1}}></div>
                   );
                 })}
               </div>
-              <div style={{display:'flex',gap:'4px',marginTop:'5px'}}>
+              <div style={{display:'flex',gap:'6px',marginTop:'4px'}}>
                 {Object.entries(statusCounts).map(([k, v]) => (
                   <div key={k} style={{flex:1,textAlign:'center',fontSize:'9px',color:A.textDim}}>
-                    <div style={{color:A.text,fontWeight:500,fontSize:'10px'}}>{v}</div>
+                    <div style={{color:A.text,fontWeight:500,fontSize:'10px',fontVariantNumeric:'tabular-nums'}}>{v}</div>
                     <div>{k}</div>
                   </div>
                 ))}
