@@ -18,7 +18,7 @@
       --tw-teal-light: #e6f4f5;
       --tw-ink:        #1a3535;
       --tw-slate:      #607a7a;
-      --tw-muted:      #9eb5b5;
+      --tw-muted:      #7a9090;
       --tw-border:     #e0ecec;
       --tw-bg:         #f4f7f7;
       --tw-green:      #2ec27e;
@@ -5263,20 +5263,23 @@
                     <button key={t.id}
                       onClick={() => setClientTab(t.id)}
                       style={{padding:'10px 14px',fontFamily:"'DM Sans',sans-serif",fontSize:'13px',
-                        fontWeight: active ? 500 : 400,
+                        fontWeight: 500,
                         border:'none',background:'transparent',
-                        color: active ? 'var(--tw-teal)' : 'var(--tw-slate)',
+                        color: active ? 'var(--tw-teal)' : 'var(--tw-ink)',
+                        opacity: active ? 1 : 0.65,
                         borderBottom: active ? '2px solid var(--tw-teal)' : '2px solid transparent',
                         marginBottom:'-0.5px',
-                        cursor:'pointer',whiteSpace:'nowrap',transition:'color .15s, border-color .15s',
+                        cursor:'pointer',whiteSpace:'nowrap',transition:'color .15s, opacity .15s, border-color .15s',
                         display:'flex',alignItems:'center',gap:'6px'}}
+                      onMouseEnter={(e) => { if (!active) e.currentTarget.style.opacity = '1'; }}
+                      onMouseLeave={(e) => { if (!active) e.currentTarget.style.opacity = '0.65'; }}
                     >
                       <TabIcon path={t.icon}/>
                       {t.label}
                       {t.count > 0 && (
                         <span style={{fontSize:'11px',fontWeight:500,padding:'1px 7px',borderRadius:'10px',
                           background: active ? 'var(--tw-teal)' : 'var(--tw-bg)',
-                          color: active ? 'white' : 'var(--tw-slate)',
+                          color: active ? 'white' : 'var(--tw-ink)',
                           border: active ? 'none' : '0.5px solid var(--tw-border)'}}>{t.count}</span>
                       )}
                     </button>
@@ -6589,11 +6592,11 @@
             };
 
             // Petit bouton icône réutilisable (action discrète sur card)
-            const IconBtn = ({onClick, title, color='var(--tw-muted)', hoverColor='var(--tw-ink)', hoverBg='var(--tw-bg)', children, danger=false}) => (
+            const IconBtn = ({onClick, title, color='var(--tw-slate)', hoverColor='var(--tw-ink)', hoverBg='var(--tw-bg)', children, danger=false}) => (
               <button onClick={onClick} title={title} aria-label={title}
-                style={{width:'26px',height:'26px',padding:0,background:'transparent',border:'none',borderRadius:'6px',cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',color:color,transition:'background .15s, color .15s'}}
-                onMouseEnter={(e) => { e.currentTarget.style.background = danger ? '#fef2f2' : hoverBg; e.currentTarget.style.color = danger ? 'var(--tw-red)' : hoverColor; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background='transparent'; e.currentTarget.style.color=color; }}
+                style={{width:'28px',height:'28px',padding:0,background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'7px',cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',color:color,transition:'background .15s, color .15s, border-color .15s'}}
+                onMouseEnter={(e) => { e.currentTarget.style.background = danger ? '#fef2f2' : hoverBg; e.currentTarget.style.color = danger ? 'var(--tw-red)' : hoverColor; e.currentTarget.style.borderColor = danger ? '#fecaca' : 'var(--tw-slate)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background='white'; e.currentTarget.style.color=color; e.currentTarget.style.borderColor='var(--tw-border)'; }}
               >{children}</button>
             );
 
