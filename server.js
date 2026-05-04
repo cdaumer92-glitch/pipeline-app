@@ -375,6 +375,15 @@ async function initDB() {
     await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS marques TEXT[]`);
     await client.query(`ALTER TABLE prospects DROP COLUMN IF EXISTS nom_commercial`);
 
+    // Migration : traçabilité de l'origine d'une société (Manuel / Import_SInfo / Salon / Excel...)
+    await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS import_source TEXT`);
+    await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS import_date TIMESTAMP`);
+    await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS import_ref TEXT`);
+    // Index pour retrouver rapidement les sociétés importées d'une source spécifique
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_prospects_import_source ON prospects(import_source) WHERE import_source IS NOT NULL`);
+    // Index unique sur import_ref pour la source SocieteInfo (= SIREN), pour bloquer les doublons à l'import
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_prospects_import_ref_sinfo ON prospects(import_ref) WHERE import_source = 'SInfo'`);
+
     // Migration: table codes_naf
     await client.query(`CREATE TABLE IF NOT EXISTS codes_naf (
       code VARCHAR(6) PRIMARY KEY,
@@ -3432,6 +3441,101 @@ app.delete('/api/societes/suspects-non-attribues', auth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// =====================================================================
+// SOCIETEINFO PROXY (clé API masquée côté serveur)
+// =====================================================================
+// La clé est lue depuis process.env.SOCIETEINFO_KEY
+// Si non définie, on retourne 503 propre avec un message explicite
+// Toutes les routes sont protégées par auth (JWT) → seul un user connecté peut consommer le quota
+// ---------------------------------------------------------------------
+
+const SI_BASE = 'https://societeinfo.com/app/rest/api';
+
+// Helper : appel API SocieteInfo + propagation des erreurs
+async function siFetch(url) {
+  const SI_KEY = process.env.SOCIETEINFO_KEY;
+  if (!SI_KEY) {
+    return { ok: false, status: 503, error: 'SOCIETEINFO_KEY non configurée côté serveur' };
+  }
+  // Ajout de la clé en query param (le seul mode auth supporté par leur API REST v2/v3)
+  const sep = url.includes('?') ? '&' : '?';
+  const fullUrl = `${SI_BASE}${url}${sep}key=${SI_KEY}`;
+  try {
+    const r = await fetch(fullUrl);
+    if (!r.ok) {
+      return { ok: false, status: r.status, error: `SocieteInfo a répondu ${r.status}` };
+    }
+    const data = await r.json();
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, status: 502, error: 'Erreur réseau SocieteInfo: ' + err.message };
+  }
+}
+
+// Helper : router le résultat vers la response Express
+function sendSi(res, result) {
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  res.json(result.data);
+}
+
+// 1) Vérifier le statut de la clé (compteur restant, etc.)
+app.get('/api/societeinfo/status', auth, async (req, res) => {
+  const result = await siFetch('/v2/apikeyinfo.json');
+  sendSi(res, result);
+});
+
+// 2) Autocomplete par nom (rapide, suggestions au fil de la frappe)
+app.get('/api/societeinfo/autocomplete', auth, async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.json({ results: [] });
+  const result = await siFetch(`/v3/companies.json/autocomplete?query=${encodeURIComponent(q)}&limit=10`);
+  sendSi(res, result);
+});
+
+// 3) Recherche complète par nom OU marque
+//    SocieteInfo permet searchMode=name (recherche dans la raison sociale ET les marques)
+app.get('/api/societeinfo/search', auth, async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.status(400).json({ error: 'Requête trop courte (min 2 caractères)' });
+  const result = await siFetch(`/v2/companies.json?query=${encodeURIComponent(q)}&searchMode=name&limit=20`);
+  sendSi(res, result);
+});
+
+// 4) Détails d'une société par SIREN
+app.get('/api/societeinfo/company/:siren', auth, async (req, res) => {
+  const siren = (req.params.siren || '').replace(/\D/g, '');
+  if (siren.length !== 9) return res.status(400).json({ error: 'SIREN invalide (9 chiffres requis)' });
+  const result = await siFetch(`/v2/company.json/${siren}`);
+  sendSi(res, result);
+});
+
+// 5) Détails d'une société par ID interne SocieteInfo (autocomplete renvoie un id, pas toujours un SIREN)
+app.get('/api/societeinfo/company-by-id/:id', auth, async (req, res) => {
+  const id = encodeURIComponent(req.params.id || '');
+  if (!id) return res.status(400).json({ error: 'ID manquant' });
+  const result = await siFetch(`/v2/company.json?id=${id}`);
+  sendSi(res, result);
+});
+
+// 6) Liste des contacts (dirigeants, c-level) d'une société
+app.get('/api/societeinfo/contacts/:siren', auth, async (req, res) => {
+  const siren = (req.params.siren || '').replace(/\D/g, '');
+  if (siren.length !== 9) return res.status(400).json({ error: 'SIREN invalide (9 chiffres requis)' });
+  const result = await siFetch(`/v2/contacts.json/${siren}?show_all_anonymized=true`);
+  sendSi(res, result);
+});
+
+// 7) Détails complets de contacts spécifiques (avec emails/tels — consomme du quota)
+app.get('/api/societeinfo/contacts-details/:siren', auth, async (req, res) => {
+  const siren = (req.params.siren || '').replace(/\D/g, '');
+  const ids = (req.query.contact_ids || '').trim();
+  if (siren.length !== 9) return res.status(400).json({ error: 'SIREN invalide' });
+  if (!ids) return res.status(400).json({ error: 'contact_ids manquants' });
+  const result = await siFetch(`/v2/contacts.json/${siren}?contact_ids=${encodeURIComponent(ids)}`);
+  sendSi(res, result);
+});
+
 
 // ===================== START =====================
 initDB().then(() => {
