@@ -1,0 +1,674 @@
+/* ============================================================
+   CONFIGURATEUR TEXASWIN — OVERRIDES VISUELS 2026
+   Aligne le configurateur sur le langage visuel du CRM (light)
+   + Drawer en mode anthracite/cockpit
+   À charger APRÈS configurateur.css
+   ============================================================ */
+
+:root {
+  /* Tokens 2026 (mappent sur les variables CRM) */
+  --c26-ink:        #1a3535;
+  --c26-slate:      #607a7a;
+  --c26-muted:      #7a9090;
+  --c26-bg:         #fafaf9;
+  --c26-bg-soft:    #f4f7f7;
+  --c26-border:     #e0ecec;
+  --c26-teal:       #007d89;
+  --c26-teal-light: #e6f4f5;
+  --c26-amber:      #b06e2a;
+  --c26-amber-bg:   #fff8e1;
+  --c26-red:        #a52d2d;
+  --c26-red-bg:     #fde8e8;
+  --c26-green:      #0f6e56;
+  --c26-green-bg:   #d8f0e3;
+  --c26-blue:       #0a5085;
+  --c26-blue-bg:    #d3edff;
+
+  /* Anthracite (drawer) */
+  --c26-anth-bg:       #2d3540;
+  --c26-anth-soft:     #363f4d;
+  --c26-anth-hover:    #3d4856;
+  --c26-anth-active:   #454f60;
+  --c26-anth-border:   #3d4856;
+  --c26-anth-text:     #ffffff;
+  --c26-anth-text-dim: #aab4c2;
+  --c26-anth-text-mut: #7a8595;
+  --c26-anth-teal:     #5DCAA5;
+  --c26-anth-amber:    #EFC274;
+  --c26-anth-red:      #F09595;
+}
+
+/* ── BODY GLOBAL ─────────────────────────────────────────── */
+body {
+  background: var(--c26-bg) !important;
+  color: var(--c26-ink) !important;
+  font-family: 'DM Sans', 'Inter', sans-serif !important;
+}
+
+/* ── HEADER ──────────────────────────────────────────────── */
+.app-header {
+  background: white !important;
+  border-bottom: 0.5px solid var(--c26-border) !important;
+  padding: 12px 24px !important;
+  box-shadow: none !important;
+}
+.app-header h1 {
+  font-family: 'DM Sans', 'Inter', sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: var(--c26-ink) !important;
+  letter-spacing: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+.app-header h1 span {
+  color: var(--c26-muted) !important;
+  font-weight: 400 !important;
+}
+/* Logo carré teal style CRM (ajouté via ::before) */
+.app-header h1::before {
+  content: 'T';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: var(--c26-teal);
+  color: white;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+}
+.app-header img { display: none !important; }
+
+/* Search dans header : adapter au fond clair */
+.pipeline-header-input {
+  background: var(--c26-bg-soft) !important;
+  border: 0.5px solid var(--c26-border) !important;
+  color: var(--c26-ink) !important;
+  caret-color: var(--c26-teal) !important;
+  font-family: 'DM Sans', 'Inter', sans-serif !important;
+  font-size: 12px !important;
+}
+.pipeline-header-input::placeholder { color: var(--c26-muted) !important; }
+.pipeline-header-input:focus {
+  background: white !important;
+  border-color: var(--c26-teal) !important;
+  outline: none !important;
+}
+
+/* ── LAYOUT ──────────────────────────────────────────────── */
+.config-area {
+  padding: 16px 18px !important;
+  gap: 12px !important;
+}
+.sidebar {
+  background: white !important;
+  border-left: 0.5px solid var(--c26-border) !important;
+  padding: 16px !important;
+  gap: 8px !important;
+  width: 300px !important;
+}
+
+/* ── CARDS ───────────────────────────────────────────────── */
+.card {
+  background: white !important;
+  border: 0.5px solid var(--c26-border) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+.card-header {
+  background: white !important;
+  color: var(--c26-ink) !important;
+  font-family: 'DM Sans', 'Inter', sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  padding: 12px 16px !important;
+  border-bottom: 0.5px solid var(--c26-border) !important;
+}
+.card-header .card-total {
+  color: var(--c26-teal) !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  font-variant-numeric: tabular-nums !important;
+}
+/* Header collapsable (formation, etc.) */
+.section-toggle .toggle-arrow {
+  color: var(--c26-muted) !important;
+  font-size: 11px !important;
+}
+.formation-header { background: white !important; color: var(--c26-ink) !important; }
+.card-body { padding: 14px 16px !important; }
+
+/* ── PROSPECT GRID ───────────────────────────────────────── */
+.prospect-grid {
+  padding: 14px 16px !important;
+  gap: 14px !important;
+}
+.prospect-col:first-child { padding-right: 12px !important; border-right: 0.5px dashed var(--c26-border) !important; }
+.prospect-col:last-child { padding-left: 0 !important; }
+
+.field-label {
+  font-size: 10px !important;
+  color: var(--c26-muted) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.4px !important;
+  font-weight: 500 !important;
+  margin-bottom: 4px !important;
+  font-family: 'DM Sans', 'Inter', sans-serif !important;
+}
+.field-input {
+  border: 0.5px solid var(--c26-border) !important;
+  border-radius: 7px !important;
+  padding: 7px 10px !important;
+  font-size: 12px !important;
+  color: var(--c26-ink) !important;
+  background: white !important;
+  font-family: 'DM Sans', 'Inter', sans-serif !important;
+  margin-bottom: 10px !important;
+}
+.field-input:focus {
+  border-color: var(--c26-teal) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(0,125,137,0.1) !important;
+}
+.field-input.highlight {
+  background: var(--c26-amber-bg) !important;
+  border-color: var(--c26-amber) !important;
+}
+
+/* Marges */
+.marges-row {
+  padding: 10px 16px !important;
+  background: var(--c26-bg-soft) !important;
+  border-top: 0.5px solid var(--c26-border) !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+}
+.marge-field {
+  background: white !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+  border: 0.5px solid var(--c26-border) !important;
+}
+.marge-field label {
+  font-size: 11px !important;
+  color: var(--c26-slate) !important;
+  font-weight: 400 !important;
+  margin-right: 6px !important;
+}
+.marge-input {
+  border: none !important;
+  background: transparent !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--c26-ink) !important;
+  width: 36px !important;
+  font-variant-numeric: tabular-nums !important;
+  padding: 0 !important;
+}
+
+/* ── MODULES TUILES ──────────────────────────────────────── */
+.modules-grid {
+  padding: 14px 16px !important;
+  gap: 8px !important;
+}
+.module-tile {
+  background: white !important;
+  border: 0.5px solid var(--c26-border) !important;
+  border-radius: 8px !important;
+  padding: 12px 10px !important;
+  transition: all .15s !important;
+  box-shadow: none !important;
+}
+.module-tile:hover {
+  border-color: var(--c26-slate) !important;
+  background: var(--c26-bg-soft) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.module-tile.active {
+  border: 1.5px solid var(--c26-teal) !important;
+  background: var(--c26-teal-light) !important;
+  box-shadow: none !important;
+}
+.module-tile .mod-icon {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 8px !important;
+  margin: 0 auto 6px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  font-family: 'DM Sans', sans-serif !important;
+}
+.module-tile .mod-name {
+  color: var(--c26-ink) !important;
+  font-weight: 500 !important;
+  font-size: 12px !important;
+}
+.module-tile .mod-label { font-size: 10px !important; color: var(--c26-muted) !important; }
+.module-tile .tile-mini-total {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: var(--c26-teal) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.module-tile .tile-badge {
+  background: var(--c26-teal) !important;
+  color: white !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+}
+
+/* ── APERÇU PROPALE (zone collapsible sous tuiles) ───────── */
+.apercu-modules {
+  margin: 0 16px 14px !important;
+  border: 0.5px solid var(--c26-border) !important;
+  border-radius: 8px !important;
+  background: var(--c26-bg-soft) !important;
+}
+.apercu-header {
+  padding: 10px 12px !important;
+  background: var(--c26-bg-soft) !important;
+  border: none !important;
+}
+.apercu-header:hover { background: var(--c26-border) !important; }
+.apercu-title {
+  color: var(--c26-ink) !important;
+  font-weight: 500 !important;
+  font-size: 12px !important;
+}
+.apercu-count { color: var(--c26-muted) !important; font-size: 11px !important; }
+.apercu-total { color: var(--c26-teal) !important; font-weight: 500 !important; font-variant-numeric: tabular-nums !important; }
+.apercu-total-label { color: var(--c26-muted) !important; font-size: 11px !important; }
+
+/* ── SIDEBAR (récap droite) ──────────────────────────────── */
+.sidebar-title {
+  font-size: 10px !important;
+  color: var(--c26-muted) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  font-weight: 500 !important;
+}
+
+.total-block {
+  background: var(--c26-teal-light) !important;
+  border: 0.5px solid transparent !important;
+  border-radius: 8px !important;
+  padding: 10px 12px !important;
+  box-shadow: none !important;
+}
+.total-block .total-label {
+  color: var(--c26-teal) !important;
+  font-size: 10px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.4px !important;
+  font-weight: 500 !important;
+}
+.total-block .total-value {
+  color: var(--c26-teal) !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums !important;
+  margin-top: 2px !important;
+}
+.total-block .total-value span {
+  font-size: 11px !important;
+  font-weight: 400 !important;
+}
+
+.divider {
+  border: none !important;
+  border-top: 0.5px solid var(--c26-border) !important;
+  margin: 8px 0 !important;
+}
+
+.grand-total-block {
+  padding: 12px 0 !important;
+  background: transparent !important;
+  border: none !important;
+  text-align: left !important;
+}
+.grand-total-block .gt-label {
+  font-size: 10px !important;
+  color: var(--c26-muted) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.4px !important;
+  font-weight: 500 !important;
+  margin-bottom: 4px !important;
+}
+.grand-total-block .gt-value {
+  font-size: 22px !important;
+  font-weight: 600 !important;
+  color: var(--c26-ink) !important;
+  font-variant-numeric: tabular-nums !important;
+  letter-spacing: -0.3px !important;
+}
+.grand-total-block .gt-sub {
+  font-size: 10px !important;
+  color: var(--c26-muted) !important;
+  font-style: italic !important;
+  margin-top: 2px !important;
+}
+
+/* ── BOUTONS ─────────────────────────────────────────────── */
+.btn {
+  font-family: 'DM Sans', 'Inter', sans-serif !important;
+  border-radius: 7px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  padding: 9px 14px !important;
+  transition: all .15s !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+.btn-primary {
+  background: var(--c26-ink) !important;
+  border: 0.5px solid var(--c26-ink) !important;
+  color: white !important;
+}
+.btn-primary:hover {
+  background: #0d2424 !important;
+  transform: none !important;
+}
+.btn-secondary {
+  background: white !important;
+  border: 0.5px solid var(--c26-border) !important;
+  color: var(--c26-ink) !important;
+}
+.btn-secondary:hover {
+  background: var(--c26-bg-soft) !important;
+  border-color: var(--c26-slate) !important;
+}
+.btn-full { width: 100% !important; }
+
+/* Sidebar boutons spéciaux : conserver leur couleur sémantique mais alléger */
+#btnSaveInAffaire {
+  background: white !important;
+  color: var(--c26-green) !important;
+  border: 0.5px solid var(--c26-green-bg) !important;
+}
+#btnSaveInAffaire:hover { background: var(--c26-green-bg) !important; }
+#btnGenererPropale {
+  background: var(--c26-ink) !important;
+  color: white !important;
+  border: 0.5px solid var(--c26-ink) !important;
+}
+
+/* ── TABLES (Prestations, Formation, Licences) ──────────── */
+.formation-table, .apercu-table {
+  font-size: 12px !important;
+  font-family: 'DM Sans', 'Inter', sans-serif !important;
+}
+.formation-table th, .apercu-table th {
+  background: var(--c26-bg-soft) !important;
+  color: var(--c26-muted) !important;
+  font-size: 10px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.4px !important;
+  font-weight: 500 !important;
+  padding: 8px 12px !important;
+  border-bottom: 0.5px solid var(--c26-border) !important;
+}
+.formation-table td, .apercu-table td {
+  padding: 8px 12px !important;
+  border-bottom: 0.5px solid var(--c26-border) !important;
+  color: var(--c26-ink) !important;
+}
+
+/* ============================================================
+   DRAWER ANTHRACITE (cockpit)
+   ============================================================ */
+
+.drawer-overlay {
+  background: rgba(45, 53, 64, 0.45) !important;
+  backdrop-filter: blur(2px) !important;
+}
+
+.drawer {
+  background: var(--c26-anth-bg) !important;
+  color: var(--c26-anth-text) !important;
+  font-family: 'DM Sans', 'Inter', sans-serif !important;
+  box-shadow: -8px 0 24px rgba(0,0,0,0.25) !important;
+  width: 420px !important;
+  border-left: 0.5px solid var(--c26-anth-border) !important;
+}
+
+/* Drawer header généré par JS via class .d-header / .drawer-header */
+.drawer .d-header,
+.drawer .drawer-header {
+  padding: 14px 18px !important;
+  border-bottom: 0.5px solid var(--c26-anth-border) !important;
+  background: var(--c26-anth-bg) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+.drawer .d-title,
+.drawer .drawer-title {
+  color: var(--c26-anth-text) !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+}
+.drawer .d-subtitle,
+.drawer .drawer-subtitle {
+  color: var(--c26-anth-text-dim) !important;
+  font-size: 11px !important;
+}
+
+/* Bouton fermeture drawer */
+.drawer .d-close, .drawer .drawer-close, .drawer button[onclick*="closeModuleDrawer"] {
+  background: transparent !important;
+  border: 0.5px solid var(--c26-anth-border) !important;
+  color: var(--c26-anth-text-dim) !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+}
+.drawer .d-close:hover, .drawer .drawer-close:hover {
+  background: var(--c26-anth-soft) !important;
+  color: var(--c26-anth-text) !important;
+}
+
+/* Sections du drawer */
+.drawer .d-section,
+.drawer .drawer-section {
+  margin-bottom: 16px !important;
+}
+.drawer .d-section-title,
+.drawer .drawer-section-title {
+  font-size: 10px !important;
+  color: var(--c26-anth-text-mut) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  font-weight: 500 !important;
+  margin-bottom: 8px !important;
+}
+
+/* Champs dans le drawer */
+.drawer .d-field {
+  background: var(--c26-anth-soft) !important;
+  border-radius: 7px !important;
+  padding: 10px 12px !important;
+  margin-bottom: 8px !important;
+  border: 0.5px solid var(--c26-anth-border) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+.drawer .d-field label,
+.drawer .d-label {
+  color: var(--c26-anth-text) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+.drawer .d-pu {
+  color: var(--c26-anth-text-dim) !important;
+  font-size: 11px !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.drawer .d-unit {
+  color: var(--c26-anth-text-mut) !important;
+  font-size: 11px !important;
+}
+
+/* Inputs du drawer */
+.drawer input[type="text"],
+.drawer input[type="number"],
+.drawer select,
+.drawer textarea {
+  background: var(--c26-anth-active) !important;
+  border: 0.5px solid var(--c26-anth-border) !important;
+  color: var(--c26-anth-text) !important;
+  border-radius: 6px !important;
+  padding: 6px 10px !important;
+  font-size: 12px !important;
+  font-family: 'DM Sans', sans-serif !important;
+}
+.drawer input[type="text"]:focus,
+.drawer input[type="number"]:focus,
+.drawer select:focus,
+.drawer textarea:focus {
+  outline: none !important;
+  border-color: var(--c26-anth-teal) !important;
+  background: var(--c26-anth-hover) !important;
+}
+.drawer input[type="text"]::placeholder,
+.drawer input[type="number"]::placeholder {
+  color: var(--c26-anth-text-mut) !important;
+}
+
+/* Boutons stepper +/- du drawer */
+.drawer .d-stepper,
+.drawer .stepper {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  background: var(--c26-anth-active) !important;
+  border-radius: 6px !important;
+  padding: 4px !important;
+}
+.drawer .d-stepper button,
+.drawer .stepper button,
+.drawer button.d-btn-num {
+  background: var(--c26-anth-hover) !important;
+  border: none !important;
+  color: var(--c26-anth-text) !important;
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 4px !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+}
+.drawer .d-stepper button:hover,
+.drawer .stepper button:hover {
+  background: var(--c26-anth-active) !important;
+  color: var(--c26-anth-teal) !important;
+}
+
+/* Toggles du drawer (checkboxes stylées) */
+.drawer label.d-checkbox,
+.drawer .d-toggle {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+}
+.drawer input[type="checkbox"] {
+  accent-color: var(--c26-anth-teal) !important;
+}
+
+/* Boutons d'action dans le drawer (footer) */
+.drawer .d-footer,
+.drawer .drawer-footer {
+  padding: 12px 18px !important;
+  border-top: 0.5px solid var(--c26-anth-border) !important;
+  background: var(--c26-anth-bg) !important;
+  display: flex !important;
+  gap: 8px !important;
+}
+.drawer .d-footer .btn,
+.drawer .drawer-footer .btn {
+  flex: 1 !important;
+}
+.drawer .d-footer .btn-primary,
+.drawer .drawer-footer .btn-primary,
+.drawer button.btn-validate {
+  background: var(--c26-anth-teal) !important;
+  border: none !important;
+  color: #04342C !important;
+  font-weight: 600 !important;
+}
+.drawer .d-footer .btn-primary:hover {
+  background: #4ab78d !important;
+}
+.drawer .d-footer .btn-secondary,
+.drawer .drawer-footer .btn-secondary,
+.drawer button.btn-cancel {
+  background: transparent !important;
+  border: 0.5px solid var(--c26-anth-border) !important;
+  color: var(--c26-anth-text-dim) !important;
+}
+.drawer .d-footer .btn-secondary:hover {
+  background: var(--c26-anth-soft) !important;
+  color: var(--c26-anth-text) !important;
+}
+
+/* Récap interne au drawer */
+.drawer .d-recap,
+.drawer .drawer-recap,
+.drawer .d-total {
+  background: var(--c26-anth-soft) !important;
+  border-radius: 8px !important;
+  padding: 12px !important;
+  border: 0.5px solid var(--c26-anth-border) !important;
+}
+.drawer .d-recap-line,
+.drawer .d-recap div {
+  color: var(--c26-anth-text-dim) !important;
+  font-size: 11px !important;
+}
+.drawer .d-recap strong,
+.drawer .d-total-value {
+  color: var(--c26-anth-teal) !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* Badges Flux dans le drawer */
+.drawer .flux-badge,
+.drawer .d-flux-item {
+  background: var(--c26-anth-soft) !important;
+  color: var(--c26-anth-text) !important;
+  border: 0.5px solid var(--c26-anth-border) !important;
+  font-size: 11px !important;
+}
+.drawer .flux-badge:hover {
+  background: var(--c26-anth-hover) !important;
+}
+
+/* Scrollbar sombre dans le drawer */
+.drawer { scrollbar-width: thin; scrollbar-color: #4d5868 transparent; }
+.drawer::-webkit-scrollbar { width: 8px; }
+.drawer::-webkit-scrollbar-track { background: transparent; }
+.drawer::-webkit-scrollbar-thumb {
+  background: #4d5868;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.drawer::-webkit-scrollbar-thumb:hover {
+  background: #5d6a7d;
+  background-clip: content-box;
+}
+.drawer *::-webkit-scrollbar { width: 6px; }
+.drawer *::-webkit-scrollbar-thumb {
+  background: #4d5868;
+  border-radius: 3px;
+}

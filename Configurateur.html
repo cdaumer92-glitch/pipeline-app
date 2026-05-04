@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TexasWin — Configurateur</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Lato:wght@300;400;700&family=DM+Sans:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="configurateur.css?v=2026-04-29">
+<link rel="stylesheet" href="configurateur-2026.css?v=2026-05-04">
 </head>
 <body>
 
@@ -24,9 +25,12 @@
     <!-- Prospect -->
     <div class="card">
       <div class="card-header" style="gap:16px;">
-        👤 Prospect
+        <span style="display:inline-flex;align-items:center;gap:8px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:#007d89"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Prospect
+        </span>
         <div style="position:relative;flex:1;max-width:340px;">
-          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--teal);font-size:0.9rem;">🔍</span>
+          <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#7a9090;width:13px;height:13px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input type="text" id="pipelineSearch" placeholder="Rechercher dans Pipeline..."
             oninput="searchPipeline(this.value)"
             style="width:100%;padding:7px 12px 7px 32px;border:1.5px solid rgba(255,255,255,0.35);border-radius:8px;background:rgba(255,255,255,0.15);color:white;font-family:Lato,sans-serif;font-size:0.85rem;caret-color:white;" class="pipeline-header-input"
@@ -77,7 +81,10 @@
     <!-- Modules -->
     <div class="card">
       <div class="card-header">
-        📦 Modules retenus
+        <span style="display:inline-flex;align-items:center;gap:8px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:#007d89"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          Modules retenus
+        </span>
         <span class="card-total" id="total_section1">0,00 €/mois</span>
       </div>
       <div class="modules-grid" id="modules-grid">
@@ -88,7 +95,10 @@
       <div class="apercu-modules" id="apercu-modules" style="display:none;">
         <div class="apercu-header" id="apercu-header" onclick="toggleApercu()">
           <span class="apercu-arrow" id="apercu-arrow">▾</span>
-          <span class="apercu-title">📋 Aperçu propale — Modules</span>
+          <span class="apercu-title" style="display:inline-flex;align-items:center;gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Aperçu propale — Modules
+          </span>
           <span class="apercu-count" id="apercu-count">0 lignes</span>
           <span class="apercu-spacer"></span>
           <span class="apercu-total-label">Total :</span>
@@ -211,7 +221,10 @@
     <!-- Formation -->
     <div class="card" id="card-formation" style="display:none">
       <div class="card-header formation-header section-toggle" onclick="toggleSection('formation')">
-        🎓 Formation
+        <span style="display:inline-flex;align-items:center;gap:8px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:#007d89"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+          Formation
+        </span>
         <span class="toggle-arrow" id="arrow-formation">▾</span>
         <span class="card-total" id="total_formation">0,00 €</span>
       </div>
@@ -268,9 +281,24 @@
     <hr class="divider">
 
     <div class="sidebar-title" style="margin-top:4px;">Actions</div>
-    <button class="btn btn-primary btn-full" id="btnSaveInAffaire" onclick="openSaveInAffaireModal()" style="display:none;background:#059669;border-color:#059669;">💼 Enregistrer dans l'affaire</button>
-    <button class="btn btn-primary btn-full" id="btnGenererPropale" onclick="generateProposition()" style="background:#7b5ea7;border-color:#7b5ea7;">📝 Générer la proposition (Word)</button>
-    <button class="btn btn-secondary btn-full btn-sm" onclick="exportExcel()">📊 Export Excel devis</button>
+    <button class="btn btn-primary btn-full" id="btnSaveInAffaire" onclick="openSaveInAffaireModal()" style="display:none;">
+      <span style="display:inline-flex;align-items:center;gap:6px;justify-content:center;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        Enregistrer dans l'affaire
+      </span>
+    </button>
+    <button class="btn btn-primary btn-full" id="btnGenererPropale" onclick="generateProposition()">
+      <span style="display:inline-flex;align-items:center;gap:6px;justify-content:center;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Générer la propale
+      </span>
+    </button>
+    <button class="btn btn-secondary btn-full btn-sm" onclick="exportExcel()">
+      <span style="display:inline-flex;align-items:center;gap:6px;justify-content:center;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export Excel
+      </span>
+    </button>
   </aside>
 
 </div><!-- /app-body -->
