@@ -2886,7 +2886,7 @@ async function confirmSaveDevis() {
     document.getElementById('saveDevisModal').classList.remove('open');
     // Petit feedback avant fermeture
     window.showToast({title:'Devis enregistré ✓', type:'success'});
-    setTimeout(() => window.close(), 200);
+    setTimeout(() => window.close(), 2200);
   } catch (err) {
     showSaveError('Erreur : ' + err.message);
     btn.disabled = false;
@@ -3116,7 +3116,7 @@ async function updateDevis() {
       }, window.location.origin);
     }
     window.showToast({title:'Devis mis à jour ✓', type:'success'});
-    setTimeout(() => window.close(), 200);
+    setTimeout(() => window.close(), 2200);
   } catch (err) {
     window.showToast({title:'Erreur : ' + err.message, type:'error'});
     btn.disabled = false;

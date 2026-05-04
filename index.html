@@ -872,6 +872,7 @@
           });
 
           if (res.ok) {
+            window.showToast({title: editingInterlocuteur ? 'Interlocuteur modifié' : 'Interlocuteur ajouté', type:'success'});
             await fetchInterlocuteurs(selectedProspect.id);
             setShowInterlocuteurForm(false);
             setInterlocuteurForm({
@@ -901,6 +902,7 @@
           });
 
           if (res.ok) {
+            window.showToast({title:'Interlocuteur supprimé', type:'success'});
             await fetchInterlocuteurs(selectedProspect.id);
           } else {
             window.showToast({title:'Erreur lors de la suppression', type:'error'});
@@ -1102,6 +1104,7 @@
 
           if (res.ok) {
             const savedDevis = await res.json();
+            window.showToast({title: editingDevisId ? 'Devis modifié' : 'Devis créé', type:'success'});
             
             // Upload PDF si présent
             if (devisPdfFile) {
@@ -1144,6 +1147,7 @@
           });
 
           if (res.ok) {
+            window.showToast({title:'Devis supprimé', type:'success'});
             await fetchDevis(selectedProspect.id);
           } else {
             window.showToast({title:'Erreur lors de la suppression', type:'error'});
@@ -1169,6 +1173,7 @@
           });
 
           if (res.ok) {
+            window.showToast({title:'PDF uploadé', type:'success'});
             await fetchDevis(selectedProspect.id);
           } else {
             window.showToast({title:'Erreur lors de l\'upload du PDF', type:'error'});
@@ -1237,6 +1242,7 @@
           });
 
           if (res.ok) {
+            window.showToast({title:'Devis rattaché à l\'affaire', type:'success'});
             await fetchDevis(selectedProspect.id);
             await fetchAffaires(selectedProspect.id);
           } else {
@@ -1317,6 +1323,7 @@
           });
 
           if (res.ok) {
+            window.showToast({title: editingAffaireId ? 'Affaire modifiée' : 'Affaire créée', type:'success'});
             await fetchAffaires(selectedProspect.id);
             setShowAffaireForm(false);
             setEditingAffaireId(null);
@@ -1340,6 +1347,7 @@
           });
 
           if (res.ok) {
+            window.showToast({title:'Affaire supprimée', type:'success'});
             await fetchAffaires(selectedProspect.id);
             await fetchDevis(selectedProspect.id);
             if (selectedAffaireId === affaireId) {
@@ -1388,6 +1396,7 @@
           });
 
           if (res.ok) {
+            window.showToast({title:'Action ajoutée', type:'success'});
             await fetchAffaires(selectedProspect.id);
             fetchAllActions(selectedProspect.id);
             setShowActionAffaireForm(false);
@@ -1438,6 +1447,7 @@
           });
 
           if (res.ok) {
+            window.showToast({title:'Action supprimée', type:'success'});
             await fetchAffaires(selectedProspect.id);
             fetchAllActions(selectedProspect.id);
           }
@@ -1589,6 +1599,7 @@
 
           if (res.ok) {
             const data = await res.json();
+            window.showToast({title: formData.id ? 'Société modifiée' : 'Société créée', type:'success'});
             
             // Sauvegarder les modules si le statut est Devis/Démo/Négociation/Signé
             const prospectId = data.id || formData.id;
@@ -1634,6 +1645,7 @@
               headers: { 'Authorization': `Bearer ${user.token}` }
             });
             if (res.ok) {
+              window.showToast({title:'Société supprimée', type:'success'});
               fetchProspects();
               setSelectedProspect(null);
             }
@@ -1679,6 +1691,7 @@
             })
           });
           if (res.ok) {
+            window.showToast({title:'Action ajoutée', type:'success'});
             fetchNextActions(selectedProspect.id);
             fetchAllActions(selectedProspect.id);
             setNewActionType('Appel');
@@ -1720,6 +1733,7 @@
               headers: { 'Authorization': `Bearer ${user.token}` }
             });
             if (res.ok) {
+              window.showToast({title:'Action supprimée', type:'success'});
               fetchNextActions(selectedProspect.id);
               fetchAllActions(selectedProspect.id);
             }
