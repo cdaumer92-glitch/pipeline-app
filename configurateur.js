@@ -1,4 +1,122 @@
 // ══════════════════════════════════════════════════════════════
+// SYSTÈME DE TOAST (autonome, JS pur, sans dépendance)
+// ══════════════════════════════════════════════════════════════
+// Notifications non-bloquantes (succès, erreur, warning, info)
+// Usage : showToast('Devis sauvegardé', 'success')
+//      ou showToast({title:'...', message:'...', type:'success', duration:3000})
+// Pour les cas critiques (avec redirect immédiat), utiliser alert() classique.
+(function setupToastSystem() {
+  if (typeof window === 'undefined' || window.showToast) return; // déjà installé
+
+  // Injection CSS
+  const css = `
+    .tw-toast-container {
+      position: fixed; bottom: 20px; right: 20px; z-index: 10000;
+      display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+    }
+    .tw-toast {
+      background: white; border: 0.5px solid #e0ecec; border-radius: 10px;
+      padding: 12px 16px 12px 14px; min-width: 280px; max-width: 400px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+      display: flex; align-items: flex-start; gap: 12px; pointer-events: auto;
+      animation: tw-toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .tw-toast.tw-toast-leaving { animation: tw-toast-out 0.2s cubic-bezier(0.4, 0, 1, 1) forwards; }
+    .tw-toast-success { border-left: 3px solid #2ec27e; }
+    .tw-toast-error   { border-left: 3px solid #e74c3c; }
+    .tw-toast-warning { border-left: 3px solid #f0932b; }
+    .tw-toast-info    { border-left: 3px solid #007d89; }
+    .tw-toast-icon    { flex-shrink: 0; margin-top: 1px; width: 16px; height: 16px; }
+    .tw-toast-success .tw-toast-icon { color: #2ec27e; }
+    .tw-toast-error   .tw-toast-icon { color: #e74c3c; }
+    .tw-toast-warning .tw-toast-icon { color: #f0932b; }
+    .tw-toast-info    .tw-toast-icon { color: #007d89; }
+    .tw-toast-content { flex: 1; min-width: 0; }
+    .tw-toast-title   { font-size: 13px; font-weight: 500; color: #1a3535; margin: 0; line-height: 1.4; }
+    .tw-toast-msg     { font-size: 12px; color: #607a7a; margin: 2px 0 0; line-height: 1.4; word-wrap: break-word; }
+    .tw-toast-close {
+      flex-shrink: 0; width: 18px; height: 18px; padding: 0; background: transparent;
+      border: none; color: #9eb5b5; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; border-radius: 4px; margin-top: -1px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .tw-toast-close:hover { background: #f4f7f7; color: #607a7a; }
+    @keyframes tw-toast-in {
+      from { opacity: 0; transform: translateY(8px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes tw-toast-out {
+      from { opacity: 1; transform: translateX(0); }
+      to   { opacity: 0; transform: translateX(20px); }
+    }
+  `;
+  const style = document.createElement('style');
+  style.textContent = css;
+  document.head.appendChild(style);
+
+  // Container (créé à la première utilisation)
+  let container = null;
+  function getContainer() {
+    if (container) return container;
+    container = document.createElement('div');
+    container.className = 'tw-toast-container';
+    document.body.appendChild(container);
+    return container;
+  }
+
+  // Icônes SVG selon le type
+  const ICONS = {
+    success: '<path d="M20 6L9 17l-5-5"/>',
+    error:   '<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
+    warning: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
+    info:    '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  };
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  window.showToast = function(opts, type, duration) {
+    let cfg;
+    if (typeof opts === 'string') {
+      cfg = { title: opts, type: type || 'info', duration: duration ?? 3500 };
+    } else {
+      cfg = {
+        title: opts.title || '',
+        message: opts.message || '',
+        type: opts.type || 'info',
+        duration: opts.duration ?? 3500,
+      };
+    }
+    const cont = getContainer();
+    const toast = document.createElement('div');
+    toast.className = 'tw-toast tw-toast-' + cfg.type;
+    toast.innerHTML =
+      '<svg class="tw-toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+      + 'stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
+      + (ICONS[cfg.type] || ICONS.info) + '</svg>'
+      + '<div class="tw-toast-content">'
+      + '<p class="tw-toast-title">' + escapeHtml(cfg.title) + '</p>'
+      + (cfg.message ? '<p class="tw-toast-msg">' + escapeHtml(cfg.message) + '</p>' : '')
+      + '</div>'
+      + '<button class="tw-toast-close" aria-label="Fermer">'
+      + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>'
+      + '</button>';
+    const close = () => {
+      toast.classList.add('tw-toast-leaving');
+      setTimeout(() => toast.remove(), 200);
+    };
+    toast.querySelector('.tw-toast-close').addEventListener('click', close);
+    cont.appendChild(toast);
+    if (cfg.duration > 0) setTimeout(close, cfg.duration);
+    return toast;
+  };
+})();
+
+
+// ══════════════════════════════════════════════════════════════
 // DONNÉES MÉTIER
 // ══════════════════════════════════════════════════════════════
 
@@ -1681,7 +1799,7 @@ function applyRemiseRapide() {
 function resetAllOverrides() {
   const overrides = moduleState.lignes_remises_overrides || {};
   const nb = Object.keys(overrides).length;
-  if (nb === 0) { alert('Aucune remise saisie à effacer.'); return; }
+  if (nb === 0) { window.showToast({title:'Aucune remise saisie à effacer.', type:'info'}); return; }
   const ok = confirm(`Effacer ${nb} remise(s) saisie(s) dans l'aperçu ? Cette action ne peut pas être annulée.`);
   if (!ok) return;
   moduleState.lignes_remises_overrides = {};
@@ -2102,7 +2220,7 @@ document.addEventListener('click', e => {
 // Utilisé par generateProposition() (POST serveur) et l'enregistrement dans l'affaire.
 function buildConfigJson() {
   const societe = document.getElementById('societe').value.trim();
-  if (!societe || societe === 'Nom de la Société') { alert('Veuillez remplir le nom de la Société'); return null; }
+  if (!societe || societe === 'Nom de la Société') { window.showToast({title:'Veuillez remplir le nom de la Société', type:'warning'}); return null; }
 
   const parseEur = str => parseFloat((str||'0').replace(/[\s\u202f]/g,'').replace(',','.').replace(/[€]/g,'').replace('/mois','').replace('/an','')) || 0;
 
@@ -2361,7 +2479,7 @@ async function generateProposition() {
   // Bug 3 : Validation cohérence licences MyReport (Manager + User + Center == qté Kub)
   const kubError = validateKubLicences();
   if (kubError) {
-    alert('⚠️ Validation licences Kub :\n\n' + kubError);
+    window.showToast({title:'⚠️ Validation licences Kub :\n\n' + kubError, type:'warning'});
     return;
   }
 
@@ -2601,7 +2719,7 @@ function showProgressError(message) {
 }
 
 function exportExcel() {
-  alert('Export Excel : fonctionnalité disponible dans la prochaine version.');
+  window.showToast({title:'Export Excel : fonctionnalité disponible dans la prochaine version.', type:'info'});
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2676,12 +2794,12 @@ function buildConfigObject() {
 // Ouvre la modale de confirmation avec récap
 function openSaveInAffaireModal() {
   if (!CTX.affaire_id) {
-    alert("Ce devis n'est pas rattaché à une affaire. Ouvrez le configurateur depuis une fiche d'affaire pour l'enregistrer.");
+    window.showToast({title:"Ce devis n'est pas rattaché à une affaire. Ouvrez le configurateur depuis une fiche d'affaire pour l'enregistrer.", type:'info'});
     return;
   }
   const societe = document.getElementById('societe')?.value?.trim() || '';
   if (!societe || societe === 'Nom de la Société') {
-    alert('Veuillez renseigner le nom de la société.');
+    window.showToast({title:'Veuillez renseigner le nom de la société.', type:'warning'});
     return;
   }
   const contact = document.getElementById('contact')?.value?.trim() || '(aucun)';
@@ -2714,7 +2832,7 @@ async function confirmSaveDevis() {
   // Bug 3 : Validation cohérence licences MyReport (Manager + User + Center == qté Kub)
   const kubError = validateKubLicences();
   if (kubError) {
-    alert('⚠️ Validation licences Kub :\n\n' + kubError);
+    window.showToast({title:'⚠️ Validation licences Kub :\n\n' + kubError, type:'warning'});
     return;
   }
 
@@ -2767,7 +2885,7 @@ async function confirmSaveDevis() {
     }
     document.getElementById('saveDevisModal').classList.remove('open');
     // Petit feedback avant fermeture
-    alert('Devis enregistré ✓');
+    window.showToast({title:'Devis enregistré ✓', type:'success'});
     setTimeout(() => window.close(), 200);
   } catch (err) {
     showSaveError('Erreur : ' + err.message);
@@ -2930,7 +3048,7 @@ async function loadDevisForEdit() {
     console.log('[configurateur] devis ' + CTX.devis_id + ' chargé pour édition');
   } catch (err) {
     console.error('[configurateur] erreur chargement devis:', err);
-    alert('Impossible de charger le devis : ' + err.message);
+    window.showToast({title:'Impossible de charger le devis : ' + err.message, type:'info'});
   }
 }
 
@@ -2997,10 +3115,10 @@ async function updateDevis() {
         devis_id: CTX.devis_id
       }, window.location.origin);
     }
-    alert('Devis mis à jour ✓');
+    window.showToast({title:'Devis mis à jour ✓', type:'success'});
     setTimeout(() => window.close(), 200);
   } catch (err) {
-    alert('Erreur : ' + err.message);
+    window.showToast({title:'Erreur : ' + err.message, type:'error'});
     btn.disabled = false;
     btn.innerHTML = originalHtml;
   }

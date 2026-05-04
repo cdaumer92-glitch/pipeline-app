@@ -231,6 +231,93 @@
     .tw-stat-row:last-child { border-bottom: none; }
     .tw-stat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 7px; flex-shrink: 0; }
     .tw-stat-val { font-weight: 700; font-family: 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; font-size: 15px; }
+
+    /* ==================== SYSTÈME DE TOAST ==================== */
+    .tw-toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .tw-toast {
+      background: white;
+      border: 0.5px solid var(--tw-border);
+      border-radius: 10px;
+      padding: 12px 16px 12px 14px;
+      min-width: 280px;
+      max-width: 400px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      pointer-events: auto;
+      animation: tw-toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: 'DM Sans', sans-serif;
+    }
+    .tw-toast.tw-toast-leaving {
+      animation: tw-toast-out 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+    }
+    .tw-toast-success { border-left: 3px solid var(--tw-green); }
+    .tw-toast-error   { border-left: 3px solid var(--tw-red); }
+    .tw-toast-warning { border-left: 3px solid var(--tw-orange); }
+    .tw-toast-info    { border-left: 3px solid var(--tw-teal); }
+    .tw-toast-icon {
+      flex-shrink: 0;
+      margin-top: 1px;
+      width: 16px;
+      height: 16px;
+    }
+    .tw-toast-success .tw-toast-icon { color: var(--tw-green); }
+    .tw-toast-error   .tw-toast-icon { color: var(--tw-red); }
+    .tw-toast-warning .tw-toast-icon { color: var(--tw-orange); }
+    .tw-toast-info    .tw-toast-icon { color: var(--tw-teal); }
+    .tw-toast-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .tw-toast-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--tw-ink);
+      margin: 0;
+      line-height: 1.4;
+    }
+    .tw-toast-msg {
+      font-size: 12px;
+      color: var(--tw-slate);
+      margin: 2px 0 0;
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+    .tw-toast-close {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      color: var(--tw-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      margin-top: -1px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .tw-toast-close:hover { background: var(--tw-bg); color: var(--tw-slate); }
+    @keyframes tw-toast-in {
+      from { opacity: 0; transform: translateY(8px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes tw-toast-out {
+      from { opacity: 1; transform: translateX(0); }
+      to   { opacity: 0; transform: translateX(20px); }
+    }
   </style>
 </head>
 <body>
@@ -244,6 +331,91 @@
     // ================== APP PRINCIPALE ==================
     console.log('[Pipeline] Version chargée: ' + new Date().toISOString());
     const API_URL = '/api';
+
+    // ==================== SYSTÈME DE TOAST ====================
+    // Notifications non-bloquantes (succès, erreur, warning, info)
+    // Usage : showToast('Devis sauvegardé', 'success') ou showToast({title:'...', message:'...', type:'success', duration:3000})
+    // Remplace les alert() par défaut. Pour les cas critiques avec redirect, garder alert() classique.
+    const ToastContext = React.createContext(null);
+
+    function ToastProvider({ children }) {
+      const [toasts, setToasts] = React.useState([]);
+
+      const removeToast = React.useCallback((id) => {
+        setToasts(prev => prev.map(t => t.id === id ? {...t, leaving: true} : t));
+        setTimeout(() => {
+          setToasts(prev => prev.filter(t => t.id !== id));
+        }, 200); // durée de l'animation de sortie
+      }, []);
+
+      const addToast = React.useCallback((opts) => {
+        const id = Date.now() + Math.random();
+        const toast = typeof opts === 'string'
+          ? { id, title: opts, type: 'info', duration: 3500 }
+          : { id, title: opts.title || '', message: opts.message || '', type: opts.type || 'info', duration: opts.duration ?? 3500 };
+        setToasts(prev => [...prev, toast]);
+        if (toast.duration > 0) {
+          setTimeout(() => removeToast(id), toast.duration);
+        }
+        return id;
+      }, [removeToast]);
+
+      // Exposer la fonction globalement pour pouvoir l'appeler depuis n'importe où
+      React.useEffect(() => {
+        window.showToast = (opts, type, duration) => {
+          if (typeof opts === 'string') {
+            return addToast({ title: opts, type: type || 'info', duration: duration ?? 3500 });
+          }
+          return addToast(opts);
+        };
+      }, [addToast]);
+
+      return (
+        <ToastContext.Provider value={{ addToast, removeToast }}>
+          {children}
+          <ToastContainer toasts={toasts} onClose={removeToast} />
+        </ToastContext.Provider>
+      );
+    }
+
+    function ToastContainer({ toasts, onClose }) {
+      if (toasts.length === 0) return null;
+      return (
+        <div className="tw-toast-container">
+          {toasts.map(t => <Toast key={t.id} toast={t} onClose={() => onClose(t.id)} />)}
+        </div>
+      );
+    }
+
+    function Toast({ toast, onClose }) {
+      const { type, title, message, leaving } = toast;
+      const iconPaths = {
+        success: <path d="M20 6L9 17l-5-5"/>,
+        error:   <React.Fragment><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></React.Fragment>,
+        warning: <React.Fragment><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></React.Fragment>,
+        info:    <React.Fragment><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></React.Fragment>,
+      };
+      return (
+        <div className={`tw-toast tw-toast-${type} ${leaving ? 'tw-toast-leaving' : ''}`}>
+          <svg className="tw-toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            {iconPaths[type] || iconPaths.info}
+          </svg>
+          <div className="tw-toast-content">
+            <p className="tw-toast-title">{title}</p>
+            {message && <p className="tw-toast-msg">{message}</p>}
+          </div>
+          <button className="tw-toast-close" onClick={onClose} aria-label="Fermer">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      );
+    }
+
+    // Fallback temporaire : si window.showToast n'est pas encore prêt (chargement initial),
+    // utilise console.warn en dernier recours
+    if (typeof window.showToast === 'undefined') {
+      window.showToast = (msg) => console.warn('[Toast non prêt]', msg);
+    }
 
     // ================== INTERCEPTEUR 401 + DÉTECTEUR D'INACTIVITÉ ==================
     // Patche window.fetch pour intercepter les 401 sur les routes /api/* et déclencher
@@ -680,7 +852,7 @@
 
       const handleSaveInterlocuteur = async () => {
         if (!interlocuteurForm.nom.trim()) {
-          alert('Le nom est obligatoire');
+          window.showToast({title:'Le nom est obligatoire', type:'warning'});
           return;
         }
 
@@ -711,11 +883,11 @@
               principal: false
             });
           } else {
-            alert('Erreur lors de la sauvegarde');
+            window.showToast({title:'Erreur lors de la sauvegarde', type:'error'});
           }
         } catch (err) {
           console.error('Erreur:', err);
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -731,11 +903,11 @@
           if (res.ok) {
             await fetchInterlocuteurs(selectedProspect.id);
           } else {
-            alert('Erreur lors de la suppression');
+            window.showToast({title:'Erreur lors de la suppression', type:'error'});
           }
         } catch (err) {
           console.error('Erreur:', err);
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -872,7 +1044,7 @@
       const handleSaveDevis = async () => {
         try {
           if (!selectedProspect?.id) {
-            alert('Veuillez d\'abord créer la société');
+            window.showToast({title:'Veuillez d\'abord créer la société', type:'warning'});
             return;
           }
 
@@ -954,11 +1126,11 @@
             });
             setDevisPdfFile(null);
           } else {
-            alert('Erreur lors de la sauvegarde du devis');
+            window.showToast({title:'Erreur lors de la sauvegarde du devis', type:'error'});
           }
         } catch (err) {
           console.error('Erreur handleSaveDevis:', err);
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -974,11 +1146,11 @@
           if (res.ok) {
             await fetchDevis(selectedProspect.id);
           } else {
-            alert('Erreur lors de la suppression');
+            window.showToast({title:'Erreur lors de la suppression', type:'error'});
           }
         } catch (err) {
           console.error('Erreur handleDeleteDevis:', err);
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -999,11 +1171,11 @@
           if (res.ok) {
             await fetchDevis(selectedProspect.id);
           } else {
-            alert('Erreur lors de l\'upload du PDF');
+            window.showToast({title:'Erreur lors de l\'upload du PDF', type:'error'});
           }
         } catch (err) {
           console.error('Erreur handleUploadDevisPdf:', err);
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         } finally {
           setIsUploadingDevisPdf(false);
         }
@@ -1024,11 +1196,11 @@
             if (selectedProspect) await fetchDevis(selectedProspect.id);
           } else {
             const err = await res.json().catch(() => ({}));
-            alert('Erreur lors de l\'upload du PDF : ' + (err.error || res.status));
+            window.showToast({title:'Erreur lors de l\'upload du PDF : ' + (err.error || res.status), type:'error'});
           }
         } catch (err) {
           console.error('Erreur handleUploadDevisPdfDirect:', err);
-          alert('Erreur : ' + err.message);
+          window.showToast({title:'Erreur : ' + err.message, type:'error'});
         }
       };
 
@@ -1043,13 +1215,13 @@
 
           if (res.ok) {
             await fetchDevis(selectedProspect.id);
-            alert('PDF supprimé avec succès');
+            window.showToast({title:'PDF supprimé avec succès', type:'success'});
           } else {
-            alert('Erreur lors de la suppression du PDF');
+            window.showToast({title:'Erreur lors de la suppression du PDF', type:'error'});
           }
         } catch (err) {
           console.error('Erreur handleDeleteDevisPDF:', err);
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -1068,11 +1240,11 @@
             await fetchDevis(selectedProspect.id);
             await fetchAffaires(selectedProspect.id);
           } else {
-            alert('Erreur lors du rattachement');
+            window.showToast({title:'Erreur lors du rattachement', type:'error'});
           }
         } catch (err) {
           console.error('Erreur handleRattacherDevisAffaire:', err);
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -1126,7 +1298,7 @@
 
       const handleSaveAffaire = async () => {
         if (!selectedProspect || !affaireFormData.nom_affaire.trim()) {
-          alert('Le nom de l\'affaire est obligatoire');
+          window.showToast({title:'Le nom de l\'affaire est obligatoire', type:'warning'});
           return;
         }
 
@@ -1150,11 +1322,11 @@
             setEditingAffaireId(null);
             setAffaireFormData({ nom_affaire: '', description: '', statut_global: 'En cours' });
           } else {
-            alert('Erreur lors de l\'enregistrement');
+            window.showToast({title:'Erreur lors de l\'enregistrement', type:'error'});
           }
         } catch (err) {
           console.error('Erreur handleSaveAffaire:', err);
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -1174,11 +1346,11 @@
               setSelectedAffaireId(null);
             }
           } else {
-            alert('Erreur lors de la suppression');
+            window.showToast({title:'Erreur lors de la suppression', type:'error'});
           }
         } catch (err) {
           console.error('Erreur handleDeleteAffaire:', err);
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -1228,11 +1400,11 @@
               action_comment: ''
             });
           } else {
-            alert('Erreur lors de la création de l\'action');
+            window.showToast({title:'Erreur lors de la création de l\'action', type:'error'});
           }
         } catch (err) {
           console.error('Erreur handleSaveActionAffaire:', err);
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -1271,7 +1443,7 @@
           }
         } catch (err) {
           console.error('Erreur handleDeleteActionAffaire:', err);
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -1350,26 +1522,26 @@
             // 🔥 AJOUT : Sauvegarder dans localStorage
             localStorage.setItem('user', JSON.stringify(userData));
           } else {
-            alert('Erreur: ' + data.error);
+            window.showToast({title:'Erreur: ' + data.error, type:'error'});
           }
         } catch (err) {
-          alert('Erreur connexion: ' + err.message);
+          window.showToast({title:'Erreur connexion: ' + err.message, type:'error'});
         }
       };
 
       const handleSaveProspect = async () => {
         if (!formData.name) {
-          alert('Le nom de la société est requis');
+          window.showToast({title:'Le nom de la société est requis', type:'warning'});
           return;
         }
 
         if (!formData.statut_societe) {
-          alert('Le type de société est requis (Suspect, Prospect ou Client)');
+          window.showToast({title:'Le type de société est requis (Suspect, Prospect ou Client)', type:'warning'});
           return;
         }
 
         if (!formData.assigned_to) {
-          alert('Le commercial est requis');
+          window.showToast({title:'Le commercial est requis', type:'warning'});
           return;
         }
 
@@ -1377,7 +1549,7 @@
         if (formData.quote_date) {
           const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
           if (!dateRegex.test(formData.quote_date)) {
-            alert('Format de date invalide pour la date du devis. Utilisez le format YYYY-MM-DD');
+            window.showToast({title:'Format de date invalide pour la date du devis. Utilisez le format YYYY-MM-DD', type:'error'});
             return;
           }
         }
@@ -1391,11 +1563,11 @@
             if (lastDevis.quote_date) {
               formData.quote_date = lastDevis.quote_date;
             } else {
-              alert('Une date de devis est requise pour le statut ' + formData.status);
+              window.showToast({title:'Une date de devis est requise pour le statut ' + formData.status, type:'warning'});
               return;
             }
           } else {
-            alert('Veuillez créer un devis avant de passer au statut ' + formData.status);
+            window.showToast({title:'Veuillez créer un devis avant de passer au statut ' + formData.status, type:'warning'});
             return;
           }
         }
@@ -1450,7 +1622,7 @@
             setFormData(getEmptyProspect());
           }
         } catch (err) {
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -1466,7 +1638,7 @@
               setSelectedProspect(null);
             }
           } catch (err) {
-            alert('Erreur: ' + err.message);
+            window.showToast({title:'Erreur: ' + err.message, type:'error'});
           }
         }
       };
@@ -1485,7 +1657,7 @@
             fetchActivities(prospectId);
           }
         } catch (err) {
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -1516,7 +1688,7 @@
             setNewActionComment('');
           }
         } catch (err) {
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -1536,7 +1708,7 @@
             setActionNotes({...actionNotes, [actionId]: ''});
           }
         } catch (err) {
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -1552,7 +1724,7 @@
               fetchAllActions(selectedProspect.id);
             }
           } catch (err) {
-            alert('Erreur: ' + err.message);
+            window.showToast({title:'Erreur: ' + err.message, type:'error'});
           }
         }
       };
@@ -1657,7 +1829,7 @@
           if (typeof fetchDevis === 'function') await fetchDevis(created.id);
           if (typeof fetchAffaires === 'function') await fetchAffaires(created.id);
         } catch (err) {
-          alert('Erreur lors de la création : ' + err.message);
+          window.showToast({title:'Erreur lors de la création : ' + err.message, type:'error'});
         }
       };
 
@@ -3097,34 +3269,72 @@
       const initials = (name) => name ? name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) : '?';
       const isAdmin = ['Christian', 'Frédéric', 'Frederic'].includes(user.name);
 
+      // Couleur d'avatar dérivée du nom (pastel cohérent par utilisateur)
+      const avatarPalette = [
+        {bg:'#fde8d4', fg:'#b06e2a'},
+        {bg:'#d3edff', fg:'#0a5085'},
+        {bg:'#d8f0e3', fg:'#0f6e56'},
+        {bg:'#f1ecfa', fg:'#6b3aa1'},
+        {bg:'#ffe1e1', fg:'#a52d2d'},
+      ];
+      const avatarColor = avatarPalette[(user.name || '').charCodeAt(0) % avatarPalette.length] || avatarPalette[0];
+
       return (
         <div className="tw-topbar">
           {/* LOGO */}
-          <div className="tw-logo">
-            <img src="texaswin-logo.png" alt="TexasWin" onError={(e) => { e.target.style.display='none'; }} />
+          <div style={{display:'flex',alignItems:'center',gap:'8px',fontWeight:500,color:'var(--tw-ink)',fontSize:'14px',whiteSpace:'nowrap'}}>
+            <div style={{width:'22px',height:'22px',borderRadius:'6px',background:'var(--tw-teal)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:'11px',fontWeight:600}}>T</div>
             TexasWin
           </div>
 
-          {/* SEARCH */}
-          <div className="tw-search-box" ref={searchRef}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--tw-muted)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <input
-              type="text"
-              placeholder="Rechercher une société..."
-              value={globalSearch}
-              onChange={(e) => { setGlobalSearch(e.target.value); setShowResults(e.target.value.length >= 2); setSearchIndex(-1); }}
-              onFocus={() => globalSearch.length >= 2 && setShowResults(true)}
-              onKeyDown={(e) => {
-                if (!showResults || filteredProspects.length === 0) return;
-                if (e.key === 'ArrowDown') { e.preventDefault(); setSearchIndex(i => Math.min(i+1, filteredProspects.length-1)); }
-                else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchIndex(i => Math.max(i-1, 0)); }
-                else if (e.key === 'Enter' && searchIndex >= 0) {
-                  const p = filteredProspects[searchIndex];
-                  onSelectProspect(p); setGlobalSearch(''); setShowResults(false); setSearchIndex(-1);
-                  if (isDashboard) onDashboard();
-                } else if (e.key === 'Escape') { setShowResults(false); setSearchIndex(-1); }
-              }}
-            />
+          {/* NAV PRINCIPALE (gauche) */}
+          <nav style={{display:'flex',gap:'2px'}}>
+            <button
+              onClick={() => { if (!isDashboard) onDashboard(); if (showAttribution) onDashboard(); }}
+              style={{padding:'6px 12px',borderRadius:'6px',background: isDashboard && !showAttribution ? 'var(--tw-teal-light)' : 'transparent',color: isDashboard && !showAttribution ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: isDashboard && !showAttribution ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',transition:'all .15s'}}
+            >Dashboard</button>
+            <button
+              onClick={() => { if (isDashboard) onDashboard(); if (showAttribution) onDashboard(); }}
+              style={{padding:'6px 12px',borderRadius:'6px',background: !isDashboard && !showAttribution ? 'var(--tw-teal-light)' : 'transparent',color: !isDashboard && !showAttribution ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: !isDashboard && !showAttribution ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',transition:'all .15s'}}
+            >Suivi activités</button>
+            {user.name === 'Christian' && (
+              <button
+                onClick={onAttribution}
+                style={{padding:'6px 12px',borderRadius:'6px',background: showAttribution ? 'var(--tw-teal-light)' : 'transparent',color: showAttribution ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: showAttribution ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer'}}
+              >Attribution</button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={onAdminJson}
+                title="Récupérer le JSON d'un devis"
+                style={{padding:'6px 12px',borderRadius:'6px',background:'transparent',color:'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight:500,fontFamily:'DM Sans,sans-serif',cursor:'pointer'}}
+              >Récup. JSON</button>
+            )}
+          </nav>
+
+          {/* SEARCH (centre, étirée) */}
+          <div ref={searchRef} style={{position:'relative',flex:1,maxWidth:'420px',marginLeft:'8px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'8px',background:'var(--tw-bg)',border:'0.5px solid var(--tw-border)',borderRadius:'8px',padding:'6px 12px'}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--tw-muted)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input
+                type="text"
+                placeholder="Rechercher une société..."
+                value={globalSearch}
+                onChange={(e) => { setGlobalSearch(e.target.value); setShowResults(e.target.value.length >= 2); setSearchIndex(-1); }}
+                onFocus={() => globalSearch.length >= 2 && setShowResults(true)}
+                onKeyDown={(e) => {
+                  if (!showResults || filteredProspects.length === 0) return;
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setSearchIndex(i => Math.min(i+1, filteredProspects.length-1)); }
+                  else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchIndex(i => Math.max(i-1, 0)); }
+                  else if (e.key === 'Enter' && searchIndex >= 0) {
+                    const p = filteredProspects[searchIndex];
+                    onSelectProspect(p); setGlobalSearch(''); setShowResults(false); setSearchIndex(-1);
+                    if (isDashboard) onDashboard();
+                  } else if (e.key === 'Escape') { setShowResults(false); setSearchIndex(-1); }
+                }}
+                style={{flex:1,border:'none',outline:'none',background:'transparent',fontSize:'13px',fontFamily:'DM Sans,sans-serif',color:'var(--tw-ink)',minWidth:0}}
+              />
+            </div>
             {showResults && (
               <div className="tw-search-dropdown">
                 {filteredProspects.length > 0 ? filteredProspects.map((p, idx) => (
@@ -3148,38 +3358,46 @@
             )}
           </div>
 
-          {/* BTN NOUVELLE SOCIÉTÉ */}
-          <button className="tw-btn-new" onClick={onNewProspect}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
-            Nlle Société
+          {/* CTA NOUVELLE SOCIÉTÉ — bouton primaire noir style Vercel/Stripe */}
+          <button
+            onClick={onNewProspect}
+            style={{background:'var(--tw-ink)',color:'white',border:'none',padding:'7px 13px',borderRadius:'8px',fontSize:'13px',fontWeight:500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',display:'flex',alignItems:'center',gap:'6px',whiteSpace:'nowrap'}}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#0d2424'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'var(--tw-ink)'}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Nouveau prospect
           </button>
 
-          {/* SPACER */}
-          <div style={{flex: 1}} />
-
-          {/* NAV DROITE */}
-          <nav className="tw-nav">
-            <button className={`tw-nav-btn ${isDashboard && !showAttribution ? 'tw-active' : ''}`} onClick={() => { if (!isDashboard) onDashboard(); if (showAttribution) onDashboard(); }}>Dashboard</button>
-            <button className={`tw-nav-btn ${!isDashboard && !showAttribution ? 'tw-active' : ''}`} onClick={() => { if (isDashboard) onDashboard(); if (showAttribution) onDashboard(); }}>Suivi activités</button>
-            {user.name === 'Christian' && (
-              <button className={`tw-nav-btn ${showAttribution ? 'tw-active' : ''}`} onClick={onAttribution}>🎯 Attribution Sté</button>
-            )}
-            {isAdmin && (
-              <button className="tw-nav-btn" onClick={onAdminJson} title="Récupérer le JSON d'un devis">🔧 Récup. JSON</button>
-            )}
-          </nav>
-
-          {/* PARAMÈTRES */}
+          {/* PARAMÈTRES (icône discrète) */}
           {isAdmin && (
-            <button className="tw-btn-icon" onClick={onSettings}>⚙ Paramètres</button>
+            <button
+              onClick={onSettings}
+              title="Paramètres"
+              aria-label="Paramètres"
+              style={{width:'32px',height:'32px',borderRadius:'8px',background:'transparent',border:'0.5px solid var(--tw-border)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--tw-slate)',transition:'all .15s'}}
+              onMouseEnter={(e) => { e.currentTarget.style.background='var(--tw-bg)'; e.currentTarget.style.color='var(--tw-ink)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='var(--tw-slate)'; }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
           )}
 
-          {/* USER + DÉCONNEXION */}
-          <div className="tw-user-chip">
-            <div className="tw-avatar">{initials(user.name)}</div>
-            {user.name}
+          {/* USER AVATAR + DÉCONNEXION */}
+          <div style={{display:'flex',alignItems:'center',gap:'8px',padding:'4px 4px 4px 10px',background:'var(--tw-bg)',borderRadius:'20px'}}>
+            <span style={{fontSize:'13px',color:'var(--tw-ink)',fontWeight:500,whiteSpace:'nowrap'}}>{user.name}</span>
+            <div style={{width:'28px',height:'28px',borderRadius:'50%',background:avatarColor.bg,color:avatarColor.fg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:600,fontFamily:'DM Sans,sans-serif'}}>{initials(user.name)}</div>
           </div>
-          <button className="tw-btn-icon" onClick={onLogout} style={{color: 'var(--tw-red)', borderColor: '#fcc'}}>Déconnexion</button>
+          <button
+            onClick={onLogout}
+            title="Déconnexion"
+            aria-label="Déconnexion"
+            style={{width:'32px',height:'32px',borderRadius:'8px',background:'transparent',border:'0.5px solid var(--tw-border)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--tw-slate)',transition:'all .15s'}}
+            onMouseEnter={(e) => { e.currentTarget.style.background='#fef2f2'; e.currentTarget.style.color='var(--tw-red)'; e.currentTarget.style.borderColor='#fecaca'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='var(--tw-slate)'; e.currentTarget.style.borderColor='var(--tw-border)'; }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          </button>
         </div>
       );
     }
@@ -3364,7 +3582,7 @@
 
       const handleCreateUser = async () => {
         if (!newUserEmail || !newUserPassword || !newUserName) {
-          alert('Remplissez tous les champs');
+          window.showToast({title:'Remplissez tous les champs', type:'warning'});
           return;
         }
         try {
@@ -3382,16 +3600,16 @@
             setNewUserName('');
             fetchUsers();
           } else {
-            alert('Erreur: ' + (await res.text()));
+            window.showToast({title:'Erreur: ' + (await res.text()), type:'error'});
           }
         } catch (err) {
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
       const handleChangePassword = async (userId) => {
         if (!newPassword) {
-          alert('Entrez un nouveau mot de passe');
+          window.showToast({title:'Entrez un nouveau mot de passe', type:'info'});
           return;
         }
         try {
@@ -3407,12 +3625,12 @@
             setEditingUserId(null);
             setNewPassword('');
             fetchUsers();
-            alert('Mot de passe modifié');
+            window.showToast({title:'Mot de passe modifié', type:'success'});
           } else {
-            alert('Erreur: ' + (await res.text()));
+            window.showToast({title:'Erreur: ' + (await res.text()), type:'error'});
           }
         } catch (err) {
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -3427,12 +3645,12 @@
             });
             if (res.ok) {
               fetchUsers();
-              alert('Utilisateur supprimé');
+              window.showToast({title:'Utilisateur supprimé', type:'success'});
             } else {
-              alert('Erreur: ' + (await res.text()));
+              window.showToast({title:'Erreur: ' + (await res.text()), type:'error'});
             }
           } catch (err) {
-            alert('Erreur: ' + err.message);
+            window.showToast({title:'Erreur: ' + err.message, type:'error'});
           }
         }
       };
@@ -4836,7 +5054,7 @@
           }
           setShowLicenceForm(false); setEditingLicence(null);
           setClientLicences([]); setClientDataLoaded(false); loadClientData(pid);
-        } catch(err) { alert('Erreur: '+err.message); }
+        } catch(err) { window.showToast({title:'Erreur: '+err.message, type:'error'}); }
       };
 
       const handleDeleteLicence = async (id) => {
@@ -4857,7 +5075,7 @@
           }
           setShowBoutiqueForm(false); setEditingBoutique(null);
           setClientBoutiques([]); setClientDataLoaded(false); loadClientData(pid);
-        } catch(err) { alert('Erreur: '+err.message); }
+        } catch(err) { window.showToast({title:'Erreur: '+err.message, type:'error'}); }
       };
 
       const handleDeleteBoutique = async (id) => {
@@ -4878,7 +5096,7 @@
           }
           setShowMaterielForm(false); setEditingMateriel(null);
           setClientMateriel([]); setClientDataLoaded(false); loadClientData(pid);
-        } catch(err) { alert('Erreur: '+err.message); }
+        } catch(err) { window.showToast({title:'Erreur: '+err.message, type:'error'}); }
       };
 
       const handleDeleteMateriel = async (id) => {
@@ -4896,7 +5114,7 @@
           });
           onUpdateProspect({...selectedProspect, ...infoForm});
           setInfoEdit(false);
-        } catch(err) { alert('Erreur: '+err.message); }
+        } catch(err) { window.showToast({title:'Erreur: '+err.message, type:'error'}); }
       };
 
       // ── Attribution commercial ──
@@ -4973,7 +5191,7 @@
                             body: JSON.stringify({...selectedProspect, statut_societe: newStatut})
                           });
                           onUpdateProspect({...selectedProspect, statut_societe: newStatut});
-                        } catch(err) { alert('Erreur: '+err.message); }
+                        } catch(err) { window.showToast({title:'Erreur: '+err.message, type:'error'}); }
                       }}
                       style={{fontSize:'12px',fontWeight:'600',cursor:'pointer',padding:'3px 8px',borderRadius:'20px',border:'none',
                         color:statutColors[selectedProspect.statut_societe]||'#999',
@@ -5890,7 +6108,7 @@
 
       const handleUploadPdf = async () => {
         if (!pdfFile) {
-          alert('Sélectionnez un fichier PDF');
+          window.showToast({title:'Sélectionnez un fichier PDF', type:'warning'});
           return;
         }
 
@@ -5909,12 +6127,12 @@
           if (res.ok) {
             handleChange('pdf_url', result.pdf_url);
             setPdfFile(null);
-            alert('✅ PDF uploadé !');
+            window.showToast({title:'PDF uploadé !', type:'success'});
           } else {
-            alert('Erreur: ' + result.error);
+            window.showToast({title:'Erreur: ' + result.error, type:'error'});
           }
         } catch (err) {
-          alert('Erreur upload: ' + err.message);
+          window.showToast({title:'Erreur upload: ' + err.message, type:'error'});
         } finally {
           setIsUploading(false);
         }
@@ -5931,12 +6149,12 @@
 
           if (res.ok) {
             handleChange('pdf_url', null);
-            alert('✅ PDF supprimé !');
+            window.showToast({title:'PDF supprimé !', type:'success'});
           } else {
-            alert('Erreur suppression');
+            window.showToast({title:'Erreur suppression', type:'error'});
           }
         } catch (err) {
-          alert('Erreur: ' + err.message);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
@@ -6473,7 +6691,7 @@
                                                   window.open(url, '_blank');
                                                 }
                                               } catch (err) {
-                                                alert('Erreur: ' + err.message);
+                                                window.showToast({title:'Erreur: ' + err.message, type:'error'});
                                               }
                                             }}
                                             style={{padding: '3px 6px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold'}}
@@ -6974,7 +7192,7 @@
                                 window.open(url, '_blank');
                               }
                             } catch (err) {
-                              alert('Erreur: ' + err.message);
+                              window.showToast({title:'Erreur: ' + err.message, type:'error'});
                             }
                           }}
                           style={{padding: '6px 12px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600'}}
@@ -7910,7 +8128,7 @@
 
     // ================== LANCEMENT ==================
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    root.render(<ToastProvider><App /></ToastProvider>);
   </script>
 </body>
 </html>
