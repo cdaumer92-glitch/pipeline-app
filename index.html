@@ -4010,172 +4010,115 @@
     }
 
     function LeftPanel({ prospects, allProspects, selectedProspect, onSelect, filterSocietyType, onFilterSocietyTypeChange, filterStatus, onFilterChange, filterCommercial, onFilterCommercialChange, searchTerm, onSearchChange, sortBy, onSortChange, prospectActionsInfo, onNewProspect, isAdmin, filterAttribution, onFilterAttributionChange, currentUser }) {
+      // Style commun pour les <select> du filtre (cohérent avec le design moderne)
+      const selectStyle = {
+        width:'100%',padding:'7px 10px',fontSize:'13px',border:'0.5px solid var(--tw-border)',
+        borderRadius:'7px',background:'white',color:'var(--tw-ink)',cursor:'pointer',
+        fontFamily:"'DM Sans',sans-serif",appearance:'none',
+        backgroundImage:'url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2710%27 height=%2710%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23607a7a%27 stroke-width=%272%27><polyline points=%276 9 12 15 18 9%27/></svg>")',
+        backgroundRepeat:'no-repeat',backgroundPosition:'right 10px center',paddingRight:'28px'
+      };
+      const labelStyle = {fontSize:'11px',fontWeight:500,color:'var(--tw-muted)',marginBottom:'5px',display:'block',textTransform:'uppercase',letterSpacing:'.4px'};
+      const filterContainer = {padding:'0 14px',marginTop:'12px'};
+
       return (
         <div style={styles.leftPanel}>
 
           {/* Toggle Attribution — admin uniquement */}
           {isAdmin && (
-            <div style={{margin:'12px 12px 0',display:'flex',background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'7px',padding:'3px',gap:'2px'}}>
+            <div style={{margin:'12px 14px 0',display:'flex',background:'var(--tw-bg)',border:'0.5px solid var(--tw-border)',borderRadius:'8px',padding:'2px',gap:'2px'}}>
               {[
                 {id:'Toutes', label:'Toutes'},
                 {id:'Mes', label:'Mes sociétés'},
                 {id:'NonAttribuees', label:'Non attribuées'},
               ].map(opt => (
                 <button key={opt.id} onClick={() => onFilterAttributionChange(opt.id)}
-                  style={{flex:1,padding:'5px 4px',border:'none',borderRadius:'5px',fontSize:'11px',fontWeight: filterAttribution===opt.id ? '700' : '500',
+                  style={{flex:1,padding:'5px 4px',border:'none',borderRadius:'6px',fontSize:'11px',fontWeight: filterAttribution===opt.id ? 500 : 400,
                     background: filterAttribution===opt.id ? 'white' : 'transparent',
-                    color: filterAttribution===opt.id ? 'var(--tw-teal)' : 'var(--tw-muted)',
-                    boxShadow: filterAttribution===opt.id ? '0 1px 3px rgba(0,125,137,.12)' : 'none',
+                    color: filterAttribution===opt.id ? 'var(--tw-ink)' : 'var(--tw-slate)',
+                    boxShadow: filterAttribution===opt.id ? '0 1px 2px rgba(0,0,0,.04), 0 0 0 0.5px var(--tw-border)' : 'none',
                     cursor:'pointer',transition:'all .15s',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>
                   {opt.label}
                 </button>
               ))}
             </div>
           )}
-          <div style={{...styles.filterContainer, marginTop: '15px'}}>
-            <label style={{fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '6px', display: 'block'}}>Type de société:</label>
-            <select 
-              value={filterSocietyType}
-              onChange={(e) => onFilterSocietyTypeChange(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                fontSize: '13px',
-                border: '1px solid #c8dede',
-                borderRadius: '4px',
-                backgroundColor: 'white',
-                color: '#1a3535',
-                cursor: 'pointer'
-              }}
-            >
+
+          {/* Type de société */}
+          <div style={filterContainer}>
+            <label style={labelStyle}>Type de société</label>
+            <select value={filterSocietyType} onChange={(e) => onFilterSocietyTypeChange(e.target.value)} style={selectStyle}>
               {['Tous', 'Suspect', 'Prospect', 'Client'].map(type => {
-                const count = type === 'Tous' 
-                  ? allProspects.length 
+                const count = type === 'Tous'
+                  ? allProspects.length
                   : allProspects.filter(p => p.statut_societe === type).length;
                 const label = type + (type === 'Suspect' || type === 'Prospect' || type === 'Client' ? 's' : '');
-                return (
-                  <option key={type} value={type}>
-                    {label} ({count})
-                  </option>
-                );
+                return <option key={type} value={type}>{label} ({count})</option>;
               })}
             </select>
           </div>
 
           {/* Statut */}
-          <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
-            <label style={{fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '6px', display: 'block'}}>Statut:</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => onFilterChange(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                fontSize: '13px',
-                border: '1px solid #c8dede',
-                borderRadius: '4px',
-                backgroundColor: 'white',
-                color: '#1a3535',
-                cursor: 'pointer'
-              }}
-            >
+          <div style={filterContainer}>
+            <label style={labelStyle}>Statut</label>
+            <select value={filterStatus} onChange={(e) => onFilterChange(e.target.value)} style={selectStyle}>
               {['Tous', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Ajourné N+1', 'Éliminé par nous', 'Perdu'].map(status => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
+                <option key={status} value={status}>{status}</option>
               ))}
             </select>
           </div>
 
-          {/* Commercial - visible admins seulement */}
-          {isAdmin && <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
-            <label style={{fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '6px', display: 'block'}}>Commercial:</label>
-            <select
-              value={filterCommercial}
-              onChange={(e) => onFilterCommercialChange(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                fontSize: '13px',
-                border: '1px solid #c8dede',
-                borderRadius: '4px',
-                backgroundColor: 'white',
-                color: '#1a3535',
-                cursor: 'pointer'
-              }}
-            >
-              {['Tous', 'Roger', 'Christian', 'Frédéric'].map(commercial => {
-                const count = getProspectCountByCommercial(allProspects, commercial);
-                return (
-                  <option key={commercial} value={commercial}>
-                    {commercial} ({count})
-                  </option>
-                );
-              })}
-            </select>
-          </div>}
+          {/* Commercial - admins only */}
+          {isAdmin && (
+            <div style={filterContainer}>
+              <label style={labelStyle}>Commercial</label>
+              <select value={filterCommercial} onChange={(e) => onFilterCommercialChange(e.target.value)} style={selectStyle}>
+                {['Tous', 'Roger', 'Christian', 'Frédéric'].map(commercial => {
+                  const count = getProspectCountByCommercial(allProspects, commercial);
+                  return <option key={commercial} value={commercial}>{commercial} ({count})</option>;
+                })}
+              </select>
+            </div>
+          )}
 
           {/* Trier par */}
-          <div style={{...styles.filterContainer, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee'}}>
-            <span style={{fontSize: '12px', fontWeight: 'bold', color: '#666', width: '100%', marginBottom: '8px', display: 'block'}}>Trier par:</span>
-            {[{label: 'Nom', value: 'name'}, {label: 'Ancienneté', value: 'ancienneté'}, {label: 'Probabilité', value: 'probabilité'}].map(option => (
-              <button
-                key={option.value}
-                onClick={() => onSortChange(option.value)}
-                style={{
-                  ...styles.filterBtn,
-                  ...(sortBy === option.value ? styles.filterBtnActive : {}),
-                  fontSize: '12px'
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
+          <div style={filterContainer}>
+            <label style={labelStyle}>Trier par</label>
+            <div style={{display:'flex',background:'var(--tw-bg)',border:'0.5px solid var(--tw-border)',borderRadius:'8px',padding:'2px',gap:'2px'}}>
+              {[{label:'Nom', value:'name'}, {label:'Ancienneté', value:'ancienneté'}, {label:'Probabilité', value:'probabilité'}].map(option => (
+                <button key={option.value} onClick={() => onSortChange(option.value)}
+                  style={{flex:1,padding:'5px 4px',border:'none',borderRadius:'6px',fontSize:'11px',fontWeight: sortBy===option.value ? 500 : 400,
+                    background: sortBy===option.value ? 'white' : 'transparent',
+                    color: sortBy===option.value ? 'var(--tw-ink)' : 'var(--tw-slate)',
+                    boxShadow: sortBy===option.value ? '0 1px 2px rgba(0,0,0,.04), 0 0 0 0.5px var(--tw-border)' : 'none',
+                    cursor:'pointer',transition:'all .15s',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {(() => {
             let statusesToInclude = [];
             let filterLabel = filterStatus;
             
-            if (filterStatus === 'Tous hors suspects') {
-              statusesToInclude = ['Devis', 'Démo', 'Négociation'];
-              filterLabel = 'Tous hors suspects';
-            } else if (filterStatus === 'Suspects') {
-              statusesToInclude = []; // Les suspects n'ont pas de pipeline
-              filterLabel = 'Suspects';
-            } else if (filterStatus === 'Prospection') {
-              statusesToInclude = ['Négociation'];
-              filterLabel = 'Prospection';
-            } else if (filterStatus === 'Devis') {
-              statusesToInclude = ['Devis'];
-              filterLabel = 'Devis';
-            } else if (filterStatus === 'Démo') {
-              statusesToInclude = ['Démo'];
-              filterLabel = 'Démo';
-            } else if (filterStatus === 'Négociation') {
-              statusesToInclude = ['Négociation'];
-              filterLabel = 'Négociation';
-            } else if (filterStatus === 'Signé') {
-              statusesToInclude = ['Signé'];
-              filterLabel = 'Signé';
-            } else if (filterStatus === 'Perdu') {
-              statusesToInclude = ['Perdu'];
-              filterLabel = 'Perdu';
-            }
+            if (filterStatus === 'Tous hors suspects') { statusesToInclude = ['Devis', 'Démo', 'Négociation']; filterLabel = 'Tous hors suspects'; }
+            else if (filterStatus === 'Suspects') { statusesToInclude = []; filterLabel = 'Suspects'; }
+            else if (filterStatus === 'Prospection') { statusesToInclude = ['Négociation']; filterLabel = 'Prospection'; }
+            else if (filterStatus === 'Devis') { statusesToInclude = ['Devis']; filterLabel = 'Devis'; }
+            else if (filterStatus === 'Démo') { statusesToInclude = ['Démo']; filterLabel = 'Démo'; }
+            else if (filterStatus === 'Négociation') { statusesToInclude = ['Négociation']; filterLabel = 'Négociation'; }
+            else if (filterStatus === 'Signé') { statusesToInclude = ['Signé']; filterLabel = 'Signé'; }
+            else if (filterStatus === 'Perdu') { statusesToInclude = ['Perdu']; filterLabel = 'Perdu'; }
             
-            const cumulMonthly = prospects
-              .filter(p => statusesToInclude.includes(p.real_status))
-              .reduce((sum, p) => sum + (parseFloat(p.real_monthly_amount || p.monthly_amount) || 0), 0);
-            
-            const cumulAnnual = prospects
-              .filter(p => statusesToInclude.includes(p.real_status))
-              .reduce((sum, p) => sum + (parseFloat(p.real_annual_amount || p.annual_amount) || 0), 0);
-            
+            const cumulMonthly = prospects.filter(p => statusesToInclude.includes(p.real_status)).reduce((s, p) => s + (parseFloat(p.real_monthly_amount || p.monthly_amount) || 0), 0);
+            const cumulAnnual  = prospects.filter(p => statusesToInclude.includes(p.real_status)).reduce((s, p) => s + (parseFloat(p.real_annual_amount  || p.annual_amount)  || 0), 0);
+
             return (
-              <div style={{padding: '15px', backgroundColor: '#f0f0f0', borderRadius: '4px', margin: '0 15px', textAlign: 'center'}}>
-                <div style={{fontSize: '12px', color: '#666', marginBottom: '5px'}}>Cumul Abonnement {filterLabel}</div>
-                <div style={{fontSize: '14px', fontWeight: 'bold', color: '#0066cc'}}>{formatCurrency(cumulMonthly)}/mois</div>
-                {cumulAnnual > 0 && <div style={{fontSize: '14px', fontWeight: 'bold', color: '#28a745'}}>{formatCurrency(cumulAnnual)}/an</div>}
+              <div style={{margin:'14px 14px 8px',padding:'12px 14px',background:'var(--tw-bg)',borderRadius:'8px',border:'0.5px solid var(--tw-border)'}}>
+                <div style={{fontSize:'11px',color:'var(--tw-muted)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'.4px',fontWeight:500}}>Cumul Abonnement {filterLabel}</div>
+                <div style={{fontSize:'15px',fontWeight:500,color:'var(--tw-ink)',fontVariantNumeric:'tabular-nums'}}>{formatCurrency(cumulMonthly)}<span style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:400}}> /mois</span></div>
+                {cumulAnnual > 0 && <div style={{fontSize:'13px',fontWeight:500,color:'var(--tw-slate)',fontVariantNumeric:'tabular-nums',marginTop:'2px'}}>{formatCurrency(cumulAnnual)}<span style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:400}}> /an</span></div>}
               </div>
             );
           })()}
@@ -4189,17 +4132,17 @@
                   ...styles.prospectItem,
                   ...(selectedProspect?.id === prospect.id ? styles.prospectItemActive : {}),
 
-                  ...(prospect.real_status === 'Ajourné N+1' ? { backgroundColor: '#fff3e0', borderLeft: '4px solid #ff9800' } : {}),
-                  ...(prospect.real_status === 'Éliminé par nous' ? { backgroundColor: '#f0f0f0', borderLeft: '4px solid #888' } : {}),
-                  ...(!prospect.real_status && !prospectActionsInfo[prospect.id]?.hasAction ? { borderLeft: '4px solid #cc0000' } : {}),
-                  ...(!prospect.real_status && prospectActionsInfo[prospect.id]?.hasAction ? { borderLeft: '4px solid #28a745' } : {})
+                  ...(prospect.real_status === 'Ajourné N+1' ? { backgroundColor: '#fff8e1', borderLeft: '3px solid #b06e2a' } : {}),
+                  ...(prospect.real_status === 'Éliminé par nous' ? { backgroundColor: 'var(--tw-bg)', borderLeft: '3px solid var(--tw-muted)' } : {}),
+                  ...(!prospect.real_status && !prospectActionsInfo[prospect.id]?.hasAction ? { borderLeft: '3px solid var(--tw-red)' } : {}),
+                  ...(!prospect.real_status && prospectActionsInfo[prospect.id]?.hasAction ? { borderLeft: '3px solid var(--tw-green)' } : {})
                 }}
               >
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px'}}>
                   <div style={styles.prospectName}>{prospectDisplayName(prospect)}</div>
-                  <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 8px',borderRadius:'10px',flexShrink:0,
-                    color: (prospect.statut_societe||'Prospect')==='Client'?'var(--tw-teal)':(prospect.statut_societe||'Prospect')==='Suspect'?'#999':'#f0932b',
-                    background: (prospect.statut_societe||'Prospect')==='Client'?'var(--tw-teal-light)':(prospect.statut_societe||'Prospect')==='Suspect'?'#f5f5f5':'#fff8e1'
+                  <span style={{fontSize:'11px',fontWeight:500,padding:'2px 8px',borderRadius:'10px',flexShrink:0,
+                    color: (prospect.statut_societe||'Prospect')==='Client'?'var(--tw-teal)':(prospect.statut_societe||'Prospect')==='Suspect'?'var(--tw-slate)':'#b06e2a',
+                    background: (prospect.statut_societe||'Prospect')==='Client'?'var(--tw-teal-light)':(prospect.statut_societe||'Prospect')==='Suspect'?'var(--tw-bg)':'#fff8e1'
                   }}>{prospect.statut_societe||'Prospect'}</span>
                 </div>
                 <div style={styles.prospectSubtitle}>{prospect.contact_name}</div>
@@ -4209,33 +4152,32 @@
                       color: prospect.real_status==='Perdu'?'var(--tw-red)':
                              prospect.real_status==='Gagné'?'var(--tw-green)':
                              prospect.real_status==='Discussion'?'var(--tw-blue)':
-                             prospect.real_status==='Envoyé'?'#f0932b':
+                             prospect.real_status==='Envoyé'?'#b06e2a':
                              'var(--tw-teal)'}}>
                       {prospect.real_status}
                       {prospect.real_probability && prospect.real_probability > 0 && (
-                        <span style={{fontWeight: 'bold', marginLeft: '5px'}}>({prospect.real_probability}%)</span>
+                        <span style={{fontWeight:500, marginLeft:'5px'}}>({prospect.real_probability}%)</span>
                       )}
                     </span>
                   ) : (
-                    <span style={{...styles.prospectStatus, color: '#999', fontStyle: 'italic'}}>Aucun devis actif</span>
+                    <span style={{...styles.prospectStatus, color:'var(--tw-muted)', fontStyle:'italic'}}>Aucun devis actif</span>
                   )}
                   {prospect.real_quote_date && <span style={styles.prospectQuoteDate}>{new Date(prospect.real_quote_date).toLocaleDateString('fr-FR')}</span>}
                 </div>
-                <div style={{fontSize: '12px', marginTop: '6px', color: '#666'}}>
+                <div style={{fontSize:'12px', marginTop:'6px', color:'var(--tw-slate)'}}>
                   {prospectActionsInfo[prospect.id]?.hasAction ? (() => {
                     const ai = prospectActionsInfo[prospect.id];
                     const isLate = ai.isLate || (ai.nextActionDate && new Date(ai.nextActionDate) < new Date(new Date().toDateString()));
                     const dateStr = ai.nextActionDate ? new Date(ai.nextActionDate).toLocaleDateString('fr-FR') : '';
                     return (
                       <span>
-                        <span style={{color: '#28a745', fontWeight: 'bold'}}>⚡ </span>
-                        {ai.nextActionType && <span style={{fontWeight: '600', color: '#1a3535'}}>{ai.nextActionType} </span>}
-                        {dateStr && <span style={{fontWeight: 'bold', color: isLate ? '#cc0000' : '#607a7a'}}>• {dateStr}{isLate ? ' ⚠️' : ''}</span>}
-                        {ai.nextActionActor && <span style={{color: '#888'}}> | {ai.nextActionActor}{ai.nextActionContact ? ' → ' + ai.nextActionContact : ''}</span>}
+                        {ai.nextActionType && <span style={{fontWeight:500, color:'var(--tw-ink)'}}>{ai.nextActionType} </span>}
+                        {dateStr && <span style={{fontWeight:500, color: isLate ? 'var(--tw-red)' : 'var(--tw-slate)'}}>· {dateStr}{isLate ? ' (en retard)' : ''}</span>}
+                        {ai.nextActionActor && <span style={{color:'var(--tw-muted)'}}> · {ai.nextActionActor}{ai.nextActionContact ? ' → ' + ai.nextActionContact : ''}</span>}
                       </span>
                     );
                   })() : (
-                    <span style={{color: '#cc0000'}}>✗ Aucune action planifiée</span>
+                    <span style={{color:'var(--tw-red)'}}>Aucune action planifiée</span>
                   )}
                 </div>
                 <div style={styles.prospectAmount}>
@@ -5186,16 +5128,17 @@
         <div style={styles.rightPanel}>
           <div style={styles.prospectDetail}>
 
-            {/* ── CLIENT HEADER (style proto) ── */}
-            <div style={{background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',padding:'18px 22px',marginBottom:'16px',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
-              <div style={{display:'flex',alignItems:'center',gap:'16px'}}>
-                {/* Avatar */}
-                <div style={{width:'48px',height:'48px',borderRadius:'10px',background:'linear-gradient(135deg,var(--tw-teal),#00a8b8)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'18px',fontWeight:'700',color:'white',flexShrink:0}}>{initials}</div>
-                {/* Infos */}
+            {/* ── HEADER PROSPECT/CLIENT (refonte 2026) ── */}
+            <div style={{background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'12px',padding:'18px 20px',marginBottom:'12px'}}>
+              <div style={{display:'flex',alignItems:'flex-start',gap:'14px'}}>
+                {/* Avatar carré coloré (au lieu de gradient) */}
+                <div style={{width:'48px',height:'48px',borderRadius:'10px',background:'var(--tw-teal)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'15px',fontWeight:600,color:'white',flexShrink:0,letterSpacing:'-.3px'}}>{initials}</div>
+
+                {/* Bloc infos */}
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'}}>
-                    <span style={{fontSize:'20px',fontWeight:'700',color:'var(--tw-ink)',letterSpacing:'-.3px'}}>{prospectDisplayName(selectedProspect)}</span>
-                    {/* Select statut */}
+                  <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap',marginBottom:'4px'}}>
+                    <span style={{fontSize:'18px',fontWeight:500,color:'var(--tw-ink)',letterSpacing:'-.2px'}}>{prospectDisplayName(selectedProspect)}</span>
+                    {/* Pill statut (pas de gros dropdown coloré) */}
                     <select value={selectedProspect.statut_societe||'Prospect'}
                       onChange={async (e) => {
                         const newStatut = e.target.value;
@@ -5207,70 +5150,78 @@
                           onUpdateProspect({...selectedProspect, statut_societe: newStatut});
                         } catch(err) { window.showToast({title:'Erreur: '+err.message, type:'error'}); }
                       }}
-                      style={{fontSize:'12px',fontWeight:'600',cursor:'pointer',padding:'3px 8px',borderRadius:'20px',border:'none',
+                      style={{fontSize:'11px',fontWeight:500,cursor:'pointer',padding:'3px 10px',borderRadius:'12px',border:'none',
                         color:statutColors[selectedProspect.statut_societe]||'#999',
                         background:statutBgs[selectedProspect.statut_societe]||'#f5f5f5',
-                        fontFamily:"'DM Sans',sans-serif"}}>
+                        fontFamily:"'DM Sans',sans-serif",appearance:'none',paddingRight:'22px',backgroundImage:'url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%278%27 height=%278%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%273%27><polyline points=%276 9 12 15 18 9%27/></svg>")',backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center'}}>
                       <option value="Suspect">Suspect</option>
                       <option value="Prospect">Prospect</option>
                       <option value="Client">Client</option>
                     </select>
-                    {/* Badges client */}
+                    {/* Badges client (style discret) */}
                     {selectedProspect.statut_societe === 'Client' && clientLicences.some(l=>l.licence_type==='perpetuelle') && (
-                      <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'20px',background:'#fff8e1',color:'#f57c00'}}>🔑 Licence perpétuelle</span>
+                      <span style={{fontSize:'11px',fontWeight:500,padding:'2px 9px',borderRadius:'12px',background:'#fff8e1',color:'#b06e2a'}}>Licence perpétuelle</span>
                     )}
                     {selectedProspect.statut_societe === 'Client' && clientLicences.some(l=>l.licence_type==='saas') && (
-                      <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'20px',background:'#e8f4fd',color:'var(--tw-blue)'}}>☁️ SaaS</span>
+                      <span style={{fontSize:'11px',fontWeight:500,padding:'2px 9px',borderRadius:'12px',background:'#d3edff',color:'#0a5085'}}>SaaS</span>
                     )}
                     {selectedProspect.statut_societe === 'Client' && clientLicences.some(l=>l.maintenance==='A3') && (
-                      <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'20px',background:'#e8f8f0',color:'var(--tw-green)'}}>✓ Maintenance A3</span>
+                      <span style={{fontSize:'11px',fontWeight:500,padding:'2px 9px',borderRadius:'12px',background:'#d8f0e3',color:'#0f6e56'}}>Maintenance A3</span>
                     )}
                     {selectedProspect.statut_societe === 'Client' && clientLicences.some(l=>l.maintenance==='A2') && !clientLicences.some(l=>l.maintenance==='A3') && (
-                      <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'20px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>✓ Maintenance A2</span>
+                      <span style={{fontSize:'11px',fontWeight:500,padding:'2px 9px',borderRadius:'12px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Maintenance A2</span>
                     )}
                   </div>
-                  <div style={{fontSize:'13px',color:'var(--tw-muted)',marginTop:'4px'}}>
+
+                  {/* Ligne 2 : contact principal */}
+                  <div style={{fontSize:'13px',color:'var(--tw-slate)'}}>
                     {interlocuteurs.find(i=>i.principal)?.nom && <span>{interlocuteurs.find(i=>i.principal).nom}</span>}
-                    {interlocuteurs.find(i=>i.principal)?.email && <span style={{marginLeft:'8px'}}>· {interlocuteurs.find(i=>i.principal).email}</span>}
-                    {selectedProspect.tel_standard && <span style={{marginLeft:'8px'}}>· {selectedProspect.tel_standard}</span>}
+                    {interlocuteurs.find(i=>i.principal)?.email && <span style={{marginLeft:'6px',color:'var(--tw-muted)'}}>· {interlocuteurs.find(i=>i.principal).email}</span>}
+                    {selectedProspect.tel_standard && <span style={{marginLeft:'6px',color:'var(--tw-muted)'}}>· {selectedProspect.tel_standard}</span>}
                   </div>
-                  {/* Affaire en cours */}
-                  {realStatus && (
-                    <div style={{fontSize:'13px',color:'var(--tw-slate)',marginTop:'5px'}}>
-                      Affaire : <strong style={{color:'var(--tw-ink)'}}>{realStatus.affaireName}</strong>
-                      <span style={{marginLeft:'8px',fontWeight:'600',color:realStatus.devisStatus==='Gagné'?'var(--tw-green)':realStatus.devisStatus==='Perdu'?'var(--tw-red)':'var(--tw-teal)'}}>{realStatus.devisStatus}</span>
-                      {realStatus.probability > 0 && <span style={{marginLeft:'6px',color:'var(--tw-teal)',fontWeight:'600'}}>({realStatus.probability}%)</span>}
-                      {realStatus.quoteDate && <span style={{marginLeft:'8px',color:'var(--tw-muted)'}}>depuis le {new Date(realStatus.quoteDate).toLocaleDateString('fr-FR')}</span>}
-                    </div>
-                  )}
+
+                  {/* Ligne 3 : contexte (affaire en cours + commercial fusionnés) */}
+                  <div style={{fontSize:'12px',color:'var(--tw-muted)',marginTop:'6px',display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center'}}>
+                    {realStatus && (
+                      <span>
+                        <span style={{color:'var(--tw-slate)'}}>Affaire :</span> <strong style={{color:'var(--tw-ink)',fontWeight:500}}>{realStatus.affaireName}</strong>
+                        <span style={{marginLeft:'6px',fontWeight:500,color:realStatus.devisStatus==='Gagné'?'var(--tw-green)':realStatus.devisStatus==='Perdu'?'var(--tw-red)':'var(--tw-teal)'}}>{realStatus.devisStatus}</span>
+                        {realStatus.probability > 0 && <span style={{marginLeft:'4px',color:'var(--tw-teal)',fontWeight:500}}>({realStatus.probability}%)</span>}
+                        {realStatus.quoteDate && <span style={{marginLeft:'6px'}}>depuis le {new Date(realStatus.quoteDate).toLocaleDateString('fr-FR')}</span>}
+                      </span>
+                    )}
+                    {realStatus && <span style={{color:'var(--tw-border)'}}>·</span>}
+                    <span><span style={{color:'var(--tw-slate)'}}>Commercial :</span> <strong style={{color:selectedProspect.assigned_to?'var(--tw-ink)':'var(--tw-muted)',fontWeight:500}}>{selectedProspect.assigned_to || 'Non attribué'}</strong></span>
+                  </div>
                 </div>
-                {/* KPIs client */}
+
+                {/* KPIs client (compact) */}
                 {selectedProspect.statut_societe === 'Client' && (
-                  <div style={{display:'flex',gap:'20px',flexShrink:0}}>
+                  <div style={{display:'flex',gap:'18px',flexShrink:0,paddingTop:'4px'}}>
                     {[
                       {val:clientBoutiques.length, lbl:'Boutiques'},
                       {val:clientLicences.length,  lbl:'Modules'},
                       {val:clientMateriel.length,  lbl:'Appareils'},
                     ].map(k => (
                       <div key={k.lbl} style={{textAlign:'center'}}>
-                        <div style={{fontSize:'22px',fontWeight:'700',color:'var(--tw-teal)',fontVariantNumeric:'tabular-nums'}}>{k.val}</div>
+                        <div style={{fontSize:'18px',fontWeight:500,color:'var(--tw-ink)',fontVariantNumeric:'tabular-nums'}}>{k.val}</div>
                         <div style={{fontSize:'10px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px',marginTop:'2px'}}>{k.lbl}</div>
                       </div>
                     ))}
                   </div>
                 )}
-                {/* Boutons */}
-                <div style={{display:'flex',gap:'8px',flexShrink:0}}>
-                  <button onClick={() => onDelete(selectedProspect.id)} style={styles.deleteBtn}>🗑️</button>
-                </div>
-              </div>
-            </div>
 
-            {/* Commercial assigné — bandeau 1 ligne */}
-            <div style={{background:'white',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'7px 16px',marginBottom:'12px',display:'flex',alignItems:'center',gap:'8px',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
-              <img src="IconeSales.png" style={{width:'13px',height:'13px',objectFit:'contain'}} alt=""/>
-              <span style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px'}}>Commercial</span>
-              <span style={{fontSize:'13px',fontWeight:'600',color:selectedProspect.assigned_to?'var(--tw-ink)':'var(--tw-muted)'}}>{selectedProspect.assigned_to || '— Non attribué —'}</span>
+                {/* Bouton supprimer (discret avec icône SVG) */}
+                <button onClick={() => onDelete(selectedProspect.id)}
+                  title="Supprimer la société"
+                  aria-label="Supprimer la société"
+                  style={{flexShrink:0,width:'30px',height:'30px',borderRadius:'8px',background:'transparent',border:'0.5px solid var(--tw-border)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--tw-muted)',transition:'all .15s'}}
+                  onMouseEnter={(e) => { e.currentTarget.style.background='#fef2f2'; e.currentTarget.style.color='var(--tw-red)'; e.currentTarget.style.borderColor='#fecaca'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='var(--tw-muted)'; e.currentTarget.style.borderColor='var(--tw-border)'; }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                </button>
+              </div>
             </div>
 
 
@@ -5279,40 +5230,61 @@
           {/* ── ONGLETS (Infos, Affaires, Communication + Client: Licences, Boutiques, Matériel) ── */}
           {(() => {
             const isClient = selectedProspect.statut_societe === 'Client';
+            // Icônes SVG inline pour cohérence visuelle (au lieu d'images png + emojis)
+            const TabIcon = ({path, size=14}) => React.createElement('svg', {width:size, height:size, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:1.8, strokeLinecap:'round', strokeLinejoin:'round'}, path);
+            const ICON = {
+              info:    React.createElement(React.Fragment, null, React.createElement('circle',{cx:12,cy:12,r:10}), React.createElement('path',{d:'M12 16v-4M12 8h.01'})),
+              key:     React.createElement(React.Fragment, null, React.createElement('path',{d:'M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4'})),
+              bag:     React.createElement(React.Fragment, null, React.createElement('path',{d:'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0'})),
+              hardware:React.createElement(React.Fragment, null, React.createElement('rect',{x:2,y:3,width:20,height:14,rx:2}), React.createElement('line',{x1:8,y1:21,x2:16,y2:21}), React.createElement('line',{x1:12,y1:17,x2:12,y2:21})),
+              folder:  React.createElement('path',{d:'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'}),
+              actions: React.createElement(React.Fragment, null, React.createElement('path',{d:'M9 11l3 3L22 4'}), React.createElement('path',{d:'M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'})),
+            };
             return (
-            <div style={{marginBottom:'20px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)',overflow:'hidden'}}>
-              {/* Nav onglets */}
-              <div style={{display:'flex',borderBottom:'1px solid var(--tw-border)',background:'var(--tw-bg)',overflowX:'auto'}}>
+            <div style={{marginBottom:'16px'}}>
+              {/* Nav onglets : style moderne, bordure inférieure simple */}
+              <div style={{display:'flex',gap:'2px',borderBottom:'0.5px solid var(--tw-border)',overflowX:'auto'}}>
                 {(() => {
                   const nbAffaires = affairesList.filter(a => a.statut_global !== 'Perdu' && a.statut_global !== 'Gagné').length;
                   const tabs = [
-                    {id:'infos',        lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'Iconeinfo2.png',style:{width:'15px',height:'15px',objectFit:'contain'}}),'Informations')},
+                    {id:'infos',        label:'Informations',   icon: ICON.info},
                     ...(isClient ? [
-                      {id:'licences',     lbl:'🔑 Licences',     count: clientLicences.length},
-                      {id:'boutiques',    lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'IconeBag.png',style:{width:'15px',height:'15px',objectFit:'contain'}}),'Boutiques'),    count: clientBoutiques.length},
-                      {id:'materiel',     lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'caisse-boutik2.png',style:{width:'15px',height:'15px',objectFit:'contain'}}),'Matériel'),     count: clientMateriel.length},
+                      {id:'licences',  label:'Licences',  icon: ICON.key,      count: clientLicences.length},
+                      {id:'boutiques', label:'Boutiques', icon: ICON.bag,      count: clientBoutiques.length},
+                      {id:'materiel',  label:'Matériel',  icon: ICON.hardware, count: clientMateriel.length},
                     ] : []),
-                    {id:'affaires',     lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src: nbAffaires > 0 ? 'iconefolderplein.png' : 'iconefoldervide.png',style:{width:'16px',height:'16px',objectFit:'contain'}}),'Affaires'),     count: nbAffaires},
-                    {id:'communication',lbl: React.createElement('span',{style:{display:'flex',alignItems:'center',gap:'5px'}}, React.createElement('img',{src:'iconeaction2.png',style:{width:'15px',height:'15px',objectFit:'contain'}}),'Actions/Tâches')},
+                    {id:'affaires',     label:'Affaires',       icon: ICON.folder,  count: nbAffaires},
+                    {id:'communication',label:'Actions / Tâches', icon: ICON.actions},
                   ];
                   return tabs;
-                })().map(t => (
-                  <button key={t.id}
-                    onClick={() => setClientTab(t.id)}
-                    style={{padding:'10px 16px',fontFamily:"'DM Sans',sans-serif",fontSize:'13px',fontWeight:clientTab===t.id?'600':'500',
-                      border:'none',background:clientTab===t.id?'white':'transparent',
-                      color:clientTab===t.id?'var(--tw-teal)':'var(--tw-slate)',
-                      borderBottom:clientTab===t.id?'2px solid var(--tw-teal)':'2px solid transparent',
-                      cursor:'pointer',whiteSpace:'nowrap',transition:'all .15s',
-                      display:'flex',alignItems:'center',gap:'5px'}}
-                  >
-                    {t.lbl}
-                    {t.count > 0 && <span style={{fontSize:'10px',fontWeight:'700',padding:'1px 6px',borderRadius:'10px',background:'var(--tw-teal)',color:'white',marginLeft:'2px'}}>{t.count}</span>}
-                  </button>
-                ))}
+                })().map(t => {
+                  const active = clientTab === t.id;
+                  return (
+                    <button key={t.id}
+                      onClick={() => setClientTab(t.id)}
+                      style={{padding:'10px 14px',fontFamily:"'DM Sans',sans-serif",fontSize:'13px',
+                        fontWeight: active ? 500 : 400,
+                        border:'none',background:'transparent',
+                        color: active ? 'var(--tw-teal)' : 'var(--tw-slate)',
+                        borderBottom: active ? '2px solid var(--tw-teal)' : '2px solid transparent',
+                        marginBottom:'-0.5px',
+                        cursor:'pointer',whiteSpace:'nowrap',transition:'color .15s, border-color .15s',
+                        display:'flex',alignItems:'center',gap:'6px'}}
+                    >
+                      <TabIcon path={t.icon}/>
+                      {t.label}
+                      {t.count > 0 && (
+                        <span style={{fontSize:'11px',fontWeight:500,padding:'1px 7px',borderRadius:'10px',
+                          background: active ? 'var(--tw-teal)' : 'var(--tw-bg)',
+                          color: active ? 'white' : 'var(--tw-slate)',
+                          border: active ? 'none' : '0.5px solid var(--tw-border)'}}>{t.count}</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
-              <div style={{padding:'18px 20px'}}>
+              <div style={{padding:'18px 0'}}>
 
                 {/* ── Onglet Infos ── */}
                 {clientTab === 'infos' && (
@@ -6597,277 +6569,306 @@
       
       return (
         <div style={styles.activitiesSection}>
-          {/* ========== SECTION AFFAIRES AVEC ACCORDÉON ========== */}
-          <div style={{backgroundColor: '#f2f8f8', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #c8dede'}}>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
-              <h4 style={{marginTop: 0, marginBottom: 0, color: '#1a3535'}}>📁 Affaires ({affairesList?.length || 0})</h4>
-              <button onClick={handleAddAffaire} style={{backgroundColor: '#007d89', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600'}}>
-                + Nouvelle affaire
-              </button>
-            </div>
+          {/* ========== SECTION AFFAIRES (refonte 2026) ========== */}
+          {(() => {
+            // Icônes SVG inline pour cohérence
+            const I = (path, size=14) => React.createElement('svg', {width:size, height:size, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:1.8, strokeLinecap:'round', strokeLinejoin:'round'}, path);
+            const ICONS = {
+              chevron:    React.createElement('polyline', {points:'6 9 12 15 18 9'}),
+              chevronR:   React.createElement('polyline', {points:'9 18 15 12 9 6'}),
+              folder:     React.createElement('path', {d:'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'}),
+              doc:        React.createElement(React.Fragment, null, React.createElement('path',{d:'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'}), React.createElement('polyline',{points:'14 2 14 8 20 8'})),
+              check:      React.createElement('polyline', {points:'20 6 9 17 4 12'}),
+              edit:       React.createElement(React.Fragment, null, React.createElement('path',{d:'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7'}), React.createElement('path',{d:'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'})),
+              trash:      React.createElement(React.Fragment, null, React.createElement('path',{d:'M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6'})),
+              attach:     React.createElement('path', {d:'M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48'}),
+              download:   React.createElement(React.Fragment, null, React.createElement('path',{d:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'}), React.createElement('polyline',{points:'7 10 12 15 17 10'}), React.createElement('line',{x1:12,y1:15,x2:12,y2:3})),
+              plus:       React.createElement('path', {d:'M12 5v14M5 12h14'}),
+              alert:      React.createElement(React.Fragment, null, React.createElement('circle',{cx:12,cy:12,r:10}), React.createElement('path',{d:'M12 8v4M12 16h.01'})),
+              spark:      React.createElement('path', {d:'M13 2L3 14h9l-1 8 10-12h-9l1-8z'}),
+            };
 
-            {affairesList && affairesList.length > 0 ? (
-              <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
-                {affairesList.map(affaire => {
-                  const isOpen = selectedAffaireId === affaire.id;
-                  const affaireDevis = devisList.filter(d => d.affaire_id === affaire.id).sort((a, b) => new Date(b.quote_date || b.created_at || 0) - new Date(a.quote_date || a.created_at || 0));
-                  return (
-                    <div key={affaire.id} style={{backgroundColor: '#fff', borderRadius: '6px', border: isOpen ? '2px solid #007d89' : '1px solid #c8dede', overflow: 'hidden'}}>
-                      <div onClick={() => setSelectedAffaireId(isOpen ? null : affaire.id)} style={{padding: '12px', cursor: 'pointer', backgroundColor: isOpen ? '#e8f4f5' : '#fff'}}>
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                          <div style={{flex: 1}}>
-                            <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
-                              <span style={{fontWeight: '600', fontSize: '14px', color: '#1a3535'}}>{isOpen ? '▼' : '▶'} {affaire.nom_affaire}</span>
-                              <div style={{display: 'flex', gap: '4px'}} onClick={(e) => e.stopPropagation()}>
-                                <button onClick={() => handleEditAffaire(affaire)} title="Modifier l'affaire" style={{padding: '2px 7px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px'}}>✏️</button>
-                                <button onClick={() => handleDeleteAffaire(affaire.id)} title="Supprimer l'affaire" style={{padding: '2px 7px', backgroundColor: '#f79d8d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px'}}>🗑️</button>
+            // Petit bouton icône réutilisable (action discrète sur card)
+            const IconBtn = ({onClick, title, color='var(--tw-muted)', hoverColor='var(--tw-ink)', hoverBg='var(--tw-bg)', children, danger=false}) => (
+              <button onClick={onClick} title={title} aria-label={title}
+                style={{width:'26px',height:'26px',padding:0,background:'transparent',border:'none',borderRadius:'6px',cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',color:color,transition:'background .15s, color .15s'}}
+                onMouseEnter={(e) => { e.currentTarget.style.background = danger ? '#fef2f2' : hoverBg; e.currentTarget.style.color = danger ? 'var(--tw-red)' : hoverColor; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background='transparent'; e.currentTarget.style.color=color; }}
+              >{children}</button>
+            );
+
+            return (
+            <div style={{marginBottom:'20px'}}>
+              {/* Header section "Affaires" */}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
+                <h3 style={{margin:0,fontSize:'14px',fontWeight:500,color:'var(--tw-ink)'}}>
+                  Affaires <span style={{color:'var(--tw-muted)',fontWeight:400}}>· {affairesList?.length || 0}</span>
+                </h3>
+                <button onClick={handleAddAffaire}
+                  style={{background:'var(--tw-ink)',color:'white',border:'none',padding:'6px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:500,cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',fontFamily:"'DM Sans',sans-serif"}}
+                  onMouseEnter={(e) => e.currentTarget.style.background='#0d2424'}
+                  onMouseLeave={(e) => e.currentTarget.style.background='var(--tw-ink)'}
+                >
+                  {I(ICONS.plus, 11)} Nouvelle affaire
+                </button>
+              </div>
+
+              {affairesList && affairesList.length > 0 ? (
+                <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                  {affairesList.map(affaire => {
+                    const isOpen = selectedAffaireId === affaire.id;
+                    const affaireDevis = devisList.filter(d => d.affaire_id === affaire.id).sort((a, b) => new Date(b.quote_date || b.created_at || 0) - new Date(a.quote_date || a.created_at || 0));
+                    const statutColor = affaire.statut_global === 'Gagné' ? {bg:'#d8f0e3',fg:'#0f6e56'}
+                                       : affaire.statut_global === 'Perdu' ? {bg:'#fde8e8',fg:'#a52d2d'}
+                                       : {bg:'#d3edff',fg:'#0a5085'};
+                    return (
+                      <div key={affaire.id} style={{background:'white',borderRadius:'10px',border:'0.5px solid var(--tw-border)',overflow:'hidden',transition:'border-color .15s'}}>
+                        {/* Bandeau accordéon */}
+                        <div onClick={() => setSelectedAffaireId(isOpen ? null : affaire.id)}
+                          style={{padding:'12px 14px',cursor:'pointer',background: isOpen ? '#fafaf9' : 'white',borderBottom: isOpen ? '0.5px solid var(--tw-border)' : 'none'}}>
+                          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:'10px'}}>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+                                <span style={{color:'var(--tw-muted)',display:'inline-flex'}}>
+                                  {I(isOpen ? ICONS.chevron : ICONS.chevronR, 12)}
+                                </span>
+                                <span style={{fontSize:'13px',fontWeight:500,color:'var(--tw-ink)'}}>{affaire.nom_affaire}</span>
+                                <span style={{fontSize:'11px',fontWeight:500,padding:'2px 8px',borderRadius:'10px',background:statutColor.bg,color:statutColor.fg}}>{affaire.statut_global || 'En cours'}</span>
+                                <span style={{fontSize:'11px',color:'var(--tw-muted)'}}>· {affaireDevis.length} devis</span>
                               </div>
-                            </div>
-                            <div style={{fontSize: '12px', color: '#607a7a', marginTop: '4px'}}>📄 {affaireDevis.length} devis</div>
-                            {(() => {
-                              const actions = affairesActions[affaire.id] || [];
-                              const nextAction = actions.find(a => !a.completed);
-                              if (!nextAction) return (
-                                <div style={{fontSize: '11px', color: '#cc0000', marginTop: '3px'}}>✗ Aucune action planifiée</div>
-                              );
-                              const today = new Date(); today.setHours(0,0,0,0);
-                              const actionDate = nextAction.planned_date ? new Date(nextAction.planned_date) : null;
-                              if (actionDate) actionDate.setHours(0,0,0,0);
-                              const isLate = actionDate && actionDate < today;
-                              const dateStr = actionDate ? actionDate.toLocaleDateString('fr-FR') : '—';
-                              return (
-                                <div style={{fontSize: '11px', marginTop: '3px', color: '#555'}}>
-                                  <span style={{color: '#28a745', fontWeight: 'bold'}}>⚡ </span>
-                                  <span style={{fontWeight: '600'}}>{nextAction.action_type}</span>
-                                  <span style={{fontWeight: 'bold', color: isLate ? '#cc0000' : '#607a7a'}}> • {dateStr}{isLate ? ' ⚠️' : ''}</span>
-                                  {(nextAction.actor || nextAction.contact) && (
-                                    <span style={{color: '#888'}}> | {nextAction.actor || ''}{nextAction.actor && nextAction.contact ? ' → ' : ''}{nextAction.contact || ''}</span>
-                                  )}
-                                </div>
-                              );
-                            })()}
-                          </div>
-
-                        </div>
-                      </div>
-
-                      {isOpen && (
-                        <div style={{padding: '15px', backgroundColor: '#f9f9f9', borderTop: '1px solid #c8dede'}}>
-                          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
-                            <h5 style={{margin: 0, fontSize: '13px', color: '#007d89', fontWeight: 'bold'}}>📄 Devis ({affaireDevis.length})</h5>
-                            <button onClick={handleAddDevis} style={{backgroundColor: '#007d89', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}>+ Devis</button>
-                          </div>
-                          {affaireDevis.length === 0 ? (
-                            <div style={{padding: '15px', textAlign: 'center', color: '#999', fontSize: '12px'}}>Aucun devis</div>
-                          ) : (
-                            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
-                              {affaireDevis.map(devis => (
-                                <div key={devis.id}
-                                  onClick={() => handleEditDevis(devis)}
-                                  style={{padding: '10px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #e0e0e0', cursor: 'pointer', transition: 'background .15s'}}
-                                  onMouseEnter={e => e.currentTarget.style.background='#e6f4f5'}
-                                  onMouseLeave={e => e.currentTarget.style.background='#fff'}
-                                >
-                                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                                    <div style={{flex: 1}}>
-                                      <div style={{fontSize: '13px', fontWeight: '600'}}>
-                                        {devis.devis_name || 'Sans nom'}
-                                        {devis.quote_date && (
-                                          <span style={{fontSize: '11px', color: '#607a7a', fontWeight: '400', marginLeft: '8px'}}>
-                                            [{new Date(devis.quote_date).toLocaleDateString('fr-FR')}]
-                                          </span>
-                                        )}
-                                        <span style={{fontSize: '11px', fontWeight: '600', marginLeft: '8px', color:
-                                          devis.devis_status === 'Gagné' ? '#2ec27e' :
-                                          devis.devis_status === 'Perdu' ? '#e74c3c' :
-                                          devis.devis_status === 'Discussion' ? '#3498db' :
-                                          devis.devis_status === 'Envoyé' ? '#f0932b' :
-                                          '#607a7a'
-                                        }}>{devis.chance_percent}%</span>
-                                      </div>
-                                      <div style={{fontSize: '11px', color: '#666'}}>
-                                        <strong>Setup:</strong> {devis.setup_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | <strong>Abo (M):</strong> {devis.monthly_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | <strong>Abo (A):</strong> {devis.annual_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T. | <strong>Formation:</strong> {devis.training_amount?.toLocaleString('fr-FR', {minimumFractionDigits: 2})} € H.T.
-                                      </div>
-                                    </div>
-                                    <div style={{display: 'flex', gap: '4px'}} onClick={e => e.stopPropagation()}>
-                                      {devis.pdf_url ? (
-                                        <>
-                                          <button
-                                            onClick={async (e) => {
-                                              e.stopPropagation();
-                                              try {
-                                                const res = await fetch(`${API_URL}/devis/${devis.id}/download-pdf`, {
-                                                  headers: { 'Authorization': `Bearer ${user.token}` }
-                                                });
-                                                if (res.ok) {
-                                                  const blob = await res.blob();
-                                                  const url = window.URL.createObjectURL(blob);
-                                                  window.open(url, '_blank');
-                                                }
-                                              } catch (err) {
-                                                window.showToast({title:'Erreur: ' + err.message, type:'error'});
-                                              }
-                                            }}
-                                            style={{padding: '3px 6px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold'}}
-                                            title="Télécharger le PDF"
-                                          >
-                                            📄
-                                          </button>
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleDeleteDevisPDF(devis.id);
-                                            }}
-                                            style={{padding: '3px 6px', backgroundColor: '#f79d8d', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}
-                                            title="Supprimer le PDF"
-                                          >
-                                            🗑️📄
-                                          </button>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <input
-                                            type="file"
-                                            accept="application/pdf,.pdf"
-                                            id={`pdf-upload-${devis.id}`}
-                                            style={{display: 'none'}}
-                                            onChange={async (e) => {
-                                              const file = e.target.files?.[0];
-                                              if (file) await handleUploadDevisPdfDirect(devis.id, file);
-                                              e.target.value = '';
-                                            }}
-                                          />
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              document.getElementById(`pdf-upload-${devis.id}`).click();
-                                            }}
-                                            style={{padding: '3px 6px', backgroundColor: '#fff', color: '#007d89', border: '1px solid #007d89', borderRadius: '3px', cursor: 'pointer', fontSize: '12px'}}
-                                            title="Joindre un PDF"
-                                          >
-                                            📎
-                                          </button>
-                                        </>
-                                      )}
-                                      <button onClick={() => handleEditDevis(devis)} title="Modifier le devis" style={{padding: '3px 6px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}>✏️</button>
-                                      <button onClick={() => handleDeleteDevis(devis.id)} title="Supprimer le devis" style={{padding: '3px 6px', backgroundColor: '#f79d8d', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}>🗑️</button>
-                                    </div>
+                              {/* Prochaine action */}
+                              {(() => {
+                                const actions = affairesActions[affaire.id] || [];
+                                const nextAction = actions.find(a => !a.completed);
+                                if (!nextAction) return (
+                                  <div style={{fontSize:'11px',color:'var(--tw-red)',marginTop:'6px',marginLeft:'20px',display:'flex',alignItems:'center',gap:'4px'}}>
+                                    <span style={{display:'inline-flex',color:'var(--tw-red)'}}>{I(ICONS.alert, 11)}</span> Aucune action planifiée
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          
-                          {/* ========== ACTIONS DE L'AFFAIRE ========== */}
-                          <div style={{marginTop: '20px'}}>
-                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
-                              <h5 style={{margin: 0, fontSize: '13px', color: '#ff8c42', fontWeight: 'bold'}}>📋 Actions affaire ({affairesActions[affaire.id]?.length || 0})</h5>
-                              <button 
-                                onClick={() => handleOpenActionAffaireForm(affaire.id)}
-                                style={{backgroundColor: '#ff8c42', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}
-                              >
-                                + Action
-                              </button>
-                            </div>
-                            
-                            {(!affairesActions[affaire.id] || affairesActions[affaire.id].length === 0) ? (
-                              <div style={{padding: '15px', textAlign: 'center', color: '#999', fontSize: '12px', backgroundColor: '#fff', borderRadius: '4px'}}>
-                                Aucune action pour cette affaire
-                              </div>
-                            ) : (
-                              <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
-                                {[...affairesActions[affaire.id]].sort((a,b) => new Date(b.planned_date||0) - new Date(a.planned_date||0)).map(action => {
-                                  const isExpanded = expandedActionId === action.id;
-                                  return (
-                                  <div key={action.id} style={{
-                                    backgroundColor: action.completed ? '#e8f5e9' : '#fff',
-                                    borderRadius: '4px',
-                                    border: '1px solid ' + (action.completed ? '#c8e6c9' : '#e0e0e0'),
-                                    overflow: 'hidden'
-                                  }}>
-                                    <div 
-                                      onClick={() => setExpandedActionId(isExpanded ? null : action.id)}
-                                      style={{
-                                        padding: '8px 10px',
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        cursor: 'pointer'
-                                      }}
-                                    >
-                                      <div style={{flex: 1, display: 'flex', alignItems: 'center', gap: '8px'}}>
-                                        <input
-                                          type="checkbox"
-                                          checked={action.completed || false}
-                                          onChange={(e) => {
-                                            e.stopPropagation();
-                                            handleToggleActionAffaire(action.id, e.target.checked, affaire.id);
-                                          }}
-                                          style={{cursor: 'pointer'}}
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                        <div style={{flex: 1}}>
-                                          <div style={{fontSize: '12px', fontWeight: '600', color: action.completed ? '#666' : '#1a3535', textDecoration: action.completed ? 'line-through' : 'none'}}>
-                                            {action.action_type} • {new Date(action.planned_date).toLocaleDateString('fr-FR')}
-                                            {(action.actor || action.contact) && (
-                                              <span style={{fontWeight:'400', color:'#888', marginLeft:'6px'}}>
-                                                {action.actor && <span>{action.actor}</span>}
-                                                {action.actor && action.contact && <span> → </span>}
-                                                {action.contact && <span style={{color:'var(--tw-teal)'}}>{action.contact}</span>}
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div style={{display: 'flex', gap: '4px', alignItems: 'center'}}>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteActionAffaire(action.id, affaire.id);
-                                          }}
-                                          style={{padding: '3px 6px', backgroundColor: '#f79d8d', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px'}}
-                                          title="Supprimer l'action"
-                                        >
-                                          🗑️
-                                        </button>
-                                      </div>
-                                    </div>
-                                    
-                                    {isExpanded && (
-                                      <div style={{padding: '8px 10px', borderTop: '1px solid ' + (action.completed ? '#c8e6c9' : '#e0e0e0'), backgroundColor: action.completed ? '#f1f8f2' : '#f9f9f9'}}>
-                                        {(action.actor || action.contact) && (
-                                          <div style={{fontSize: '11px', color: '#666', marginBottom: '4px'}}>
-                                            {action.actor && <span><strong>De:</strong> {action.actor}</span>}
-                                            {action.actor && action.contact && <span> • </span>}
-                                            {action.contact && <span><strong>À:</strong> {action.contact}</span>}
-                                          </div>
-                                        )}
-                                        {action.completed_note && (
-                                          <div style={{fontSize: '11px', color: '#666', fontStyle: 'italic'}}>
-                                            <strong>Commentaire:</strong> {action.completed_note}
-                                          </div>
-                                        )}
-                                        {!action.actor && !action.contact && !action.completed_note && (
-                                          <div style={{fontSize: '11px', color: '#999', fontStyle: 'italic'}}>Aucun détail supplémentaire</div>
-                                        )}
-                                      </div>
+                                );
+                                const today = new Date(); today.setHours(0,0,0,0);
+                                const actionDate = nextAction.planned_date ? new Date(nextAction.planned_date) : null;
+                                if (actionDate) actionDate.setHours(0,0,0,0);
+                                const isLate = actionDate && actionDate < today;
+                                const dateStr = actionDate ? actionDate.toLocaleDateString('fr-FR') : '—';
+                                return (
+                                  <div style={{fontSize:'11px',marginTop:'6px',marginLeft:'20px',color:'var(--tw-slate)',display:'flex',alignItems:'center',gap:'5px'}}>
+                                    <span style={{display:'inline-flex',color:'var(--tw-green)'}}>{I(ICONS.spark, 11)}</span>
+                                    <span style={{fontWeight:500,color:'var(--tw-ink)'}}>{nextAction.action_type}</span>
+                                    <span style={{fontWeight:500,color: isLate ? 'var(--tw-red)' : 'var(--tw-slate)'}}>· {dateStr}{isLate ? ' (en retard)' : ''}</span>
+                                    {(nextAction.actor || nextAction.contact) && (
+                                      <span style={{color:'var(--tw-muted)'}}>· {nextAction.actor || ''}{nextAction.actor && nextAction.contact ? ' → ' : ''}{nextAction.contact || ''}</span>
                                     )}
                                   </div>
+                                );
+                              })()}
+                            </div>
+                            {/* Actions sur l'affaire */}
+                            <div style={{display:'flex',alignItems:'center',gap:'2px'}} onClick={(e) => e.stopPropagation()}>
+                              <IconBtn onClick={() => handleEditAffaire(affaire)} title="Modifier l'affaire">{I(ICONS.edit, 13)}</IconBtn>
+                              <IconBtn onClick={() => handleDeleteAffaire(affaire.id)} title="Supprimer l'affaire" danger>{I(ICONS.trash, 13)}</IconBtn>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Zone repliable */}
+                        {isOpen && (
+                          <div style={{padding:'14px 14px 12px',background:'white'}}>
+                            {/* Header devis */}
+                            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
+                              <p style={{margin:0,fontSize:'11px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:500}}>Devis · {affaireDevis.length}</p>
+                              <button onClick={handleAddDevis}
+                                style={{background:'white',border:'0.5px solid var(--tw-border)',padding:'4px 10px',borderRadius:'6px',fontSize:'11px',color:'var(--tw-slate)',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px',fontFamily:"'DM Sans',sans-serif"}}
+                                onMouseEnter={(e) => { e.currentTarget.style.background='var(--tw-bg)'; e.currentTarget.style.borderColor='var(--tw-slate)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background='white'; e.currentTarget.style.borderColor='var(--tw-border)'; }}
+                              >
+                                {I(ICONS.plus, 10)} Devis
+                              </button>
+                            </div>
+
+                            {/* Liste devis */}
+                            {affaireDevis.length === 0 ? (
+                              <div style={{padding:'14px',textAlign:'center',color:'var(--tw-muted)',fontSize:'12px',background:'var(--tw-bg)',borderRadius:'8px',border:'0.5px dashed var(--tw-border)',fontStyle:'italic'}}>Aucun devis</div>
+                            ) : (
+                              <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                                {affaireDevis.map(devis => {
+                                  const statusColor = devis.devis_status === 'Gagné' ? '#0f6e56'
+                                                    : devis.devis_status === 'Perdu' ? '#a52d2d'
+                                                    : devis.devis_status === 'Discussion' ? '#0a5085'
+                                                    : devis.devis_status === 'Envoyé' ? '#b06e2a'
+                                                    : 'var(--tw-slate)';
+                                  return (
+                                    <div key={devis.id}
+                                      onClick={() => handleEditDevis(devis)}
+                                      style={{padding:'12px 14px',background:'white',borderRadius:'8px',border:'0.5px solid var(--tw-border)',cursor:'pointer',transition:'border-color .15s, background .15s'}}
+                                      onMouseEnter={(e) => { e.currentTarget.style.borderColor='var(--tw-slate)'; e.currentTarget.style.background='#fafaf9'; }}
+                                      onMouseLeave={(e) => { e.currentTarget.style.borderColor='var(--tw-border)'; e.currentTarget.style.background='white'; }}
+                                    >
+                                      {/* Ligne 1 : nom + date + status + actions */}
+                                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px',marginBottom:'10px'}}>
+                                        <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap',minWidth:0,flex:1}}>
+                                          <span style={{fontSize:'12px',fontWeight:500,color:'var(--tw-ink)',fontFamily:'"DM Mono", monospace'}}>{devis.devis_name || 'Sans nom'}</span>
+                                          {devis.quote_date && (
+                                            <span style={{fontSize:'11px',color:'var(--tw-muted)'}}>{new Date(devis.quote_date).toLocaleDateString('fr-FR')}</span>
+                                          )}
+                                          <span style={{fontSize:'11px',fontWeight:500,padding:'2px 8px',borderRadius:'10px',background:'var(--tw-bg)',color:statusColor,border:'0.5px solid var(--tw-border)'}}>{devis.chance_percent || 0}% {devis.devis_status || ''}</span>
+                                        </div>
+                                        <div style={{display:'flex',alignItems:'center',gap:'2px'}} onClick={(e) => e.stopPropagation()}>
+                                          {devis.pdf_url ? (
+                                            <>
+                                              <IconBtn title="Télécharger le PDF" color="var(--tw-teal)" hoverColor="var(--tw-teal)" hoverBg="var(--tw-teal-light)"
+                                                onClick={async (e) => {
+                                                  e.stopPropagation();
+                                                  try {
+                                                    const res = await fetch(`${API_URL}/devis/${devis.id}/download-pdf`, {
+                                                      headers: { 'Authorization': `Bearer ${user.token}` }
+                                                    });
+                                                    if (res.ok) {
+                                                      const blob = await res.blob();
+                                                      const url = window.URL.createObjectURL(blob);
+                                                      window.open(url, '_blank');
+                                                    }
+                                                  } catch (err) {
+                                                    window.showToast({title:'Erreur: ' + err.message, type:'error'});
+                                                  }
+                                                }}
+                                              >{I(ICONS.download, 13)}</IconBtn>
+                                              <IconBtn title="Supprimer le PDF" danger
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteDevisPDF(devis.id); }}
+                                              >{I(ICONS.attach, 13)}</IconBtn>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <input type="file" accept="application/pdf,.pdf" id={`pdf-upload-${devis.id}`} style={{display:'none'}}
+                                                onChange={async (e) => {
+                                                  const file = e.target.files?.[0];
+                                                  if (file) await handleUploadDevisPdfDirect(devis.id, file);
+                                                  e.target.value = '';
+                                                }}
+                                              />
+                                              <IconBtn title="Joindre un PDF"
+                                                onClick={(e) => { e.stopPropagation(); document.getElementById(`pdf-upload-${devis.id}`).click(); }}
+                                              >{I(ICONS.attach, 13)}</IconBtn>
+                                            </>
+                                          )}
+                                          <IconBtn title="Modifier le devis" onClick={() => handleEditDevis(devis)}>{I(ICONS.edit, 13)}</IconBtn>
+                                          <IconBtn title="Supprimer le devis" danger onClick={() => handleDeleteDevis(devis.id)}>{I(ICONS.trash, 13)}</IconBtn>
+                                        </div>
+                                      </div>
+                                      {/* Ligne 2 : 4 mini-cartes pour les montants */}
+                                      <div style={{display:'grid',gridTemplateColumns:'repeat(4, 1fr)',gap:'10px',paddingTop:'10px',borderTop:'0.5px solid var(--tw-border)'}}>
+                                        <div>
+                                          <p style={{margin:0,fontSize:'10px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px',fontWeight:500}}>Setup</p>
+                                          <p style={{margin:'2px 0 0',fontSize:'13px',fontWeight:500,color:'var(--tw-ink)',fontVariantNumeric:'tabular-nums'}}>{(devis.setup_amount||0).toLocaleString('fr-FR', {maximumFractionDigits:0})} €</p>
+                                        </div>
+                                        <div>
+                                          <p style={{margin:0,fontSize:'10px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px',fontWeight:500}}>Abo. mensuel</p>
+                                          <p style={{margin:'2px 0 0',fontSize:'13px',fontWeight:500,color:'var(--tw-ink)',fontVariantNumeric:'tabular-nums'}}>{(devis.monthly_amount||0).toLocaleString('fr-FR', {maximumFractionDigits:0})} €<span style={{fontSize:'10px',color:'var(--tw-muted)',fontWeight:400}}>/mois</span></p>
+                                        </div>
+                                        <div>
+                                          <p style={{margin:0,fontSize:'10px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px',fontWeight:500}}>Abo. annuel</p>
+                                          <p style={{margin:'2px 0 0',fontSize:'13px',fontWeight:500,color:'var(--tw-ink)',fontVariantNumeric:'tabular-nums'}}>{(devis.annual_amount||0).toLocaleString('fr-FR', {maximumFractionDigits:0})} €<span style={{fontSize:'10px',color:'var(--tw-muted)',fontWeight:400}}>/an</span></p>
+                                        </div>
+                                        <div>
+                                          <p style={{margin:0,fontSize:'10px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px',fontWeight:500}}>Formation</p>
+                                          <p style={{margin:'2px 0 0',fontSize:'13px',fontWeight:500,color:'var(--tw-ink)',fontVariantNumeric:'tabular-nums'}}>{(devis.training_amount||0).toLocaleString('fr-FR', {maximumFractionDigits:0})} €</p>
+                                        </div>
+                                      </div>
+                                    </div>
                                   );
                                 })}
                               </div>
                             )}
+
+                            {/* ========== ACTIONS DE L'AFFAIRE ========== */}
+                            <div style={{marginTop:'18px'}}>
+                              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
+                                <p style={{margin:0,fontSize:'11px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:500}}>Actions de l'affaire · {affairesActions[affaire.id]?.length || 0}</p>
+                                <button onClick={() => handleOpenActionAffaireForm(affaire.id)}
+                                  style={{background:'white',border:'0.5px solid var(--tw-border)',padding:'4px 10px',borderRadius:'6px',fontSize:'11px',color:'var(--tw-slate)',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px',fontFamily:"'DM Sans',sans-serif"}}
+                                  onMouseEnter={(e) => { e.currentTarget.style.background='var(--tw-bg)'; e.currentTarget.style.borderColor='var(--tw-slate)'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background='white'; e.currentTarget.style.borderColor='var(--tw-border)'; }}
+                                >
+                                  {I(ICONS.plus, 10)} Action
+                                </button>
+                              </div>
+
+                              {(!affairesActions[affaire.id] || affairesActions[affaire.id].length === 0) ? (
+                                <div style={{padding:'14px',textAlign:'center',color:'var(--tw-muted)',fontSize:'12px',background:'var(--tw-bg)',borderRadius:'8px',border:'0.5px dashed var(--tw-border)',fontStyle:'italic'}}>
+                                  Aucune action planifiée pour cette affaire
+                                </div>
+                              ) : (
+                                <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+                                  {[...affairesActions[affaire.id]].sort((a,b) => new Date(b.planned_date||0) - new Date(a.planned_date||0)).map(action => {
+                                    const isExpanded = expandedActionId === action.id;
+                                    return (
+                                      <div key={action.id} style={{
+                                        background: action.completed ? '#f6faf6' : 'white',
+                                        borderRadius:'8px',
+                                        border:'0.5px solid ' + (action.completed ? '#cfe5d2' : 'var(--tw-border)'),
+                                        overflow:'hidden'
+                                      }}>
+                                        <div onClick={() => setExpandedActionId(isExpanded ? null : action.id)}
+                                          style={{padding:'8px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',cursor:'pointer'}}>
+                                          <div style={{flex:1,display:'flex',alignItems:'center',gap:'10px',minWidth:0}}>
+                                            <input type="checkbox" checked={action.completed || false}
+                                              onChange={(e) => { e.stopPropagation(); handleToggleActionAffaire(action.id, e.target.checked, affaire.id); }}
+                                              onClick={(e) => e.stopPropagation()}
+                                              style={{cursor:'pointer',accentColor:'var(--tw-teal)'}}
+                                            />
+                                            <div style={{flex:1,minWidth:0}}>
+                                              <div style={{fontSize:'12px',fontWeight:500,color:action.completed ? 'var(--tw-muted)' : 'var(--tw-ink)',textDecoration:action.completed ? 'line-through' : 'none'}}>
+                                                {action.action_type}
+                                                <span style={{fontWeight:400,color:'var(--tw-slate)',marginLeft:'8px'}}>· {new Date(action.planned_date).toLocaleDateString('fr-FR')}</span>
+                                                {(action.actor || action.contact) && (
+                                                  <span style={{fontWeight:400,color:'var(--tw-muted)',marginLeft:'8px'}}>
+                                                    {action.actor && <span>{action.actor}</span>}
+                                                    {action.actor && action.contact && <span> → </span>}
+                                                    {action.contact && <span style={{color:'var(--tw-teal)'}}>{action.contact}</span>}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <IconBtn title="Supprimer l'action" danger onClick={(e) => { e.stopPropagation(); handleDeleteActionAffaire(action.id, affaire.id); }}>{I(ICONS.trash, 13)}</IconBtn>
+                                        </div>
+
+                                        {isExpanded && (
+                                          <div style={{padding:'8px 12px',borderTop:'0.5px solid ' + (action.completed ? '#cfe5d2' : 'var(--tw-border)'),background: action.completed ? '#fbfdfb' : '#fafaf9'}}>
+                                            {(action.actor || action.contact) && (
+                                              <div style={{fontSize:'11px',color:'var(--tw-slate)',marginBottom:'4px'}}>
+                                                {action.actor && <span><span style={{color:'var(--tw-muted)'}}>De :</span> {action.actor}</span>}
+                                                {action.actor && action.contact && <span> · </span>}
+                                                {action.contact && <span><span style={{color:'var(--tw-muted)'}}>À :</span> {action.contact}</span>}
+                                              </div>
+                                            )}
+                                            {action.completed_note && (
+                                              <div style={{fontSize:'11px',color:'var(--tw-slate)',fontStyle:'italic'}}>
+                                                <span style={{color:'var(--tw-muted)',fontStyle:'normal'}}>Commentaire :</span> {action.completed_note}
+                                              </div>
+                                            )}
+                                            {!action.actor && !action.contact && !action.completed_note && (
+                                              <div style={{fontSize:'11px',color:'var(--tw-muted)',fontStyle:'italic'}}>Aucun détail supplémentaire</div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{padding: '20px', textAlign: 'center', color: '#999', fontSize: '13px'}}>Aucune affaire</div>
-            )}
-          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{padding:'24px',textAlign:'center',color:'var(--tw-muted)',fontSize:'13px',background:'var(--tw-bg)',borderRadius:'10px',border:'0.5px dashed var(--tw-border)',fontStyle:'italic'}}>Aucune affaire pour cette société</div>
+              )}
+            </div>
+            );
+          })()}
           
           {/* ========== MODAL AFFAIRE ========== */}
           {showAffaireForm && (
