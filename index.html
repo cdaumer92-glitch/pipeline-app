@@ -4057,18 +4057,19 @@
 
       // === KPIs calculés depuis les données réelles ===
       const today = new Date(); today.setHours(0,0,0,0);
-      const pipelineActif = prospects.filter(p => p.real_status && ['Devis','Démo','Négociation','Discussion','Envoyé'].includes(p.real_status));
+      const pipelineActif = prospects.filter(p => p.real_status && ['En cours','Envoyé','Discussion'].includes(p.real_status));
       const aboMensuel = pipelineActif.reduce((s,p) => s + (parseFloat(p.real_monthly_amount || p.monthly_amount) || 0), 0);
       const aboPondere = pipelineActif.reduce((s,p) => s + (parseFloat(p.real_monthly_amount || p.monthly_amount) || 0) * ((p.real_probability||0)/100), 0);
       const nbActifs = pipelineActif.length;
       const nbRetard = Object.values(prospectActionsInfo || {}).filter(a => a && a.isLate).length;
 
-      // === Mini sparkline : répartition par statut ===
+      // === Mini sparkline : répartition par statut de devis ===
+      // (5 valeurs réelles côté DB : En cours / Envoyé / Discussion / Gagné / Perdu)
       const statusCounts = {
-        'Devis':    prospects.filter(p => p.real_status === 'Devis').length,
-        'Démo':     prospects.filter(p => p.real_status === 'Démo').length,
-        'Négo':     prospects.filter(p => p.real_status === 'Négociation').length,
-        'Signé':    prospects.filter(p => p.real_status === 'Gagné' || p.real_status === 'Signé').length,
+        'En cours':   prospects.filter(p => p.real_status === 'En cours').length,
+        'Envoyé':     prospects.filter(p => p.real_status === 'Envoyé').length,
+        'Discussion': prospects.filter(p => p.real_status === 'Discussion').length,
+        'Gagné':      prospects.filter(p => p.real_status === 'Gagné').length,
       };
       const maxCount = Math.max(1, ...Object.values(statusCounts));
 
@@ -4112,7 +4113,7 @@
               <div style={{display:'flex',gap:'4px',alignItems:'flex-end',height:'36px'}}>
                 {Object.entries(statusCounts).map(([k, v], idx) => {
                   const pct = (v / maxCount) * 100;
-                  const colors = [A.amber, A.blue, A.amber, A.teal];
+                  const colors = [A.amber, A.amber, A.blue, A.teal];
                   return (
                     <div key={k} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:'4px'}}>
                       <div style={{width:'100%',height:`${Math.max(3,pct)}%`,background:colors[idx],borderRadius:'2px 2px 0 0',transition:'height .3s'}}></div>
