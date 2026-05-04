@@ -57,6 +57,156 @@
     return body;
   }
 
+  // ─── Mode MOCK ───────────────────────────────────────────────
+  // Activation : localStorage.setItem('SI_MOCK', '1')
+  // Désactivation : localStorage.removeItem('SI_MOCK')
+  // Permet de tester toute l'UX (recherche, sélection, dirigeants, import)
+  // sans consommer un seul crédit SocieteInfo.
+
+  function isMockEnabled() {
+    try { return localStorage.getItem('SI_MOCK') === '1'; }
+    catch (e) { return false; }
+  }
+
+  // Catalogue de fausses sociétés textile/fashion pour les tests
+  const MOCK_COMPANIES = [
+    {
+      id: 'mock-001',
+      registration_number: '111111111',
+      full_registration_number: '11111111100018',
+      name: 'MAISON DEMO COUTURE',
+      activity: 'Création et confection de prêt-à-porter féminin',
+      formatted_address: '75008 PARIS',
+      lat: 48.8738, lng: 2.3018,
+      naf_code: '1413Z',
+      phone: '01 42 56 78 90',
+      website: 'https://maison-demo.fr',
+      brands: ['DEMO COUTURE', 'ATELIER DEMO']
+    },
+    {
+      id: 'mock-002',
+      registration_number: '222222222',
+      full_registration_number: '22222222200027',
+      name: 'TEXTILE TEST SAS',
+      activity: 'Négoce de tissus et bonneterie',
+      formatted_address: '69002 LYON',
+      lat: 45.7485, lng: 4.8365,
+      naf_code: '4641Z',
+      phone: '04 78 12 34 56',
+      website: 'https://textile-test.fr',
+      brands: ['TEXTEST']
+    },
+    {
+      id: 'mock-003',
+      registration_number: '333333333',
+      full_registration_number: '33333333300013',
+      name: 'BOUTIQUE FACTICE GROUP',
+      activity: 'Commerce de détail d\'habillement en magasin spécialisé',
+      formatted_address: '13001 MARSEILLE',
+      lat: 43.2980, lng: 5.3811,
+      naf_code: '4771Z',
+      phone: '04 91 11 22 33',
+      website: 'https://factice-group.fr',
+      brands: ['FACTICE', 'BOUTIQUE FAC']
+    },
+    {
+      id: 'mock-004',
+      registration_number: '444444444',
+      full_registration_number: '44444444400024',
+      name: 'MODE EXAMPLE SARL',
+      activity: 'Fabrication de vêtements de dessus',
+      formatted_address: '59000 LILLE',
+      lat: 50.6292, lng: 3.0573,
+      naf_code: '1413Z',
+      phone: '03 20 11 22 33',
+      website: '',
+      brands: []
+    },
+    {
+      id: 'mock-005',
+      registration_number: '555555555',
+      full_registration_number: '55555555500011',
+      name: 'CUIRCO MOCKED',
+      activity: 'Maroquinerie et accessoires de luxe',
+      formatted_address: '93160 NOISY-LE-GRAND',
+      lat: 48.8498, lng: 2.5627,
+      naf_code: '1512Z',
+      phone: '01 43 04 56 78',
+      website: 'https://cuirco-mocked.fr',
+      brands: ['CUIRCO MOCK']
+    }
+  ];
+
+  // Faux dirigeants par société
+  const MOCK_CONTACTS = {
+    '111111111': [
+      { id: 'c-001-1', gender: 'F', firstName: 'Sophie', lastName: 'DURAND', position: 'Présidente' },
+      { id: 'c-001-2', gender: 'M', firstName: 'Jean', lastName: 'MARTIN', position: 'Directeur Général' },
+      { id: 'c-001-3', gender: 'F', firstName: 'Claire', lastName: 'BERNARD', position: 'Directrice Commerciale' }
+    ],
+    '222222222': [
+      { id: 'c-002-1', gender: 'M', firstName: 'Pierre', lastName: 'LEFEVRE', position: 'PDG' },
+      { id: 'c-002-2', gender: 'F', firstName: 'Marie', lastName: 'DUBOIS', position: 'Directrice Achats' }
+    ],
+    '333333333': [
+      { id: 'c-003-1', gender: 'M', firstName: 'Luc', lastName: 'MOREAU', position: 'Gérant' }
+    ],
+    '444444444': [
+      { id: 'c-004-1', gender: 'F', firstName: 'Anne', lastName: 'GIRARD', position: 'Présidente' },
+      { id: 'c-004-2', gender: 'M', firstName: 'Paul', lastName: 'ROUX', position: 'DAF' }
+    ],
+    '555555555': [
+      { id: 'c-005-1', gender: 'M', firstName: 'Thomas', lastName: 'NOIR', position: 'Président Directeur Général' },
+      { id: 'c-005-2', gender: 'F', firstName: 'Léa', lastName: 'BLANC', position: 'Directrice Commerciale' },
+      { id: 'c-005-3', gender: 'M', firstName: 'Hugo', lastName: 'GRIS', position: 'Responsable Export' }
+    ]
+  };
+
+  // Délai artificiel pour simuler la latence réseau
+  const mockDelay = (ms = 250) => new Promise(r => setTimeout(r, ms));
+
+  function mockSearch(q) {
+    const Q = (q || '').toLowerCase();
+    const matched = MOCK_COMPANIES.filter(c =>
+      c.name.toLowerCase().includes(Q) ||
+      (c.brands || []).some(b => b.toLowerCase().includes(Q)) ||
+      c.activity.toLowerCase().includes(Q)
+    );
+    return {
+      success: true,
+      total: matched.length,
+      result: matched
+    };
+  }
+
+  function mockGetCompany(siren) {
+    const cleaned = String(siren || '').replace(/\D/g, '').slice(0, 9);
+    const company = MOCK_COMPANIES.find(c => c.registration_number === cleaned);
+    if (!company) {
+      return { success: false, error: 'Société mock introuvable pour SIREN ' + cleaned };
+    }
+    return { success: true, result: company };
+  }
+
+  function mockGetContacts(siren) {
+    const cleaned = String(siren || '').replace(/\D/g, '').slice(0, 9);
+    const contacts = MOCK_CONTACTS[cleaned] || [];
+    return { success: true, total: contacts.length, result: contacts };
+  }
+
+  function mockGetContactsDetails(siren, contactIds) {
+    const cleaned = String(siren || '').replace(/\D/g, '').slice(0, 9);
+    const contacts = MOCK_CONTACTS[cleaned] || [];
+    const wanted = new Set(contactIds);
+    // En mock on ajoute des emails et tels factices
+    const enriched = contacts.filter(c => wanted.has(c.id)).map(c => ({
+      ...c,
+      email: `${c.firstName.toLowerCase()}.${c.lastName.toLowerCase()}@${cleaned}-demo.fr`,
+      phone: '01 23 45 67 ' + (Math.floor(Math.random() * 90) + 10)
+    }));
+    return { success: true, total: enriched.length, result: enriched };
+  }
+
   // ─── API publique ────────────────────────────────────────────
 
   /**
@@ -90,6 +240,10 @@
     if (trimmed.length < 2) {
       throw new Error('Requête trop courte (min 2 caractères)');
     }
+    if (isMockEnabled()) {
+      await mockDelay();
+      return mockSearch(trimmed);
+    }
     return call(`/api/societeinfo/search?q=${encodeURIComponent(trimmed)}`);
   }
 
@@ -102,6 +256,10 @@
     const cleaned = String(siren || '').replace(/\D/g, '');
     if (cleaned.length !== 9) {
       throw new Error('SIREN invalide (9 chiffres requis)');
+    }
+    if (isMockEnabled()) {
+      await mockDelay();
+      return mockGetCompany(cleaned);
     }
     return call(`/api/societeinfo/company/${cleaned}`);
   }
@@ -128,6 +286,10 @@
     if (cleaned.length !== 9) {
       throw new Error('SIREN invalide');
     }
+    if (isMockEnabled()) {
+      await mockDelay();
+      return mockGetContacts(cleaned);
+    }
     return call(`/api/societeinfo/contacts/${cleaned}`);
   }
 
@@ -144,6 +306,10 @@
     }
     if (!Array.isArray(contactIds) || contactIds.length === 0) {
       throw new Error('Aucun contact sélectionné');
+    }
+    if (isMockEnabled()) {
+      await mockDelay();
+      return mockGetContactsDetails(cleaned, contactIds);
     }
     const ids = contactIds.join(',');
     return call(`/api/societeinfo/contacts-details/${cleaned}?contact_ids=${encodeURIComponent(ids)}`);
@@ -254,6 +420,11 @@
   async function checkDuplicateBySiren(siren) {
     const cleaned = String(siren || '').replace(/\D/g, '');
     if (cleaned.length !== 9) return null;
+    // En mode mock : aucun doublon n'est jamais détecté (UX complète testable)
+    if (isMockEnabled()) {
+      await mockDelay(50);
+      return null;
+    }
     const token = getToken();
     if (!token) throw new Error('Non authentifié');
     try {
@@ -284,7 +455,16 @@
     companyToProspect,
     contactToInterlocuteur,
     // Doublons
-    checkDuplicateBySiren
+    checkDuplicateBySiren,
+    // Helpers mode mock
+    enableMock: () => { localStorage.setItem('SI_MOCK', '1'); console.log('[SInfo] Mode MOCK activé — aucun crédit ne sera consommé. Rechargez la page.'); },
+    disableMock: () => { localStorage.removeItem('SI_MOCK'); console.log('[SInfo] Mode mock désactivé. Rechargez la page.'); },
+    isMockEnabled
   };
+
+  // Log au chargement si mock actif (warning visible dans la console)
+  if (isMockEnabled()) {
+    console.warn('%c[SInfo] MODE MOCK ACTIF — toutes les requêtes utilisent des données factices, aucun crédit consommé. Désactivez avec SInfo.disableMock()', 'background:#b06e2a;color:white;padding:4px 8px;border-radius:4px;font-weight:bold;');
+  }
 
 })();
