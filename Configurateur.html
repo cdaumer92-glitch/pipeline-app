@@ -24,24 +24,17 @@
 
     <!-- Prospect -->
     <div class="card">
-      <div class="card-header" style="gap:16px;">
-        <span style="display:inline-flex;align-items:center;gap:8px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:#007d89"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Prospect
-        </span>
-        <!-- Search masquée volontairement (cf configurateur-2026.css) -->
-        <div class="pipeline-search-hidden" style="position:relative;flex:1;max-width:340px;">
-          <input type="text" id="pipelineSearch" placeholder="Rechercher dans Pipeline..."
-            oninput="searchPipeline(this.value)"
-            class="pipeline-header-input">
-          <div id="pipelineSpinner" style="display:none;"></div>
-          <div class="pipeline-results" id="pipelineResults" style="top:calc(100% + 4px);"></div>
-        </div>
+      <!-- Search masquée mais conservée pour ne pas casser le JS -->
+      <div class="pipeline-search-hidden" style="position:relative;">
+        <input type="text" id="pipelineSearch" placeholder="Rechercher dans Pipeline..."
+          oninput="searchPipeline(this.value)"
+          class="pipeline-header-input">
+        <div id="pipelineSpinner" style="display:none;"></div>
+        <div class="pipeline-results" id="pipelineResults"></div>
       </div>
       <div class="prospect-grid">
         <!-- Colonne gauche : Société -->
         <div class="prospect-col">
-          <div class="prospect-col-title">Société</div>
           <label class="field-label">Nom de la Société</label>
           <input type="text" class="field-input" id="societe" value="Nom de la Société">
           <label class="field-label">Adresse</label>
@@ -49,7 +42,6 @@
         </div>
         <!-- Colonne droite : Coordonnées -->
         <div class="prospect-col">
-          <div class="prospect-col-title">Coordonnées</div>
           <label class="field-label">Contact</label>
           <input type="text" class="field-input" id="contact" placeholder="Prénom Nom, Fonction">
           <label class="field-label">Commercial</label>
