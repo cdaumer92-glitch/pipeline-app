@@ -425,9 +425,8 @@ body {
    DRAWER ANTHRACITE (cockpit)
    ============================================================ */
 
-.drawer-overlay {
+.drawer-overlay.open {
   background: rgba(45, 53, 64, 0.45) !important;
-  backdrop-filter: blur(2px) !important;
 }
 
 .drawer {
