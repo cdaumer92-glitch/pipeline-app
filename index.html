@@ -5241,9 +5241,9 @@
               actions: React.createElement(React.Fragment, null, React.createElement('path',{d:'M9 11l3 3L22 4'}), React.createElement('path',{d:'M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'})),
             };
             return (
-            <div style={{marginBottom:'16px'}}>
+            <div style={{marginBottom:'16px',background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'12px',overflow:'hidden'}}>
               {/* Nav onglets : style moderne, bordure inférieure simple */}
-              <div style={{display:'flex',gap:'2px',borderBottom:'0.5px solid var(--tw-border)',overflowX:'auto'}}>
+              <div style={{display:'flex',gap:'2px',borderBottom:'0.5px solid var(--tw-border)',overflowX:'auto',padding:'0 14px'}}>
                 {(() => {
                   const nbAffaires = affairesList.filter(a => a.statut_global !== 'Perdu' && a.statut_global !== 'Gagné').length;
                   const tabs = [
@@ -5287,7 +5287,7 @@
                 })}
               </div>
 
-              <div style={{padding:'18px 0'}}>
+              <div style={{padding:'18px 16px'}}>
 
                 {/* ── Onglet Infos ── */}
                 {clientTab === 'infos' && (
