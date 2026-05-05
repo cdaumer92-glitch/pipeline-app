@@ -715,7 +715,9 @@
         email: '',
         telephone: '',
         principal: false,
-        decideur: false
+        decideur: false,
+        accept_emailing: false,
+        accept_notes_info: false
       });
       // États pour les devis
       const [devisList, setDevisList] = React.useState([]);
@@ -932,7 +934,10 @@
               fonction: '',
               email: '',
               telephone: '',
-              principal: false
+              principal: false,
+              decideur: false,
+              accept_emailing: false,
+              accept_notes_info: false
             });
           } else {
             window.showToast({title:'Erreur lors de la sauvegarde', type:'error'});
@@ -6478,7 +6483,7 @@
                     {/* Contacts */}
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
                       <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)'}}>Contacts</div>
-                      <button onClick={() => { setInterlocuteurForm({nom:'',fonction:'',email:'',telephone:'',principal:false,decideur:false}); setShowInterlocuteurForm(true); }}
+                      <button onClick={() => { setInterlocuteurForm({nom:'',fonction:'',email:'',telephone:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false}); setShowInterlocuteurForm(true); }}
                         style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Contact</button>
                     </div>
 
@@ -6498,7 +6503,7 @@
                               style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
                           ))}
                         </div>
-                        <div style={{display:'flex',gap:'16px',marginBottom:'12px'}}>
+                        <div style={{display:'flex',gap:'16px',marginBottom:'12px',flexWrap:'wrap'}}>
                           <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',cursor:'pointer'}}>
                             <input type="checkbox" checked={!!interlocuteurForm.principal} onChange={e=>setInterlocuteurForm({...interlocuteurForm,principal:e.target.checked})} />
                             Contact principal
@@ -6506,6 +6511,17 @@
                           <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',cursor:'pointer'}}>
                             <input type="checkbox" checked={!!interlocuteurForm.decideur} onChange={e=>setInterlocuteurForm({...interlocuteurForm,decideur:e.target.checked})} />
                             Décideur
+                          </label>
+                        </div>
+                        {/* Consentements RGPD - opt-in séparés pour communications */}
+                        <div style={{display:'flex',gap:'16px',marginBottom:'12px',flexWrap:'wrap',padding:'8px 10px',background:'#f4f7f7',borderRadius:'6px',border:'0.5px dashed #cde0e0'}}>
+                          <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',color:'#4a6868'}} title="Le contact accepte de recevoir des campagnes commerciales (offres, promos, sollicitations)">
+                            <input type="checkbox" checked={!!interlocuteurForm.accept_emailing} onChange={e=>setInterlocuteurForm({...interlocuteurForm,accept_emailing:e.target.checked})} />
+                            📧 Emailing commercial
+                          </label>
+                          <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',color:'#4a6868'}} title="Le contact accepte de recevoir des notes d'information (changements tarifs, infos produit, alertes service)">
+                            <input type="checkbox" checked={!!interlocuteurForm.accept_notes_info} onChange={e=>setInterlocuteurForm({...interlocuteurForm,accept_notes_info:e.target.checked})} />
+                            📰 Notes d'information
                           </label>
                         </div>
                         <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
@@ -6533,9 +6549,11 @@
                             </div>
                           </div>
                           <div style={{display:'flex',gap:'5px',alignItems:'center',flexShrink:0}}>
+                            {c.accept_emailing && <span title="Accepte les emailings commerciaux" style={{fontSize:'10px',fontWeight:'600',padding:'2px 6px',borderRadius:'8px',background:'#dcfce7',color:'#166534'}}>📧</span>}
+                            {c.accept_notes_info && <span title="Accepte les notes d'information" style={{fontSize:'10px',fontWeight:'600',padding:'2px 6px',borderRadius:'8px',background:'#dbeafe',color:'#1e40af'}}>📰</span>}
                             {c.decideur && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'#fdecea',color:'var(--tw-red)'}}>Décideur</span>}
                             {c.principal && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
-                            <button onClick={() => { setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',principal:!!c.principal,decideur:!!c.decideur}); setShowInterlocuteurForm(true); }}
+                            <button onClick={() => { setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info}); setShowInterlocuteurForm(true); }}
                               style={{padding:'2px 7px',border:'1px solid var(--tw-border)',borderRadius:'4px',background:'white',cursor:'pointer',fontSize:'11px'}}>✏️</button>
                             <button onClick={() => handleDeleteInterlocuteur(c.id)}
                               style={{padding:'2px 6px',border:'none',borderRadius:'4px',background:'#f79d8d',color:'white',cursor:'pointer',fontSize:'10px'}}>🗑️</button>

@@ -395,6 +395,13 @@ async function initDB() {
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS prenom TEXT`);
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS civilite TEXT`);
 
+    // Migration: flags de communication (RGPD - opt-in séparés)
+    //   accept_emailing   : accepte les campagnes commerciales (offres, promos, sollicitations)
+    //   accept_notes_info : accepte les notes d'information (changements tarifs, infos produit, alertes)
+    //   Par défaut false (RGPD strict - consentement explicite requis)
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS accept_emailing BOOLEAN DEFAULT false`);
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS accept_notes_info BOOLEAN DEFAULT false`);
+
     // ========== MIGRATION GCS → Scaleway : préfixes pdf_url ==========
     await client.query(`
       CREATE TABLE IF NOT EXISTS migrations (
@@ -641,7 +648,9 @@ app.get('/api/public/companies/search', async (req, res) => {
         COALESCE(email, '')    AS email,
         COALESCE(telephone,'') AS telephone,
         COALESCE(principal, false) AS principal,
-        COALESCE(decideur, false)  AS decideur
+        COALESCE(decideur, false)  AS decideur,
+        COALESCE(accept_emailing, false)   AS accept_emailing,
+        COALESCE(accept_notes_info, false) AS accept_notes_info
       FROM interlocuteurs
       WHERE prospect_id = ANY($1::int[])
         AND NULLIF(TRIM(COALESCE(prenom,'') || ' ' || COALESCE(nom,'')), '') IS NOT NULL
@@ -660,6 +669,8 @@ app.get('/api/public/companies/search', async (req, res) => {
         telephone: i.telephone,
         principal: i.principal,
         decideur:  i.decideur,
+        accept_emailing:   i.accept_emailing,
+        accept_notes_info: i.accept_notes_info,
       });
     }
 
@@ -1947,7 +1958,7 @@ app.get('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
 app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { nom, fonction, email, telephone, principal, decideur } = req.body;
+    const { nom, fonction, email, telephone, principal, decideur, accept_emailing, accept_notes_info } = req.body;
 
     if (principal) {
       await pool.query(
@@ -1957,10 +1968,10 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO interlocuteurs (prospect_id, nom, fonction, email, telephone, principal, decideur) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7) 
+      `INSERT INTO interlocuteurs (prospect_id, nom, fonction, email, telephone, principal, decideur, accept_emailing, accept_notes_info) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
        RETURNING *`,
-      [id, nom, fonction, email, telephone, principal || false, decideur || false]
+      [id, nom, fonction, email, telephone, principal || false, decideur || false, accept_emailing || false, accept_notes_info || false]
     );
 
     res.json(result.rows[0]);
@@ -1973,7 +1984,7 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
 app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) => {
   try {
     const { prospectId, id } = req.params;
-    const { nom, fonction, email, telephone, principal, decideur } = req.body;
+    const { nom, fonction, email, telephone, principal, decideur, accept_emailing, accept_notes_info } = req.body;
 
     if (principal) {
       await pool.query(
@@ -1982,12 +1993,21 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
       );
     }
 
+    // COALESCE pour ne pas écraser les flags si pas envoyés (compat ascendante)
     const result = await pool.query(
       `UPDATE interlocuteurs 
-       SET nom = $1, fonction = $2, email = $3, telephone = $4, principal = $5, decideur = $6, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $7 AND prospect_id = $8 
+       SET nom = $1, fonction = $2, email = $3, telephone = $4, principal = $5, decideur = $6,
+           accept_emailing = COALESCE($7, accept_emailing),
+           accept_notes_info = COALESCE($8, accept_notes_info),
+           updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $9 AND prospect_id = $10 
        RETURNING *`,
-      [nom, fonction, email, telephone, principal || false, decideur || false, id, prospectId]
+      [
+        nom, fonction, email, telephone, principal || false, decideur || false,
+        accept_emailing === undefined ? null : !!accept_emailing,
+        accept_notes_info === undefined ? null : !!accept_notes_info,
+        id, prospectId
+      ]
     );
 
     if (result.rows.length === 0) {
@@ -2017,6 +2037,63 @@ app.delete('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, re
     res.json({ message: 'Interlocuteur supprimé', deleted: result.rows[0] });
   } catch (err) {
     console.error('Erreur delete interlocuteur:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== LISTE DE COMMUNICATION =====================
+// GET /api/interlocuteurs/communication-list?type=emailing|notes_info|both[&statut=Client,Prospect]
+// Retourne tous les interlocuteurs ayant opt-in pour le type de communication demandé
+// Utilité : export pour outils d'emailing externes (Mailjet, Brevo, etc.)
+app.get('/api/interlocuteurs/communication-list', auth, async (req, res) => {
+  try {
+    const type = (req.query.type || 'both').toLowerCase();
+    const statutFilter = (req.query.statut || '').trim(); // ex: "Client,Prospect"
+
+    let whereFlag;
+    if (type === 'emailing') {
+      whereFlag = 'i.accept_emailing = true';
+    } else if (type === 'notes_info') {
+      whereFlag = 'i.accept_notes_info = true';
+    } else if (type === 'both') {
+      whereFlag = '(i.accept_emailing = true OR i.accept_notes_info = true)';
+    } else {
+      return res.status(400).json({ error: 'type doit valoir emailing | notes_info | both' });
+    }
+
+    const params = [];
+    let statutCondition = '';
+    if (statutFilter) {
+      const statuts = statutFilter.split(',').map(s => s.trim()).filter(Boolean);
+      if (statuts.length > 0) {
+        params.push(statuts);
+        statutCondition = `AND p.statut_societe = ANY($${params.length}::text[])`;
+      }
+    }
+
+    const sql = `
+      SELECT
+        i.id,
+        i.prospect_id,
+        TRIM(COALESCE(i.civilite,'') || ' ' || COALESCE(i.prenom,'') || ' ' || COALESCE(i.nom,'')) AS nom_complet,
+        i.fonction,
+        i.email,
+        i.telephone,
+        i.accept_emailing,
+        i.accept_notes_info,
+        p.name AS societe,
+        p.statut_societe
+      FROM interlocuteurs i
+      JOIN prospects p ON p.id = i.prospect_id
+      WHERE ${whereFlag}
+        AND i.email IS NOT NULL AND TRIM(i.email) <> ''
+        ${statutCondition}
+      ORDER BY p.name, i.principal DESC, i.nom
+    `;
+    const result = await pool.query(sql, params);
+    res.json({ total: result.rows.length, contacts: result.rows });
+  } catch (err) {
+    console.error('Erreur communication-list:', err);
     res.status(500).json({ error: err.message });
   }
 });
