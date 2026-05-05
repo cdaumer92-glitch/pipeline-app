@@ -925,7 +925,7 @@
           });
 
           if (res.ok) {
-            window.showToast({title: editingInterlocuteur ? 'Interlocuteur modifié' : 'Interlocuteur ajouté', type:'success'});
+            window.showToast({title: interlocuteurForm.id ? 'Interlocuteur modifié' : 'Interlocuteur ajouté', type:'success'});
             await fetchInterlocuteurs(selectedProspect.id);
             setShowInterlocuteurForm(false);
             setInterlocuteurForm({
