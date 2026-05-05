@@ -216,6 +216,34 @@
     return { success: true, total: enriched.length, result: enriched };
   }
 
+  // Mock pour Enrich Company : trouve la meilleure société selon name + ville/CP
+  // Score simulé : +0.4 si name match, +0.3 si city match, +0.3 si postal_code match
+  function mockEnrich(criteria) {
+    const name = (criteria.name || '').toLowerCase();
+    const city = (criteria.city || '').toLowerCase();
+    const cp = (criteria.postal_code || '').trim();
+    let best = null;
+    let bestScore = 0;
+    for (const c of MOCK_COMPANIES) {
+      let score = 0;
+      const nameMatch = c.name.toLowerCase().includes(name) ||
+                        (c.brands || []).some(b => b.toLowerCase().includes(name));
+      if (nameMatch) score += 0.4;
+      if (city && c.formatted_address.toLowerCase().includes(city)) score += 0.3;
+      if (cp && c.formatted_address.startsWith(cp)) score += 0.3;
+      if (score > bestScore) { bestScore = score; best = c; }
+    }
+    const minScore = parseFloat(criteria.min_match_score) || 0;
+    if (!best || bestScore < minScore) {
+      return { success: false, error: 'Aucune société ne correspond avec un score suffisant', match_info: { score: bestScore } };
+    }
+    return {
+      success: true,
+      match_info: { score: parseFloat(bestScore.toFixed(2)), sources: 'Mock' },
+      result: best
+    };
+  }
+
   // ─── API publique ────────────────────────────────────────────
 
   /**
@@ -260,6 +288,43 @@
       return mockSearch(trimmed, searchMode);
     }
     return call(`/api/societeinfo/search?q=${encodeURIComponent(trimmed)}&searchMode=${searchMode}`);
+  }
+
+  /**
+   * Enrich Company : matching ciblé avec score (1 société + match_info.score)
+   * Coût identique à searchByName (1 crédit/succès) mais retour focalisé.
+   * Plus pertinent quand on a un nom commercial + une localisation.
+   *
+   * Combinaisons "Killer" : name + street + postal_code + city / name + street / domain_name + name
+   * Combinaisons "Good"   : name + postal_code + city / name + city / name + postal_code
+   *
+   * @param {Object} criteria
+   * @param {string} criteria.name - Nom de la société (obligatoire, min 2 caractères)
+   * @param {string} [criteria.city] - Ville
+   * @param {string} [criteria.postal_code] - Code postal
+   * @param {string} [criteria.street] - Rue (optionnel)
+   * @param {string} [criteria.domain_name] - Nom de domaine ou URL site
+   * @param {string} [criteria.email] - Email
+   * @param {string} [criteria.min_match_score] - Score minimum (0.0 à 1.0) pour ne pas payer un match faible
+   * @returns {Promise<Object>} { success, match_info: { score, sources }, result: { ...société } }
+   */
+  async function enrichCompany(criteria) {
+    const c = criteria || {};
+    const name = (c.name || '').trim();
+    if (name.length < 2) {
+      throw new Error('Le paramètre name est obligatoire (min 2 caractères)');
+    }
+    if (isMockEnabled()) {
+      await mockDelay();
+      return mockEnrich(c);
+    }
+    const params = [];
+    const allowed = ['name', 'street', 'postal_code', 'city', 'domain_name', 'email', 'registration_number', 'min_match_score'];
+    for (const k of allowed) {
+      const v = (c[k] || '').toString().trim();
+      if (v) params.push(`${k}=${encodeURIComponent(v)}`);
+    }
+    return call(`/api/societeinfo/enrich?${params.join('&')}`);
   }
 
   /**
@@ -462,6 +527,7 @@
     status,
     autocomplete,
     searchByName,
+    enrichCompany,
     getCompany,
     getCompanyById,
     getContacts,

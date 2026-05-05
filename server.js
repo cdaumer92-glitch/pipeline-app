@@ -3517,6 +3517,28 @@ app.get('/api/societeinfo/search', auth, async (req, res) => {
   sendSi(res, result);
 });
 
+// 3bis) Enrich Company : matching ciblé avec score (nom + ville/CP/site web)
+//       1 crédit/succès, mais 1 seul résultat (vs liste avec /search)
+//       Combinaisons "Killer" : name+street+postal_code+city, name+street, domain_name+name
+//       Combinaisons "Good"   : name+postal_code+city, name+city, name+postal_code
+//       Le param min_match_score (0-1) permet d'éviter de payer pour un match trop faible
+//       Source: https://societeinfo.com/api-doc/api/ section "Enrich Company"
+const SI_ENRICH_FIELDS = ['name', 'street', 'postal_code', 'city', 'domain_name', 'email', 'registration_number', 'min_match_score'];
+app.get('/api/societeinfo/enrich', auth, async (req, res) => {
+  // Construit la query string avec uniquement les champs whitelisted et non vides
+  const params = [];
+  for (const field of SI_ENRICH_FIELDS) {
+    const v = (req.query[field] || '').toString().trim();
+    if (v) params.push(`${field}=${encodeURIComponent(v)}`);
+  }
+  // On exige au moins 'name' (le seul vraiment incontournable d'après la doc)
+  if (!req.query.name || req.query.name.trim().length < 2) {
+    return res.status(400).json({ error: 'Le paramètre name est obligatoire (min 2 caractères)' });
+  }
+  const result = await siFetch(`/v2/company.json?${params.join('&')}`);
+  sendSi(res, result);
+});
+
 // 4) Détails d'une société par SIREN
 app.get('/api/societeinfo/company/:siren', auth, async (req, res) => {
   const siren = (req.params.siren || '').replace(/\D/g, '');

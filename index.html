@@ -684,6 +684,8 @@
       const [showSInfoModal, setShowSInfoModal] = React.useState(false);
       const [sInfoQuery, setSInfoQuery] = React.useState('');
       const [sInfoBroadSearch, setSInfoBroadSearch] = React.useState(false); // Recherche élargie (searchMode=keyword)
+      const [sInfoCity, setSInfoCity] = React.useState('');           // Match précis : ville
+      const [sInfoPostalCode, setSInfoPostalCode] = React.useState(''); // Match précis : code postal
       const [sInfoLoading, setSInfoLoading] = React.useState(false);
       const [sInfoResults, setSInfoResults] = React.useState([]);
       const [sInfoError, setSInfoError] = React.useState('');
@@ -1911,19 +1913,57 @@
         setSInfoError('');
         setSInfoLoading(true);
         try {
-          const data = await window.SInfo.searchByName(query, {
-            searchMode: sInfoBroadSearch ? 'keyword' : 'name'
-          });
-          // SocieteInfo renvoie { success, total, result: [...], ... }
-          // (attention : 'result' au singulier dans cette API, pas 'results')
-          let items = data.result || data.results || data.items || data.companies || [];
-          // Selon les modes, 'result' peut aussi être un objet contenant un tableau
-          if (!Array.isArray(items) && items && typeof items === 'object') {
-            items = items.items || items.companies || items.list || [];
-          }
-          setSInfoResults(Array.isArray(items) ? items : []);
-          if (items.length === 0) {
-            setSInfoError('Aucun résultat pour "' + query + '"');
+          // Si l'utilisateur a fourni Ville OU Code Postal → Match précis (Enrich Company, 1 seul résultat ciblé)
+          // Sinon → Recherche classique (liste de résultats)
+          const city = sInfoCity.trim();
+          const cp = sInfoPostalCode.trim();
+          const usePreciseMatch = city.length > 0 || cp.length > 0;
+
+          if (usePreciseMatch) {
+            const enrichRes = await window.SInfo.enrichCompany({
+              name: query,
+              city: city,
+              postal_code: cp
+            });
+            // Format : { success, match_info: { score, sources }, result: { ...société } }
+            if (enrichRes && enrichRes.success && enrichRes.result) {
+              // On normalise au même format que searchByName pour réutiliser tout le code aval
+              const item = enrichRes.result;
+              // L'objet retourné par Enrich peut être imbriqué (organization.*) ou plat — on aplatit
+              const flat = item.organization ? {
+                id: item.id,
+                registration_number: item.organization.registration_number,
+                full_registration_number: item.organization.full_registration_number,
+                name: item.organization.name,
+                activity: (item.organization.activity && item.organization.activity.corporate_object) || item.organization.activity || '',
+                formatted_address: (item.organization.address ?
+                  `${item.organization.address.postal_code || ''} ${item.organization.address.city || ''}`.trim() : ''),
+                lng: item.organization.address && item.organization.address.lng,
+                lat: item.organization.address && item.organization.address.lat,
+                _match_score: enrichRes.match_info && enrichRes.match_info.score
+              } : { ...item, _match_score: enrichRes.match_info && enrichRes.match_info.score };
+              setSInfoResults([flat]);
+            } else {
+              setSInfoResults([]);
+              setSInfoError('Aucune correspondance précise pour "' + query + '"' +
+                (city ? ' à ' + city : '') + (cp ? ' (' + cp + ')' : '') +
+                '. Essayez sans Ville/CP pour une recherche plus large.');
+            }
+          } else {
+            const data = await window.SInfo.searchByName(query, {
+              searchMode: sInfoBroadSearch ? 'keyword' : 'name'
+            });
+            // SocieteInfo renvoie { success, total, result: [...], ... }
+            // (attention : 'result' au singulier dans cette API, pas 'results')
+            let items = data.result || data.results || data.items || data.companies || [];
+            // Selon les modes, 'result' peut aussi être un objet contenant un tableau
+            if (!Array.isArray(items) && items && typeof items === 'object') {
+              items = items.items || items.companies || items.list || [];
+            }
+            setSInfoResults(Array.isArray(items) ? items : []);
+            if (items.length === 0) {
+              setSInfoError('Aucun résultat pour "' + query + '"');
+            }
           }
         } catch (err) {
           setSInfoError(err.message || 'Erreur SocieteInfo');
@@ -2991,17 +3031,59 @@
                     </button>
                   </div>
 
-                  {/* Recherche élargie : searchMode=keyword (sites web, code APE, contenu crawlé) */}
-                  <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {/* 🎯 Match précis (optionnel) : remplir Ville et/ou CP active l'endpoint Enrich Company */}
+                  {/*    → 1 seul résultat ciblé avec score (vs liste complète) — beaucoup plus pertinent */}
+                  <div style={{
+                    marginBottom: '12px', padding: '10px 12px',
+                    background: '#f0f7f7', border: '0.5px dashed #a8c8c8', borderRadius: '7px'
+                  }}>
+                    <div style={{ fontSize: '11px', color: '#4a6868', marginBottom: '6px', fontWeight: 500 }}>
+                      🎯 Match précis (optionnel) — remplissez Ville ou CP pour cibler une société unique avec un score de confiance
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder="Ville (ex: Saint-Jean-de-Luz)"
+                        value={sInfoCity}
+                        onChange={(e) => setSInfoCity(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSInfoSearch(); }}
+                        style={{
+                          flex: 2, padding: '8px 12px', fontSize: '13px',
+                          border: '0.5px solid #cde0e0', borderRadius: '6px',
+                          outline: 'none', fontFamily: "'DM Sans', sans-serif"
+                        }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="CP (ex: 64500)"
+                        value={sInfoPostalCode}
+                        onChange={(e) => setSInfoPostalCode(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSInfoSearch(); }}
+                        style={{
+                          flex: 1, padding: '8px 12px', fontSize: '13px',
+                          border: '0.5px solid #cde0e0', borderRadius: '6px',
+                          outline: 'none', fontFamily: "'DM Sans', sans-serif"
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Recherche élargie : désactivée si match précis car non pertinent */}
+                  <div style={{
+                    marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px',
+                    opacity: (sInfoCity.trim() || sInfoPostalCode.trim()) ? 0.4 : 1
+                  }}>
                     <input
                       type="checkbox"
                       id="sinfo-broad-search"
                       checked={sInfoBroadSearch}
                       onChange={(e) => setSInfoBroadSearch(e.target.checked)}
+                      disabled={!!(sInfoCity.trim() || sInfoPostalCode.trim())}
                       style={{ cursor: 'pointer', margin: 0 }}
                     />
                     <label htmlFor="sinfo-broad-search" style={{
-                      fontSize: '12px', color: '#607a7a', cursor: 'pointer',
+                      fontSize: '12px', color: '#607a7a',
+                      cursor: (sInfoCity.trim() || sInfoPostalCode.trim()) ? 'not-allowed' : 'pointer',
                       fontFamily: "'DM Sans', sans-serif", userSelect: 'none'
                     }}>
                       🔍 Recherche élargie (sites web, code APE — utile pour enseignes/marques non déposées)
@@ -3047,8 +3129,18 @@
                               onMouseEnter={(e) => { e.currentTarget.style.background = '#f4f7f7'; e.currentTarget.style.borderColor = '#007d89'; }}
                               onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = '#e0ecec'; }}
                             >
-                              <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a3535', marginBottom: '3px' }}>
-                                {name}
+                              <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a3535', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span>{name}</span>
+                                {typeof item._match_score === 'number' && (
+                                  <span style={{
+                                    fontSize: '10px', padding: '2px 7px', borderRadius: '10px',
+                                    background: item._match_score >= 0.7 ? '#dcfce7' : item._match_score >= 0.4 ? '#fef3c7' : '#fecaca',
+                                    color: item._match_score >= 0.7 ? '#166534' : item._match_score >= 0.4 ? '#92400e' : '#991b1b',
+                                    fontWeight: 600
+                                  }}>
+                                    Score {(item._match_score * 100).toFixed(0)}%
+                                  </span>
+                                )}
                               </div>
                               <div style={{ fontSize: '11px', color: '#7a9090', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                                 {siren && <span>SIREN {siren}</span>}
