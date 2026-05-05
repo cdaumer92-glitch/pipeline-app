@@ -3567,6 +3567,10 @@ function sendSi(res, result) {
 // 1) Vérifier le statut de la clé (compteur restant, etc.)
 app.get('/api/societeinfo/status', auth, async (req, res) => {
   const result = await siFetch('/v2/apikeyinfo.json');
+  // MARQUEUR DE TEST DEPLOIEMENT 2026-05-05-1411 - retire après diagnostic
+  if (result.ok && result.data) {
+    result.data._deployment_marker = 'PHASE5-DEPLOY-TEST-1411';
+  }
   sendSi(res, result);
 });
 
