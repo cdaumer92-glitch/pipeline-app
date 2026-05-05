@@ -5734,19 +5734,17 @@
             </div>
           )}
 
-          {/* ── PANNEAU PROSPECTION SocieteInfo (admins uniquement) ── */}
-          {isUserAdmin(user) && (
-            <div style={{marginBottom:'18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)',padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}
-              onClick={openProspectionModal}
-              onMouseEnter={e=>e.currentTarget.style.background='var(--tw-teal-light)'}
-              onMouseLeave={e=>e.currentTarget.style.background='white'}>
-              <div>
-                <span style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-teal)'}}>🎯 Prospection SocieteInfo</span>
-                <span style={{fontSize:'11px',color:'var(--tw-muted)',marginLeft:'10px'}}>Recherche multi-critères (NAF + zone) → Suspects à attribuer</span>
-              </div>
-              <span style={{fontSize:'12px',color:'var(--tw-teal)',fontWeight:'600'}}>Lancer →</span>
+          {/* ── PANNEAU PROSPECTION SocieteInfo (Dashboard est déjà admin-only) ── */}
+          <div style={{marginBottom:'18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)',padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}
+            onClick={openProspectionModal}
+            onMouseEnter={e=>e.currentTarget.style.background='var(--tw-teal-light)'}
+            onMouseLeave={e=>e.currentTarget.style.background='white'}>
+            <div>
+              <span style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-teal)'}}>🎯 Prospection SocieteInfo</span>
+              <span style={{fontSize:'11px',color:'var(--tw-muted)',marginLeft:'10px'}}>Recherche multi-critères (NAF + zone) → Suspects à attribuer</span>
             </div>
-          )}
+            <span style={{fontSize:'12px',color:'var(--tw-teal)',fontWeight:'600'}}>Lancer →</span>
+          </div>
 
           {/* ── PANNEAU RECAP TEST (Christian uniquement) ── */}
           {user.name === 'Christian' && (
