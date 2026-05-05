@@ -23,14 +23,22 @@ const PORT = process.env.PORT || 8080;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret-key-2024';
 
 // ===================== MAILER =====================
+// SMTP : on utilise le port 587 (STARTTLS) au lieu de 465 (SSL direct) car les
+// plateformes cloud type Scaleway/Cloud Run bloquent souvent le port 465 sortant.
+// OVH supporte les deux ports — port 587 est plus universellement autorisé.
 const transporter = nodemailer.createTransport({
   host: 'ssl0.ovh.net',
-  port: 465,
-  secure: true,
+  port: 587,
+  secure: false,      // false en port 587 (STARTTLS), true en port 465 (SSL direct)
+  requireTLS: true,   // exige TLS via STARTTLS
   auth: {
     user: process.env.SMTP_USER || 'notifications@texaswin.fr',
     pass: process.env.SMTP_PASS || ''
-  }
+  },
+  // Timeouts courts pour éviter de bloquer l'API si SMTP injoignable
+  connectionTimeout: 10000,  // 10s pour établir la connexion (au lieu des 30s par défaut)
+  greetingTimeout: 10000,
+  socketTimeout: 15000
 });
 
 // ===================== Object Storage (Scaleway) =====================
@@ -3338,7 +3346,11 @@ app.put('/api/attributions/bulk', auth, async (req, res) => {
       if (prospectsMap[id]) byCommercial[commercial_name].push({ ...prospectsMap[id] });
     }
 
-    const appUrl = process.env.APP_URL || 'https://pipeline-app-702707858708.europe-west9.run.app';
+    const appUrl = process.env.APP_URL || 'https://crm.texaswin.fr';
+
+    // Compteurs pour reporting (mail peut échouer sans faire échouer l'attribution)
+    let mailsSent = 0;
+    const mailsFailed = [];
 
     // 4. Un seul mail par commercial
     for (const [commercial_name, societes] of Object.entries(byCommercial)) {
@@ -3390,19 +3402,33 @@ app.put('/api/attributions/bulk', auth, async (req, res) => {
 </div>
 </body></html>`;
 
-      await transporter.sendMail({
-        from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
-        to: commercial.email,
-        subject: n > 1
-          ? `🎯 ${n} nouvelles sociétés attribuées`
-          : `🎯 Nouvelle société attribuée : ${societes[0].name}`,
-        html
-      });
-
-      console.log(`✅ Mail attribution envoyé à ${commercial.name} (${commercial.email}) — ${n} société(s)`);
+      try {
+        await transporter.sendMail({
+          from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
+          to: commercial.email,
+          subject: n > 1
+            ? `🎯 ${n} nouvelles sociétés attribuées`
+            : `🎯 Nouvelle société attribuée : ${societes[0].name}`,
+          html
+        });
+        console.log(`✅ Mail attribution envoyé à ${commercial.name} (${commercial.email}) — ${n} société(s)`);
+        mailsSent++;
+      } catch (mailErr) {
+        // L'attribution BDD a réussi mais le mail a échoué (SMTP indispo, etc.) :
+        // on log, on continue avec les autres commerciaux, on signalera au front à la fin.
+        console.error(`⚠️ Échec envoi mail à ${commercial.name} (${commercial.email}) :`, mailErr.message);
+        mailsFailed.push({ commercial: commercial.name, email: commercial.email, error: mailErr.message });
+      }
     }
 
-    res.json({ ok: true });
+    // Réponse OK pour l'attribution même si certains mails ont échoué
+    res.json({
+      ok: true,
+      attributed: attributions.length,
+      mails_sent: mailsSent,
+      mails_failed: mailsFailed.length,
+      mail_errors: mailsFailed.length > 0 ? mailsFailed : undefined
+    });
   } catch (err) {
     console.error('Erreur attribution bulk:', err);
     res.status(500).json({ error: err.message });
@@ -3430,7 +3456,7 @@ app.put('/api/prospects/:id/attribuer', auth, async (req, res) => {
     const userRes = await pool.query(`SELECT email, name FROM users WHERE name = $1 LIMIT 1`, [commercial_name]);
     if (userRes.rows.length > 0) {
       const commercial = userRes.rows[0];
-      const appUrl = process.env.APP_URL || 'https://pipeline-app-702707858708.europe-west9.run.app';
+      const appUrl = process.env.APP_URL || 'https://crm.texaswin.fr';
       const ficheUrl = `${appUrl}/#prospect-${req.params.id}`;
 
       const html = `<!DOCTYPE html>
