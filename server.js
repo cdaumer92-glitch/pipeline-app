@@ -3746,12 +3746,14 @@ app.post('/api/prospects/bulk-import-sinfo', auth, requireAdmin, async (req, res
       }
 
       // Insertion - utilise les vrais noms de colonnes du schéma prospects
+      // NOTE: on duplique le siren dans le tableau de params car PostgreSQL refuse de réutiliser
+      // un même $N pour deux colonnes de types différents (import_ref TEXT vs siren VARCHAR(9))
       const ins = await pool.query(
         `INSERT INTO prospects
            (name, ville, cp, adresse, statut_societe, status, assigned_to,
             import_source, import_date, import_ref, siren, phone, website, code_naf)
          VALUES ($1, $2, $3, $4, 'Suspect', 'Prospection', NULL,
-                 'SInfo-Multi', $5, $6, $6, $7, $8, $9)
+                 'SInfo-Multi', $5, $6, $7, $8, $9, $10)
          RETURNING id, name`,
         [
           c.name || null,
@@ -3759,7 +3761,8 @@ app.post('/api/prospects/bulk-import-sinfo', auth, requireAdmin, async (req, res
           c.postal_code || c.cp || null,
           c.address || c.adresse || null,
           now,
-          siren,
+          siren,                          // import_ref
+          siren,                          // siren (même valeur, type différent)
           c.phone || null,
           c.website || null,
           c.naf_code || c.code_naf || null

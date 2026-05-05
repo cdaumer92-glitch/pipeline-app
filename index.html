@@ -6275,14 +6275,30 @@
                     <div>
                       {prospLoading && <div style={{textAlign:'center',padding:'40px',color:'#607a7a'}}>Recherche en cours…</div>}
                       {prospError && <div style={{padding:'10px 14px',background:'#fecaca',color:'#991b1b',borderRadius:'7px',marginBottom:'12px',fontSize:'13px'}}>{prospError}</div>}
-                      {prospImportResult && (
-                        <div style={{padding:'14px',background:'#dcfce7',borderRadius:'8px',marginBottom:'14px',fontSize:'13px',color:'#166534'}}>
-                          ✅ <strong>Import terminé :</strong> {prospImportResult.inserted_count} société(s) ajoutée(s)
-                          {prospImportResult.skipped_count > 0 && ` · ${prospImportResult.skipped_count} déjà connue(s) (ignorées)`}
-                          {prospImportResult.error_count > 0 && ` · ${prospImportResult.error_count} erreur(s)`}
-                          <div style={{marginTop:'8px',fontSize:'12px'}}>Les sociétés sont visibles dans <strong>Attribution</strong> en statut Suspect, prêtes à être assignées.</div>
-                        </div>
-                      )}
+                      {prospImportResult && (() => {
+                        const fullSuccess = prospImportResult.inserted_count > 0 && prospImportResult.error_count === 0;
+                        const totalFailure = prospImportResult.inserted_count === 0 && prospImportResult.error_count > 0;
+                        const partialSuccess = prospImportResult.inserted_count > 0 && prospImportResult.error_count > 0;
+                        const bg     = totalFailure ? '#fecaca' : (partialSuccess ? '#fef3c7' : '#dcfce7');
+                        const fg     = totalFailure ? '#991b1b' : (partialSuccess ? '#92400e' : '#166534');
+                        const icon   = totalFailure ? '❌' : (partialSuccess ? '⚠️' : '✅');
+                        const title  = totalFailure ? 'Import échoué' : (partialSuccess ? 'Import partiel' : 'Import terminé');
+                        return (
+                          <div style={{padding:'14px',background:bg,borderRadius:'8px',marginBottom:'14px',fontSize:'13px',color:fg}}>
+                            {icon} <strong>{title} :</strong> {prospImportResult.inserted_count} société(s) ajoutée(s)
+                            {prospImportResult.skipped_count > 0 && ` · ${prospImportResult.skipped_count} déjà connue(s) (ignorées)`}
+                            {prospImportResult.error_count > 0 && ` · ${prospImportResult.error_count} erreur(s)`}
+                            {fullSuccess && (
+                              <div style={{marginTop:'8px',fontSize:'12px'}}>Les sociétés sont visibles dans <strong>Attribution</strong> en statut Suspect, prêtes à être assignées.</div>
+                            )}
+                            {prospImportResult.error_count > 0 && prospImportResult.errors && prospImportResult.errors[0] && (
+                              <div style={{marginTop:'8px',fontSize:'11px',fontFamily:'monospace',background:'rgba(0,0,0,0.05)',padding:'6px 8px',borderRadius:'4px'}}>
+                                Erreur (1ère sur {prospImportResult.error_count}) — SIREN {prospImportResult.errors[0].siren} : {prospImportResult.errors[0].error}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {!prospLoading && prospResults.length > 0 && (
                         <div>
                           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}}>
