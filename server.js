@@ -754,7 +754,8 @@ app.put('/api/prospects/:id', auth, async (req, res) => {
     name, contact_name, email, phone, adresse, website, tel_standard, statut_societe,
     status, setup_amount, monthly_amount, annual_amount,
     training_amount, chance_percent, assigned_to, quote_date,
-    decision_maker, solutions_en_place, notes, pdf_url, tw_version, siren, code_naf, created_at, marques
+    decision_maker, solutions_en_place, notes, pdf_url, tw_version, siren, code_naf, created_at, marques,
+    import_source, import_date, import_ref
   } = req.body;
 
   try {
@@ -765,7 +766,10 @@ app.put('/api/prospects/:id', auth, async (req, res) => {
         training_amount=$13, chance_percent=$14, assigned_to=$15, quote_date=$16,
         decision_maker=$17, solutions_en_place=$18, notes=$19, pdf_url=$20,
         tw_version=$21, siren=$22, code_naf=$23, created_at=COALESCE($24, created_at),
-        marques=$25, updated_at=NOW()
+        marques=$25, updated_at=NOW(),
+        import_source=COALESCE($27, import_source),
+        import_date=COALESCE($28, import_date),
+        import_ref=COALESCE($29, import_ref)
       WHERE id=$26`,
       [
         name, contact_name, email || null, phone || null, adresse || null, website || null, tel_standard || null, statut_societe || 'Prospect',
@@ -774,7 +778,8 @@ app.put('/api/prospects/:id', auth, async (req, res) => {
         decision_maker || null, solutions_en_place || null, notes || null, pdf_url || null,
         tw_version || null, siren || null, code_naf || null, created_at || null,
         (Array.isArray(marques) && marques.length > 0) ? marques : null,
-        id
+        id,
+        import_source || null, import_date || null, import_ref || null
       ]
     );
     res.json({ ok: true });
