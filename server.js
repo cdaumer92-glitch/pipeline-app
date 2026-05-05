@@ -3567,10 +3567,6 @@ function sendSi(res, result) {
 // 1) Vérifier le statut de la clé (compteur restant, etc.)
 app.get('/api/societeinfo/status', auth, async (req, res) => {
   const result = await siFetch('/v2/apikeyinfo.json');
-  // MARQUEUR DE TEST DEPLOIEMENT 2026-05-05-1411 - retire après diagnostic
-  if (result.ok && result.data) {
-    result.data._deployment_marker = 'PHASE5-DEPLOY-TEST-1411';
-  }
   sendSi(res, result);
 });
 
@@ -3660,7 +3656,7 @@ app.get('/api/societeinfo/contacts-details/:siren', auth, async (req, res) => {
 app.get('/api/societeinfo/place-autocomplete', auth, async (req, res) => {
   const q = (req.query.q || '').trim();
   if (q.length < 2) return res.json({ result: [] });
-  const result = await siFetch(`/v3/places.json/autocomplete?query=${encodeURIComponent(q)}&limit=10`);
+  const result = await siFetch(`/v2/places.json/autocomplete?query=${encodeURIComponent(q)}&limit=10`);
   sendSi(res, result);
 });
 
