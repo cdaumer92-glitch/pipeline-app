@@ -2503,6 +2503,7 @@
               setShowCompteurModal={setShowCompteurModal}
               setCompteurModalData={setCompteurModalData}
               codesNaf={codesNaf}
+              onRefreshProspects={fetchProspects}
               onShowRecap={(commercial, period) => {
                 setRecapCommercial(commercial);
                 setRecapPeriod(period);
@@ -5395,7 +5396,7 @@
       );
     }
 
-    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo, onShowRecap, setShowCompteurModal, setCompteurModalData, codesNaf = [] }) {
+    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo, onShowRecap, setShowCompteurModal, setCompteurModalData, codesNaf = [], onRefreshProspects }) {
       const [activeTab, setActiveTab] = React.useState(null);
       const [showSocietes, setShowSocietes] = React.useState(false);
       const [societesSortCol, setSocietesSortCol] = React.useState('name');
@@ -5605,6 +5606,11 @@
                      (result.skipped_count > 0 ? ` · ${result.skipped_count} déjà connue(s)` : ''),
               type: 'success'
             });
+          }
+          // Rafraîchir la liste des prospects en mémoire pour que les nouveaux Suspects
+          // apparaissent immédiatement dans Attribution sans nécessiter un F5
+          if (result.inserted_count > 0 && typeof onRefreshProspects === 'function') {
+            onRefreshProspects();
           }
         } catch (err) {
           setProspError(err.message || 'Erreur import');
