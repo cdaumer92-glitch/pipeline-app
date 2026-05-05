@@ -3652,12 +3652,27 @@ app.get('/api/societeinfo/contacts-details/:siren', auth, async (req, res) => {
 
 
 // 8) Place Autocomplete (gratuit) : suggestions de places (ville/dept/région) pour la recherche multi-critères
-//    Source: https://societeinfo.com/api-doc/api/ section "Autocomplete Place" - aucun coût en crédits
+//    Source: https://societeinfo.com/api-doc/#autocomplete-place - aucun coût en crédits
+//    L'API SocieteInfo renvoie un tableau "views" avec champs {id, first, others, type, sourceStatus}.
+//    On normalise ici en {result: [{id, name, formatted_name, type}]} pour cohérence avec le reste du code.
 app.get('/api/societeinfo/place-autocomplete', auth, async (req, res) => {
   const q = (req.query.q || '').trim();
   if (q.length < 2) return res.json({ result: [] });
   const result = await siFetch(`/v2/places.json/autocomplete?query=${encodeURIComponent(q)}&limit=10`);
-  sendSi(res, result);
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  // Normalisation
+  const views = Array.isArray(result.data && result.data.views) ? result.data.views : [];
+  const normalized = views.map(v => ({
+    id: v.id,
+    name: v.first || '',
+    formatted_name: v.others ? `${v.first}, ${v.others}` : (v.first || ''),
+    type: v.type || ''
+  }));
+  res.json({
+    success: result.data && result.data.success === true,
+    total: (result.data && result.data.total) || normalized.length,
+    result: normalized
+  });
 });
 
 // 9) Recherche multi-critères : NAF + zone + filtres (avec téléphone, etc.)

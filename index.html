@@ -6183,21 +6183,40 @@
                         style={{width:'100%',padding:'10px 14px',fontSize:'14px',border:'0.5px solid #cde0e0',borderRadius:'8px',outline:'none',marginBottom:'12px',fontFamily:"'DM Sans',sans-serif"}} />
                       {prospPlaceSuggestions.length > 0 && (
                         <div style={{maxHeight:'280px',overflow:'auto',border:'0.5px solid #e0e8e8',borderRadius:'8px'}}>
-                          {prospPlaceSuggestions.map(p => (
-                            <div key={p.id}
-                              onClick={() => { setProspPlace(p); setProspPlaceSearch(p.name); setProspPlaceSuggestions([]); }}
-                              style={{padding:'10px 14px',borderBottom:'0.5px solid #f0f4f4',cursor:'pointer',display:'flex',justifyContent:'space-between'}}
-                              onMouseEnter={e=>e.currentTarget.style.background='#f4f7f7'}
-                              onMouseLeave={e=>e.currentTarget.style.background='white'}>
-                              <span style={{fontSize:'13px',color:'#1a3535'}}>{p.name}</span>
-                              <span style={{fontSize:'11px',color:'#7a9090'}}>{p.type || ''}</span>
-                            </div>
-                          ))}
+                          {prospPlaceSuggestions.map(p => {
+                            // Traduit le type technique SocieteInfo en libellé français lisible
+                            const typeLabel = (() => {
+                              switch (p.type) {
+                                case 'administrative_area_level_1': return 'région';
+                                case 'administrative_area_level_2': return 'département';
+                                case 'locality': return 'ville';
+                                case 'postal_code': return 'code postal';
+                                case 'route': return 'rue';
+                                default: return p.type || '';
+                              }
+                            })();
+                            // Affiche "Paris" en gros + "Île-de-France" en petit pour distinguer les homonymes
+                            return (
+                              <div key={p.id}
+                                onClick={() => { setProspPlace(p); setProspPlaceSearch(p.name); setProspPlaceSuggestions([]); }}
+                                style={{padding:'10px 14px',borderBottom:'0.5px solid #f0f4f4',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}
+                                onMouseEnter={e=>e.currentTarget.style.background='#f4f7f7'}
+                                onMouseLeave={e=>e.currentTarget.style.background='white'}>
+                                <div>
+                                  <div style={{fontSize:'13px',color:'#1a3535',fontWeight:500}}>{p.name}</div>
+                                  {p.formatted_name && p.formatted_name !== p.name && (
+                                    <div style={{fontSize:'11px',color:'#7a9090',marginTop:'2px'}}>{p.formatted_name}</div>
+                                  )}
+                                </div>
+                                <span style={{fontSize:'11px',color:'#7a9090',fontStyle:'italic',marginLeft:'10px'}}>{typeLabel}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                       {prospPlace && (
                         <div style={{marginTop:'12px',padding:'10px',background:'#dcfce7',borderRadius:'7px',fontSize:'13px',color:'#166534'}}>
-                          ✓ Sélectionné : <strong>{prospPlace.name}</strong> {prospPlace.type ? `(${prospPlace.type})` : ''}
+                          ✓ Sélectionné : <strong>{prospPlace.formatted_name || prospPlace.name}</strong>
                           <button onClick={() => { setProspPlace(null); setProspPlaceSearch(''); }}
                             style={{marginLeft:'10px',padding:'2px 8px',background:'white',border:'0.5px solid #cde0e0',borderRadius:'5px',fontSize:'11px',cursor:'pointer'}}>Effacer</button>
                         </div>
@@ -6240,7 +6259,7 @@
                       <div style={{padding:'12px 14px',background:'#f4f7f7',borderRadius:'8px',fontSize:'12px',color:'#4a6868',marginBottom:'14px'}}>
                         <div style={{fontWeight:600,marginBottom:'6px',color:'#1a3535'}}>Récapitulatif :</div>
                         <div>NAF : {prospNafCode ? `${prospNafCode} — ${prospNafLibelle}` : <em>(aucun)</em>}</div>
-                        <div>Zone : {prospPlace ? prospPlace.name : <em>(aucune)</em>}</div>
+                        <div>Zone : {prospPlace ? (prospPlace.formatted_name || prospPlace.name) : <em>(aucune)</em>}</div>
                         {(prospWithPhone || prospWithEmail || prospWithSite) && (
                           <div>Filtres : {[prospWithPhone&&'téléphone',prospWithEmail&&'email',prospWithSite&&'site web'].filter(Boolean).join(', ')}</div>
                         )}

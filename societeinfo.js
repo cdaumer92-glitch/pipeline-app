@@ -247,18 +247,25 @@
   // Mock pour Place Autocomplete : retourne quelques places fictives matchant la requête
   function mockPlaceAutocomplete(q) {
     const Q = q.toLowerCase();
+    // Structure alignée sur le format normalisé du backend :
+    // {id, name, formatted_name, type} avec types techniques SocieteInfo
     const PLACES = [
-      { id: 'mock-place-bretagne',     name: 'Bretagne',      type: 'region',     postal_code: null },
-      { id: 'mock-place-finistere',    name: 'Finistère',     type: 'department', postal_code: '29' },
-      { id: 'mock-place-paris',        name: 'Paris',         type: 'city',       postal_code: '75' },
-      { id: 'mock-place-lyon',         name: 'Lyon',          type: 'city',       postal_code: '69001' },
-      { id: 'mock-place-saintjeandeluz', name: 'Saint-Jean-de-Luz', type: 'city', postal_code: '64500' },
-      { id: 'mock-place-noisy',        name: 'Noisy-le-Grand', type: 'city',      postal_code: '93160' },
-      { id: 'mock-place-bordeaux',     name: 'Bordeaux',      type: 'city',       postal_code: '33000' },
-      { id: 'mock-place-iledefrance',  name: 'Île-de-France', type: 'region',     postal_code: null }
+      { id: 'mock-place-bretagne',       name: 'Bretagne',           formatted_name: 'Bretagne',                                  type: 'administrative_area_level_1' },
+      { id: 'mock-place-finistere',      name: 'Finistère',          formatted_name: 'Finistère, Bretagne',                       type: 'administrative_area_level_2' },
+      { id: 'mock-place-paris',          name: 'Paris',              formatted_name: 'Paris, Île-de-France',                      type: 'locality' },
+      { id: 'mock-place-lyon',           name: 'Lyon',               formatted_name: 'Lyon, Rhône, Auvergne-Rhône-Alpes',          type: 'locality' },
+      { id: 'mock-place-saintjeandeluz', name: 'Saint-Jean-de-Luz',  formatted_name: 'Saint-Jean-de-Luz, Pyrénées-Atlantiques',    type: 'locality' },
+      { id: 'mock-place-noisy',          name: 'Noisy-le-Grand',     formatted_name: 'Noisy-le-Grand, Seine-Saint-Denis',          type: 'locality' },
+      { id: 'mock-place-bordeaux',       name: 'Bordeaux',           formatted_name: 'Bordeaux, Gironde, Nouvelle-Aquitaine',      type: 'locality' },
+      { id: 'mock-place-iledefrance',    name: 'Île-de-France',      formatted_name: 'Île-de-France',                              type: 'administrative_area_level_1' }
     ];
+    const matched = PLACES.filter(p =>
+      p.name.toLowerCase().includes(Q) || p.formatted_name.toLowerCase().includes(Q)
+    );
     return {
-      result: PLACES.filter(p => p.name.toLowerCase().includes(Q))
+      success: true,
+      total: matched.length,
+      result: matched
     };
   }
 
