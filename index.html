@@ -687,11 +687,15 @@
       const [sInfoResults, setSInfoResults] = React.useState([]);
       const [sInfoError, setSInfoError] = React.useState('');
       // Étape 2 : société sélectionnée + dirigeants
-      const [sInfoStep, setSInfoStep] = React.useState(1); // 1 = recherche, 2 = soc. + dirigeants
+      const [sInfoStep, setSInfoStep] = React.useState(1); // 1=recherche, 2=soc.+dirigeants, 3=conflits
       const [sInfoSelectedCompany, setSInfoSelectedCompany] = React.useState(null);
       const [sInfoContacts, setSInfoContacts] = React.useState([]);
       const [sInfoSelectedContacts, setSInfoSelectedContacts] = React.useState({}); // { contact_id: true }
       const [sInfoFetchEmails, setSInfoFetchEmails] = React.useState(false); // checkbox "récupérer emails (consomme du quota)"
+      // Mode enrichissement : appelé depuis la fiche prospect (RightPanel) pour mettre à jour une société existante
+      const [sInfoMode, setSInfoMode] = React.useState('create'); // 'create' | 'enrich'
+      const [sInfoEnrichTarget, setSInfoEnrichTarget] = React.useState(null); // le prospect existant à enrichir
+      const [sInfoConflicts, setSInfoConflicts] = React.useState([]); // [{ field, label, current, sinfo, useNew }]
 
       const [formData, setFormData] = React.useState(getEmptyProspect());
       const [interlocuteurs, setInterlocuteurs] = React.useState([]);
@@ -1832,11 +1836,70 @@
         setSInfoContacts([]);
         setSInfoSelectedContacts({});
         setSInfoFetchEmails(false);
+        setSInfoMode('create');
+        setSInfoEnrichTarget(null);
+        setSInfoConflicts([]);
         setShowSInfoModal(true);
         if (initialQuery.trim().length >= 2) {
           handleSInfoSearch(initialQuery);
         }
       };
+
+      // Mode enrichissement : ouvre le modal pour mettre à jour une société existante.
+      // Appelée depuis le RightPanel (bouton "+ SocieteInfo" sur la fiche prospect).
+      const openSInfoEnrich = async (prospect) => {
+        if (!prospect) return;
+        setSInfoMode('enrich');
+        setSInfoEnrichTarget(prospect);
+        setSInfoResults([]);
+        setSInfoError('');
+        setSInfoSelectedCompany(null);
+        setSInfoContacts([]);
+        setSInfoSelectedContacts({});
+        setSInfoFetchEmails(false);
+        setSInfoConflicts([]);
+        setShowSInfoModal(true);
+
+        // Cas 1 : on a déjà un SIREN → on saute directement à l'étape 2 (sélection dirigeants)
+        const sirenClean = String(prospect.siren || '').replace(/\D/g, '');
+        if (sirenClean.length === 9) {
+          setSInfoStep(2);
+          setSInfoLoading(true);
+          try {
+            const data = await window.SInfo.getCompany(sirenClean);
+            const company = data.result || data.company || data;
+            const mapped = window.SInfo.companyToProspect(company);
+            setSInfoSelectedCompany({ ...company, _mapped: mapped });
+            // Charger les dirigeants
+            try {
+              const cdata = await window.SInfo.getContacts(sirenClean);
+              const contacts = cdata.result || cdata.results || cdata.items || [];
+              setSInfoContacts(Array.isArray(contacts) ? contacts : []);
+            } catch (e) { setSInfoContacts([]); }
+          } catch (err) {
+            setSInfoError('Erreur récupération société : ' + err.message);
+            setSInfoStep(1);
+            setSInfoQuery(prospect.name || '');
+          } finally {
+            setSInfoLoading(false);
+          }
+          return;
+        }
+
+        // Cas 2 : pas de SIREN → recherche par nom (pré-remplie)
+        setSInfoStep(1);
+        setSInfoQuery(prospect.name || '');
+        if ((prospect.name || '').trim().length >= 2) {
+          handleSInfoSearch(prospect.name);
+        }
+      };
+
+      // Expose la fonction globalement pour que RightPanel puisse l'appeler facilement
+      // (évite de passer la fonction en prop à travers tous les composants)
+      React.useEffect(() => {
+        window.openSInfoEnrich = openSInfoEnrich;
+        return () => { delete window.openSInfoEnrich; };
+      });
 
       const handleSInfoSearch = async (q) => {
         const query = (q !== undefined ? q : sInfoQuery).trim();
@@ -1926,7 +1989,9 @@
         }
       };
 
-      // Étape 2 : valide la sélection des dirigeants → crée les interlocuteurs
+      // Étape 2 : valide la sélection des dirigeants
+      // - mode 'create' : stocke les interlocuteurs pour création au submit du modal Société
+      // - mode 'enrich' : passe à l'étape 3 (conflits) ou applique direct si pas de conflit
       const handleSInfoConfirmContacts = async () => {
         const selectedIds = Object.keys(sInfoSelectedContacts).filter(id => sInfoSelectedContacts[id]);
         // Si l'utilisateur a coché "récupérer emails", on appelle getContactsDetails (consomme du quota)
@@ -1938,7 +2003,6 @@
             const siren = sInfoSelectedCompany._mapped.siren;
             const dets = await window.SInfo.getContactsDetails(siren, selectedIds);
             const enriched = dets.result || dets.results || [];
-            // Merger les détails avec la liste de base (par id)
             contactsToImport = contactsToImport.map(c => {
               const det = enriched.find(d => String(d.id) === String(c.id));
               return det ? { ...c, ...det } : c;
@@ -1951,11 +2015,10 @@
           setSInfoLoading(false);
         }
 
-        // Mapper les dirigeants vers le format interlocuteur du CRM et les ajouter à la liste
+        // Mapper les dirigeants vers le format interlocuteur du CRM
         const newInterlocuteurs = contactsToImport.map(c => {
           const mapped = window.SInfo.contactToInterlocuteur(c);
           return {
-            // L'app utilise un id local pour les interlocuteurs en cours de création
             _localId: 'sinfo-' + (c.id || Math.random().toString(36).slice(2)),
             civilite: mapped.civilite,
             prenom:   mapped.prenom,
@@ -1969,7 +2032,61 @@
           };
         });
 
-        // Toast de feedback
+        // ─── MODE ENRICHISSEMENT ─────────────────────────────
+        if (sInfoMode === 'enrich' && sInfoEnrichTarget) {
+          // Calculer les conflits champ par champ entre la société existante et les données SocieteInfo
+          const sinfoMapped = sInfoSelectedCompany._mapped;
+          const fieldDefs = [
+            { field: 'name',         label: 'Raison sociale' },
+            { field: 'siren',        label: 'SIREN' },
+            { field: 'adresse',      label: 'Adresse' },
+            { field: 'tel_standard', label: 'Téléphone standard' },
+            { field: 'website',      label: 'Site web' },
+            { field: 'code_naf',     label: 'Code NAF' }
+          ];
+          const conflicts = [];
+          for (const def of fieldDefs) {
+            const current = (sInfoEnrichTarget[def.field] || '').toString().trim();
+            const sinfo   = (sinfoMapped[def.field] || '').toString().trim();
+            // Si SInfo apporte une info ET qu'elle est différente de l'actuelle (ou que l'actuelle est vide)
+            if (sinfo && sinfo !== current) {
+              conflicts.push({
+                field: def.field, label: def.label, current, sinfo,
+                useNew: !current  // par défaut : remplir si vide, garder l'actuel sinon
+              });
+            }
+          }
+          // Cas marques (tableau)
+          const currentMarques = Array.isArray(sInfoEnrichTarget.marques) ? sInfoEnrichTarget.marques : [];
+          const sinfoMarques = Array.isArray(sinfoMapped.marques) ? sinfoMapped.marques : [];
+          if (sinfoMarques.length > 0) {
+            // Marques nouvelles (pas dans currentMarques)
+            const newM = sinfoMarques.filter(m => !currentMarques.includes(m));
+            if (newM.length > 0) {
+              conflicts.push({
+                field: 'marques', label: 'Marques (à fusionner)',
+                current: currentMarques.join(', ') || '(aucune)',
+                sinfo:   newM.join(', '),
+                useNew: true,
+                _mergeMode: true,
+                _newMarques: newM
+              });
+            }
+          }
+
+          if (conflicts.length > 0) {
+            setSInfoConflicts(conflicts);
+            // Stocker les interlocuteurs en attente pour l'étape finale
+            setSInfoEnrichTarget(prev => ({ ...prev, _pendingInterlocuteurs: newInterlocuteurs }));
+            setSInfoStep(3);
+            return;
+          }
+          // Pas de conflit → on applique directement
+          await applySInfoEnrichment(sInfoEnrichTarget, sinfoMapped, newInterlocuteurs, []);
+          return;
+        }
+
+        // ─── MODE CREATE (par défaut) ────────────────────────
         if (newInterlocuteurs.length > 0) {
           window.showToast({
             title: `${newInterlocuteurs.length} dirigeant${newInterlocuteurs.length > 1 ? 's' : ''} importé${newInterlocuteurs.length > 1 ? 's' : ''}`,
@@ -1979,14 +2096,92 @@
           window.showToast({title: 'Société importée (sans dirigeants)', type: 'success'});
         }
 
-        // Stocker les interlocuteurs SocieteInfo dans newCompanyData pour qu'ils soient
-        // créés au moment du submit du modal Nouvelle société.
         setNewCompanyData(prev => ({
           ...prev,
           _sinfo_interlocuteurs: newInterlocuteurs
         }));
 
         setShowSInfoModal(false);
+      };
+
+      // Applique l'enrichissement à la société existante : PUT + création des interlocuteurs
+      const applySInfoEnrichment = async (target, sinfoMapped, interlocuteursToCreate, conflicts) => {
+        // Construire l'objet à envoyer en PUT : on part du prospect existant et on remplace
+        // les champs où l'utilisateur a choisi "useNew"
+        const updated = { ...target };
+
+        // Pour chaque conflit résolu (useNew), on applique la valeur SocieteInfo
+        for (const c of conflicts) {
+          if (!c.useNew) continue;
+          if (c._mergeMode && c.field === 'marques') {
+            // Fusion : on ajoute les nouvelles marques sans dédoublonner ce qui existe
+            const existing = Array.isArray(target.marques) ? target.marques : [];
+            updated.marques = [...new Set([...existing, ...c._newMarques])];
+          } else {
+            updated[c.field] = sinfoMapped[c.field];
+          }
+        }
+
+        // Pour les champs qui ne sont PAS en conflit mais où SocieteInfo a une valeur que l'actuelle est vide,
+        // on les remplit (on a déjà filtré ce cas dans `conflicts` avec useNew=true par défaut, donc rien à faire ici)
+
+        // Toujours mettre à jour les métadonnées d'enrichissement
+        updated.import_source = updated.import_source || 'SInfo';
+        updated.import_ref    = sinfoMapped.siren || updated.import_ref;
+        // import_date : on met à jour pour marquer la date du dernier enrichissement
+        updated.import_date   = new Date().toISOString();
+
+        try {
+          // PUT du prospect
+          const res = await fetch(`${API_URL}/prospects/${target.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify(updated)
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+          // POST des nouveaux interlocuteurs
+          for (const inter of interlocuteursToCreate) {
+            try {
+              await fetch(`${API_URL}/prospects/${target.id}/interlocuteurs`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
+                body: JSON.stringify({
+                  civilite: inter.civilite || '', prenom: inter.prenom || '', nom: inter.nom || '',
+                  fonction: inter.fonction || '', email: inter.email || '', telephone: inter.telephone || '',
+                  telephone_direct: '', mobile: '', notes: ''
+                })
+              });
+            } catch (e) { console.warn('[SInfo] Erreur interlocuteur:', e.message); }
+          }
+
+          // Feedback + refresh
+          const nbConflicts = conflicts.filter(c => c.useNew).length;
+          const nbInter = interlocuteursToCreate.length;
+          let msg = 'Société enrichie';
+          if (nbConflicts > 0) msg += ` (${nbConflicts} champ${nbConflicts > 1 ? 's' : ''})`;
+          if (nbInter > 0) msg += ` · ${nbInter} dirigeant${nbInter > 1 ? 's' : ''}`;
+          window.showToast({ title: msg, type: 'success' });
+
+          // Mettre à jour le prospect en mémoire et rafraîchir la liste
+          setSelectedProspect(updated);
+          setProspects(prev => prev.map(p => p.id === target.id ? { ...p, ...updated } : p));
+          if (typeof fetchInterlocuteurs === 'function') await fetchInterlocuteurs(target.id);
+
+          setShowSInfoModal(false);
+        } catch (err) {
+          window.showToast({ title: 'Erreur enrichissement : ' + err.message, type: 'error' });
+        }
+      };
+
+      // Étape 3 (mode enrich uniquement) : valide la résolution des conflits
+      const handleSInfoConfirmConflicts = async () => {
+        const target = sInfoEnrichTarget;
+        const interlocuteursToCreate = (target && target._pendingInterlocuteurs) || [];
+        await applySInfoEnrichment(target, sInfoSelectedCompany._mapped, interlocuteursToCreate, sInfoConflicts);
       };
 
       // ── Création depuis la modale "Nouvelle société" ──
@@ -2749,8 +2944,10 @@
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                 }}>
                   <h2 style={{ margin: 0, fontFamily: 'DM Sans, sans-serif', color: '#1a3535', fontSize: '1.05rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {sInfoStep === 1 ? 'Rechercher dans SocieteInfo' : 'Confirmer l\'import'}
-                    <span style={{ fontSize: '11px', color: '#7a9090', fontWeight: 400 }}>· Étape {sInfoStep}/2</span>
+                    {sInfoStep === 1 && (sInfoMode === 'enrich' ? 'Enrichir depuis SocieteInfo' : 'Rechercher dans SocieteInfo')}
+                    {sInfoStep === 2 && (sInfoMode === 'enrich' ? 'Sélectionner les dirigeants' : 'Confirmer l\'import')}
+                    {sInfoStep === 3 && 'Résoudre les conflits'}
+                    <span style={{ fontSize: '11px', color: '#7a9090', fontWeight: 400 }}>· Étape {sInfoStep}/{sInfoMode === 'enrich' ? 3 : 2}</span>
                   </h2>
                   <button onClick={() => setShowSInfoModal(false)} style={{
                     background: '#f4f7f7', border: 'none', width: '30px', height: '30px',
@@ -2972,6 +3169,101 @@
                       {Object.values(sInfoSelectedContacts).filter(Boolean).length > 0
                         ? `Importer (${Object.values(sInfoSelectedContacts).filter(Boolean).length})`
                         : 'Importer la société'}
+                    </button>
+                  </div>
+                </div>
+                )}
+
+                {/* ═══ ÉTAPE 3 : CONFLITS DE CHAMPS (mode enrich uniquement) ═══ */}
+                {sInfoStep === 3 && sInfoMode === 'enrich' && sInfoConflicts.length > 0 && (
+                <div style={{ padding: '20px 24px' }}>
+                  <div style={{ fontSize: '12px', color: '#607a7a', marginBottom: '14px' }}>
+                    Certains champs diffèrent. Cochez à droite pour utiliser la valeur SocieteInfo, sinon la valeur actuelle est conservée.
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '380px', overflowY: 'auto' }}>
+                    {sInfoConflicts.map((c, idx) => (
+                      <div key={c.field} style={{
+                        padding: '10px 14px',
+                        border: '0.5px solid ' + (c.useNew ? '#007d89' : '#e0ecec'),
+                        background: c.useNew ? '#e6f4f5' : 'white',
+                        borderRadius: '8px',
+                        transition: 'all .15s'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '11px', color: '#7a9090', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 500 }}>
+                            {c.label}
+                          </span>
+                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: c.useNew ? '#007d89' : '#607a7a', fontWeight: 500 }}>
+                            <input
+                              type="checkbox"
+                              checked={c.useNew}
+                              onChange={(e) => {
+                                const nv = e.target.checked;
+                                setSInfoConflicts(prev => prev.map((x, i) => i === idx ? { ...x, useNew: nv } : x));
+                              }}
+                              style={{ accentColor: '#007d89', cursor: 'pointer' }}
+                            />
+                            Utiliser SocieteInfo
+                          </label>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                          <div>
+                            <div style={{ fontSize: '10px', color: '#7a9090', marginBottom: '2px' }}>Actuel</div>
+                            <div style={{
+                              fontSize: '12px', color: c.useNew ? '#7a9090' : '#1a3535',
+                              padding: '6px 10px', background: '#fafafa', borderRadius: '6px',
+                              textDecoration: c.useNew ? 'line-through' : 'none',
+                              fontFamily: "'DM Sans', sans-serif",
+                              wordBreak: 'break-word'
+                            }}>
+                              {c.current || '(vide)'}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '10px', color: '#007d89', marginBottom: '2px' }}>SocieteInfo</div>
+                            <div style={{
+                              fontSize: '12px', color: c.useNew ? '#1a3535' : '#7a9090',
+                              padding: '6px 10px', background: c.useNew ? 'white' : '#fafafa', borderRadius: '6px',
+                              border: c.useNew ? '0.5px solid #cde0e0' : 'none',
+                              fontFamily: "'DM Sans', sans-serif",
+                              fontWeight: c.useNew ? 500 : 400,
+                              wordBreak: 'break-word'
+                            }}>
+                              {c.sinfo}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Footer : Retour + Valider */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '0.5px solid #e0ecec', paddingTop: '14px', marginTop: '16px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSInfoStep(2)}
+                      disabled={sInfoLoading}
+                      style={{
+                        padding: '8px 14px', fontSize: '12px',
+                        background: 'white', color: '#607a7a',
+                        border: '0.5px solid #cde0e0', borderRadius: '7px', cursor: 'pointer'
+                      }}
+                    >
+                      ← Retour
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSInfoConfirmConflicts}
+                      disabled={sInfoLoading}
+                      style={{
+                        padding: '9px 18px', fontSize: '13px', fontWeight: 500,
+                        background: '#1a3535', color: 'white', border: 'none',
+                        borderRadius: '8px', cursor: 'pointer',
+                        opacity: sInfoLoading ? 0.5 : 1
+                      }}
+                    >
+                      Appliquer ({sInfoConflicts.filter(c => c.useNew).length} changement{sInfoConflicts.filter(c => c.useNew).length > 1 ? 's' : ''})
                     </button>
                   </div>
                 </div>
@@ -5748,6 +6040,25 @@
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap',marginBottom:'4px'}}>
                     <span style={{fontSize:'18px',fontWeight:500,color:'var(--tw-ink)',letterSpacing:'-.2px'}}>{prospectDisplayName(selectedProspect)}</span>
+                    {/* Bouton discret + SocieteInfo (enrichissement de la fiche existante) */}
+                    <button
+                      type="button"
+                      title="Enrichir cette fiche depuis SocieteInfo"
+                      onClick={() => { if (window.openSInfoEnrich) window.openSInfoEnrich(selectedProspect); }}
+                      style={{
+                        display:'inline-flex',alignItems:'center',gap:'4px',
+                        padding:'2px 8px',fontSize:'10px',fontWeight:500,
+                        background:'#f4f7f7',color:'#607a7a',
+                        border:'0.5px solid #cde0e0',borderRadius:'10px',
+                        cursor:'pointer',fontFamily:"'DM Sans',sans-serif",
+                        transition:'all .15s'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#e6f4f5'; e.currentTarget.style.borderColor = '#007d89'; e.currentTarget.style.color = '#007d89'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = '#f4f7f7'; e.currentTarget.style.borderColor = '#cde0e0'; e.currentTarget.style.color = '#607a7a'; }}
+                    >
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                      SocieteInfo
+                    </button>
                     {/* Pill statut (pas de gros dropdown coloré) */}
                     <select value={selectedProspect.statut_societe||'Prospect'}
                       onChange={async (e) => {
