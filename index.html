@@ -6040,25 +6040,6 @@
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap',marginBottom:'4px'}}>
                     <span style={{fontSize:'18px',fontWeight:500,color:'var(--tw-ink)',letterSpacing:'-.2px'}}>{prospectDisplayName(selectedProspect)}</span>
-                    {/* Bouton discret + SocieteInfo (enrichissement de la fiche existante) */}
-                    <button
-                      type="button"
-                      title="Enrichir cette fiche depuis SocieteInfo"
-                      onClick={() => { if (window.openSInfoEnrich) window.openSInfoEnrich(selectedProspect); }}
-                      style={{
-                        display:'inline-flex',alignItems:'center',gap:'4px',
-                        padding:'2px 8px',fontSize:'10px',fontWeight:500,
-                        background:'#f4f7f7',color:'#607a7a',
-                        border:'0.5px solid #cde0e0',borderRadius:'10px',
-                        cursor:'pointer',fontFamily:"'DM Sans',sans-serif",
-                        transition:'all .15s'
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = '#e6f4f5'; e.currentTarget.style.borderColor = '#007d89'; e.currentTarget.style.color = '#007d89'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = '#f4f7f7'; e.currentTarget.style.borderColor = '#cde0e0'; e.currentTarget.style.color = '#607a7a'; }}
-                    >
-                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
-                      SocieteInfo
-                    </button>
                     {/* Pill statut (pas de gros dropdown coloré) */}
                     <select value={selectedProspect.statut_societe||'Prospect'}
                       onChange={async (e) => {
@@ -6079,6 +6060,29 @@
                       <option value="Prospect">Prospect</option>
                       <option value="Client">Client</option>
                     </select>
+                    {/* Pastille cible : enrichir depuis SocieteInfo */}
+                    <button
+                      type="button"
+                      title="Enrichir cette fiche depuis SocieteInfo"
+                      onClick={() => { if (window.openSInfoEnrich) window.openSInfoEnrich(selectedProspect); }}
+                      style={{
+                        display:'inline-flex',alignItems:'center',justifyContent:'center',
+                        width:'24px',height:'24px',padding:0,
+                        background:'white',
+                        border:'0.5px solid #f0c4c4',
+                        borderRadius:'50%',
+                        cursor:'pointer',
+                        transition:'all .15s'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#fef3f2'; e.currentTarget.style.borderColor = '#a52d2d'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = '#f0c4c4'; }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a52d2d" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <circle cx="12" cy="12" r="6"/>
+                        <circle cx="12" cy="12" r="2" fill="#a52d2d"/>
+                      </svg>
+                    </button>
                     {/* Badges client (style discret) */}
                     {selectedProspect.statut_societe === 'Client' && clientLicences.some(l=>l.licence_type==='perpetuelle') && (
                       <span style={{fontSize:'11px',fontWeight:500,padding:'2px 9px',borderRadius:'12px',background:'#fff8e1',color:'#b06e2a'}}>Licence perpétuelle</span>
