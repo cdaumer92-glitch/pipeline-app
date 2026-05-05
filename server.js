@@ -3651,6 +3651,116 @@ app.get('/api/societeinfo/contacts-details/:siren', auth, async (req, res) => {
 });
 
 
+// 8) Place Autocomplete (gratuit) : suggestions de places (ville/dept/région) pour la recherche multi-critères
+//    Source: https://societeinfo.com/api-doc/api/ section "Autocomplete Place" - aucun coût en crédits
+app.get('/api/societeinfo/place-autocomplete', auth, async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.json({ result: [] });
+  const result = await siFetch(`/v3/places.json/autocomplete?query=${encodeURIComponent(q)}&limit=10`);
+  sendSi(res, result);
+});
+
+// 9) Recherche multi-critères : NAF + zone + filtres (avec téléphone, etc.)
+//    1 crédit / page de résultats (25 résultats max par page)
+//    Source: https://societeinfo.com/api-doc/api/ section "Search Companies"
+//    Paramètres whitelistés (côté front, on ne forward que ceux qu'on a explicitement décidé d'exposer)
+const SI_MULTI_FIELDS = ['nafLevel', 'placeId', 'withphone', 'withemail', 'withsite', 'minstaff', 'maxstaff', 'minsales', 'maxsales', 'page', 'limit'];
+app.get('/api/societeinfo/multi-search', auth, async (req, res) => {
+  const params = [];
+  for (const field of SI_MULTI_FIELDS) {
+    const v = (req.query[field] || '').toString().trim();
+    if (v) params.push(`${field}=${encodeURIComponent(v)}`);
+  }
+  // Validation : on exige au moins un critère significatif (NAF ou place) sinon ce serait scanner la base entière
+  if (!req.query.nafLevel && !req.query.placeId) {
+    return res.status(400).json({ error: 'Au moins un critère NAF ou zone géographique est requis' });
+  }
+  // Cap dur sur le limit pour éviter une mauvaise manip (max 25 d'après doc SocieteInfo)
+  if (!req.query.limit) params.push('limit=25');
+  // Mode de tri : score décroissant (par défaut)
+  const result = await siFetch(`/v2/companies.json?${params.join('&')}`);
+  sendSi(res, result);
+});
+
+// 10) Bulk import : crée plusieurs prospects en lot depuis SIREN sélectionnés
+//     - Statut société : 'Suspect'
+//     - assigned_to : null (= "À attribuer", apparaît dans l'écran Attribution)
+//     - import_source : 'SInfo-Multi' (distingue de l'import unitaire 'SInfo')
+//     - Dédoublonne automatiquement sur SIREN existants (utilise idx_prospects_import_ref_sinfo)
+//     Protection : admin uniquement
+app.post('/api/prospects/bulk-import-sinfo', auth, requireAdmin, async (req, res) => {
+  const { companies } = req.body;
+  if (!Array.isArray(companies) || companies.length === 0) {
+    return res.status(400).json({ error: 'companies doit être un tableau non vide' });
+  }
+  if (companies.length > 125) {
+    return res.status(400).json({ error: 'Maximum 125 sociétés par lot' });
+  }
+
+  const inserted = [];
+  const skipped = [];
+  const errors = [];
+  const now = new Date();
+
+  for (const c of companies) {
+    const siren = String(c.siren || c.registration_number || '').replace(/\D/g, '');
+    if (siren.length !== 9) {
+      errors.push({ siren: c.siren, error: 'SIREN invalide' });
+      continue;
+    }
+
+    try {
+      // Dédoublonnage : sur import_ref+import_source (idx unique existant) OU sur colonne siren
+      const dup = await pool.query(
+        `SELECT id, name FROM prospects
+         WHERE (import_ref = $1 AND import_source IN ('SInfo', 'SInfo-Multi'))
+            OR siren = $1
+         LIMIT 1`,
+        [siren]
+      );
+      if (dup.rows.length > 0) {
+        skipped.push({ siren, name: c.name, reason: 'déjà importée', existing_id: dup.rows[0].id });
+        continue;
+      }
+
+      // Insertion - utilise les vrais noms de colonnes du schéma prospects
+      const ins = await pool.query(
+        `INSERT INTO prospects
+           (name, ville, cp, adresse, statut_societe, status, assigned_to,
+            import_source, import_date, import_ref, siren, phone, website, code_naf)
+         VALUES ($1, $2, $3, $4, 'Suspect', 'Prospection', NULL,
+                 'SInfo-Multi', $5, $6, $6, $7, $8, $9)
+         RETURNING id, name`,
+        [
+          c.name || null,
+          c.city || c.ville || null,
+          c.postal_code || c.cp || null,
+          c.address || c.adresse || null,
+          now,
+          siren,
+          c.phone || null,
+          c.website || null,
+          c.naf_code || c.code_naf || null
+        ]
+      );
+      inserted.push({ siren, id: ins.rows[0].id, name: ins.rows[0].name });
+    } catch (err) {
+      errors.push({ siren, error: err.message });
+    }
+  }
+
+  res.json({
+    requested: companies.length,
+    inserted_count: inserted.length,
+    skipped_count: skipped.length,
+    error_count: errors.length,
+    inserted,
+    skipped,
+    errors
+  });
+});
+
+
 // ===================== START =====================
 initDB().then(() => {
   app.listen(PORT, '0.0.0.0', () => {

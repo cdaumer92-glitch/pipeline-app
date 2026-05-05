@@ -2502,6 +2502,7 @@
               prospectActionsInfo={prospectActionsInfo}
               setShowCompteurModal={setShowCompteurModal}
               setCompteurModalData={setCompteurModalData}
+              codesNaf={codesNaf}
               onShowRecap={(commercial, period) => {
                 setRecapCommercial(commercial);
                 setRecapPeriod(period);
@@ -5394,7 +5395,7 @@
       );
     }
 
-    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo, onShowRecap, setShowCompteurModal, setCompteurModalData }) {
+    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo, onShowRecap, setShowCompteurModal, setCompteurModalData, codesNaf = [] }) {
       const [activeTab, setActiveTab] = React.useState(null);
       const [showSocietes, setShowSocietes] = React.useState(false);
       const [societesSortCol, setSocietesSortCol] = React.useState('name');
@@ -5406,6 +5407,31 @@
       const [recapType, setRecapType] = React.useState('actions');
       const [recapOpen, setRecapOpen] = React.useState(false);
       const [recapConfirm, setRecapConfirm] = React.useState(false);
+
+      // ═══ États pour la modal de Prospection multi-critères SocieteInfo (Phase 5) ═══
+      const [showProspectionModal, setShowProspectionModal] = React.useState(false);
+      const [prospStep, setProspStep] = React.useState(1); // 1=NAF, 2=Zone, 3=Filtres, 4=Résultats
+      const [prospNafCode, setProspNafCode] = React.useState('');           // ex: '14.13Z'
+      const [prospNafLibelle, setProspNafLibelle] = React.useState('');     // libellé associé
+      const [prospNafSearch, setProspNafSearch] = React.useState('');       // recherche fuzzy
+      const [prospPlace, setProspPlace] = React.useState(null);             // {id, name, type}
+      const [prospPlaceSearch, setProspPlaceSearch] = React.useState('');
+      const [prospPlaceSuggestions, setProspPlaceSuggestions] = React.useState([]);
+      const [prospWithPhone, setProspWithPhone] = React.useState(false);
+      const [prospWithEmail, setProspWithEmail] = React.useState(false);
+      const [prospWithSite, setProspWithSite] = React.useState(false);
+      const [prospMinStaff, setProspMinStaff] = React.useState('');
+      const [prospMaxStaff, setProspMaxStaff] = React.useState('');
+      const [prospResults, setProspResults] = React.useState([]);
+      const [prospResultsTotal, setProspResultsTotal] = React.useState(0);
+      const [prospResultsPage, setProspResultsPage] = React.useState(1);
+      const [prospResultsTotalPages, setProspResultsTotalPages] = React.useState(1);
+      const [prospLoading, setProspLoading] = React.useState(false);
+      const [prospError, setProspError] = React.useState('');
+      const [prospSelected, setProspSelected] = React.useState(new Set()); // Set de SIREN cochés
+      const [prospExistingSirens, setProspExistingSirens] = React.useState(new Set()); // SIREN déjà en BDD
+      const [prospImporting, setProspImporting] = React.useState(false);
+      const [prospImportResult, setProspImportResult] = React.useState(null);
 
       const commerciaux = [...new Set(prospects.map(p => p.assigned_to).filter(Boolean))].sort();
 
@@ -5436,6 +5462,155 @@
           setRecapResult({ ok: false, msg: `❌ ${err.message}` });
         }
         setRecapSending(false);
+      };
+
+      // ═══ Handlers Prospection multi-critères SocieteInfo ═══
+
+      const openProspectionModal = () => {
+        setShowProspectionModal(true);
+        setProspStep(1);
+        setProspNafCode(''); setProspNafLibelle(''); setProspNafSearch('');
+        setProspPlace(null); setProspPlaceSearch(''); setProspPlaceSuggestions([]);
+        setProspWithPhone(false); setProspWithEmail(false); setProspWithSite(false);
+        setProspMinStaff(''); setProspMaxStaff('');
+        setProspResults([]); setProspResultsTotal(0); setProspResultsPage(1); setProspResultsTotalPages(1);
+        setProspError(''); setProspLoading(false);
+        setProspSelected(new Set()); setProspExistingSirens(new Set());
+        setProspImportResult(null);
+      };
+
+      // Autocomplete zone géo - debounce léger
+      React.useEffect(() => {
+        if (!showProspectionModal) return;
+        const q = prospPlaceSearch.trim();
+        if (q.length < 2) { setProspPlaceSuggestions([]); return; }
+        let cancelled = false;
+        const t = setTimeout(async () => {
+          try {
+            const res = await window.SInfo.placeAutocomplete(q);
+            if (!cancelled) setProspPlaceSuggestions(res.result || []);
+          } catch (err) {
+            if (!cancelled) setProspPlaceSuggestions([]);
+          }
+        }, 300);
+        return () => { cancelled = true; clearTimeout(t); };
+      }, [prospPlaceSearch, showProspectionModal]);
+
+      // Lance la recherche multi-critères (consomme 1 crédit/page)
+      const runProspectionSearch = async (page) => {
+        setProspError('');
+        setProspLoading(true);
+        try {
+          const criteria = {
+            page: page || 1,
+            limit: 25
+          };
+          if (prospNafCode) criteria.nafLevel = prospNafCode;
+          if (prospPlace && prospPlace.id) criteria.placeId = prospPlace.id;
+          if (prospWithPhone) criteria.withphone = true;
+          if (prospWithEmail) criteria.withemail = true;
+          if (prospWithSite)  criteria.withsite  = true;
+          if (prospMinStaff)  criteria.minstaff  = prospMinStaff;
+          if (prospMaxStaff)  criteria.maxstaff  = prospMaxStaff;
+
+          const data = await window.SInfo.multiSearch(criteria);
+          const items = data.result || [];
+          setProspResults(items);
+          setProspResultsTotal(data.total || items.length);
+          setProspResultsPage(data.currentPage || page || 1);
+          setProspResultsTotalPages(data.totalPages || 1);
+
+          // Récupérer les SIREN déjà en BDD (Interprétation A : exclusion des déjà importées)
+          const sirens = items.map(c => c.registration_number).filter(Boolean);
+          if (sirens.length > 0) {
+            try {
+              const dupRes = await fetch(`${API_URL}/prospects`, {
+                headers: { 'Authorization': `Bearer ${user.token}` }
+              });
+              const allProspects = await dupRes.json();
+              const existing = new Set();
+              for (const p of allProspects) {
+                if (p.siren && sirens.includes(p.siren)) existing.add(p.siren);
+                if (p.import_ref && sirens.includes(p.import_ref)) existing.add(p.import_ref);
+              }
+              setProspExistingSirens(existing);
+            } catch (e) {
+              // Si l'appel échoue, on n'affiche pas le grisé mais ce n'est pas bloquant
+              setProspExistingSirens(new Set());
+            }
+          }
+
+          if (items.length === 0) setProspError('Aucun résultat — essayez d\'élargir vos critères');
+        } catch (err) {
+          setProspError(err.message || 'Erreur recherche');
+          setProspResults([]);
+        } finally {
+          setProspLoading(false);
+        }
+      };
+
+      const toggleProspSelected = (siren) => {
+        const next = new Set(prospSelected);
+        if (next.has(siren)) next.delete(siren); else next.add(siren);
+        setProspSelected(next);
+      };
+
+      const selectAllVisible = () => {
+        const next = new Set(prospSelected);
+        for (const c of prospResults) {
+          const s = c.registration_number;
+          if (s && !prospExistingSirens.has(s)) next.add(s);
+        }
+        setProspSelected(next);
+      };
+
+      const clearProspSelection = () => setProspSelected(new Set());
+
+      // Import en lot - appelle la route protégée /api/prospects/bulk-import-sinfo
+      const runProspectionImport = async () => {
+        if (prospSelected.size === 0) {
+          setProspError('Aucune société sélectionnée');
+          return;
+        }
+        setProspImporting(true);
+        setProspError('');
+        try {
+          const companies = prospResults
+            .filter(c => prospSelected.has(c.registration_number))
+            .map(c => ({
+              siren:        c.registration_number,
+              name:         c.name,
+              city:         c.formatted_address ? (c.formatted_address.match(/\b\d{5}\s+(.+)$/) || [])[1] : null,
+              postal_code:  c.formatted_address ? (c.formatted_address.match(/\b(\d{5})\b/) || [])[1] : null,
+              address:      c.formatted_address,
+              phone:        c.phone || null,
+              website:      c.website || null,
+              naf_code:     c.naf_code || prospNafCode || null
+            }));
+
+          const res = await fetch(`${API_URL}/prospects/bulk-import-sinfo`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ companies })
+          });
+          const result = await res.json();
+          if (!res.ok) throw new Error(result.error || 'Erreur import');
+          setProspImportResult(result);
+          if (window.showToast) {
+            window.showToast({
+              title: `${result.inserted_count} société(s) importée(s)` +
+                     (result.skipped_count > 0 ? ` · ${result.skipped_count} déjà connue(s)` : ''),
+              type: 'success'
+            });
+          }
+        } catch (err) {
+          setProspError(err.message || 'Erreur import');
+        } finally {
+          setProspImporting(false);
+        }
       };
       const thisYear = new Date().getFullYear();
       const today = new Date(); today.setHours(0,0,0,0);
@@ -5556,6 +5731,20 @@
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ── PANNEAU PROSPECTION SocieteInfo (admins uniquement) ── */}
+          {isUserAdmin(user) && (
+            <div style={{marginBottom:'18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)',padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}
+              onClick={openProspectionModal}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--tw-teal-light)'}
+              onMouseLeave={e=>e.currentTarget.style.background='white'}>
+              <div>
+                <span style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-teal)'}}>🎯 Prospection SocieteInfo</span>
+                <span style={{fontSize:'11px',color:'var(--tw-muted)',marginLeft:'10px'}}>Recherche multi-critères (NAF + zone) → Suspects à attribuer</span>
+              </div>
+              <span style={{fontSize:'12px',color:'var(--tw-teal)',fontWeight:'600'}}>Lancer →</span>
             </div>
           )}
 
@@ -5916,6 +6105,258 @@
               })}
             </div>
           </div>
+
+          {/* ═══ MODAL PROSPECTION MULTI-CRITÈRES SocieteInfo ═══ */}
+          {showProspectionModal && (
+            <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center'}}
+              onClick={(e) => { if (e.target === e.currentTarget) setShowProspectionModal(false); }}>
+              <div style={{background:'white',borderRadius:'12px',width:'90%',maxWidth:'900px',maxHeight:'90vh',overflow:'hidden',display:'flex',flexDirection:'column'}}>
+                {/* Header */}
+                <div style={{padding:'16px 24px',borderBottom:'1px solid var(--tw-border)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <h2 style={{margin:0,fontFamily:'DM Sans, sans-serif',color:'#1a3535',fontSize:'1.05rem',fontWeight:600,display:'flex',alignItems:'center',gap:'8px'}}>
+                    🎯 Prospection SocieteInfo
+                    <span style={{fontSize:'11px',color:'#7a9090',fontWeight:400}}>· Étape {prospStep}/4</span>
+                  </h2>
+                  <button onClick={() => setShowProspectionModal(false)}
+                    style={{background:'#f4f7f7',border:'none',width:'30px',height:'30px',borderRadius:'7px',cursor:'pointer',fontSize:'1rem',color:'#607a7a'}}>✕</button>
+                </div>
+
+                {/* Body scrollable */}
+                <div style={{flex:1,overflow:'auto',padding:'20px 24px'}}>
+
+                  {/* ── ÉTAPE 1 : Code NAF ── */}
+                  {prospStep === 1 && (
+                    <div>
+                      <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px',color:'#1a3535'}}>Secteur d'activité (code NAF)</div>
+                      <div style={{fontSize:'12px',color:'#607a7a',marginBottom:'12px'}}>
+                        Choisissez un code NAF (optionnel — vous pouvez aussi rechercher uniquement par zone). Tapez un mot-clé pour filtrer.
+                      </div>
+                      <input type="text" placeholder="Ex: habillement, restauration, conseil..."
+                        value={prospNafSearch}
+                        onChange={(e) => setProspNafSearch(e.target.value)}
+                        style={{width:'100%',padding:'10px 14px',fontSize:'14px',border:'0.5px solid #cde0e0',borderRadius:'8px',outline:'none',marginBottom:'12px',fontFamily:"'DM Sans',sans-serif"}} />
+                      <div style={{maxHeight:'320px',overflow:'auto',border:'0.5px solid #e0e8e8',borderRadius:'8px'}}>
+                        {(() => {
+                          const Q = prospNafSearch.trim().toLowerCase();
+                          const codesList = (typeof codesNaf !== 'undefined' && Array.isArray(codesNaf)) ? codesNaf : [];
+                          let filtered = codesList;
+                          if (Q.length >= 2) {
+                            filtered = codesList.filter(n =>
+                              (n.libelle || '').toLowerCase().includes(Q) ||
+                              (n.code || '').toLowerCase().includes(Q)
+                            ).slice(0, 100);
+                          } else {
+                            filtered = codesList.slice(0, 50);
+                          }
+                          if (filtered.length === 0) return <div style={{padding:'20px',textAlign:'center',color:'#7a9090',fontSize:'13px'}}>Aucun code NAF trouvé</div>;
+                          return filtered.map(n => (
+                            <div key={n.code}
+                              onClick={() => { setProspNafCode(n.code); setProspNafLibelle(n.libelle); }}
+                              style={{padding:'8px 12px',borderBottom:'0.5px solid #f0f4f4',cursor:'pointer',display:'flex',gap:'10px',alignItems:'center',background:prospNafCode===n.code?'#e0f2f1':'white'}}
+                              onMouseEnter={e=>{if(prospNafCode!==n.code) e.currentTarget.style.background='#f4f7f7'}}
+                              onMouseLeave={e=>{if(prospNafCode!==n.code) e.currentTarget.style.background='white'}}>
+                              <span style={{fontSize:'12px',fontWeight:600,color:'#1a3535',minWidth:'50px'}}>{n.code}</span>
+                              <span style={{fontSize:'12px',color:'#4a6868'}}>{n.libelle}</span>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                      {prospNafCode && (
+                        <div style={{marginTop:'12px',padding:'10px',background:'#dcfce7',borderRadius:'7px',fontSize:'13px',color:'#166534'}}>
+                          ✓ Sélectionné : <strong>{prospNafCode}</strong> — {prospNafLibelle}
+                          <button onClick={() => { setProspNafCode(''); setProspNafLibelle(''); }}
+                            style={{marginLeft:'10px',padding:'2px 8px',background:'white',border:'0.5px solid #cde0e0',borderRadius:'5px',fontSize:'11px',cursor:'pointer'}}>Effacer</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── ÉTAPE 2 : Zone géographique ── */}
+                  {prospStep === 2 && (
+                    <div>
+                      <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px',color:'#1a3535'}}>Zone géographique</div>
+                      <div style={{fontSize:'12px',color:'#607a7a',marginBottom:'12px'}}>
+                        Tapez le nom d'une ville, département ou région. <em>(Cette étape ne consomme aucun crédit.)</em>
+                      </div>
+                      <input type="text" placeholder="Ex: Bretagne, Paris, Bordeaux..."
+                        value={prospPlaceSearch}
+                        onChange={(e) => setProspPlaceSearch(e.target.value)}
+                        autoFocus
+                        style={{width:'100%',padding:'10px 14px',fontSize:'14px',border:'0.5px solid #cde0e0',borderRadius:'8px',outline:'none',marginBottom:'12px',fontFamily:"'DM Sans',sans-serif"}} />
+                      {prospPlaceSuggestions.length > 0 && (
+                        <div style={{maxHeight:'280px',overflow:'auto',border:'0.5px solid #e0e8e8',borderRadius:'8px'}}>
+                          {prospPlaceSuggestions.map(p => (
+                            <div key={p.id}
+                              onClick={() => { setProspPlace(p); setProspPlaceSearch(p.name); setProspPlaceSuggestions([]); }}
+                              style={{padding:'10px 14px',borderBottom:'0.5px solid #f0f4f4',cursor:'pointer',display:'flex',justifyContent:'space-between'}}
+                              onMouseEnter={e=>e.currentTarget.style.background='#f4f7f7'}
+                              onMouseLeave={e=>e.currentTarget.style.background='white'}>
+                              <span style={{fontSize:'13px',color:'#1a3535'}}>{p.name}</span>
+                              <span style={{fontSize:'11px',color:'#7a9090'}}>{p.type || ''}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {prospPlace && (
+                        <div style={{marginTop:'12px',padding:'10px',background:'#dcfce7',borderRadius:'7px',fontSize:'13px',color:'#166534'}}>
+                          ✓ Sélectionné : <strong>{prospPlace.name}</strong> {prospPlace.type ? `(${prospPlace.type})` : ''}
+                          <button onClick={() => { setProspPlace(null); setProspPlaceSearch(''); }}
+                            style={{marginLeft:'10px',padding:'2px 8px',background:'white',border:'0.5px solid #cde0e0',borderRadius:'5px',fontSize:'11px',cursor:'pointer'}}>Effacer</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── ÉTAPE 3 : Filtres + estimation crédits ── */}
+                  {prospStep === 3 && (
+                    <div>
+                      <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px',color:'#1a3535'}}>Filtres complémentaires (optionnels)</div>
+                      <div style={{fontSize:'12px',color:'#607a7a',marginBottom:'14px'}}>Affinez votre cible. Tous ces filtres sont gratuits — c'est la recherche elle-même qui coûte 1 crédit/page.</div>
+                      <div style={{display:'flex',flexDirection:'column',gap:'10px',marginBottom:'18px'}}>
+                        <label style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'13px',cursor:'pointer'}}>
+                          <input type="checkbox" checked={prospWithPhone} onChange={e => setProspWithPhone(e.target.checked)} />
+                          📞 Uniquement les sociétés avec <strong>téléphone connu</strong>
+                        </label>
+                        <label style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'13px',cursor:'pointer'}}>
+                          <input type="checkbox" checked={prospWithEmail} onChange={e => setProspWithEmail(e.target.checked)} />
+                          ✉ Uniquement les sociétés avec <strong>email connu</strong>
+                        </label>
+                        <label style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'13px',cursor:'pointer'}}>
+                          <input type="checkbox" checked={prospWithSite} onChange={e => setProspWithSite(e.target.checked)} />
+                          🌐 Uniquement les sociétés avec <strong>site web</strong>
+                        </label>
+                      </div>
+                      <div style={{display:'flex',gap:'12px',marginBottom:'18px'}}>
+                        <div style={{flex:1}}>
+                          <label style={{fontSize:'11px',color:'#607a7a',textTransform:'uppercase',fontWeight:600,letterSpacing:'.4px'}}>Effectif min</label>
+                          <input type="number" value={prospMinStaff} onChange={e=>setProspMinStaff(e.target.value)} placeholder="Ex: 5"
+                            style={{width:'100%',padding:'8px 12px',fontSize:'13px',border:'0.5px solid #cde0e0',borderRadius:'6px',outline:'none',marginTop:'4px'}} />
+                        </div>
+                        <div style={{flex:1}}>
+                          <label style={{fontSize:'11px',color:'#607a7a',textTransform:'uppercase',fontWeight:600,letterSpacing:'.4px'}}>Effectif max</label>
+                          <input type="number" value={prospMaxStaff} onChange={e=>setProspMaxStaff(e.target.value)} placeholder="Ex: 50"
+                            style={{width:'100%',padding:'8px 12px',fontSize:'13px',border:'0.5px solid #cde0e0',borderRadius:'6px',outline:'none',marginTop:'4px'}} />
+                        </div>
+                      </div>
+                      {/* Récap critères */}
+                      <div style={{padding:'12px 14px',background:'#f4f7f7',borderRadius:'8px',fontSize:'12px',color:'#4a6868',marginBottom:'14px'}}>
+                        <div style={{fontWeight:600,marginBottom:'6px',color:'#1a3535'}}>Récapitulatif :</div>
+                        <div>NAF : {prospNafCode ? `${prospNafCode} — ${prospNafLibelle}` : <em>(aucun)</em>}</div>
+                        <div>Zone : {prospPlace ? prospPlace.name : <em>(aucune)</em>}</div>
+                        {(prospWithPhone || prospWithEmail || prospWithSite) && (
+                          <div>Filtres : {[prospWithPhone&&'téléphone',prospWithEmail&&'email',prospWithSite&&'site web'].filter(Boolean).join(', ')}</div>
+                        )}
+                      </div>
+                      <div style={{padding:'12px 14px',background:'#fef3c7',borderRadius:'8px',fontSize:'12px',color:'#92400e',border:'0.5px dashed #d4a017'}}>
+                        ⚠ <strong>Coût estimé :</strong> 1 crédit pour les 25 premiers résultats. Les pages suivantes coûtent 1 crédit chacune (max 5 pages = 125 sociétés par recherche).
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── ÉTAPE 4 : Résultats ── */}
+                  {prospStep === 4 && (
+                    <div>
+                      {prospLoading && <div style={{textAlign:'center',padding:'40px',color:'#607a7a'}}>Recherche en cours…</div>}
+                      {prospError && <div style={{padding:'10px 14px',background:'#fecaca',color:'#991b1b',borderRadius:'7px',marginBottom:'12px',fontSize:'13px'}}>{prospError}</div>}
+                      {prospImportResult && (
+                        <div style={{padding:'14px',background:'#dcfce7',borderRadius:'8px',marginBottom:'14px',fontSize:'13px',color:'#166534'}}>
+                          ✅ <strong>Import terminé :</strong> {prospImportResult.inserted_count} société(s) ajoutée(s)
+                          {prospImportResult.skipped_count > 0 && ` · ${prospImportResult.skipped_count} déjà connue(s) (ignorées)`}
+                          {prospImportResult.error_count > 0 && ` · ${prospImportResult.error_count} erreur(s)`}
+                          <div style={{marginTop:'8px',fontSize:'12px'}}>Les sociétés sont visibles dans <strong>Attribution</strong> en statut Suspect, prêtes à être assignées.</div>
+                        </div>
+                      )}
+                      {!prospLoading && prospResults.length > 0 && (
+                        <div>
+                          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}}>
+                            <div style={{fontSize:'12px',color:'#607a7a'}}>
+                              {prospResultsTotal} résultat(s) — Page {prospResultsPage}/{prospResultsTotalPages} —
+                              <strong style={{color:'#1a3535'}}> {prospSelected.size} sélectionnée(s)</strong>
+                            </div>
+                            <div style={{display:'flex',gap:'8px'}}>
+                              <button onClick={selectAllVisible} style={{padding:'4px 10px',fontSize:'11px',border:'0.5px solid #cde0e0',background:'white',borderRadius:'5px',cursor:'pointer'}}>Tout sélectionner</button>
+                              <button onClick={clearProspSelection} style={{padding:'4px 10px',fontSize:'11px',border:'0.5px solid #cde0e0',background:'white',borderRadius:'5px',cursor:'pointer'}}>Désélectionner</button>
+                            </div>
+                          </div>
+                          <div style={{maxHeight:'400px',overflow:'auto',border:'0.5px solid #e0e8e8',borderRadius:'8px'}}>
+                            {prospResults.map(c => {
+                              const siren = c.registration_number;
+                              const isExisting = prospExistingSirens.has(siren);
+                              const isSelected = prospSelected.has(siren);
+                              return (
+                                <div key={siren} style={{padding:'10px 14px',borderBottom:'0.5px solid #f0f4f4',display:'flex',gap:'10px',alignItems:'flex-start',background:isExisting?'#f4f7f7':(isSelected?'#e0f2f1':'white'),opacity:isExisting?0.6:1}}>
+                                  <input type="checkbox"
+                                    checked={isSelected}
+                                    disabled={isExisting}
+                                    onChange={() => toggleProspSelected(siren)}
+                                    style={{marginTop:'4px',cursor:isExisting?'not-allowed':'pointer'}} />
+                                  <div style={{flex:1}}>
+                                    <div style={{fontSize:'13px',fontWeight:600,color:'#1a3535',display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+                                      {c.name}
+                                      {isExisting && <span style={{fontSize:'10px',padding:'2px 7px',borderRadius:'10px',background:'#fef3c7',color:'#92400e',fontWeight:600}}>Déjà importée</span>}
+                                    </div>
+                                    <div style={{fontSize:'11px',color:'#607a7a',marginTop:'2px'}}>
+                                      SIREN {siren} · {c.formatted_address || ''}
+                                    </div>
+                                    {c.activity && <div style={{fontSize:'11px',color:'#7a9090',marginTop:'2px',fontStyle:'italic'}}>{c.activity}</div>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* Pagination */}
+                          {prospResultsTotalPages > 1 && (
+                            <div style={{marginTop:'10px',display:'flex',justifyContent:'center',gap:'6px'}}>
+                              {Array.from({length: Math.min(5, prospResultsTotalPages)}, (_,i) => i + 1).map(pg => (
+                                <button key={pg}
+                                  onClick={() => runProspectionSearch(pg)}
+                                  style={{padding:'5px 10px',fontSize:'11px',border:'0.5px solid #cde0e0',borderRadius:'5px',cursor:'pointer',background:pg===prospResultsPage?'#1a3535':'white',color:pg===prospResultsPage?'white':'#1a3535'}}>
+                                  Page {pg}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                </div>
+
+                {/* Footer navigation */}
+                <div style={{padding:'14px 24px',borderTop:'1px solid var(--tw-border)',display:'flex',justifyContent:'space-between',alignItems:'center',background:'#fafbfb'}}>
+                  <button onClick={() => prospStep > 1 ? setProspStep(prospStep - 1) : setShowProspectionModal(false)}
+                    style={{padding:'8px 14px',border:'0.5px solid #cde0e0',background:'white',borderRadius:'7px',cursor:'pointer',fontSize:'13px'}}>
+                    {prospStep > 1 ? '← Précédent' : 'Annuler'}
+                  </button>
+                  <div style={{display:'flex',gap:'8px'}}>
+                    {prospStep < 3 && (
+                      <button onClick={() => setProspStep(prospStep + 1)}
+                        disabled={prospStep === 1 && !prospNafCode && !prospPlace}
+                        style={{padding:'8px 18px',background:'#1a3535',color:'white',border:'none',borderRadius:'7px',cursor:'pointer',fontSize:'13px',fontWeight:600,opacity:(prospStep===1&&!prospNafCode&&!prospPlace)?0.5:1}}>
+                        Suivant →
+                      </button>
+                    )}
+                    {prospStep === 3 && (
+                      <button onClick={() => { setProspStep(4); runProspectionSearch(1); }}
+                        disabled={!prospNafCode && !prospPlace}
+                        style={{padding:'8px 18px',background:'#1a3535',color:'white',border:'none',borderRadius:'7px',cursor:'pointer',fontSize:'13px',fontWeight:600,opacity:(!prospNafCode&&!prospPlace)?0.5:1}}>
+                        🚀 Lancer la recherche (1 crédit)
+                      </button>
+                    )}
+                    {prospStep === 4 && (
+                      <button onClick={runProspectionImport}
+                        disabled={prospSelected.size === 0 || prospImporting}
+                        style={{padding:'8px 18px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'7px',cursor:(prospSelected.size===0||prospImporting)?'not-allowed':'pointer',fontSize:'13px',fontWeight:600,opacity:(prospSelected.size===0||prospImporting)?0.5:1}}>
+                        {prospImporting ? 'Import en cours…' : `📥 Importer ${prospSelected.size} suspect(s)`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
 
         </div>
       );

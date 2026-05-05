@@ -244,6 +244,68 @@
     };
   }
 
+  // Mock pour Place Autocomplete : retourne quelques places fictives matchant la requête
+  function mockPlaceAutocomplete(q) {
+    const Q = q.toLowerCase();
+    const PLACES = [
+      { id: 'mock-place-bretagne',     name: 'Bretagne',      type: 'region',     postal_code: null },
+      { id: 'mock-place-finistere',    name: 'Finistère',     type: 'department', postal_code: '29' },
+      { id: 'mock-place-paris',        name: 'Paris',         type: 'city',       postal_code: '75' },
+      { id: 'mock-place-lyon',         name: 'Lyon',          type: 'city',       postal_code: '69001' },
+      { id: 'mock-place-saintjeandeluz', name: 'Saint-Jean-de-Luz', type: 'city', postal_code: '64500' },
+      { id: 'mock-place-noisy',        name: 'Noisy-le-Grand', type: 'city',      postal_code: '93160' },
+      { id: 'mock-place-bordeaux',     name: 'Bordeaux',      type: 'city',       postal_code: '33000' },
+      { id: 'mock-place-iledefrance',  name: 'Île-de-France', type: 'region',     postal_code: null }
+    ];
+    return {
+      result: PLACES.filter(p => p.name.toLowerCase().includes(Q))
+    };
+  }
+
+  // Mock pour Multi-Search : génère des "fausses sociétés" supplémentaires si on est sur des critères larges
+  // Filtre les MOCK_COMPANIES selon nafLevel et placeId, applique pagination
+  function mockMultiSearch(criteria) {
+    let filtered = MOCK_COMPANIES.slice();
+    // Filtre approximatif par placeId : on regarde si le code postal mock match
+    if (criteria.placeId) {
+      const placeMap = {
+        'mock-place-bretagne':     /^(22|29|35|56)/,
+        'mock-place-finistere':    /^29/,
+        'mock-place-paris':        /^75/,
+        'mock-place-lyon':         /^69/,
+        'mock-place-saintjeandeluz': /^64500/,
+        'mock-place-noisy':        /^93160/,
+        'mock-place-bordeaux':     /^33/,
+        'mock-place-iledefrance':  /^(75|77|78|91|92|93|94|95)/
+      };
+      const re = placeMap[criteria.placeId];
+      if (re) filtered = filtered.filter(c => re.test(c.formatted_address || ''));
+    }
+    // Filtre par activité (mock ne stocke pas le NAF, on se base sur l'activity textuelle)
+    if (criteria.nafLevel) {
+      // En mock on simule : si nafLevel commence par '14' on filtre sur "textile"
+      if (String(criteria.nafLevel).startsWith('14') || String(criteria.nafLevel).startsWith('47.71')) {
+        filtered = filtered.filter(c => /textile|prêt|porter|cuir|maroquinerie|couture|vêtement/i.test(c.activity || ''));
+      }
+    }
+    // Filtres withphone/withemail/withsite : en mock tout est vrai
+    // Pagination
+    const limit = parseInt(criteria.limit) || 25;
+    const page = parseInt(criteria.page) || 1;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / limit));
+    const start = (page - 1) * limit;
+    const pageItems = filtered.slice(start, start + limit);
+    return {
+      success: true,
+      total: filtered.length,
+      totalContacts: filtered.length,
+      currentPage: page,
+      totalPages,
+      searchMode: 'multi',
+      result: pageItems
+    };
+  }
+
   // ─── API publique ────────────────────────────────────────────
 
   /**
@@ -325,6 +387,59 @@
       if (v) params.push(`${k}=${encodeURIComponent(v)}`);
     }
     return call(`/api/societeinfo/enrich?${params.join('&')}`);
+  }
+
+  /**
+   * Place Autocomplete : suggestions de places (ville/dept/région) pour la recherche multi-critères
+   * Aucun coût en crédits (endpoint /v3/places.json/autocomplete)
+   * @param {string} q - Requête (min 2 caractères)
+   * @returns {Promise<Object>} { result: [{ id: '...', name: 'Bretagne', type: 'region', ... }, ...] }
+   */
+  async function placeAutocomplete(q) {
+    const trimmed = (q || '').trim();
+    if (trimmed.length < 2) return { result: [] };
+    if (isMockEnabled()) {
+      await mockDelay();
+      return mockPlaceAutocomplete(trimmed);
+    }
+    return call(`/api/societeinfo/place-autocomplete?q=${encodeURIComponent(trimmed)}`);
+  }
+
+  /**
+   * Recherche multi-critères : NAF + zone + filtres
+   * Coût : 1 crédit / page de résultats (25 résultats max par page).
+   *
+   * @param {Object} criteria
+   * @param {string} [criteria.nafLevel] - Code NAF (ex: '14.13Z') — nécessaire si pas de placeId
+   * @param {string} [criteria.placeId] - ID de zone (depuis placeAutocomplete) — nécessaire si pas de nafLevel
+   * @param {boolean} [criteria.withphone] - Uniquement sociétés avec téléphone identifié
+   * @param {boolean} [criteria.withemail] - Uniquement sociétés avec email
+   * @param {boolean} [criteria.withsite] - Uniquement sociétés avec site web
+   * @param {number} [criteria.minstaff] - Effectif minimum
+   * @param {number} [criteria.maxstaff] - Effectif maximum
+   * @param {number} [criteria.page] - Page (1 par défaut)
+   * @param {number} [criteria.limit] - Résultats par page (max 25)
+   * @returns {Promise<Object>} { success, total, currentPage, totalPages, result: [...] }
+   */
+  async function multiSearch(criteria) {
+    const c = criteria || {};
+    if (!c.nafLevel && !c.placeId) {
+      throw new Error('Au moins un critère NAF ou zone géographique est requis');
+    }
+    if (isMockEnabled()) {
+      await mockDelay();
+      return mockMultiSearch(c);
+    }
+    const params = [];
+    const allowed = ['nafLevel', 'placeId', 'withphone', 'withemail', 'withsite', 'minstaff', 'maxstaff', 'page', 'limit'];
+    for (const k of allowed) {
+      let v = c[k];
+      if (v === undefined || v === null || v === '') continue;
+      // Booléens en string 'true'/'false' (format API SocieteInfo)
+      if (typeof v === 'boolean') v = v ? 'true' : 'false';
+      params.push(`${k}=${encodeURIComponent(String(v))}`);
+    }
+    return call(`/api/societeinfo/multi-search?${params.join('&')}`);
   }
 
   /**
@@ -528,6 +643,8 @@
     autocomplete,
     searchByName,
     enrichCompany,
+    placeAutocomplete,
+    multiSearch,
     getCompany,
     getCompanyById,
     getContacts,
