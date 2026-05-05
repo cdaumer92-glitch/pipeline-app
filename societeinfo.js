@@ -165,16 +165,25 @@
   // Délai artificiel pour simuler la latence réseau
   const mockDelay = (ms = 250) => new Promise(r => setTimeout(r, ms));
 
-  function mockSearch(q) {
+  function mockSearch(q, searchMode) {
     const Q = (q || '').toLowerCase();
-    const matched = MOCK_COMPANIES.filter(c =>
-      c.name.toLowerCase().includes(Q) ||
-      (c.brands || []).some(b => b.toLowerCase().includes(Q)) ||
-      c.activity.toLowerCase().includes(Q)
-    );
+    const mode = searchMode || 'name';
+    // 'name' : dénomination + marques uniquement (cohérent avec doc SocieteInfo)
+    // 'keyword' / 'auto' / 'legalname' : ajoute le matching sur activity en mock
+    //   (en prod, 'keyword' chercherait aussi dans les sites web crawlés)
+    const matched = MOCK_COMPANIES.filter(c => {
+      const nameMatch = c.name.toLowerCase().includes(Q) ||
+                        (c.brands || []).some(b => b.toLowerCase().includes(Q));
+      if (mode === 'name' || mode === 'legalname') {
+        return nameMatch;
+      }
+      // keyword / auto : élargit à l'activité
+      return nameMatch || c.activity.toLowerCase().includes(Q);
+    });
     return {
       success: true,
       total: matched.length,
+      searchMode: mode,
       result: matched
     };
   }
@@ -229,22 +238,28 @@
   }
 
   /**
-   * Recherche complète par nom OU marque
-   * Le mode searchMode=name côté SocieteInfo cherche dans la raison sociale
-   * ET dans les marques déposées de l'entreprise.
+   * Recherche par nom, marque, ou contenu web
    * @param {string} q - Requête (min 2 caractères)
-   * @returns {Promise<Object>} { success, result: { items: [...] } }
+   * @param {Object} [options] - Options
+   * @param {string} [options.searchMode] - 'name' (défaut, dénomination + marques INPI),
+   *                                        'keyword' (recherche élargie : sites web, RS, APE),
+   *                                        'legalname' (raison sociale stricte),
+   *                                        'auto' (legalname puis fallback keyword)
+   * @returns {Promise<Object>} { success, result: [...], searchMode, ... }
    */
-  async function searchByName(q) {
+  async function searchByName(q, options) {
     const trimmed = (q || '').trim();
     if (trimmed.length < 2) {
       throw new Error('Requête trop courte (min 2 caractères)');
     }
+    const opts = options || {};
+    const allowed = ['name', 'keyword', 'legalname', 'auto'];
+    const searchMode = allowed.indexOf(opts.searchMode) !== -1 ? opts.searchMode : 'name';
     if (isMockEnabled()) {
       await mockDelay();
-      return mockSearch(trimmed);
+      return mockSearch(trimmed, searchMode);
     }
-    return call(`/api/societeinfo/search?q=${encodeURIComponent(trimmed)}`);
+    return call(`/api/societeinfo/search?q=${encodeURIComponent(trimmed)}&searchMode=${searchMode}`);
   }
 
   /**

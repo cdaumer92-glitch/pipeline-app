@@ -3501,12 +3501,19 @@ app.get('/api/societeinfo/autocomplete', auth, async (req, res) => {
   sendSi(res, result);
 });
 
-// 3) Recherche complète par nom OU marque
-//    SocieteInfo permet searchMode=name (recherche dans la raison sociale ET les marques)
+// 3) Recherche par nom, marque, ou contenu web
+//    searchMode (optionnel) : 'name' (défaut, dénomination + marques INPI),
+//                             'keyword' (recherche élargie : sites web, RS, code APE),
+//                             'legalname' (raison sociale stricte),
+//                             'auto' (legalname puis fallback keyword si score faible)
+//    Source: https://societeinfo.com/api-doc/api/ section "Search Mode"
+const SI_ALLOWED_MODES = ['name', 'keyword', 'legalname', 'auto'];
 app.get('/api/societeinfo/search', auth, async (req, res) => {
   const q = (req.query.q || '').trim();
   if (q.length < 2) return res.status(400).json({ error: 'Requête trop courte (min 2 caractères)' });
-  const result = await siFetch(`/v2/companies.json?query=${encodeURIComponent(q)}&searchMode=name&limit=20`);
+  const reqMode = (req.query.searchMode || '').trim();
+  const searchMode = SI_ALLOWED_MODES.includes(reqMode) ? reqMode : 'name';
+  const result = await siFetch(`/v2/companies.json?query=${encodeURIComponent(q)}&searchMode=${searchMode}&limit=20`);
   sendSi(res, result);
 });
 

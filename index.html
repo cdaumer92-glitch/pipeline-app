@@ -683,6 +683,7 @@
       // États du modal SocieteInfo (recherche + résultats + sélection)
       const [showSInfoModal, setShowSInfoModal] = React.useState(false);
       const [sInfoQuery, setSInfoQuery] = React.useState('');
+      const [sInfoBroadSearch, setSInfoBroadSearch] = React.useState(false); // Recherche élargie (searchMode=keyword)
       const [sInfoLoading, setSInfoLoading] = React.useState(false);
       const [sInfoResults, setSInfoResults] = React.useState([]);
       const [sInfoError, setSInfoError] = React.useState('');
@@ -1910,7 +1911,9 @@
         setSInfoError('');
         setSInfoLoading(true);
         try {
-          const data = await window.SInfo.searchByName(query);
+          const data = await window.SInfo.searchByName(query, {
+            searchMode: sInfoBroadSearch ? 'keyword' : 'name'
+          });
           // SocieteInfo renvoie { success, total, result: [...], ... }
           // (attention : 'result' au singulier dans cette API, pas 'results')
           let items = data.result || data.results || data.items || data.companies || [];
@@ -2986,6 +2989,23 @@
                     >
                       {sInfoLoading ? '…' : 'Rechercher'}
                     </button>
+                  </div>
+
+                  {/* Recherche élargie : searchMode=keyword (sites web, code APE, contenu crawlé) */}
+                  <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      id="sinfo-broad-search"
+                      checked={sInfoBroadSearch}
+                      onChange={(e) => setSInfoBroadSearch(e.target.checked)}
+                      style={{ cursor: 'pointer', margin: 0 }}
+                    />
+                    <label htmlFor="sinfo-broad-search" style={{
+                      fontSize: '12px', color: '#607a7a', cursor: 'pointer',
+                      fontFamily: "'DM Sans', sans-serif", userSelect: 'none'
+                    }}>
+                      🔍 Recherche élargie (sites web, code APE — utile pour enseignes/marques non déposées)
+                    </label>
                   </div>
 
                   {/* Erreur */}
