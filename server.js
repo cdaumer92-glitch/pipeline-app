@@ -3677,14 +3677,21 @@ app.get('/api/societeinfo/place-autocomplete', auth, async (req, res) => {
 
 // 9) Recherche multi-critères : NAF + zone + filtres (avec téléphone, etc.)
 //    1 crédit / page de résultats (25 résultats max par page)
-//    Source: https://societeinfo.com/api-doc/api/ section "Search Companies"
+//    Source: https://societeinfo.com/api-doc/#search-companies
 //    Paramètres whitelistés (côté front, on ne forward que ceux qu'on a explicitement décidé d'exposer)
+//    NOTE: SocieteInfo attend le code NAF SANS point (1411Z), alors que la base codes_naf le stocke
+//    AVEC point (14.11Z). On normalise donc systématiquement le nafLevel ici.
 const SI_MULTI_FIELDS = ['nafLevel', 'placeId', 'withphone', 'withemail', 'withsite', 'minstaff', 'maxstaff', 'minsales', 'maxsales', 'page', 'limit'];
 app.get('/api/societeinfo/multi-search', auth, async (req, res) => {
   const params = [];
   for (const field of SI_MULTI_FIELDS) {
-    const v = (req.query[field] || '').toString().trim();
-    if (v) params.push(`${field}=${encodeURIComponent(v)}`);
+    let v = (req.query[field] || '').toString().trim();
+    if (!v) continue;
+    // Normalisation du code NAF : retire les points (14.11Z -> 1411Z)
+    if (field === 'nafLevel') {
+      v = v.replace(/\./g, '');
+    }
+    params.push(`${field}=${encodeURIComponent(v)}`);
   }
   // Validation : on exige au moins un critère significatif (NAF ou place) sinon ce serait scanner la base entière
   if (!req.query.nafLevel && !req.query.placeId) {
