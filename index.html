@@ -486,7 +486,41 @@
     // ================== FIN INTERCEPTEUR ==================
 
     // ================== UTILITAIRES (définis avant App) ==================
-    
+
+    // ── Icônes SVG line-icons + bouton icône réutilisable ──
+    // Anciennement défini en local dans la section Affaires (RightPanel) ;
+    // remonté ici pour réutilisation depuis n'importe quel composant
+    // (Contacts, Affaires, Devis, Historique RGPD, etc.)
+    const I = (path, size = 14) => React.createElement('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }, path);
+
+    const ICONS = {
+      chevron:    React.createElement('polyline', {points:'6 9 12 15 18 9'}),
+      chevronR:   React.createElement('polyline', {points:'9 18 15 12 9 6'}),
+      folder:     React.createElement('path', {d:'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'}),
+      doc:        React.createElement(React.Fragment, null, React.createElement('path',{d:'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'}), React.createElement('polyline',{points:'14 2 14 8 20 8'})),
+      check:      React.createElement('polyline', {points:'20 6 9 17 4 12'}),
+      edit:       React.createElement(React.Fragment, null, React.createElement('path',{d:'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7'}), React.createElement('path',{d:'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'})),
+      trash:      React.createElement(React.Fragment, null, React.createElement('path',{d:'M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6'})),
+      attach:     React.createElement('path', {d:'M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48'}),
+      download:   React.createElement(React.Fragment, null, React.createElement('path',{d:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'}), React.createElement('polyline',{points:'7 10 12 15 17 10'}), React.createElement('line',{x1:12,y1:15,x2:12,y2:3})),
+      plus:       React.createElement('path', {d:'M12 5v14M5 12h14'}),
+      alert:      React.createElement(React.Fragment, null, React.createElement('circle',{cx:12,cy:12,r:10}), React.createElement('path',{d:'M12 8v4M12 16h.01'})),
+      spark:      React.createElement('path', {d:'M13 2L3 14h9l-1 8 10-12h-9l1-8z'}),
+      clock:      React.createElement(React.Fragment, null, React.createElement('circle',{cx:12,cy:12,r:10}), React.createElement('polyline',{points:'12 6 12 12 16 14'})),
+    };
+
+    // Petit bouton icône réutilisable (action discrète sur card)
+    const IconBtn = ({ onClick, title, color = 'var(--tw-slate)', hoverColor = 'var(--tw-ink)', hoverBg = 'var(--tw-bg)', children, danger = false }) => (
+      React.createElement('button', {
+        onClick: onClick,
+        title: title,
+        'aria-label': title,
+        style: { width:'28px', height:'28px', padding:0, background:'white', border:'0.5px solid var(--tw-border)', borderRadius:'7px', cursor:'pointer', display:'inline-flex', alignItems:'center', justifyContent:'center', color: color, transition:'background .15s, color .15s, border-color .15s' },
+        onMouseEnter: (e) => { e.currentTarget.style.background = danger ? '#fef2f2' : hoverBg; e.currentTarget.style.color = danger ? 'var(--tw-red)' : hoverColor; e.currentTarget.style.borderColor = danger ? '#fecaca' : 'var(--tw-slate)'; },
+        onMouseLeave: (e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = color; e.currentTarget.style.borderColor = 'var(--tw-border)'; }
+      }, children)
+    );
+
     function getActionStatus(actions) {
       if (!actions || actions.length === 0) return { hasAction: false, isLate: false, nextActionDate: null };
       
@@ -7178,10 +7212,12 @@
                             {c.accept_notes_info && <span title="Accepte les notes d'information" style={{fontSize:'10px',fontWeight:'600',padding:'2px 6px',borderRadius:'8px',background:'#dbeafe',color:'#1e40af'}}>📰</span>}
                             {c.decideur && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'#fdecea',color:'var(--tw-red)'}}>Décideur</span>}
                             {c.principal && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
-                            <button onClick={() => { setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info}); setShowInterlocuteurForm(true); }}
-                              style={{padding:'2px 7px',border:'1px solid var(--tw-border)',borderRadius:'4px',background:'white',cursor:'pointer',fontSize:'11px'}}>✏️</button>
-                            <button onClick={() => handleDeleteInterlocuteur(c.id)}
-                              style={{padding:'2px 6px',border:'none',borderRadius:'4px',background:'#f79d8d',color:'white',cursor:'pointer',fontSize:'10px'}}>🗑️</button>
+                            <IconBtn title="Modifier le contact"
+                              onClick={() => { setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info}); setShowInterlocuteurForm(true); }}
+                            >{I(ICONS.edit, 13)}</IconBtn>
+                            <IconBtn title="Supprimer le contact" danger
+                              onClick={() => handleDeleteInterlocuteur(c.id)}
+                            >{I(ICONS.trash, 13)}</IconBtn>
                           </div>
                         </div>
                       );
@@ -8254,31 +8290,8 @@
         <div style={styles.activitiesSection}>
           {/* ========== SECTION AFFAIRES (refonte 2026) ========== */}
           {(() => {
-            // Icônes SVG inline pour cohérence
-            const I = (path, size=14) => React.createElement('svg', {width:size, height:size, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:1.8, strokeLinecap:'round', strokeLinejoin:'round'}, path);
-            const ICONS = {
-              chevron:    React.createElement('polyline', {points:'6 9 12 15 18 9'}),
-              chevronR:   React.createElement('polyline', {points:'9 18 15 12 9 6'}),
-              folder:     React.createElement('path', {d:'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'}),
-              doc:        React.createElement(React.Fragment, null, React.createElement('path',{d:'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'}), React.createElement('polyline',{points:'14 2 14 8 20 8'})),
-              check:      React.createElement('polyline', {points:'20 6 9 17 4 12'}),
-              edit:       React.createElement(React.Fragment, null, React.createElement('path',{d:'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7'}), React.createElement('path',{d:'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'})),
-              trash:      React.createElement(React.Fragment, null, React.createElement('path',{d:'M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6'})),
-              attach:     React.createElement('path', {d:'M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48'}),
-              download:   React.createElement(React.Fragment, null, React.createElement('path',{d:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'}), React.createElement('polyline',{points:'7 10 12 15 17 10'}), React.createElement('line',{x1:12,y1:15,x2:12,y2:3})),
-              plus:       React.createElement('path', {d:'M12 5v14M5 12h14'}),
-              alert:      React.createElement(React.Fragment, null, React.createElement('circle',{cx:12,cy:12,r:10}), React.createElement('path',{d:'M12 8v4M12 16h.01'})),
-              spark:      React.createElement('path', {d:'M13 2L3 14h9l-1 8 10-12h-9l1-8z'}),
-            };
-
-            // Petit bouton icône réutilisable (action discrète sur card)
-            const IconBtn = ({onClick, title, color='var(--tw-slate)', hoverColor='var(--tw-ink)', hoverBg='var(--tw-bg)', children, danger=false}) => (
-              <button onClick={onClick} title={title} aria-label={title}
-                style={{width:'28px',height:'28px',padding:0,background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'7px',cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',color:color,transition:'background .15s, color .15s, border-color .15s'}}
-                onMouseEnter={(e) => { e.currentTarget.style.background = danger ? '#fef2f2' : hoverBg; e.currentTarget.style.color = danger ? 'var(--tw-red)' : hoverColor; e.currentTarget.style.borderColor = danger ? '#fecaca' : 'var(--tw-slate)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background='white'; e.currentTarget.style.color=color; e.currentTarget.style.borderColor='var(--tw-border)'; }}
-              >{children}</button>
-            );
+            // Note : I, ICONS et IconBtn sont définis globalement (cf. utilitaires
+            // avant App). On les utilise directement ici sans redéclaration.
 
             return (
             <div style={{marginBottom:'20px'}}>
