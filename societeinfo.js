@@ -438,7 +438,7 @@
       return mockMultiSearch(c);
     }
     const params = [];
-    const allowed = ['nafLevel', 'placeId', 'withphone', 'withemail', 'withsite', 'minstaff', 'maxstaff', 'page', 'limit'];
+    const allowed = ['nafLevel', 'placeId', 'withphone', 'withemail', 'withsite', 'minstaff', 'maxstaff', 'email_type', 'page', 'limit'];
     for (const k of allowed) {
       let v = c[k];
       if (v === undefined || v === null || v === '') continue;

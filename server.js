@@ -3915,7 +3915,7 @@ app.get('/api/societeinfo/place-autocomplete', auth, async (req, res) => {
 //    Paramètres whitelistés (côté front, on ne forward que ceux qu'on a explicitement décidé d'exposer)
 //    NOTE: SocieteInfo attend le code NAF SANS point (1411Z), alors que la base codes_naf le stocke
 //    AVEC point (14.11Z). On normalise donc systématiquement le nafLevel ici.
-const SI_MULTI_FIELDS = ['nafLevel', 'placeId', 'withphone', 'withemail', 'withsite', 'minstaff', 'maxstaff', 'minsales', 'maxsales', 'page', 'limit'];
+const SI_MULTI_FIELDS = ['nafLevel', 'placeId', 'withphone', 'withemail', 'withsite', 'minstaff', 'maxstaff', 'minsales', 'maxsales', 'email_type', 'page', 'limit'];
 app.get('/api/societeinfo/multi-search', auth, async (req, res) => {
   const params = [];
   for (const field of SI_MULTI_FIELDS) {

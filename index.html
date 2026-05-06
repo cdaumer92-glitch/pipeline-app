@@ -5484,6 +5484,9 @@
       const [prospError, setProspError] = React.useState('');
       const [prospSelected, setProspSelected] = React.useState(new Set()); // Set de SIREN cochés
       const [prospExistingSirens, setProspExistingSirens] = React.useState(new Set()); // SIREN déjà en BDD
+      // Set des SIREN qui ont au moins un contact pro nominatif (email pro type personal),
+      // détectés via 2e appel parallèle email_type=personal. Coût : +1 crédit/page.
+      const [prospWithContactsSirens, setProspWithContactsSirens] = React.useState(new Set());
       const [prospImporting, setProspImporting] = React.useState(false);
       const [prospImportResult, setProspImportResult] = React.useState(null);
 
@@ -5529,7 +5532,7 @@
         setProspMinStaff(''); setProspMaxStaff('');
         setProspResults([]); setProspResultsTotal(0); setProspResultsPage(1); setProspResultsTotalPages(1);
         setProspError(''); setProspLoading(false);
-        setProspSelected(new Set()); setProspExistingSirens(new Set());
+        setProspSelected(new Set()); setProspExistingSirens(new Set()); setProspWithContactsSirens(new Set());
         setProspImportResult(null);
       };
 
@@ -5550,7 +5553,9 @@
         return () => { cancelled = true; clearTimeout(t); };
       }, [prospPlaceSearch, showProspectionModal]);
 
-      // Lance la recherche multi-critères (consomme 1 crédit/page)
+      // Lance la recherche multi-critères + 2e appel pour identifier les sociétés
+      // ayant au moins un contact pro nominatif (email_type=personal).
+      // Coût : 1 crédit pour la recherche principale + 1 crédit pour la recherche enrichie = 2 crédits/page.
       const runProspectionSearch = async (page) => {
         setProspError('');
         setProspLoading(true);
@@ -5567,12 +5572,33 @@
           if (prospMinStaff)  criteria.minstaff  = prospMinStaff;
           if (prospMaxStaff)  criteria.maxstaff  = prospMaxStaff;
 
-          const data = await window.SInfo.multiSearch(criteria);
+          // Appel 1 : recherche complète (sans filtre contacts)
+          // Appel 2 : même critères + email_type=personal pour identifier les sociétés avec contacts pro
+          // Lancés en parallèle pour gagner du temps. Si l'appel 2 échoue, on dégrade gracieusement
+          // (résultats principaux affichés sans badge ni tri).
+          const criteriaWithContacts = { ...criteria, email_type: 'personal' };
+          const [data, dataContacts] = await Promise.all([
+            window.SInfo.multiSearch(criteria),
+            window.SInfo.multiSearch(criteriaWithContacts).catch(err => {
+              console.warn('[prospection] Appel email_type=personal échoué, dégradation OK:', err);
+              return null;
+            })
+          ]);
+
           const items = data.result || [];
           setProspResults(items);
           setProspResultsTotal(data.total || items.length);
           setProspResultsPage(data.currentPage || page || 1);
           setProspResultsTotalPages(data.totalPages || 1);
+
+          // Construire le Set des SIREN ayant des contacts pro
+          const contactsSirens = new Set();
+          if (dataContacts && Array.isArray(dataContacts.result)) {
+            for (const c of dataContacts.result) {
+              if (c.registration_number) contactsSirens.add(c.registration_number);
+            }
+          }
+          setProspWithContactsSirens(contactsSirens);
 
           // Récupérer les SIREN déjà en BDD (Interprétation A : exclusion des déjà importées)
           const sirens = items.map(c => c.registration_number).filter(Boolean);
@@ -5598,6 +5624,7 @@
         } catch (err) {
           setProspError(err.message || 'Erreur recherche');
           setProspResults([]);
+          setProspWithContactsSirens(new Set());
         } finally {
           setProspLoading(false);
         }
@@ -6371,10 +6398,20 @@
                             </div>
                           </div>
                           <div style={{maxHeight:'400px',overflow:'auto',border:'0.5px solid #e0e8e8',borderRadius:'8px'}}>
-                            {prospResults.map(c => {
+                            {/* Tri : sociétés avec contacts pro en haut, puis les autres.
+                                On ne réordonne pas en réel l'array (préserve l'ordre original SocieteInfo
+                                pour ceux qui ont les mêmes flags) — juste un .sort() stable basé sur le Set. */}
+                            {[...prospResults]
+                              .sort((a, b) => {
+                                const ah = prospWithContactsSirens.has(a.registration_number) ? 1 : 0;
+                                const bh = prospWithContactsSirens.has(b.registration_number) ? 1 : 0;
+                                return bh - ah;
+                              })
+                              .map(c => {
                               const siren = c.registration_number;
                               const isExisting = prospExistingSirens.has(siren);
                               const isSelected = prospSelected.has(siren);
+                              const hasContacts = prospWithContactsSirens.has(siren);
                               return (
                                 <div key={siren} style={{padding:'10px 14px',borderBottom:'0.5px solid #f0f4f4',display:'flex',gap:'10px',alignItems:'flex-start',background:isExisting?'#f4f7f7':(isSelected?'#e0f2f1':'white'),opacity:isExisting?0.6:1}}>
                                   <input type="checkbox"
@@ -6385,6 +6422,12 @@
                                   <div style={{flex:1}}>
                                     <div style={{fontSize:'13px',fontWeight:600,color:'#1a3535',display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
                                       {c.name}
+                                      {hasContacts && (
+                                        <span title="Cette société a des contacts professionnels nominatifs (email pro)" style={{display:'inline-flex',alignItems:'center',gap:'3px',fontSize:'10px',padding:'2px 7px',borderRadius:'10px',background:'#dcfce7',color:'#166534',fontWeight:600}}>
+                                          {I(ICONS.mail, 11)}
+                                          contacts
+                                        </span>
+                                      )}
                                       {isExisting && <span style={{fontSize:'10px',padding:'2px 7px',borderRadius:'10px',background:'#fef3c7',color:'#92400e',fontWeight:600}}>Déjà importée</span>}
                                     </div>
                                     <div style={{fontSize:'11px',color:'#607a7a',marginTop:'2px'}}>
@@ -6433,7 +6476,7 @@
                       <button onClick={() => { setProspStep(4); runProspectionSearch(1); }}
                         disabled={!prospNafCode && !prospPlace}
                         style={{padding:'8px 18px',background:'#1a3535',color:'white',border:'none',borderRadius:'7px',cursor:'pointer',fontSize:'13px',fontWeight:600,opacity:(!prospNafCode&&!prospPlace)?0.5:1}}>
-                        🚀 Lancer la recherche (1 crédit)
+                        🚀 Lancer la recherche (2 crédits)
                       </button>
                     )}
                     {prospStep === 4 && (
