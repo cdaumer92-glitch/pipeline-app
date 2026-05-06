@@ -410,6 +410,30 @@ async function initDB() {
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS accept_emailing BOOLEAN DEFAULT false`);
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS accept_notes_info BOOLEAN DEFAULT false`);
 
+    // Migration : table d'historique RGPD des changements de consentement
+    //   Trace tout changement des flags accept_emailing / accept_notes_info
+    //   sur interlocuteurs : qui, quand, depuis quoi (manuel CRM, webhook Brevo,
+    //   import, etc.). Indispensable pour la traçabilité RGPD (article 5.2 -
+    //   accountability) même en B2B où on est en opt-out.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS interlocuteurs_consents (
+        id               SERIAL PRIMARY KEY,
+        interlocuteur_id INTEGER NOT NULL REFERENCES interlocuteurs(id) ON DELETE CASCADE,
+        field            VARCHAR(50) NOT NULL,
+        old_value        BOOLEAN,
+        new_value        BOOLEAN NOT NULL,
+        source           VARCHAR(50) NOT NULL,
+        source_detail    TEXT,
+        changed_by       VARCHAR(100),
+        changed_at       TIMESTAMP NOT NULL DEFAULT NOW(),
+        ip_address       INET,
+        user_agent       TEXT
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_consents_interloc ON interlocuteurs_consents(interlocuteur_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_consents_field_value ON interlocuteurs_consents(field, new_value)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_consents_changed_at ON interlocuteurs_consents(changed_at DESC)`);
+
     // ========== MIGRATION GCS → Scaleway : préfixes pdf_url ==========
     await client.query(`
       CREATE TABLE IF NOT EXISTS migrations (
@@ -1964,45 +1988,98 @@ app.get('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
 });
 
 app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
     const { nom, fonction, email, telephone, principal, decideur, accept_emailing, accept_notes_info } = req.body;
 
+    const acceptEmailing = !!accept_emailing;
+    const acceptNotesInfo = !!accept_notes_info;
+
+    await client.query('BEGIN');
+
     if (principal) {
-      await pool.query(
+      await client.query(
         'UPDATE interlocuteurs SET principal = false WHERE prospect_id = $1',
         [id]
       );
     }
 
-    const result = await pool.query(
+    const result = await client.query(
       `INSERT INTO interlocuteurs (prospect_id, nom, fonction, email, telephone, principal, decideur, accept_emailing, accept_notes_info) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
        RETURNING *`,
-      [id, nom, fonction, email, telephone, principal || false, decideur || false, accept_emailing || false, accept_notes_info || false]
+      [id, nom, fonction, email, telephone, principal || false, decideur || false, acceptEmailing, acceptNotesInfo]
     );
 
-    res.json(result.rows[0]);
+    const newInterloc = result.rows[0];
+
+    // RGPD - Option A : on logue la création initiale dans l'historique
+    // pour avoir une trace complète depuis J1 (vrai pour les 2 flags).
+    const ipAddr = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || null;
+    const userAgent = req.headers['user-agent'] || null;
+    await client.query(
+      `INSERT INTO interlocuteurs_consents
+         (interlocuteur_id, field, old_value, new_value, source, source_detail, changed_by, ip_address, user_agent)
+       VALUES ($1, 'accept_emailing', NULL, $2, 'manual_crm_create', $3, $4, $5, $6),
+              ($1, 'accept_notes_info', NULL, $7, 'manual_crm_create', $3, $4, $5, $6)`,
+      [
+        newInterloc.id,
+        acceptEmailing,
+        `Création interlocuteur (prospect_id=${id})`,
+        req.userName || null,
+        ipAddr,
+        userAgent,
+        acceptNotesInfo
+      ]
+    );
+
+    await client.query('COMMIT');
+    res.json(newInterloc);
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Erreur create interlocuteur:', err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
 app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) => {
+  const client = await pool.connect();
   try {
     const { prospectId, id } = req.params;
     const { nom, fonction, email, telephone, principal, decideur, accept_emailing, accept_notes_info } = req.body;
 
+    await client.query('BEGIN');
+
+    // Lire l'état AVANT update pour pouvoir détecter les changements RGPD.
+    // Verrouillage FOR UPDATE pour éviter une race condition si 2 PUT
+    // arrivent simultanément sur le même interlocuteur.
+    const beforeRes = await client.query(
+      `SELECT accept_emailing, accept_notes_info
+         FROM interlocuteurs
+        WHERE id = $1 AND prospect_id = $2
+        FOR UPDATE`,
+      [id, prospectId]
+    );
+
+    if (beforeRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Interlocuteur non trouvé' });
+    }
+
+    const before = beforeRes.rows[0];
+
     if (principal) {
-      await pool.query(
+      await client.query(
         'UPDATE interlocuteurs SET principal = false WHERE prospect_id = $1 AND id != $2',
         [prospectId, id]
       );
     }
 
     // COALESCE pour ne pas écraser les flags si pas envoyés (compat ascendante)
-    const result = await pool.query(
+    const result = await client.query(
       `UPDATE interlocuteurs 
        SET nom = $1, fonction = $2, email = $3, telephone = $4, principal = $5, decideur = $6,
            accept_emailing = COALESCE($7, accept_emailing),
@@ -2018,14 +2095,37 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
       ]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Interlocuteur non trouvé' });
+    const after = result.rows[0];
+
+    // RGPD : logger uniquement les CHANGEMENTS de valeur sur les 2 flags.
+    const ipAddr = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || null;
+    const userAgent = req.headers['user-agent'] || null;
+
+    if (before.accept_emailing !== after.accept_emailing) {
+      await client.query(
+        `INSERT INTO interlocuteurs_consents
+           (interlocuteur_id, field, old_value, new_value, source, source_detail, changed_by, ip_address, user_agent)
+         VALUES ($1, 'accept_emailing', $2, $3, 'manual_crm_update', $4, $5, $6, $7)`,
+        [id, before.accept_emailing, after.accept_emailing, `Modification fiche interlocuteur`, req.userName || null, ipAddr, userAgent]
+      );
+    }
+    if (before.accept_notes_info !== after.accept_notes_info) {
+      await client.query(
+        `INSERT INTO interlocuteurs_consents
+           (interlocuteur_id, field, old_value, new_value, source, source_detail, changed_by, ip_address, user_agent)
+         VALUES ($1, 'accept_notes_info', $2, $3, 'manual_crm_update', $4, $5, $6, $7)`,
+        [id, before.accept_notes_info, after.accept_notes_info, `Modification fiche interlocuteur`, req.userName || null, ipAddr, userAgent]
+      );
     }
 
-    res.json(result.rows[0]);
+    await client.query('COMMIT');
+    res.json(after);
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Erreur update interlocuteur:', err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -2103,6 +2203,114 @@ app.get('/api/interlocuteurs/communication-list', auth, async (req, res) => {
   } catch (err) {
     console.error('Erreur communication-list:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== RGPD - Historique consentements =====================
+// GET /api/interlocuteurs/:id/consents
+// Retourne l'historique chronologique des changements de flags accept_emailing
+// et accept_notes_info pour un interlocuteur. Utile pour l'audit RGPD et
+// l'affichage de la timeline de consentement sur la fiche.
+app.get('/api/interlocuteurs/:id/consents', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `SELECT id, interlocuteur_id, field, old_value, new_value,
+              source, source_detail, changed_by, changed_at,
+              ip_address::text AS ip_address, user_agent
+         FROM interlocuteurs_consents
+        WHERE interlocuteur_id = $1
+        ORDER BY changed_at DESC, id DESC`,
+      [id]
+    );
+    res.json({ total: result.rows.length, events: result.rows });
+  } catch (err) {
+    console.error('Erreur fetch consents:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/webhook/brevo
+// Webhook appelé par Brevo lors d'événements de désabonnement / unsubscription.
+// Pas d'auth JWT (Brevo n'en a pas), protégé par un token secret partagé via
+// header X-Webhook-Token (à configurer sur process.env.BREVO_WEBHOOK_TOKEN).
+//
+// Doc Brevo : https://developers.brevo.com/docs/transactional-webhooks
+// Événements gérés : "unsubscribed" (campagne marketing) et "list_unsubscribe"
+// (clic header List-Unsubscribe). Brevo envoie 1 événement par message ; on
+// matche par email pour retrouver le ou les interlocuteurs et basculer leur
+// accept_emailing à false avec source='webhook_brevo'.
+app.post('/api/webhook/brevo', async (req, res) => {
+  // Protection : token secret partagé
+  const expected = process.env.BREVO_WEBHOOK_TOKEN;
+  if (!expected) {
+    console.error('[brevo-webhook] BREVO_WEBHOOK_TOKEN non configuré côté serveur');
+    return res.status(503).json({ error: 'Webhook non configuré' });
+  }
+  const provided = req.headers['x-webhook-token'];
+  if (provided !== expected) {
+    console.warn('[brevo-webhook] Token invalide ou absent (IP:', req.ip + ')');
+    return res.status(401).json({ error: 'Token invalide' });
+  }
+
+  const payload = req.body || {};
+  const eventType = (payload.event || '').toLowerCase();
+  const email = (payload.email || '').trim().toLowerCase();
+  const campaignId = payload['campaign-id'] || payload.campaign_id || null;
+  const ts = payload.ts ? new Date(payload.ts * 1000).toISOString() : null;
+
+  // On ne traite que les événements de désabonnement
+  const unsubscribeEvents = ['unsubscribed', 'list_unsubscribe'];
+  if (!unsubscribeEvents.includes(eventType)) {
+    // 200 quand même pour que Brevo n'essaie pas de retry indéfiniment
+    return res.json({ ok: true, ignored: true, reason: `event "${eventType}" non géré` });
+  }
+
+  if (!email) {
+    return res.status(400).json({ error: 'email manquant dans le payload' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Récupérer tous les interlocuteurs avec cet email qui sont actuellement opt-in
+    const intlocs = await client.query(
+      `SELECT id, accept_emailing
+         FROM interlocuteurs
+        WHERE LOWER(TRIM(email)) = $1
+          AND accept_emailing = true
+        FOR UPDATE`,
+      [email]
+    );
+
+    let updated = 0;
+    for (const row of intlocs.rows) {
+      await client.query(
+        `UPDATE interlocuteurs
+            SET accept_emailing = false,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1`,
+        [row.id]
+      );
+      await client.query(
+        `INSERT INTO interlocuteurs_consents
+           (interlocuteur_id, field, old_value, new_value, source, source_detail, changed_by, ip_address, user_agent)
+         VALUES ($1, 'accept_emailing', true, false, 'webhook_brevo', $2, 'brevo', NULL, NULL)`,
+        [row.id, `Désabonnement Brevo (event=${eventType}, campaign=${campaignId || 'n/a'}, ts=${ts || 'n/a'})`]
+      );
+      updated++;
+    }
+
+    await client.query('COMMIT');
+    console.log(`[brevo-webhook] ${eventType} reçu pour ${email} → ${updated} interlocuteur(s) opt-out`);
+    res.json({ ok: true, email, updated });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[brevo-webhook] erreur traitement:', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
