@@ -737,6 +737,12 @@
       const [formData, setFormData] = React.useState(getEmptyProspect());
       const [interlocuteurs, setInterlocuteurs] = React.useState([]);
       const [showInterlocuteurForm, setShowInterlocuteurForm] = React.useState(false);
+
+      // RGPD - États pour le collapse "Historique consentements" du formulaire d'édition
+      const [historyExpanded, setHistoryExpanded] = React.useState(false);
+      const [historyLoading, setHistoryLoading] = React.useState(false);
+      const [historyData, setHistoryData] = React.useState([]);
+      const [historyError, setHistoryError] = React.useState(null);
       
       // STATE MODAL COMPTEURS (au niveau App pour éviter problèmes de rendu)
       const [showCompteurModal, setShowCompteurModal] = React.useState(false);
@@ -2637,6 +2643,14 @@
               setInterlocuteurForm={setInterlocuteurForm}
               handleSaveInterlocuteur={handleSaveInterlocuteur}
               handleDeleteInterlocuteur={handleDeleteInterlocuteur}
+              historyExpanded={historyExpanded}
+              setHistoryExpanded={setHistoryExpanded}
+              historyLoading={historyLoading}
+              setHistoryLoading={setHistoryLoading}
+              historyData={historyData}
+              setHistoryData={setHistoryData}
+              historyError={historyError}
+              setHistoryError={setHistoryError}
               devisList={devisList}
               showDevisForm={showDevisForm}
               setShowDevisForm={setShowDevisForm}
@@ -6570,7 +6584,7 @@
       );
     }
 
-    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
+    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
@@ -7140,88 +7154,192 @@
                     )}
 
                     {/* Contacts */}
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
-                      <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)'}}>Contacts</div>
-                      <button onClick={() => { setInterlocuteurForm({nom:'',fonction:'',email:'',telephone:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false}); setShowInterlocuteurForm(true); }}
-                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Contact</button>
-                    </div>
+                    {(() => {
+                      // Helper : reset propre du formulaire ET du collapse historique
+                      const closeContactForm = () => {
+                        setShowInterlocuteurForm(false);
+                        setHistoryExpanded(false);
+                        setHistoryData([]);
+                        setHistoryError(null);
+                      };
 
-                    {/* Formulaire contact inline */}
-                    {showInterlocuteurForm && (
-                      <div style={{background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'16px',marginBottom:'12px'}}>
-                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
-                          {[
-                            {ph:'Nom *', field:'nom'},
-                            {ph:'Fonction', field:'fonction'},
-                            {ph:'Email', field:'email', type:'email'},
-                            {ph:'Téléphone', field:'telephone', type:'tel'},
-                          ].map(({ph,field,type='text'}) => (
-                            <input key={field} type={type} placeholder={ph}
-                              value={interlocuteurForm[field]||''}
-                              onChange={e=>setInterlocuteurForm({...interlocuteurForm,[field]:e.target.value})}
-                              style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
-                          ))}
-                        </div>
-                        <div style={{display:'flex',gap:'16px',marginBottom:'12px',flexWrap:'wrap'}}>
-                          <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',cursor:'pointer'}}>
-                            <input type="checkbox" checked={!!interlocuteurForm.principal} onChange={e=>setInterlocuteurForm({...interlocuteurForm,principal:e.target.checked})} />
-                            Contact principal
-                          </label>
-                          <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',cursor:'pointer'}}>
-                            <input type="checkbox" checked={!!interlocuteurForm.decideur} onChange={e=>setInterlocuteurForm({...interlocuteurForm,decideur:e.target.checked})} />
-                            Décideur
-                          </label>
-                        </div>
-                        {/* Consentements RGPD - opt-in séparés pour communications */}
-                        <div style={{display:'flex',gap:'16px',marginBottom:'12px',flexWrap:'wrap',padding:'8px 10px',background:'#f4f7f7',borderRadius:'6px',border:'0.5px dashed #cde0e0'}}>
-                          <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',color:'#4a6868'}} title="Le contact accepte de recevoir des campagnes commerciales (offres, promos, sollicitations)">
-                            <input type="checkbox" checked={!!interlocuteurForm.accept_emailing} onChange={e=>setInterlocuteurForm({...interlocuteurForm,accept_emailing:e.target.checked})} />
-                            📧 Emailing commercial
-                          </label>
-                          <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',color:'#4a6868'}} title="Le contact accepte de recevoir des notes d'information (changements tarifs, infos produit, alertes service)">
-                            <input type="checkbox" checked={!!interlocuteurForm.accept_notes_info} onChange={e=>setInterlocuteurForm({...interlocuteurForm,accept_notes_info:e.target.checked})} />
-                            📰 Notes d'information
-                          </label>
-                        </div>
-                        <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
-                          <button onClick={() => setShowInterlocuteurForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
-                          <button onClick={handleSaveInterlocuteur} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'DM Sans',sans-serif"}}>Enregistrer</button>
-                        </div>
-                      </div>
-                    )}
+                      // Helper : ouvrir/fermer le collapse historique. Charge les données à la 1re ouverture.
+                      const toggleHistory = async () => {
+                        if (historyExpanded) {
+                          setHistoryExpanded(false);
+                          return;
+                        }
+                        setHistoryExpanded(true);
+                        if (!interlocuteurForm.id) return; // pas d'historique en mode création
+                        setHistoryLoading(true);
+                        setHistoryError(null);
+                        try {
+                          const r = await fetch(`${API_URL}/interlocuteurs/${interlocuteurForm.id}/consents`, {
+                            headers: { 'Authorization': `Bearer ${user.token}` }
+                          });
+                          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                          const data = await r.json();
+                          setHistoryData(data.events || []);
+                        } catch (err) {
+                          console.error('Erreur fetch historique consents:', err);
+                          setHistoryError(err.message);
+                          setHistoryData([]);
+                        } finally {
+                          setHistoryLoading(false);
+                        }
+                      };
 
-                    {interlocuteurs.length === 0 ? (
-                      <div style={{fontSize:'13px',color:'var(--tw-muted)',fontStyle:'italic',padding:'10px 0'}}>Aucun contact</div>
-                    ) : interlocuteurs.map(c => {
-                      const avatarColors = ['var(--tw-teal)','#667eea','#f0932b','#2ec27e','#e74c3c','#9b59b6'];
-                      const col = avatarColors[c.id % avatarColors.length];
-                      const ini = (c.nom||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-                      return (
-                        <div key={c.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 12px',borderRadius:'6px',background:'var(--tw-bg)',marginBottom:'6px'}}>
-                          <div style={{width:'34px',height:'34px',borderRadius:'50%',background:col,color:'white',fontWeight:'600',fontSize:'12px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{ini}</div>
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{c.nom}</div>
-                            <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'2px',display:'flex',gap:'10px',flexWrap:'wrap'}}>
-                              {c.fonction && <span>{c.fonction}</span>}
-                              {c.email && <a href={`mailto:${c.email}`} style={{color:'var(--tw-teal)',textDecoration:'none'}}>✉ {c.email}</a>}
-                              {c.telephone && <a href={`tel:${c.telephone}`} style={{color:'var(--tw-slate)',textDecoration:'none'}}>📞 {c.telephone}</a>}
-                            </div>
+                      // Mapping libellés source pour affichage humain
+                      const sourceLabel = (s) => ({
+                        'manual_crm_create': 'Création',
+                        'manual_crm_update': 'Modif. fiche',
+                        'webhook_brevo': 'Désabo Brevo',
+                        'import_csv': 'Import CSV',
+                        'rgpd_request': 'Demande RGPD',
+                      }[s] || s);
+                      const fieldLabel = (f) => ({
+                        'accept_emailing': '📧 Emailing',
+                        'accept_notes_info': '📰 Notes',
+                      }[f] || f);
+
+                      // Composant formulaire (utilisé en haut pour création + sous chaque ligne pour édition)
+                      const renderContactForm = (isEdit) => (
+                        <div style={{background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'16px',marginBottom:'12px'}}>
+                          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                            {[
+                              {ph:'Nom *', field:'nom'},
+                              {ph:'Fonction', field:'fonction'},
+                              {ph:'Email', field:'email', type:'email'},
+                              {ph:'Téléphone', field:'telephone', type:'tel'},
+                            ].map(({ph,field,type='text'}) => (
+                              <input key={field} type={type} placeholder={ph}
+                                value={interlocuteurForm[field]||''}
+                                onChange={e=>setInterlocuteurForm({...interlocuteurForm,[field]:e.target.value})}
+                                style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                            ))}
                           </div>
-                          <div style={{display:'flex',gap:'5px',alignItems:'center',flexShrink:0}}>
-                            {c.accept_emailing && <span title="Accepte les emailings commerciaux" style={{fontSize:'10px',fontWeight:'600',padding:'2px 6px',borderRadius:'8px',background:'#dcfce7',color:'#166534'}}>📧</span>}
-                            {c.accept_notes_info && <span title="Accepte les notes d'information" style={{fontSize:'10px',fontWeight:'600',padding:'2px 6px',borderRadius:'8px',background:'#dbeafe',color:'#1e40af'}}>📰</span>}
-                            {c.decideur && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'#fdecea',color:'var(--tw-red)'}}>Décideur</span>}
-                            {c.principal && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
-                            <IconBtn title="Modifier le contact"
-                              onClick={() => { setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info}); setShowInterlocuteurForm(true); }}
-                            >{I(ICONS.edit, 13)}</IconBtn>
-                            <IconBtn title="Supprimer le contact" danger
-                              onClick={() => handleDeleteInterlocuteur(c.id)}
-                            >{I(ICONS.trash, 13)}</IconBtn>
+                          <div style={{display:'flex',gap:'16px',marginBottom:'12px',flexWrap:'wrap'}}>
+                            <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',cursor:'pointer'}}>
+                              <input type="checkbox" checked={!!interlocuteurForm.principal} onChange={e=>setInterlocuteurForm({...interlocuteurForm,principal:e.target.checked})} />
+                              Contact principal
+                            </label>
+                            <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',cursor:'pointer'}}>
+                              <input type="checkbox" checked={!!interlocuteurForm.decideur} onChange={e=>setInterlocuteurForm({...interlocuteurForm,decideur:e.target.checked})} />
+                              Décideur
+                            </label>
+                          </div>
+                          {/* Consentements RGPD - opt-in séparés pour communications */}
+                          <div style={{display:'flex',gap:'16px',marginBottom:'12px',flexWrap:'wrap',padding:'8px 10px',background:'#f4f7f7',borderRadius:'6px',border:'0.5px dashed #cde0e0'}}>
+                            <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',color:'#4a6868'}} title="Le contact accepte de recevoir des campagnes commerciales (offres, promos, sollicitations)">
+                              <input type="checkbox" checked={!!interlocuteurForm.accept_emailing} onChange={e=>setInterlocuteurForm({...interlocuteurForm,accept_emailing:e.target.checked})} />
+                              📧 Emailing commercial
+                            </label>
+                            <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',color:'#4a6868'}} title="Le contact accepte de recevoir des notes d'information (changements tarifs, infos produit, alertes service)">
+                              <input type="checkbox" checked={!!interlocuteurForm.accept_notes_info} onChange={e=>setInterlocuteurForm({...interlocuteurForm,accept_notes_info:e.target.checked})} />
+                              📰 Notes d'information
+                            </label>
+                          </div>
+                          {/* Bouton Historique RGPD : visible uniquement en mode édition */}
+                          {isEdit && (
+                            <div style={{marginBottom:'12px'}}>
+                              <button type="button" onClick={toggleHistory}
+                                style={{display:'inline-flex',alignItems:'center',gap:'6px',padding:'5px 10px',background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'6px',fontSize:'12px',color:'var(--tw-slate)',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                                {I(ICONS.clock, 12)}
+                                {historyExpanded ? 'Masquer l\u2019historique RGPD' : 'Afficher l\u2019historique RGPD'}
+                              </button>
+                              {historyExpanded && (
+                                <div style={{marginTop:'8px',padding:'10px 12px',background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'6px',maxHeight:'240px',overflowY:'auto'}}>
+                                  {historyLoading && <div style={{fontSize:'12px',color:'var(--tw-muted)',fontStyle:'italic'}}>Chargement…</div>}
+                                  {historyError && <div style={{fontSize:'12px',color:'var(--tw-red)'}}>Erreur : {historyError}</div>}
+                                  {!historyLoading && !historyError && historyData.length === 0 && (
+                                    <div style={{fontSize:'12px',color:'var(--tw-muted)',fontStyle:'italic'}}>Aucun événement enregistré.</div>
+                                  )}
+                                  {!historyLoading && !historyError && historyData.length > 0 && (
+                                    <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+                                      {historyData.map(ev => {
+                                        const dt = ev.changed_at ? new Date(ev.changed_at) : null;
+                                        const dtStr = dt ? dt.toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '?';
+                                        const fromTo = ev.old_value === null
+                                          ? (ev.new_value ? '✅ activé' : '❌ désactivé')
+                                          : `${ev.old_value ? '✅' : '❌'} → ${ev.new_value ? '✅' : '❌'}`;
+                                        return (
+                                          <div key={ev.id} style={{display:'flex',gap:'10px',alignItems:'baseline',fontSize:'12px',padding:'4px 0',borderBottom:'0.5px solid var(--tw-bg)'}}>
+                                            <span style={{color:'var(--tw-muted)',fontFamily:'monospace',whiteSpace:'nowrap',fontSize:'11px'}}>{dtStr}</span>
+                                            <span style={{fontWeight:'600',color:'var(--tw-ink)'}}>{fieldLabel(ev.field)}</span>
+                                            <span>{fromTo}</span>
+                                            <span style={{color:'var(--tw-muted)',fontSize:'11px'}}>· {sourceLabel(ev.source)}{ev.changed_by ? ` · ${ev.changed_by}` : ''}</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
+                            <button onClick={closeContactForm} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
+                            <button onClick={async () => { await handleSaveInterlocuteur(); setHistoryExpanded(false); setHistoryData([]); }} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'DM Sans',sans-serif"}}>Enregistrer</button>
                           </div>
                         </div>
                       );
-                    })}
+
+                      // Mode création = formulaire ouvert ET pas d'id (donc nouveau contact)
+                      const isCreating = showInterlocuteurForm && !interlocuteurForm.id;
+                      // Mode édition = formulaire ouvert AVEC un id
+                      const editingId = (showInterlocuteurForm && interlocuteurForm.id) ? interlocuteurForm.id : null;
+
+                      return (
+                        <React.Fragment>
+                          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
+                            <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)'}}>Contacts</div>
+                            <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({nom:'',fonction:'',email:'',telephone:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false}); setShowInterlocuteurForm(true); }}
+                              style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Contact</button>
+                          </div>
+
+                          {/* Formulaire CRÉATION : en haut, uniquement si pas d'id */}
+                          {isCreating && renderContactForm(false)}
+
+                          {interlocuteurs.length === 0 ? (
+                            <div style={{fontSize:'13px',color:'var(--tw-muted)',fontStyle:'italic',padding:'10px 0'}}>Aucun contact</div>
+                          ) : interlocuteurs.map(c => {
+                            const avatarColors = ['var(--tw-teal)','#667eea','#f0932b','#2ec27e','#e74c3c','#9b59b6'];
+                            const col = avatarColors[c.id % avatarColors.length];
+                            const ini = (c.nom||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+                            const isEditingThis = editingId === c.id;
+                            return (
+                              <React.Fragment key={c.id}>
+                                <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 12px',borderRadius:'6px',background:'var(--tw-bg)',marginBottom:'6px'}}>
+                                  <div style={{width:'34px',height:'34px',borderRadius:'50%',background:col,color:'white',fontWeight:'600',fontSize:'12px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{ini}</div>
+                                  <div style={{flex:1,minWidth:0}}>
+                                    <div style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{c.nom}</div>
+                                    <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'2px',display:'flex',gap:'10px',flexWrap:'wrap'}}>
+                                      {c.fonction && <span>{c.fonction}</span>}
+                                      {c.email && <a href={`mailto:${c.email}`} style={{color:'var(--tw-teal)',textDecoration:'none'}}>✉ {c.email}</a>}
+                                      {c.telephone && <a href={`tel:${c.telephone}`} style={{color:'var(--tw-slate)',textDecoration:'none'}}>📞 {c.telephone}</a>}
+                                    </div>
+                                  </div>
+                                  <div style={{display:'flex',gap:'5px',alignItems:'center',flexShrink:0}}>
+                                    {c.accept_emailing && <span title="Accepte les emailings commerciaux" style={{fontSize:'10px',fontWeight:'600',padding:'2px 6px',borderRadius:'8px',background:'#dcfce7',color:'#166534'}}>📧</span>}
+                                    {c.accept_notes_info && <span title="Accepte les notes d'information" style={{fontSize:'10px',fontWeight:'600',padding:'2px 6px',borderRadius:'8px',background:'#dbeafe',color:'#1e40af'}}>📰</span>}
+                                    {c.decideur && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'#fdecea',color:'var(--tw-red)'}}>Décideur</span>}
+                                    {c.principal && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
+                                    <IconBtn title="Modifier le contact"
+                                      onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info}); setShowInterlocuteurForm(true); }}
+                                    >{I(ICONS.edit, 13)}</IconBtn>
+                                    <IconBtn title="Supprimer le contact" danger
+                                      onClick={() => handleDeleteInterlocuteur(c.id)}
+                                    >{I(ICONS.trash, 13)}</IconBtn>
+                                  </div>
+                                </div>
+                                {/* Formulaire ÉDITION : sous la ligne du contact concerné */}
+                                {isEditingThis && renderContactForm(true)}
+                              </React.Fragment>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    })()}
                   </div>
                 )}
 
