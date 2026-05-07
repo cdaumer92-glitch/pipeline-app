@@ -2156,7 +2156,10 @@
                            || sInfoSelectedCompany.registration_number
                            || '';
             const dets = await window.SInfo.getContactsDetails(siren, selectedIds);
-            const enriched = dets.result || dets.results || [];
+            // L'API SocieteInfo retourne {success, contacts_count, contacts: [...]} (clé "contacts"
+            // en premier). Les autres clés sont des fallbacks pour anciennes variantes ou autres
+            // endpoints éventuels.
+            const enriched = dets.contacts || dets.result || dets.results || [];
             contactsToImport = contactsToImport.map(c => {
               const det = enriched.find(d => String(d.id) === String(c.id));
               return det ? { ...c, ...det } : c;
