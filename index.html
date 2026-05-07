@@ -1952,11 +1952,14 @@
               setSInfoSelectedCompany(fakeCompany);
             }
 
-            // getContacts : gratuit en mode anonymized. Appelé seulement si mode = 'contacts' ou 'both'.
+            // Charger les contacts. La clé "contacts" est celle que SocieteInfo
+            // utilise réellement dans /v2/contacts.json, on la met en premier.
+            // Les autres (result, results, items) sont des fallbacks pour anciennes
+            // variantes ou autres endpoints éventuels.
             if (mode === 'contacts' || mode === 'both') {
               try {
                 const cdata = await window.SInfo.getContacts(sirenClean);
-                const contacts = cdata.result || cdata.results || cdata.items || [];
+                const contacts = cdata.contacts || cdata.result || cdata.results || cdata.items || [];
                 setSInfoContacts(Array.isArray(contacts) ? contacts : []);
               } catch (e) { setSInfoContacts([]); }
             } else {
@@ -2113,10 +2116,11 @@
             import_ref:    mapped.siren
           }));
 
-          // 4. Charger les dirigeants (gratuit en mode anonymized)
+          // 4. Charger les dirigeants (gratuit en mode anonymized).
+          // La clé "contacts" est celle que SocieteInfo utilise réellement.
           try {
             const cdata = await window.SInfo.getContacts(siren);
-            const contacts = cdata.result || cdata.results || cdata.items || [];
+            const contacts = cdata.contacts || cdata.result || cdata.results || cdata.items || [];
             setSInfoContacts(Array.isArray(contacts) ? contacts : []);
           } catch (e) {
             console.warn('[SInfo] getContacts:', e.message);
@@ -3422,7 +3426,12 @@
                     </div>
                   </div>
 
-                  {/* Liste de dirigeants */}
+                  {/* Section "Dirigeants" : affichée seulement en mode 'create' (import société)
+                      ou en mode 'enrich' avec _contactsOnly (utilisateur a explicitement demandé
+                      les contacts). En mode 'enrich infos uniquement', on cache cette section
+                      car elle est inutile et le message "Aucun dirigeant trouvé" prête à confusion. */}
+                  {(sInfoMode === 'create' || (sInfoSelectedCompany && sInfoSelectedCompany._contactsOnly)) && (
+                  <React.Fragment>
                   <div style={{ fontSize: '11px', color: '#7a9090', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '8px', fontWeight: 500 }}>
                     Dirigeants — sélectionnez ceux à importer
                   </div>
@@ -3493,6 +3502,8 @@
                         <div style={{ fontSize: '11px', color: '#7a5520' }}>Consomme du quota SocieteInfo (1 crédit par contact sélectionné). Sinon les noms et fonctions sont importés mais sans email/tél.</div>
                       </div>
                     </label>
+                  )}
+                  </React.Fragment>
                   )}
 
                   {/* Footer : Retour + Valider */}
