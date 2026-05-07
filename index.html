@@ -2144,10 +2144,24 @@
       // - mode 'enrich' : passe à l'étape 3 (conflits) ou applique direct si pas de conflit
       const handleSInfoConfirmContacts = async () => {
         const selectedIds = Object.keys(sInfoSelectedContacts).filter(id => sInfoSelectedContacts[id]);
-        // Si l'utilisateur a coché "récupérer emails", on appelle getContactsDetails (consomme du quota)
         let contactsToImport = sInfoContacts.filter(c => selectedIds.includes(String(c.id)));
 
-        if (selectedIds.length > 0 && sInfoFetchEmails) {
+        // Garde-fou : confirmer l'utilisateur si la sélection est importante (> 20 contacts).
+        // Évite les surprises de débit massif en un clic.
+        const COST_THRESHOLD = 20;
+        if (selectedIds.length > COST_THRESHOLD) {
+          const ok = window.confirm(
+            `⚠️ Vous allez importer ${selectedIds.length} contacts.\n\n` +
+            `Cela consommera environ ${selectedIds.length} crédits SocieteInfo (1 crédit par contact pour récupérer les noms/emails/téléphones réels).\n\n` +
+            `Continuer ?`
+          );
+          if (!ok) return;
+        }
+
+        // Récupération SYSTÉMATIQUE des détails contacts (noms/emails/téléphones réels).
+        // Sans ça les contacts importés sont anonymisés (XXXXXXXX, xx@xx.xx) et inutilisables.
+        // Coût : 1 crédit par contact sélectionné.
+        if (selectedIds.length > 0) {
           setSInfoLoading(true);
           try {
             // En mode 'contacts uniquement' (enrich sans appel getCompany), _mapped est null.
@@ -2165,7 +2179,7 @@
               return det ? { ...c, ...det } : c;
             });
           } catch (e) {
-            window.showToast({title: 'Erreur récupération emails: ' + e.message, type:'error'});
+            window.showToast({title: 'Erreur récupération contacts: ' + e.message, type:'error'});
             setSInfoLoading(false);
             return;
           }
@@ -3508,26 +3522,36 @@
                     </div>
                   )}
 
-                  {/* Option : récupérer les emails (consomme du quota) */}
-                  {!sInfoLoading && sInfoContacts.length > 0 && (
-                    <label style={{
-                      display: 'flex', alignItems: 'flex-start', gap: '10px',
-                      padding: '10px 12px', marginBottom: '16px',
-                      background: '#fff8e1', border: '0.5px solid #efc274', borderRadius: '7px',
-                      cursor: 'pointer'
-                    }}>
-                      <input
-                        type="checkbox"
-                        checked={sInfoFetchEmails}
-                        onChange={(e) => setSInfoFetchEmails(e.target.checked)}
-                        style={{ accentColor: '#b06e2a', cursor: 'pointer', marginTop: '2px' }}
-                      />
-                      <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                        <div style={{ fontSize: '12px', color: '#1a3535', fontWeight: 500 }}>Récupérer les emails et téléphones</div>
-                        <div style={{ fontSize: '11px', color: '#7a5520' }}>Consomme du quota SocieteInfo (1 crédit par contact sélectionné). Sinon les noms et fonctions sont importés mais sans email/tél.</div>
+                  {/* Compteur de coût : affiché dès qu'on a au moins 1 contact dispo.
+                      Récupération des vraies données (noms/emails) toujours active à l'import.
+                      Le compteur est purement informatif - le débit a lieu au clic Importer. */}
+                  {!sInfoLoading && sInfoContacts.length > 0 && (() => {
+                    const nbSelected = Object.values(sInfoSelectedContacts).filter(Boolean).length;
+                    return (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: '10px',
+                        padding: '10px 12px', marginBottom: '16px',
+                        background: nbSelected > 20 ? '#fff8e1' : '#f0f7f7',
+                        border: '0.5px solid ' + (nbSelected > 20 ? '#efc274' : '#cde0e0'),
+                        borderRadius: '7px',
+                        fontFamily: "'DM Sans', sans-serif"
+                      }}>
+                        <span style={{fontSize:'14px'}}>{nbSelected > 20 ? '⚠️' : '💳'}</span>
+                        <div style={{flex:1}}>
+                          <div style={{ fontSize: '12px', color: '#1a3535', fontWeight: 500 }}>
+                            {nbSelected === 0
+                              ? 'Aucun contact sélectionné'
+                              : `${nbSelected} contact${nbSelected > 1 ? 's' : ''} sélectionné${nbSelected > 1 ? 's' : ''} · coût ~${nbSelected} crédit${nbSelected > 1 ? 's' : ''} SocieteInfo`}
+                          </div>
+                          <div style={{ fontSize: '11px', color: nbSelected > 20 ? '#7a5520' : '#607a7a' }}>
+                            {nbSelected > 20
+                              ? 'Sélection importante — confirmation demandée à l\'import.'
+                              : 'Les noms, emails et téléphones réels seront récupérés à l\'import.'}
+                          </div>
+                        </div>
                       </div>
-                    </label>
-                  )}
+                    );
+                  })()}
                   </React.Fragment>
                   )}
 
