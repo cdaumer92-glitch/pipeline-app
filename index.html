@@ -5553,9 +5553,12 @@
         return () => { cancelled = true; clearTimeout(t); };
       }, [prospPlaceSearch, showProspectionModal]);
 
-      // Lance la recherche multi-critères + 2e appel pour identifier les sociétés
-      // ayant au moins un contact pro nominatif (email_type=personal).
-      // Coût : 1 crédit pour la recherche principale + 1 crédit pour la recherche enrichie = 2 crédits/page.
+      // Lance la recherche multi-critères + détection des sociétés ayant
+      // des contacts disponibles via N appels parallèles à /v2/contacts.json
+      // en mode show_all_anonymized=true (gratuit). Le badge ✉️ ne s'affiche
+      // que si la société a vraiment au moins 1 contact dans la base SocieteInfo,
+      // ce qui correspond effectivement à ce que l'enrichissement pourra ramener.
+      // Coût : 1 crédit pour la recherche principale + 0 pour le marquage des contacts.
       const runProspectionSearch = async (page) => {
         setProspError('');
         setProspLoading(true);
@@ -5572,36 +5575,39 @@
           if (prospMinStaff)  criteria.minstaff  = prospMinStaff;
           if (prospMaxStaff)  criteria.maxstaff  = prospMaxStaff;
 
-          // Appel 1 : recherche complète (sans filtre contacts)
-          // Appel 2 : même critères + email_type=personal pour identifier les sociétés avec contacts pro
-          // Lancés en parallèle pour gagner du temps. Si l'appel 2 échoue, on dégrade gracieusement
-          // (résultats principaux affichés sans badge ni tri).
-          const criteriaWithContacts = { ...criteria, email_type: 'personal' };
-          const [data, dataContacts] = await Promise.all([
-            window.SInfo.multiSearch(criteria),
-            window.SInfo.multiSearch(criteriaWithContacts).catch(err => {
-              console.warn('[prospection] Appel email_type=personal échoué, dégradation OK:', err);
-              return null;
-            })
-          ]);
-
+          // Appel principal : 1 crédit
+          const data = await window.SInfo.multiSearch(criteria);
           const items = data.result || [];
           setProspResults(items);
           setProspResultsTotal(data.total || items.length);
           setProspResultsPage(data.currentPage || page || 1);
           setProspResultsTotalPages(data.totalPages || 1);
 
-          // Construire le Set des SIREN ayant des contacts pro
-          const contactsSirens = new Set();
-          if (dataContacts && Array.isArray(dataContacts.result)) {
-            for (const c of dataContacts.result) {
-              if (c.registration_number) contactsSirens.add(c.registration_number);
-            }
+          // Marquage contacts : N appels parallèles à getContacts en mode anonymized.
+          // GRATUIT côté SocieteInfo. On stocke dans un Set les SIREN qui ont au
+          // moins 1 contact disponible. Si l'API échoue ponctuellement pour une
+          // société, on dégrade gracieusement (pas de badge mais résultat affiché).
+          const sirens = items.map(c => c.registration_number).filter(Boolean);
+          if (sirens.length > 0) {
+            const contactsChecks = await Promise.allSettled(
+              sirens.map(s => window.SInfo.getContacts(s))
+            );
+            const contactsSirens = new Set();
+            contactsChecks.forEach((res, idx) => {
+              if (res.status === 'fulfilled') {
+                const r = res.value || {};
+                const list = r.contacts || r.result || r.results || [];
+                const count = (typeof r.contacts_count === 'number') ? r.contacts_count : (Array.isArray(list) ? list.length : 0);
+                if (count > 0) contactsSirens.add(sirens[idx]);
+              }
+              // status === 'rejected' → on ne marque pas, pas grave
+            });
+            setProspWithContactsSirens(contactsSirens);
+          } else {
+            setProspWithContactsSirens(new Set());
           }
-          setProspWithContactsSirens(contactsSirens);
 
           // Récupérer les SIREN déjà en BDD (Interprétation A : exclusion des déjà importées)
-          const sirens = items.map(c => c.registration_number).filter(Boolean);
           if (sirens.length > 0) {
             try {
               const dupRes = await fetch(`${API_URL}/prospects`, {
@@ -6476,7 +6482,7 @@
                       <button onClick={() => { setProspStep(4); runProspectionSearch(1); }}
                         disabled={!prospNafCode && !prospPlace}
                         style={{padding:'8px 18px',background:'#1a3535',color:'white',border:'none',borderRadius:'7px',cursor:'pointer',fontSize:'13px',fontWeight:600,opacity:(!prospNafCode&&!prospPlace)?0.5:1}}>
-                        🚀 Lancer la recherche (2 crédits)
+                        🚀 Lancer la recherche (1 crédit)
                       </button>
                     )}
                     {prospStep === 4 && (
