@@ -410,6 +410,10 @@ async function initDB() {
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS accept_emailing BOOLEAN DEFAULT false`);
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS accept_notes_info BOOLEAN DEFAULT false`);
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS linkedin_url TEXT`);
+    // display_order : ordre custom personnalisé via drag & drop. NULL = pas d'ordre custom,
+    // le contact suit le tri auto (Principal/Décideur d'abord). Permet aux contacts non
+    // réordonnés de garder le tri intelligent par défaut.
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS display_order INTEGER`);
 
     // Migration : table d'historique RGPD des changements de consentement
     //   Trace tout changement des flags accept_emailing / accept_notes_info
@@ -1978,12 +1982,79 @@ app.get('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      'SELECT * FROM interlocuteurs WHERE prospect_id = $1 ORDER BY principal DESC, nom ASC',
+      // Tri en 3 niveaux :
+      // 1. display_order ASC NULLS LAST : les contacts drag & droppés (display_order non NULL)
+      //    apparaissent dans l'ordre custom défini par l'utilisateur, en premier.
+      // 2. Pour les contacts sans ordre custom (NULL), tri auto : Principal d'abord, puis Décideur.
+      //    Comme demandé : Principal ET Décideur ensemble en haut. On les met "à pied d'égalité"
+      //    via (principal OR decideur) DESC, puis on départage par nom.
+      // 3. Nom alphabétique en dernier recours.
+      'SELECT * FROM interlocuteurs WHERE prospect_id = $1 ORDER BY display_order ASC NULLS LAST, (principal OR decideur) DESC, principal DESC, nom ASC',
       [id]
     );
     res.json(result.rows);
   } catch (err) {
     console.error('Erreur fetch interlocuteurs:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/prospects/:id/interlocuteurs/reorder
+// Réordonne les interlocuteurs d'un prospect après un drag & drop côté front.
+// Body : { orderedIds: [int, int, ...] } - tableau d'IDs dans l'ordre d'affichage souhaité.
+// Met à jour la colonne display_order de chaque interlocuteur (1, 2, 3, ...) en transaction.
+// Les interlocuteurs non mentionnés dans orderedIds gardent leur display_order existant.
+app.put('/api/prospects/:id/interlocuteurs/reorder', auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const orderedIds = Array.isArray(req.body.orderedIds) ? req.body.orderedIds : null;
+    if (!orderedIds || orderedIds.length === 0) {
+      return res.status(400).json({ error: 'orderedIds manquant ou vide' });
+    }
+
+    await client.query('BEGIN');
+
+    // Mise à jour atomique : pour chaque ID dans la liste, on pose display_order = position (1-indexed)
+    // ET on vérifie qu'il appartient bien au prospect (sécurité : un user ne peut pas réordonner
+    // les interlocuteurs d'un autre prospect en passant des IDs étrangers).
+    let updated = 0;
+    for (let i = 0; i < orderedIds.length; i++) {
+      const interId = parseInt(orderedIds[i], 10);
+      if (!Number.isFinite(interId)) continue;
+      const r = await client.query(
+        `UPDATE interlocuteurs SET display_order = $1, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2 AND prospect_id = $3`,
+        [i + 1, interId, id]
+      );
+      updated += r.rowCount;
+    }
+
+    await client.query('COMMIT');
+    res.json({ ok: true, updated });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Erreur reorder interlocuteurs:', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/prospects/:id/interlocuteurs/reset-order
+// Réinitialise l'ordre custom : tous les interlocuteurs du prospect repassent à display_order=NULL.
+// Le tri auto (Principal+Décideur en haut) reprend automatiquement.
+app.post('/api/prospects/:id/interlocuteurs/reset-order', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const r = await pool.query(
+      `UPDATE interlocuteurs SET display_order = NULL, updated_at = CURRENT_TIMESTAMP
+         WHERE prospect_id = $1 AND display_order IS NOT NULL`,
+      [id]
+    );
+    res.json({ ok: true, reset: r.rowCount });
+  } catch (err) {
+    console.error('Erreur reset-order interlocuteurs:', err);
     res.status(500).json({ error: err.message });
   }
 });

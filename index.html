@@ -753,6 +753,19 @@
 
       // RGPD - États pour le collapse "Historique consentements" du formulaire d'édition
       const [historyExpanded, setHistoryExpanded] = React.useState(false);
+      // Drag & drop des contacts : états gérés au niveau App pour passage en props
+      // à RightPanel (les hooks ne peuvent pas être appelés dans une IIFE).
+      const [draggedContactId, setDraggedContactId] = React.useState(null);
+      const [dragOverContactId, setDragOverContactId] = React.useState(null);
+
+      // Repli du panneau de gauche : état mémorisé via localStorage pour persister
+      // entre 2 sessions. Init lazy via fonction pour ne lire localStorage qu'une fois.
+      const [leftPanelCollapsed, setLeftPanelCollapsed] = React.useState(() => {
+        try { return localStorage.getItem('texaswin.leftPanelCollapsed') === '1'; } catch (_) { return false; }
+      });
+      React.useEffect(() => {
+        try { localStorage.setItem('texaswin.leftPanelCollapsed', leftPanelCollapsed ? '1' : '0'); } catch (_) {}
+      }, [leftPanelCollapsed]);
       const [historyLoading, setHistoryLoading] = React.useState(false);
       const [historyData, setHistoryData] = React.useState([]);
       const [historyError, setHistoryError] = React.useState(null);
@@ -2662,6 +2675,16 @@
             />
           ) : (
           <div style={styles.content}>
+            {/* Wrapper : permet de replier le panneau de gauche en glissant sa largeur à 0,
+                tout en gardant un bouton flottant à droite pour le rouvrir. Transition douce. */}
+            <div style={{
+              width: leftPanelCollapsed ? '0px' : '350px',
+              flexShrink: 0,
+              overflow: 'hidden',
+              transition: 'width 0.25s ease',
+              position: 'relative',
+              display: 'flex'
+            }}>
             <LeftPanel
               prospects={filteredProspects}
               allProspects={visibleProspects}
@@ -2692,6 +2715,37 @@
                 setShowNewCompanyModal(true);
               }}
             />
+            </div>
+
+            {/* Bouton flottant pour replier/déplier le panneau de gauche.
+                Position fixée pour rester accessible en permanence à la limite gauche/droite
+                du panneau, quel que soit son état. */}
+            <button
+              onClick={() => setLeftPanelCollapsed(c => !c)}
+              title={leftPanelCollapsed ? 'Afficher la liste des prospects' : 'Masquer la liste des prospects'}
+              style={{
+                position: 'absolute',
+                left: leftPanelCollapsed ? '0px' : '340px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 50,
+                width: '20px', height: '40px',
+                background: 'white',
+                border: '0.5px solid var(--tw-border)',
+                borderLeft: leftPanelCollapsed ? '0.5px solid var(--tw-border)' : 'none',
+                borderRadius: leftPanelCollapsed ? '0 6px 6px 0' : '6px 0 0 6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px',
+                color: 'var(--tw-slate)',
+                boxShadow: '1px 1px 3px rgba(0,0,0,0.06)',
+                transition: 'left 0.25s ease',
+                fontFamily: "'DM Sans', sans-serif"
+              }}>
+              {leftPanelCollapsed ? '›' : '‹'}
+            </button>
 
             <RightPanel
               key={selectedProspect?.id}
@@ -2754,6 +2808,10 @@
               setHistoryData={setHistoryData}
               historyError={historyError}
               setHistoryError={setHistoryError}
+              draggedContactId={draggedContactId}
+              setDraggedContactId={setDraggedContactId}
+              dragOverContactId={dragOverContactId}
+              setDragOverContactId={setDragOverContactId}
               devisList={devisList}
               showDevisForm={showDevisForm}
               setShowDevisForm={setShowDevisForm}
@@ -6880,7 +6938,7 @@
       );
     }
 
-    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
+    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, draggedContactId, setDraggedContactId, dragOverContactId, setDragOverContactId, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
@@ -7601,10 +7659,88 @@
                       // Mode édition = formulaire ouvert AVEC un id
                       const editingId = (showInterlocuteurForm && interlocuteurForm.id) ? interlocuteurForm.id : null;
 
+                      // ─── Drag & drop des contacts ───────────────────────────
+                      // États draggedContactId / dragOverContactId définis au niveau App
+                      // (passés en props à RightPanel) pour respecter les règles des hooks React.
+
+                      const handleDragStart = (e, contactId) => {
+                        setDraggedContactId(contactId);
+                        e.dataTransfer.effectAllowed = 'move';
+                        // Note : nécessaire pour Firefox sinon le drag ne démarre pas
+                        try { e.dataTransfer.setData('text/plain', String(contactId)); } catch (_) {}
+                      };
+                      const handleDragOver = (e, contactId) => {
+                        e.preventDefault(); // autorise le drop
+                        e.dataTransfer.dropEffect = 'move';
+                        if (dragOverContactId !== contactId) setDragOverContactId(contactId);
+                      };
+                      const handleDragEnd = () => {
+                        setDraggedContactId(null);
+                        setDragOverContactId(null);
+                      };
+                      const handleDrop = async (e, targetContactId) => {
+                        e.preventDefault();
+                        const sourceId = draggedContactId;
+                        setDraggedContactId(null);
+                        setDragOverContactId(null);
+                        if (!sourceId || sourceId === targetContactId) return;
+
+                        // Calculer le nouvel ordre côté front (optimistic update)
+                        const currentList = [...interlocuteurs];
+                        const fromIdx = currentList.findIndex(c => c.id === sourceId);
+                        const toIdx = currentList.findIndex(c => c.id === targetContactId);
+                        if (fromIdx < 0 || toIdx < 0) return;
+                        const [moved] = currentList.splice(fromIdx, 1);
+                        currentList.splice(toIdx, 0, moved);
+                        const orderedIds = currentList.map(c => c.id);
+
+                        // Appel API pour persister
+                        try {
+                          const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/interlocuteurs/reorder`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
+                            body: JSON.stringify({ orderedIds })
+                          });
+                          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                          // Recharger pour avoir l'ordre persisté
+                          if (typeof fetchInterlocuteurs === 'function') await fetchInterlocuteurs(selectedProspect.id);
+                        } catch (err) {
+                          console.error('Erreur reorder:', err);
+                          window.showToast({ title: 'Erreur réorganisation : ' + err.message, type: 'error' });
+                        }
+                      };
+
+                      // Reset de l'ordre custom : tous les contacts repassent au tri auto
+                      const handleResetOrder = async () => {
+                        try {
+                          const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/interlocuteurs/reset-order`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${user.token}` }
+                          });
+                          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                          window.showToast({ title: 'Ordre réinitialisé', type: 'success' });
+                          if (typeof fetchInterlocuteurs === 'function') await fetchInterlocuteurs(selectedProspect.id);
+                        } catch (err) {
+                          window.showToast({ title: 'Erreur reset : ' + err.message, type: 'error' });
+                        }
+                      };
+
+                      // Détection : au moins un contact a un display_order custom ?
+                      const hasCustomOrder = interlocuteurs.some(c => c.display_order != null);
+
                       return (
                         <React.Fragment>
                           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
-                            <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)'}}>Contacts</div>
+                            <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)',display:'flex',alignItems:'center',gap:'10px'}}>
+                              Contacts
+                              {hasCustomOrder && (
+                                <button onClick={handleResetOrder}
+                                  title="Revenir au tri automatique (Principal/Décideur en haut)"
+                                  style={{padding:'2px 8px',background:'transparent',border:'0.5px solid var(--tw-border)',borderRadius:'10px',fontSize:'10px',fontWeight:'500',color:'var(--tw-muted)',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",textTransform:'none',letterSpacing:0}}>
+                                  ↺ Réinitialiser l'ordre
+                                </button>
+                              )}
+                            </div>
                             <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({nom:'',fonction:'',email:'',telephone:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false}); setShowInterlocuteurForm(true); }}
                               style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Contact</button>
                           </div>
@@ -7619,9 +7755,26 @@
                             const col = avatarColors[c.id % avatarColors.length];
                             const ini = (c.nom||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
                             const isEditingThis = editingId === c.id;
+                            const isDragging = draggedContactId === c.id;
+                            const isDragOver = dragOverContactId === c.id && draggedContactId !== c.id;
                             return (
                               <React.Fragment key={c.id}>
-                                <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 12px',borderRadius:'6px',background:'var(--tw-bg)',marginBottom:'6px'}}>
+                                <div
+                                  draggable={!isEditingThis}
+                                  onDragStart={(e) => handleDragStart(e, c.id)}
+                                  onDragOver={(e) => handleDragOver(e, c.id)}
+                                  onDragEnd={handleDragEnd}
+                                  onDrop={(e) => handleDrop(e, c.id)}
+                                  style={{
+                                    display:'flex',alignItems:'center',gap:'10px',padding:'10px 12px',borderRadius:'6px',background:'var(--tw-bg)',marginBottom:'6px',
+                                    opacity: isDragging ? 0.4 : 1,
+                                    border: isDragOver ? '2px dashed var(--tw-teal)' : '2px solid transparent',
+                                    transition: 'opacity 0.15s, border-color 0.15s',
+                                    cursor: isEditingThis ? 'default' : 'move'
+                                  }}>
+                                  {/* Handle drag : icône à grip à gauche, visible mais discrète.
+                                      Toute la ligne est draggable, mais le handle indique visuellement la prise. */}
+                                  <span title="Glisser pour réordonner" style={{flexShrink:0,color:'var(--tw-muted)',fontSize:'14px',cursor:'grab',userSelect:'none',lineHeight:1}}>⋮⋮</span>
                                   <div style={{width:'34px',height:'34px',borderRadius:'50%',background:col,color:'white',fontWeight:'600',fontSize:'12px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{ini}</div>
                                   <div style={{flex:1,minWidth:0}}>
                                     <div style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{c.nom}</div>
@@ -9719,7 +9872,8 @@
         display: 'flex',
         flex: 1,
         gap: '0',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        position: 'relative' // pour ancrage du bouton de repli LeftPanel
       },
       leftPanel: {
         width: '350px',
