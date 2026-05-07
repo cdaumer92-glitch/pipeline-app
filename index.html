@@ -758,14 +758,10 @@
       const [draggedContactId, setDraggedContactId] = React.useState(null);
       const [dragOverContactId, setDragOverContactId] = React.useState(null);
 
-      // Repli du panneau de gauche : état mémorisé via localStorage pour persister
-      // entre 2 sessions. Init lazy via fonction pour ne lire localStorage qu'une fois.
-      const [leftPanelCollapsed, setLeftPanelCollapsed] = React.useState(() => {
-        try { return localStorage.getItem('texaswin.leftPanelCollapsed') === '1'; } catch (_) { return false; }
-      });
-      React.useEffect(() => {
-        try { localStorage.setItem('texaswin.leftPanelCollapsed', leftPanelCollapsed ? '1' : '0'); } catch (_) {}
-      }, [leftPanelCollapsed]);
+      // Repli du panneau de gauche : volontairement non persisté entre sessions.
+      // Le panneau est toujours ouvert au chargement pour éviter les écrans vides
+      // (ex : onglet Suivi activités sans prospect sélectionné, panneau replié → écran blanc).
+      const [leftPanelCollapsed, setLeftPanelCollapsed] = React.useState(false);
       const [historyLoading, setHistoryLoading] = React.useState(false);
       const [historyData, setHistoryData] = React.useState([]);
       const [historyError, setHistoryError] = React.useState(null);
