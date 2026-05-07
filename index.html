@@ -2719,8 +2719,8 @@
 
             {/* Bouton flottant pour replier/déplier le panneau de gauche.
                 Couleurs adaptatives :
-                - Panneau ouvert (état "fermable") : anthracite (var(--tw-ink)), s'intègre au panneau
-                - Panneau fermé : clair (white), reste discret sur le fond gris du contenu */}
+                - Panneau ouvert : clair (white), reste discret en bordure du panneau
+                - Panneau fermé : anthracite (var(--tw-ink)), bien visible sur fond gris du contenu */}
             <button
               onClick={() => setLeftPanelCollapsed(c => !c)}
               title={leftPanelCollapsed ? 'Afficher la liste des prospects' : 'Masquer la liste des prospects'}
@@ -2731,10 +2731,10 @@
                 transform: 'translateY(-50%)',
                 zIndex: 50,
                 width: '20px', height: '40px',
-                background: leftPanelCollapsed ? 'white' : 'var(--tw-ink)',
-                color: leftPanelCollapsed ? 'var(--tw-slate)' : 'white',
-                border: '0.5px solid ' + (leftPanelCollapsed ? 'var(--tw-border)' : 'var(--tw-ink)'),
-                borderLeft: leftPanelCollapsed ? '0.5px solid var(--tw-border)' : 'none',
+                background: leftPanelCollapsed ? 'var(--tw-ink)' : 'white',
+                color: leftPanelCollapsed ? 'white' : 'var(--tw-slate)',
+                border: '0.5px solid ' + (leftPanelCollapsed ? 'var(--tw-ink)' : 'var(--tw-border)'),
+                borderLeft: leftPanelCollapsed ? '0.5px solid var(--tw-ink)' : 'none',
                 borderRadius: leftPanelCollapsed ? '0 6px 6px 0' : '6px 0 0 6px',
                 cursor: 'pointer',
                 display: 'flex',
