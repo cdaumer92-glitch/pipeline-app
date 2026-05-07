@@ -739,6 +739,14 @@
       const [sInfoEnrichTarget, setSInfoEnrichTarget] = React.useState(null); // le prospect existant à enrichir
       const [sInfoConflicts, setSInfoConflicts] = React.useState([]); // [{ field, label, current, sinfo, useNew }]
 
+      // Modale de choix d'enrichissement : avant de payer 1 crédit, on demande à
+      // l'utilisateur ce qu'il veut faire (mettre à jour les infos société OU
+      // ajouter des contacts depuis SocieteInfo). Évite de cramer un crédit pour
+      // rien si l'utilisateur cherchait juste les contacts d'une société qui en
+      // n'a pas en base SocieteInfo.
+      const [showEnrichChoiceModal, setShowEnrichChoiceModal] = React.useState(false);
+      const [enrichChoiceTarget, setEnrichChoiceTarget] = React.useState(null);
+
       const [formData, setFormData] = React.useState(getEmptyProspect());
       const [interlocuteurs, setInterlocuteurs] = React.useState([]);
       const [showInterlocuteurForm, setShowInterlocuteurForm] = React.useState(false);
@@ -1898,10 +1906,14 @@
         }
       };
 
-      // Mode enrichissement : ouvre le modal pour mettre à jour une société existante.
-      // Appelée depuis le RightPanel (bouton "+ SocieteInfo" sur la fiche prospect).
-      const openSInfoEnrich = async (prospect) => {
+      // Mode enrichissement : appelé depuis la fiche prospect (RightPanel) pour mettre à jour une société existante
+      // enrichMode :
+      //   - 'infos'    : appelle uniquement getCompany pour mettre à jour les infos société (1 crédit)
+      //   - 'contacts' : appelle uniquement getContacts pour proposer les dirigeants (gratuit en preview)
+      //   - 'both'     : ancien comportement, fait les deux (1 crédit + preview contacts)
+      const openSInfoEnrich = async (prospect, enrichMode) => {
         if (!prospect) return;
+        const mode = enrichMode || 'both'; // valeur par défaut = comportement historique (compat ascendante)
         setSInfoMode('enrich');
         setSInfoEnrichTarget(prospect);
         setSInfoResults([]);
@@ -1919,16 +1931,38 @@
           setSInfoStep(2);
           setSInfoLoading(true);
           try {
-            const data = await window.SInfo.getCompany(sirenClean);
-            const company = data.result || data.company || data;
-            const mapped = window.SInfo.companyToProspect(company);
-            setSInfoSelectedCompany({ ...company, _mapped: mapped });
-            // Charger les dirigeants
-            try {
-              const cdata = await window.SInfo.getContacts(sirenClean);
-              const contacts = cdata.result || cdata.results || cdata.items || [];
-              setSInfoContacts(Array.isArray(contacts) ? contacts : []);
-            } catch (e) { setSInfoContacts([]); }
+            // getCompany : payant (1 crédit). Appelé seulement si mode = 'infos' ou 'both'.
+            // En mode 'contacts' seul, on récupère néanmoins les infos *anciennes* du
+            // prospect (sans appel API) pour pouvoir afficher l'écran de sélection
+            // dirigeants avec un récap minimal.
+            if (mode === 'infos' || mode === 'both') {
+              const data = await window.SInfo.getCompany(sirenClean);
+              const company = data.result || data.company || data;
+              const mapped = window.SInfo.companyToProspect(company);
+              setSInfoSelectedCompany({ ...company, _mapped: mapped });
+            } else {
+              // Mode 'contacts' uniquement : on construit un objet société minimal
+              // à partir du prospect existant pour l'affichage, sans appel API
+              const fakeCompany = {
+                registration_number: sirenClean,
+                organization: { name: prospect.name || '' },
+                _mapped: null,
+                _contactsOnly: true
+              };
+              setSInfoSelectedCompany(fakeCompany);
+            }
+
+            // getContacts : gratuit en mode anonymized. Appelé seulement si mode = 'contacts' ou 'both'.
+            if (mode === 'contacts' || mode === 'both') {
+              try {
+                const cdata = await window.SInfo.getContacts(sirenClean);
+                const contacts = cdata.result || cdata.results || cdata.items || [];
+                setSInfoContacts(Array.isArray(contacts) ? contacts : []);
+              } catch (e) { setSInfoContacts([]); }
+            } else {
+              // Mode 'infos' seul : on n'appelle pas getContacts, donc pas de dirigeants à proposer
+              setSInfoContacts([]);
+            }
           } catch (err) {
             setSInfoError('Erreur récupération société : ' + err.message);
             setSInfoStep(1);
@@ -1939,7 +1973,9 @@
           return;
         }
 
-        // Cas 2 : pas de SIREN → recherche par nom (pré-remplie)
+        // Cas 2 : pas de SIREN → recherche par nom (pré-remplie). On ne peut pas
+        // distinguer infos/contacts à ce stade : tant qu'on n'a pas matché une
+        // société dans la search, on ne sait pas quel SIREN cibler.
         setSInfoStep(1);
         setSInfoQuery(prospect.name || '');
         if ((prospect.name || '').trim().length >= 2) {
@@ -1947,11 +1983,26 @@
         }
       };
 
+      // Helper : ouvre la modale de choix avant d'appeler openSInfoEnrich.
+      // Si le prospect n'a pas de SIREN, on saute la modale (le mode n'a pas
+      // de sens : il faudra de toute façon faire une search par nom d'abord).
+      const openEnrichChoice = (prospect) => {
+        if (!prospect) return;
+        const sirenClean = String(prospect.siren || '').replace(/\D/g, '');
+        if (sirenClean.length !== 9) {
+          // Pas de SIREN : on lance le flow classique (search par nom à l'étape 1)
+          openSInfoEnrich(prospect, 'both');
+          return;
+        }
+        setEnrichChoiceTarget(prospect);
+        setShowEnrichChoiceModal(true);
+      };
+
       // Expose la fonction globalement pour que RightPanel puisse l'appeler facilement
-      // (évite de passer la fonction en prop à travers tous les composants)
       React.useEffect(() => {
-        window.openSInfoEnrich = openSInfoEnrich;
-        return () => { delete window.openSInfoEnrich; };
+        window.openEnrichChoice = openEnrichChoice;
+        window.openSInfoEnrich = openSInfoEnrich; // gardé pour compat ascendante
+        return () => { delete window.openSInfoEnrich; delete window.openEnrichChoice; };
       });
 
       const handleSInfoSearch = async (q) => {
@@ -2093,7 +2144,11 @@
         if (selectedIds.length > 0 && sInfoFetchEmails) {
           setSInfoLoading(true);
           try {
-            const siren = sInfoSelectedCompany._mapped.siren;
+            // En mode 'contacts uniquement' (enrich sans appel getCompany), _mapped est null.
+            // On utilise alors le registration_number directement présent sur l'objet société.
+            const siren = (sInfoSelectedCompany._mapped && sInfoSelectedCompany._mapped.siren)
+                           || sInfoSelectedCompany.registration_number
+                           || '';
             const dets = await window.SInfo.getContactsDetails(siren, selectedIds);
             const enriched = dets.result || dets.results || [];
             contactsToImport = contactsToImport.map(c => {
@@ -2127,6 +2182,16 @@
 
         // ─── MODE ENRICHISSEMENT ─────────────────────────────
         if (sInfoMode === 'enrich' && sInfoEnrichTarget) {
+          // Cas spécial : mode 'contacts uniquement' (l'utilisateur a choisi
+          // d'ajouter seulement les contacts sans toucher aux infos société).
+          // Pas d'appel getCompany donc pas de _mapped, donc pas de conflits à
+          // calculer. On applique directement les interlocuteurs sans toucher
+          // aux infos société existantes.
+          if (sInfoSelectedCompany && sInfoSelectedCompany._contactsOnly) {
+            await applySInfoEnrichment(sInfoEnrichTarget, null, newInterlocuteurs, []);
+            return;
+          }
+
           // Calculer les conflits champ par champ entre la société existante et les données SocieteInfo
           const sinfoMapped = sInfoSelectedCompany._mapped;
           const fieldDefs = [
@@ -2197,8 +2262,11 @@
         setShowSInfoModal(false);
       };
 
-      // Applique l'enrichissement à la société existante : PUT + création des interlocuteurs
+      // Applique l'enrichissement à la société existante : PUT + création des interlocuteurs.
+      // sinfoMapped peut être null si on est en mode 'contacts uniquement' : dans ce cas
+      // on n'altère AUCUN champ de la fiche société, on ajoute juste les interlocuteurs.
       const applySInfoEnrichment = async (target, sinfoMapped, interlocuteursToCreate, conflicts) => {
+        const isContactsOnly = !sinfoMapped;
         // Construire l'objet à envoyer en PUT : on part du prospect existant et on remplace
         // les champs où l'utilisateur a choisi "useNew"
         const updated = { ...target };
@@ -2210,7 +2278,7 @@
             // Fusion : on ajoute les nouvelles marques sans dédoublonner ce qui existe
             const existing = Array.isArray(target.marques) ? target.marques : [];
             updated.marques = [...new Set([...existing, ...c._newMarques])];
-          } else {
+          } else if (sinfoMapped) {
             updated[c.field] = sinfoMapped[c.field];
           }
         }
@@ -2218,11 +2286,14 @@
         // Pour les champs qui ne sont PAS en conflit mais où SocieteInfo a une valeur que l'actuelle est vide,
         // on les remplit (on a déjà filtré ce cas dans `conflicts` avec useNew=true par défaut, donc rien à faire ici)
 
-        // Toujours mettre à jour les métadonnées d'enrichissement
-        updated.import_source = updated.import_source || 'SInfo';
-        updated.import_ref    = sinfoMapped.siren || updated.import_ref;
-        // import_date : on met à jour pour marquer la date du dernier enrichissement
-        updated.import_date   = new Date().toISOString();
+        // Métadonnées d'enrichissement : seulement en mode 'infos' ou 'both'.
+        // En mode 'contacts uniquement', on ne touche pas à ces champs.
+        if (!isContactsOnly) {
+          updated.import_source = updated.import_source || 'SInfo';
+          updated.import_ref    = (sinfoMapped && sinfoMapped.siren) || updated.import_ref;
+          // import_date : on met à jour pour marquer la date du dernier enrichissement
+          updated.import_date   = new Date().toISOString();
+        }
 
         try {
           // PUT du prospect
@@ -3027,6 +3098,108 @@
             </div>
           )}
 
+          {/* ═══════ MODALE : CHOIX D'ENRICHISSEMENT (Infos / Contacts) ═══════ */}
+          {showEnrichChoiceModal && enrichChoiceTarget && (
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) { setShowEnrichChoiceModal(false); setEnrichChoiceTarget(null); } }}
+              style={{
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'rgba(26, 53, 53, 0.5)', backdropFilter: 'blur(2px)',
+                zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '20px'
+              }}>
+              <div style={{
+                background: 'white', borderRadius: '12px',
+                width: '100%', maxWidth: '520px',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                padding: '24px'
+              }} onClick={(e) => e.stopPropagation()}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+                  <div style={{fontSize:'16px',fontWeight:'700',color:'var(--tw-ink)'}}>🎯 Que souhaitez-vous enrichir ?</div>
+                  <button onClick={() => { setShowEnrichChoiceModal(false); setEnrichChoiceTarget(null); }}
+                    style={{background:'transparent',border:'none',cursor:'pointer',fontSize:'20px',color:'var(--tw-muted)',padding:'4px 8px'}}>×</button>
+                </div>
+                <div style={{fontSize:'12px',color:'var(--tw-muted)',marginBottom:'18px'}}>
+                  {enrichChoiceTarget.name} · SIREN {enrichChoiceTarget.siren}
+                </div>
+
+                {/* Choix 1 : Mettre à jour les infos société */}
+                <button
+                  onClick={() => {
+                    setShowEnrichChoiceModal(false);
+                    const target = enrichChoiceTarget;
+                    setEnrichChoiceTarget(null);
+                    openSInfoEnrich(target, 'infos');
+                  }}
+                  style={{
+                    width:'100%',
+                    display:'flex',alignItems:'flex-start',gap:'12px',
+                    padding:'14px 16px',marginBottom:'10px',
+                    background:'white',border:'1px solid var(--tw-border)',borderRadius:'8px',
+                    cursor:'pointer',textAlign:'left',
+                    transition:'background .15s, border-color .15s'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#f4f7f7'; e.currentTarget.style.borderColor = 'var(--tw-teal)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = 'var(--tw-border)'; }}
+                >
+                  <div style={{flexShrink:0,width:'32px',height:'32px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)',display:'inline-flex',alignItems:'center',justifyContent:'center'}}>
+                    {I(ICONS.doc, 16)}
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:'14px',fontWeight:'600',color:'var(--tw-ink)',marginBottom:'2px'}}>
+                      Mettre à jour les infos société
+                    </div>
+                    <div style={{fontSize:'12px',color:'var(--tw-muted)',lineHeight:1.4}}>
+                      Récupère SIREN, raison sociale, NAF, adresse, téléphone, site web, effectifs, marques…
+                    </div>
+                    <div style={{fontSize:'11px',color:'#92400e',marginTop:'4px',fontWeight:'600'}}>
+                      💳 1 crédit
+                    </div>
+                  </div>
+                </button>
+
+                {/* Choix 2 : Ajouter des contacts */}
+                <button
+                  onClick={() => {
+                    setShowEnrichChoiceModal(false);
+                    const target = enrichChoiceTarget;
+                    setEnrichChoiceTarget(null);
+                    openSInfoEnrich(target, 'contacts');
+                  }}
+                  style={{
+                    width:'100%',
+                    display:'flex',alignItems:'flex-start',gap:'12px',
+                    padding:'14px 16px',marginBottom:'10px',
+                    background:'white',border:'1px solid var(--tw-border)',borderRadius:'8px',
+                    cursor:'pointer',textAlign:'left',
+                    transition:'background .15s, border-color .15s'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#f4f7f7'; e.currentTarget.style.borderColor = 'var(--tw-teal)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = 'var(--tw-border)'; }}
+                >
+                  <div style={{flexShrink:0,width:'32px',height:'32px',borderRadius:'8px',background:'#dcfce7',color:'#166534',display:'inline-flex',alignItems:'center',justifyContent:'center'}}>
+                    {I(ICONS.mail, 16)}
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:'14px',fontWeight:'600',color:'var(--tw-ink)',marginBottom:'2px'}}>
+                      Ajouter des contacts depuis SocieteInfo
+                    </div>
+                    <div style={{fontSize:'12px',color:'var(--tw-muted)',lineHeight:1.4}}>
+                      Liste les dirigeants/employés détectés par SocieteInfo. Sélection en preview floutée, paiement uniquement sur les contacts retenus.
+                    </div>
+                    <div style={{fontSize:'11px',color:'#166534',marginTop:'4px',fontWeight:'600'}}>
+                      ✅ Preview gratuite · 1 crédit/contact retenu
+                    </div>
+                  </div>
+                </button>
+
+                <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'12px',textAlign:'center',fontStyle:'italic'}}>
+                  Pour faire les deux, lancez l'enrichissement deux fois.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ═══════ MODALE : RECHERCHE SOCIETEINFO ═══════ */}
           {showSInfoModal && (
             <div
@@ -3048,7 +3221,9 @@
                 }}>
                   <h2 style={{ margin: 0, fontFamily: 'DM Sans, sans-serif', color: '#1a3535', fontSize: '1.05rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {sInfoStep === 1 && (sInfoMode === 'enrich' ? 'Enrichir depuis SocieteInfo' : 'Rechercher dans SocieteInfo')}
-                    {sInfoStep === 2 && (sInfoMode === 'enrich' ? 'Sélectionner les dirigeants' : 'Confirmer l\'import')}
+                    {sInfoStep === 2 && sInfoMode === 'create' && 'Confirmer l\'import'}
+                    {sInfoStep === 2 && sInfoMode === 'enrich' && sInfoSelectedCompany && sInfoSelectedCompany._contactsOnly && 'Sélectionner les contacts'}
+                    {sInfoStep === 2 && sInfoMode === 'enrich' && (!sInfoSelectedCompany || !sInfoSelectedCompany._contactsOnly) && 'Mettre à jour la fiche'}
                     {sInfoStep === 3 && 'Résoudre les conflits'}
                     <span style={{ fontSize: '11px', color: '#7a9090', fontWeight: 400 }}>· Étape {sInfoStep}/{sInfoMode === 'enrich' ? 3 : 2}</span>
                   </h2>
@@ -3226,17 +3401,24 @@
                 {/* ═══ ÉTAPE 2 : SOCIÉTÉ + DIRIGEANTS À IMPORTER ═══ */}
                 {sInfoStep === 2 && sInfoSelectedCompany && (
                 <div style={{ padding: '20px 24px' }}>
-                  {/* Résumé de la société sélectionnée */}
+                  {/* Résumé de la société sélectionnée. En mode 'contacts uniquement',
+                      _mapped est null donc on fallback sur les infos minimales fournies
+                      par l'objet société (registration_number + organization.name) ou
+                      sur le prospect cible (sInfoEnrichTarget). */}
                   <div style={{
                     padding: '12px 14px', marginBottom: '16px',
                     background: '#f4f7f7', border: '0.5px solid #e0ecec', borderRadius: '8px'
                   }}>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a3535', marginBottom: '4px' }}>
-                      {sInfoSelectedCompany._mapped.name}
+                      {(sInfoSelectedCompany._mapped && sInfoSelectedCompany._mapped.name)
+                        || (sInfoSelectedCompany.organization && sInfoSelectedCompany.organization.name)
+                        || (sInfoEnrichTarget && sInfoEnrichTarget.name)
+                        || '(société)'}
                     </div>
                     <div style={{ fontSize: '11px', color: '#607a7a', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                      {sInfoSelectedCompany._mapped.siren && <span>SIREN {sInfoSelectedCompany._mapped.siren}</span>}
-                      {sInfoSelectedCompany._mapped.adresse && <span>· {sInfoSelectedCompany._mapped.adresse}</span>}
+                      {((sInfoSelectedCompany._mapped && sInfoSelectedCompany._mapped.siren) || sInfoSelectedCompany.registration_number)
+                        && <span>SIREN {(sInfoSelectedCompany._mapped && sInfoSelectedCompany._mapped.siren) || sInfoSelectedCompany.registration_number}</span>}
+                      {(sInfoSelectedCompany._mapped && sInfoSelectedCompany._mapped.adresse) && <span>· {sInfoSelectedCompany._mapped.adresse}</span>}
                     </div>
                   </div>
 
@@ -6897,7 +7079,12 @@
                     <button
                       type="button"
                       title="Enrichir cette fiche depuis SocieteInfo"
-                      onClick={() => { if (window.openSInfoEnrich) window.openSInfoEnrich(selectedProspect); }}
+                      onClick={() => {
+                        // Ouvre la modale de choix (infos / contacts) si on a un SIREN,
+                        // sinon part directement sur le flow classique de recherche.
+                        if (window.openEnrichChoice) window.openEnrichChoice(selectedProspect);
+                        else if (window.openSInfoEnrich) window.openSInfoEnrich(selectedProspect);
+                      }}
                       style={{
                         display:'inline-flex',alignItems:'center',justifyContent:'center',
                         width:'24px',height:'24px',padding:0,
