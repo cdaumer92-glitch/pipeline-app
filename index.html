@@ -767,6 +767,7 @@
         fonction: '',
         email: '',
         telephone: '',
+        linkedin_url: '',
         principal: false,
         decideur: false,
         accept_emailing: false,
@@ -987,6 +988,7 @@
               fonction: '',
               email: '',
               telephone: '',
+              linkedin_url: '',
               principal: false,
               decideur: false,
               accept_emailing: false,
@@ -2180,6 +2182,9 @@
             telephone: mapped.telephone || '',
             telephone_direct: '',
             mobile: '',
+            // linkedin_url : récupéré directement du contact SocieteInfo (jamais flouté
+            // contrairement au nom/email, donc utilisable même avec sInfoFetchEmails=false)
+            linkedin_url: c.linkedin_url || c.linkedinUrl || '',
             notes: ''
           };
         });
@@ -2320,7 +2325,8 @@
                 body: JSON.stringify({
                   civilite: inter.civilite || '', prenom: inter.prenom || '', nom: inter.nom || '',
                   fonction: inter.fonction || '', email: inter.email || '', telephone: inter.telephone || '',
-                  telephone_direct: '', mobile: '', notes: ''
+                  telephone_direct: '', mobile: '', notes: '',
+                  linkedin_url: inter.linkedin_url || ''
                 })
               });
             } catch (e) { console.warn('[SInfo] Erreur interlocuteur:', e.message); }
@@ -7487,6 +7493,14 @@
                                 style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
                             ))}
                           </div>
+                          {/* LinkedIn URL : pleine largeur, optionnel. Pré-rempli si import depuis SocieteInfo. */}
+                          <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'10px'}}>
+                            <span title="Profil LinkedIn" style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'28px',height:'28px',borderRadius:'5px',background:'#0a66c2',color:'white',fontSize:'12px',fontWeight:700,flexShrink:0}}>in</span>
+                            <input type="url" placeholder="URL LinkedIn (https://linkedin.com/in/...)"
+                              value={interlocuteurForm.linkedin_url||''}
+                              onChange={e=>setInterlocuteurForm({...interlocuteurForm,linkedin_url:e.target.value})}
+                              style={{flex:1,padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                          </div>
                           <div style={{display:'flex',gap:'16px',marginBottom:'12px',flexWrap:'wrap'}}>
                             <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',cursor:'pointer'}}>
                               <input type="checkbox" checked={!!interlocuteurForm.principal} onChange={e=>setInterlocuteurForm({...interlocuteurForm,principal:e.target.checked})} />
@@ -7564,7 +7578,7 @@
                         <React.Fragment>
                           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
                             <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)'}}>Contacts</div>
-                            <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({nom:'',fonction:'',email:'',telephone:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false}); setShowInterlocuteurForm(true); }}
+                            <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({nom:'',fonction:'',email:'',telephone:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false}); setShowInterlocuteurForm(true); }}
                               style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Contact</button>
                           </div>
 
@@ -7588,6 +7602,7 @@
                                       {c.fonction && <span>{c.fonction}</span>}
                                       {c.email && <a href={`mailto:${c.email}`} style={{color:'var(--tw-teal)',textDecoration:'none'}}>✉ {c.email}</a>}
                                       {c.telephone && <a href={`tel:${c.telephone}`} style={{color:'var(--tw-slate)',textDecoration:'none'}}>📞 {c.telephone}</a>}
+                                      {c.linkedin_url && <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer" title="Profil LinkedIn" style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'18px',height:'18px',borderRadius:'3px',background:'#0a66c2',color:'white',fontSize:'9px',fontWeight:700,textDecoration:'none'}}>in</a>}
                                     </div>
                                   </div>
                                   <div style={{display:'flex',gap:'5px',alignItems:'center',flexShrink:0}}>
@@ -7596,7 +7611,7 @@
                                     {c.decideur && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'#fdecea',color:'var(--tw-red)'}}>Décideur</span>}
                                     {c.principal && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
                                     <IconBtn title="Modifier le contact"
-                                      onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info}); setShowInterlocuteurForm(true); }}
+                                      onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',linkedin_url:c.linkedin_url||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info}); setShowInterlocuteurForm(true); }}
                                     >{I(ICONS.edit, 13)}</IconBtn>
                                     <IconBtn title="Supprimer le contact" danger
                                       onClick={() => handleDeleteInterlocuteur(c.id)}

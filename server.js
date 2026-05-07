@@ -409,6 +409,7 @@ async function initDB() {
     //   Par défaut false (RGPD strict - consentement explicite requis)
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS accept_emailing BOOLEAN DEFAULT false`);
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS accept_notes_info BOOLEAN DEFAULT false`);
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS linkedin_url TEXT`);
 
     // Migration : table d'historique RGPD des changements de consentement
     //   Trace tout changement des flags accept_emailing / accept_notes_info
@@ -1991,10 +1992,11 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { nom, fonction, email, telephone, principal, decideur, accept_emailing, accept_notes_info } = req.body;
+    const { nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info } = req.body;
 
     const acceptEmailing = !!accept_emailing;
     const acceptNotesInfo = !!accept_notes_info;
+    const linkedinClean = (linkedin_url && String(linkedin_url).trim()) || null;
 
     await client.query('BEGIN');
 
@@ -2006,10 +2008,10 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
     }
 
     const result = await client.query(
-      `INSERT INTO interlocuteurs (prospect_id, nom, fonction, email, telephone, principal, decideur, accept_emailing, accept_notes_info) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+      `INSERT INTO interlocuteurs (prospect_id, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [id, nom, fonction, email, telephone, principal || false, decideur || false, acceptEmailing, acceptNotesInfo]
+      [id, nom, fonction, email, telephone, linkedinClean, principal || false, decideur || false, acceptEmailing, acceptNotesInfo]
     );
 
     const newInterloc = result.rows[0];
@@ -2049,7 +2051,7 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
   const client = await pool.connect();
   try {
     const { prospectId, id } = req.params;
-    const { nom, fonction, email, telephone, principal, decideur, accept_emailing, accept_notes_info } = req.body;
+    const { nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info } = req.body;
 
     await client.query('BEGIN');
 
@@ -2078,20 +2080,28 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
       );
     }
 
-    // COALESCE pour ne pas écraser les flags si pas envoyés (compat ascendante)
+    // COALESCE pour ne pas écraser les flags si pas envoyés (compat ascendante).
+    // linkedin_url : COALESCE pour ne pas écraser, mais on accepte la chaîne vide
+    // pour effacer (côté front, '' = "supprimer mon LinkedIn").
+    const linkedinValue = (linkedin_url === undefined) ? null
+                          : (String(linkedin_url).trim() === '' ? '' : String(linkedin_url).trim());
     const result = await client.query(
-      `UPDATE interlocuteurs 
+      `UPDATE interlocuteurs
        SET nom = $1, fonction = $2, email = $3, telephone = $4, principal = $5, decideur = $6,
            accept_emailing = COALESCE($7, accept_emailing),
            accept_notes_info = COALESCE($8, accept_notes_info),
-           updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $9 AND prospect_id = $10 
+           linkedin_url = CASE WHEN $11::text IS NULL THEN linkedin_url
+                               WHEN $11::text = '' THEN NULL
+                               ELSE $11::text END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $9 AND prospect_id = $10
        RETURNING *`,
       [
         nom, fonction, email, telephone, principal || false, decideur || false,
         accept_emailing === undefined ? null : !!accept_emailing,
         accept_notes_info === undefined ? null : !!accept_notes_info,
-        id, prospectId
+        id, prospectId,
+        linkedinValue
       ]
     );
 
