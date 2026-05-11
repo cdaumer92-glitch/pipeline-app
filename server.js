@@ -2420,30 +2420,6 @@ app.get('/admin', (req, res) => {
   res.sendFile(join(__dirname, 'admin.html'));
 });
 
-// ⚠️ ENDPOINT TEMPORAIRE DE DIAGNOSTIC - À RETIRER APRÈS USAGE
-// Vérifier que la migration display_order a bien tourné en BDD.
-app.get('/api/admin/db-debug', requireAdmin, async (req, res) => {
-  try {
-    const cols = await pool.query(`
-      SELECT column_name, data_type
-        FROM information_schema.columns
-       WHERE table_name = 'interlocuteurs'
-       ORDER BY ordinal_position
-    `);
-    const sample = await pool.query(
-      `SELECT id, nom, prospect_id, display_order FROM interlocuteurs ORDER BY id DESC LIMIT 5`
-    ).catch(e => ({ error: e.message, code: e.code }));
-    res.json({
-      table: 'interlocuteurs',
-      hasDisplayOrder: cols.rows.some(c => c.column_name === 'display_order'),
-      columns: cols.rows.map(c => c.column_name),
-      sample: sample.rows || sample
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message, code: err.code });
-  }
-});
-
 app.get('/api/admin/active-users', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
