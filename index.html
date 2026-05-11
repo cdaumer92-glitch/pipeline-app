@@ -5568,6 +5568,8 @@
       const fmt = (n) => (n||0).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2});
       const [sortCol, setSortCol] = React.useState('name');
       const [sortAsc, setSortAsc] = React.useState(true);
+      // Filtre par type de société pour le tableau "Mes dossiers" : 'all', 'Suspect', 'Prospect', 'Client'
+      const [typeFilter, setTypeFilter] = React.useState('all');
 
       const handleSort = (col) => {
         if (sortCol === col) setSortAsc(a => !a);
@@ -5604,6 +5606,18 @@
         };
         const s = map[status] || {cls:'var(--tw-muted)', bg:'#f5f5f5'};
         return <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'10px',color:s.cls,background:s.bg}}>{status||'Prospection'}</span>;
+      };
+
+      // Badge pour le type de société (Suspect / Prospect / Client).
+      // Couleurs cohérentes avec celles utilisées ailleurs dans l'app (voir ligne ~4310).
+      const typeChip = (type) => {
+        const map = {
+          'Suspect':  {cls:'#7a7a7a', bg:'#f0f0f0'},
+          'Prospect': {cls:'#c47100', bg:'#fff3e0'},
+          'Client':   {cls:'#0c7ba8', bg:'#e3f2fd'},
+        };
+        const s = map[type] || {cls:'var(--tw-muted)', bg:'#f5f5f5'};
+        return <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'10px',color:s.cls,background:s.bg}}>{type||'—'}</span>;
       };
 
       const thisYear = new Date().getFullYear();
@@ -5670,11 +5684,40 @@
 
           {/* TABLEAU MES DOSSIERS */}
           <div className="tw-section-title">Mes dossiers ({mine.length})</div>
+          {/* Barre de filtre par type : Tous / Suspect / Prospect / Client.
+              Le filtre est local à ce tableau, pas global (n'impacte pas les autres parties du dashboard). */}
+          <div style={{display:'flex',gap:'6px',marginBottom:'10px',alignItems:'center',flexWrap:'wrap'}}>
+            <span style={{fontSize:'11px',color:'var(--tw-muted)',marginRight:'4px',textTransform:'uppercase',letterSpacing:'.4px',fontWeight:'600'}}>Type :</span>
+            {[
+              {key:'all',      label:'Tous'},
+              {key:'Suspect',  label:'Suspect'},
+              {key:'Prospect', label:'Prospect'},
+              {key:'Client',   label:'Client'},
+            ].map(t => {
+              const active = typeFilter === t.key;
+              const count = t.key === 'all' ? mine.length : mine.filter(p => p.statut_societe === t.key).length;
+              return (
+                <button key={t.key} onClick={() => setTypeFilter(t.key)}
+                  style={{
+                    padding:'4px 11px',
+                    background: active ? 'var(--tw-ink)' : 'white',
+                    color: active ? 'white' : 'var(--tw-slate)',
+                    border:'0.5px solid ' + (active ? 'var(--tw-ink)' : 'var(--tw-border)'),
+                    borderRadius:'14px',fontSize:'12px',cursor:'pointer',
+                    fontFamily:"'DM Sans',sans-serif",
+                    transition:'all .15s'
+                  }}>
+                  {t.label} <span style={{opacity:0.6,marginLeft:'3px'}}>({count})</span>
+                </button>
+              );
+            })}
+          </div>
           <div style={{background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',overflow:'hidden',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
             {/* Header triable */}
-            <div style={{display:'grid',gridTemplateColumns:'2fr 1.2fr 0.8fr 1.6fr 0.8fr',padding:'9px 16px',background:'var(--tw-bg)',borderBottom:'1px solid var(--tw-border)',fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px'}}>
+            <div style={{display:'grid',gridTemplateColumns:'1.8fr 0.9fr 1.1fr 0.7fr 1.5fr 0.8fr',padding:'9px 16px',background:'var(--tw-bg)',borderBottom:'1px solid var(--tw-border)',fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px'}}>
               {[
                 {lbl:'Société',          col:'name'},
+                {lbl:'Type',             col:'type'},
                 {lbl:'Statut',           col:'status'},
                 {lbl:'Proba',            col:'proba'},
                 {lbl:'Prochaine action', col:'action'},
@@ -5690,12 +5733,17 @@
               ))}
               <div></div>
             </div>
-            {mine.length === 0 && (
-              <div style={{padding:'30px',textAlign:'center',color:'var(--tw-muted)',fontSize:'13px'}}>Aucune société assignée</div>
+            {mine.filter(p => typeFilter === 'all' || p.statut_societe === typeFilter).length === 0 && (
+              <div style={{padding:'30px',textAlign:'center',color:'var(--tw-muted)',fontSize:'13px'}}>
+                {typeFilter === 'all' ? 'Aucune société assignée' : `Aucune société de type "${typeFilter}"`}
+              </div>
             )}
-            {[...mine].sort((a,b) => {
+            {[...mine]
+              .filter(p => typeFilter === 'all' || p.statut_societe === typeFilter)
+              .sort((a,b) => {
               let va, vb;
               if (sortCol==='name')   { va=a.name||''; vb=b.name||''; return sortAsc?va.localeCompare(vb):vb.localeCompare(va); }
+              if (sortCol==='type')   { va=a.statut_societe||''; vb=b.statut_societe||''; return sortAsc?va.localeCompare(vb):vb.localeCompare(va); }
               if (sortCol==='status') { va=a.real_status||''; vb=b.real_status||''; return sortAsc?va.localeCompare(vb):vb.localeCompare(va); }
               if (sortCol==='proba')  { va=a.real_probability||0; vb=b.real_probability||0; return sortAsc?va-vb:vb-va; }
               if (sortCol==='action') {
@@ -5711,7 +5759,7 @@
               const actionDate = ai?.nextActionDate ? new Date(ai.nextActionDate) : null;
               const dateStr = actionDate ? actionDate.toLocaleDateString('fr-FR') : null;
               return (
-                <div key={p.id} style={{display:'grid',gridTemplateColumns:'2fr 1.2fr 0.8fr 1.6fr 0.8fr',padding:'11px 16px',borderBottom:'1px solid #f5f5f5',alignItems:'center',cursor:'pointer',transition:'background .12s'}}
+                <div key={p.id} style={{display:'grid',gridTemplateColumns:'1.8fr 0.9fr 1.1fr 0.7fr 1.5fr 0.8fr',padding:'11px 16px',borderBottom:'1px solid #f5f5f5',alignItems:'center',cursor:'pointer',transition:'background .12s'}}
                   onMouseEnter={e=>e.currentTarget.style.background='var(--tw-teal-light)'}
                   onMouseLeave={e=>e.currentTarget.style.background='white'}
                   onClick={() => { onSelectProspect(p); onOpenDashboard(); }}
@@ -5720,6 +5768,7 @@
                     <div style={{fontWeight:'600',fontSize:'13px',color:'var(--tw-ink)'}}>{prospectDisplayName(p)}</div>
                     <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'2px'}}>{p.contact_name||'—'}</div>
                   </div>
+                  <div>{typeChip(p.statut_societe)}</div>
                   <div>{statusChip(p.real_status)}</div>
                   <div style={{fontSize:'13px',fontWeight:'700',color:
                     p.real_probability>=80?'var(--tw-green)':
@@ -5753,6 +5802,8 @@
       const [showSocietes, setShowSocietes] = React.useState(false);
       const [societesSortCol, setSocietesSortCol] = React.useState('name');
       const [societesSortAsc, setSocietesSortAsc] = React.useState(true);
+      // Filtre par type de société pour la 2e liste (drill-down par commercial dans le dashboard)
+      const [societesTypeFilter, setSocietesTypeFilter] = React.useState('all');
       const [recapSending, setRecapSending] = React.useState(false);
 
       const [recapResult, setRecapResult] = React.useState(null);
@@ -6394,10 +6445,38 @@
                       const today2 = new Date(); today2.setHours(0,0,0,0);
                       return (
                         <div style={{marginTop:'14px',borderTop:'1px solid var(--tw-border)',paddingTop:'14px'}}>
+                          {/* Barre de filtre par type pour cette liste de sociétés */}
+                          <div style={{display:'flex',gap:'6px',marginBottom:'10px',alignItems:'center',flexWrap:'wrap'}}>
+                            <span style={{fontSize:'11px',color:'var(--tw-muted)',marginRight:'4px',textTransform:'uppercase',letterSpacing:'.4px',fontWeight:'600'}}>Type :</span>
+                            {[
+                              {key:'all',      label:'Tous'},
+                              {key:'Suspect',  label:'Suspect'},
+                              {key:'Prospect', label:'Prospect'},
+                              {key:'Client',   label:'Client'},
+                            ].map(t => {
+                              const active = societesTypeFilter === t.key;
+                              const count = t.key === 'all' ? mine.length : mine.filter(p => p.statut_societe === t.key).length;
+                              return (
+                                <button key={t.key} onClick={() => setSocietesTypeFilter(t.key)}
+                                  style={{
+                                    padding:'4px 11px',
+                                    background: active ? 'var(--tw-ink)' : 'white',
+                                    color: active ? 'white' : 'var(--tw-slate)',
+                                    border:'0.5px solid ' + (active ? 'var(--tw-ink)' : 'var(--tw-border)'),
+                                    borderRadius:'14px',fontSize:'12px',cursor:'pointer',
+                                    fontFamily:"'DM Sans',sans-serif",
+                                    transition:'all .15s'
+                                  }}>
+                                  {t.label} <span style={{opacity:0.6,marginLeft:'3px'}}>({count})</span>
+                                </button>
+                              );
+                            })}
+                          </div>
                           {/* Header triable */}
-                          <div style={{display:'grid',gridTemplateColumns:'2fr 1.2fr 0.8fr 1.6fr 0.8fr',padding:'7px 10px',background:'var(--tw-bg)',borderRadius:'6px 6px 0 0',fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px'}}>
+                          <div style={{display:'grid',gridTemplateColumns:'1.8fr 0.9fr 1.1fr 0.7fr 1.5fr 0.8fr',padding:'7px 10px',background:'var(--tw-bg)',borderRadius:'6px 6px 0 0',fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px'}}>
                             {[
                               {lbl:'Société', col:'name'},
+                              {lbl:'Type',    col:'type'},
                               {lbl:'Statut',  col:'status'},
                               {lbl:'Proba',   col:'proba'},
                               {lbl:'Prochaine action', col:'action'},
@@ -6414,8 +6493,11 @@
                             ))}
                             <div></div>
                           </div>
-                          {[...mine].sort((a,b) => {
+                          {[...mine]
+                            .filter(p => societesTypeFilter === 'all' || p.statut_societe === societesTypeFilter)
+                            .sort((a,b) => {
                             if(societesSortCol==='name')   { const r=a.name.localeCompare(b.name); return societesSortAsc?r:-r; }
+                            if(societesSortCol==='type')   { const r=(a.statut_societe||'').localeCompare(b.statut_societe||''); return societesSortAsc?r:-r; }
                             if(societesSortCol==='status') { const r=(a.real_status||'').localeCompare(b.real_status||''); return societesSortAsc?r:-r; }
                             if(societesSortCol==='proba')  { const r=(a.real_probability||0)-(b.real_probability||0); return societesSortAsc?r:-r; }
                             if(societesSortCol==='action') {
@@ -6435,7 +6517,7 @@
                             const sBg = statusBgs[p.real_status] || '#f5f5f5';
                             return (
                               <div key={p.id}
-                                style={{display:'grid',gridTemplateColumns:'2fr 1.2fr 0.8fr 1.6fr 0.8fr',padding:'9px 10px',borderBottom:'1px solid #f5f5f5',alignItems:'center',fontSize:'13px',cursor:'pointer',transition:'background .12s',background:'white'}}
+                                style={{display:'grid',gridTemplateColumns:'1.8fr 0.9fr 1.1fr 0.7fr 1.5fr 0.8fr',padding:'9px 10px',borderBottom:'1px solid #f5f5f5',alignItems:'center',fontSize:'13px',cursor:'pointer',transition:'background .12s',background:'white'}}
                                 onMouseEnter={e=>e.currentTarget.style.background='var(--tw-teal-light)'}
                                 onMouseLeave={e=>e.currentTarget.style.background='white'}
                                 onClick={() => { onSelectProspect(p); onOpenDashboard(); }}
@@ -6444,6 +6526,7 @@
                                   <div style={{fontWeight:'600',fontSize:'13px',color:'var(--tw-ink)'}}>{prospectDisplayName(p)}</div>
                                   <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'1px'}}>{p.contact_name||'—'}</div>
                                 </div>
+                                <div>{typeChip(p.statut_societe)}</div>
                                 <div><span style={{fontSize:'11px',fontWeight:'600',padding:'2px 8px',borderRadius:'10px',color:sColor,background:sBg}}>{p.real_status||'Prospection'}</span></div>
                                 <div style={{fontSize:'13px',fontWeight:'700',color:sColor}}>{p.real_probability||0}%</div>
                                 <div style={{fontSize:'12px'}}>
