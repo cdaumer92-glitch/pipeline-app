@@ -414,6 +414,11 @@ async function initDB() {
     // le contact suit le tri auto (Principal/Décideur d'abord). Permet aux contacts non
     // réordonnés de garder le tri intelligent par défaut.
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS display_order INTEGER`);
+    // RGPD : trace de l'origine du contact pour pouvoir justifier comment on l'a obtenu en cas de demande.
+    // source = clé courte ('manuel', 'societeinfo', 'import_excel', 'inscription_web', etc.)
+    // source_detail = informations détaillées (ex: 'societeinfo:siren=572000537:date=2026-05-11')
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS source TEXT`);
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS source_detail TEXT`);
 
     // Migration : table d'historique RGPD des changements de consentement
     //   Trace tout changement des flags accept_emailing / accept_notes_info
@@ -2063,11 +2068,15 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info } = req.body;
+    const { nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, source, source_detail } = req.body;
 
     const acceptEmailing = !!accept_emailing;
     const acceptNotesInfo = !!accept_notes_info;
     const linkedinClean = (linkedin_url && String(linkedin_url).trim()) || null;
+    // RGPD : par défaut, contact créé manuellement depuis le CRM.
+    // Le front peut surcharger (ex: 'societeinfo' à l'import enrichissement).
+    const sourceClean = (source && String(source).trim()) || 'manuel';
+    const sourceDetailClean = (source_detail && String(source_detail).trim()) || null;
 
     await client.query('BEGIN');
 
@@ -2079,10 +2088,10 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
     }
 
     const result = await client.query(
-      `INSERT INTO interlocuteurs (prospect_id, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO interlocuteurs (prospect_id, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, source, source_detail)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
-      [id, nom, fonction, email, telephone, linkedinClean, principal || false, decideur || false, acceptEmailing, acceptNotesInfo]
+      [id, nom, fonction, email, telephone, linkedinClean, principal || false, decideur || false, acceptEmailing, acceptNotesInfo, sourceClean, sourceDetailClean]
     );
 
     const newInterloc = result.rows[0];
@@ -2328,9 +2337,28 @@ app.post('/api/webhook/brevo', async (req, res) => {
     console.error('[brevo-webhook] BREVO_WEBHOOK_TOKEN non configuré côté serveur');
     return res.status(503).json({ error: 'Webhook non configuré' });
   }
-  const provided = req.headers['x-webhook-token'];
+  // Tolérance : Brevo ne documente pas clairement quel header il utilise pour
+  // transmettre le token configuré dans son interface (le nommage "Token" côté UI
+  // ne précise pas le header). On accepte donc plusieurs noms standard :
+  //   - X-Webhook-Token : notre convention initiale (header custom explicite)
+  //   - Authorization: Bearer XXX (RFC 6750, le plus standard)
+  //   - Authorization: Token XXX
+  //   - X-Auth-Token : autre nom courant
+  //   - ?token=XXX en query string (fallback ultime)
+  const rawAuth = req.headers['authorization'] || '';
+  const tokenFromAuthHeader = rawAuth.replace(/^(Bearer|Token)\s+/i, '').trim();
+  const provided =
+    req.headers['x-webhook-token'] ||
+    tokenFromAuthHeader ||
+    req.headers['x-auth-token'] ||
+    req.query.token ||
+    null;
+
   if (provided !== expected) {
-    console.warn('[brevo-webhook] Token invalide ou absent (IP:', req.ip + ')');
+    // Log détaillé pour faciliter le diagnostic (sans logger le token complet)
+    const previewProvided = provided ? `${String(provided).slice(0,4)}...${String(provided).slice(-4)}` : '(aucun)';
+    const previewExpected = `${expected.slice(0,4)}...${expected.slice(-4)}`;
+    console.warn(`[brevo-webhook] Token invalide ou absent (IP: ${req.ip}, fourni: ${previewProvided}, attendu: ${previewExpected})`);
     return res.status(401).json({ error: 'Token invalide' });
   }
 
@@ -3572,13 +3600,15 @@ app.post('/api/import', auth, async (req, res) => {
 
       try {
         await pool.query(
-          `INSERT INTO interlocuteurs (prospect_id, civilite, prenom, nom, fonction, telephone, email, principal)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          `INSERT INTO interlocuteurs (prospect_id, civilite, prenom, nom, fonction, telephone, email, principal, source, source_detail)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
           [
             pid,
             row['civilite'] || null, prenom || null, nom || null,
             row['fonction'] || null, row['telephone'] || null,
-            email, principal
+            email, principal,
+            'import_excel',
+            `import_excel:date=${new Date().toISOString().slice(0,10)}`
           ]
         );
         contactsAdded++;
