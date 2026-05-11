@@ -839,7 +839,9 @@
       const [expandedActionId, setExpandedActionId] = React.useState(null);
       
       const [filterSocietyType, setFilterSocietyType] = React.useState('Tous');
-      const [filterStatus, setFilterStatus] = React.useState('Tous');
+      // Filtre statut : tableau de statuts à inclure. [] = tous (pas de filtre).
+      // Permet la multi-sélection (ex: ['En cours','Envoyé','Discussion','Négociation'] = devis en cours).
+      const [filterStatus, setFilterStatus] = React.useState([]);
       const [filterCommercial, setFilterCommercial] = React.useState('Tous');
       const [filterAttribution, setFilterAttribution] = React.useState('Toutes');
       const [searchTerm, setSearchTerm] = React.useState('');
@@ -2539,25 +2541,19 @@
           matchSocietyType = p.statut_societe === filterSocietyType;
         }
         
-        // Filtre par statut
+        // Filtre par statut : filterStatus est un tableau de statuts à inclure.
+        // [] = pas de filtre. Sinon, on garde les prospects dont real_status matche un des statuts cochés.
+        // Cas particulier "Prospection" = pas de devis actif (real_status est null/vide), supporté en cochant
+        // 'Prospection' qui est traduit en "real_status falsy".
         let matchStatus;
-        if (filterStatus === 'Tous') {
+        if (!Array.isArray(filterStatus) || filterStatus.length === 0) {
           matchStatus = true;
-        } else if (filterStatus === 'Devis') {
-          // "Devis" = tous ceux qui ont un statut de devis actif (En cours, Envoyé, Discussion)
-          matchStatus = p.real_status && ['En cours', 'Envoyé', 'Discussion'].includes(p.real_status);
-        } else if (filterStatus === 'Prospection') {
-          // "Prospection" = ceux qui n'ont pas de devis actif
-          matchStatus = !p.real_status;
-        } else if (filterStatus === 'Signé') {
-          // "Signé" = Gagné
-          matchStatus = p.real_status === 'Gagné';
-        } else if (filterStatus === 'Perdu') {
-          // "Perdu" = Perdu
-          matchStatus = p.real_status === 'Perdu';
         } else {
-          // Autres statuts : mapper directement
-          matchStatus = p.real_status === filterStatus;
+          // 'Prospection' = pas de real_status (en attente). Les autres = égalité directe.
+          matchStatus = filterStatus.some(s => {
+            if (s === 'Prospection') return !p.real_status;
+            return p.real_status === s;
+          });
         }
         
         const matchCommercial = (filterAttribution === 'Mes' || filterAttribution === 'NonAttribuees')
@@ -2669,6 +2665,9 @@
               setCompteurModalData={setCompteurModalData}
               codesNaf={codesNaf}
               onRefreshProspects={fetchProspects}
+              setFilterCommercial={setFilterCommercial}
+              setFilterStatus={setFilterStatus}
+              setFilterAttribution={setFilterAttribution}
               onShowRecap={(commercial, period) => {
                 setRecapCommercial(commercial);
                 setRecapPeriod(period);
@@ -5322,6 +5321,9 @@
         red:       '#F09595',  // accent rouge (perdu, retard)
       };
 
+      // État local : panneau dépliable du multi-select Statut (hooks au niveau composant, pas dans IIFE)
+      const [statusMenuOpen, setStatusMenuOpen] = React.useState(false);
+
       // === KPIs calculés depuis les données réelles ===
       const today = new Date(); today.setHours(0,0,0,0);
       const pipelineActif = prospects.filter(p => p.real_status && ['En cours','Envoyé','Discussion'].includes(p.real_status));
@@ -5430,11 +5432,71 @@
 
           <div style={{padding:'10px 14px 0'}}>
             <label style={labelStyle}>Statut</label>
-            <select value={filterStatus} onChange={(e) => onFilterChange(e.target.value)} style={selectStyle}>
-              {['Tous', 'Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Ajourné N+1', 'Éliminé par nous', 'Perdu'].map(status => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
+            {/* Multi-select : bouton résumé + panneau de checkboxes dépliable.
+                filterStatus = tableau de statuts cochés. Tableau vide = "Tous".
+                Préset "Devis en cours" disponible en haut pour cocher rapidement les 4 statuts d'un devis actif.
+                statusMenuOpen est défini au niveau de LeftPanel (hooks ne peuvent pas être dans une IIFE). */}
+            {(() => {
+              const ALL_STATUS = ['Prospection', 'En cours', 'Envoyé', 'Discussion', 'Démo', 'Négociation', 'Gagné', 'Ajourné N+1', 'Éliminé par nous', 'Perdu'];
+              const DEVIS_EN_COURS = ['En cours', 'Envoyé', 'Discussion', 'Négociation'];
+
+              const selected = Array.isArray(filterStatus) ? filterStatus : [];
+              const isAllSelected = selected.length === 0;
+              const isDevisEnCours = selected.length === DEVIS_EN_COURS.length && DEVIS_EN_COURS.every(s => selected.includes(s));
+
+              // Label affiché sur le bouton
+              let label;
+              if (isAllSelected) label = 'Tous';
+              else if (isDevisEnCours) label = 'Devis en cours';
+              else if (selected.length === 1) label = selected[0];
+              else label = `${selected.length} statuts`;
+
+              const toggleStatus = (s) => {
+                if (selected.includes(s)) onFilterChange(selected.filter(x => x !== s));
+                else onFilterChange([...selected, s]);
+              };
+
+              return (
+                <div style={{position:'relative'}}>
+                  <button onClick={() => setStatusMenuOpen(o => !o)}
+                    style={{...selectStyle, textAlign:'left', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                    <span>{label}</span>
+                    <span style={{opacity:0.6,fontSize:'10px'}}>▾</span>
+                  </button>
+                  {statusMenuOpen && (
+                    <div style={{
+                      position:'absolute', top:'calc(100% + 4px)', left:0, right:0,
+                      background: A.bgSoft, border:'0.5px solid '+A.border, borderRadius:'7px',
+                      padding:'6px', zIndex:20, maxHeight:'320px', overflowY:'auto',
+                      boxShadow:'0 4px 14px rgba(0,0,0,0.25)'
+                    }}>
+                      {/* Préset "Tous" : décoche tout */}
+                      <button onClick={() => { onFilterChange([]); setStatusMenuOpen(false); }}
+                        style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',background: isAllSelected ? A.bgActive : 'transparent', color: A.text, border:'none', borderRadius:'5px', cursor:'pointer', fontSize:'12px', fontFamily:"'DM Sans',sans-serif",marginBottom:'2px'}}>
+                        {isAllSelected ? '✓ ' : ''}Tous
+                      </button>
+                      {/* Préset "Devis en cours" */}
+                      <button onClick={() => onFilterChange(isDevisEnCours ? [] : [...DEVIS_EN_COURS])}
+                        style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',background: isDevisEnCours ? A.bgActive : 'transparent', color: A.text, border:'none', borderRadius:'5px', cursor:'pointer', fontSize:'12px', fontFamily:"'DM Sans',sans-serif",marginBottom:'4px'}}>
+                        {isDevisEnCours ? '✓ ' : ''}📊 Devis en cours
+                      </button>
+                      <div style={{height:'1px',background:A.border,margin:'4px 0'}}></div>
+                      {/* Liste des statuts individuels (checkboxes) */}
+                      {ALL_STATUS.map(s => {
+                        const checked = selected.includes(s);
+                        return (
+                          <label key={s} style={{display:'flex',alignItems:'center',gap:'8px',padding:'5px 10px',cursor:'pointer',color:A.text,fontSize:'12px',fontFamily:"'DM Sans',sans-serif",borderRadius:'5px',background: checked ? A.bgActive : 'transparent'}}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleStatus(s)}
+                              style={{accentColor:'#5DCAA5',cursor:'pointer',margin:0}} />
+                            {s}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {isAdmin && (
@@ -5798,7 +5860,7 @@
       );
     }
 
-    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo, onShowRecap, setShowCompteurModal, setCompteurModalData, codesNaf = [], onRefreshProspects }) {
+    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo, onShowRecap, setShowCompteurModal, setCompteurModalData, codesNaf = [], onRefreshProspects, setFilterCommercial, setFilterStatus, setFilterAttribution }) {
       const [activeTab, setActiveTab] = React.useState(null);
       const [showSocietes, setShowSocietes] = React.useState(false);
       const [societesSortCol, setSocietesSortCol] = React.useState('name');
@@ -6387,9 +6449,12 @@
                     {/* Stats 5 colonnes */}
                     <div className="tw-cs-grid">
                       {[
-                        {lbl:'Sociétés',  val:d.societes,   color:'var(--tw-teal)',  filter:{commercial:activeTab, status:'Tous'}},
-                        {lbl:'Devis',     val:d.devisCount, color:'var(--tw-blue)',  filter:{commercial:activeTab, status:'Devis'}},
-                        {lbl:'Signés',    val:d.signes,     color:d.signes>0?'var(--tw-green)':'var(--tw-muted)', filter:{commercial:activeTab, status:'Signé'}},
+                        // Les 3 premières cases (Sociétés/Devis/Signés) sont cliquables : elles appliquent
+                        // le filtre Commercial + Statut adéquat puis ouvrent la vue Suivi activités.
+                        // filterStatusValue : [] = Tous, ou tableau de statuts pour multi-select.
+                        {lbl:'Sociétés',  val:d.societes,   color:'var(--tw-teal)',  filterStatusValue: []},
+                        {lbl:'Devis',     val:d.devisCount, color:'var(--tw-blue)',  filterStatusValue: ['En cours', 'Envoyé', 'Discussion', 'Négociation']},
+                        {lbl:'Signés',    val:d.signes,     color:d.signes>0?'var(--tw-green)':'var(--tw-muted)', filterStatusValue: ['Gagné']},
                         {lbl:'Abo/mois',  val:fmt(d.aboMensuel)+' €', color:'var(--tw-ink)', noClick:true},
                         {lbl:'Abo/an',    val:fmt(d.aboAnnuel)+' €',  color:'var(--tw-ink)', noClick:true},
                       ].map(item => (
@@ -6399,6 +6464,11 @@
                           style={{cursor: item.noClick?'default':'pointer'}}
                           onClick={() => {
                             if (item.noClick) return;
+                            // Appliquer les filtres avant de naviguer
+                            if (setFilterCommercial) setFilterCommercial(activeTab);
+                            if (setFilterStatus) setFilterStatus(item.filterStatusValue);
+                            // Reset filtre attribution (sinon ça peut court-circuiter le filtre commercial)
+                            if (setFilterAttribution) setFilterAttribution('Toutes');
                             onOpenDashboard();
                           }}
                         >
