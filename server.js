@@ -1986,15 +1986,35 @@ Execute uniquement le script. Ne genere pas le document toi-meme.`;
 app.get('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
   try {
     const { id } = req.params;
+    // On enrichit chaque interlocuteur avec la date et la source du dernier événement
+    // d'opt-out emailing trouvé dans interlocuteurs_consents. Permet d'afficher côté UI
+    // "Désabonné le DD/MM/YYYY via Brevo" sous la case emailing décochée.
+    // - emailing_unsubscribed_at : timestamp du dernier passage à false sur accept_emailing
+    // - emailing_unsubscribed_source : source ('webhook_brevo', 'manuel', etc.)
+    // Si aucun désabo n'a eu lieu, ces 2 champs valent NULL.
     const result = await pool.query(
-      // Tri en 3 niveaux :
-      // 1. display_order ASC NULLS LAST : les contacts drag & droppés (display_order non NULL)
-      //    apparaissent dans l'ordre custom défini par l'utilisateur, en premier.
-      // 2. Pour les contacts sans ordre custom (NULL), tri auto : Principal d'abord, puis Décideur.
-      //    Comme demandé : Principal ET Décideur ensemble en haut. On les met "à pied d'égalité"
-      //    via (principal OR decideur) DESC, puis on départage par nom.
-      // 3. Nom alphabétique en dernier recours.
-      'SELECT * FROM interlocuteurs WHERE prospect_id = $1 ORDER BY display_order ASC NULLS LAST, (principal OR decideur) DESC, principal DESC, nom ASC',
+      `SELECT i.*,
+              (
+                SELECT c.changed_at
+                  FROM interlocuteurs_consents c
+                 WHERE c.interlocuteur_id = i.id
+                   AND c.field = 'accept_emailing'
+                   AND c.new_value = false
+                 ORDER BY c.changed_at DESC
+                 LIMIT 1
+              ) AS emailing_unsubscribed_at,
+              (
+                SELECT c.source
+                  FROM interlocuteurs_consents c
+                 WHERE c.interlocuteur_id = i.id
+                   AND c.field = 'accept_emailing'
+                   AND c.new_value = false
+                 ORDER BY c.changed_at DESC
+                 LIMIT 1
+              ) AS emailing_unsubscribed_source
+         FROM interlocuteurs i
+        WHERE i.prospect_id = $1
+        ORDER BY i.display_order ASC NULLS LAST, (i.principal OR i.decideur) DESC, i.principal DESC, i.nom ASC`,
       [id]
     );
     res.json(result.rows);

@@ -2358,6 +2358,10 @@
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
           // POST des nouveaux interlocuteurs
+          // RGPD : on marque la source explicitement pour pouvoir justifier l'origine
+          // du contact en cas de demande d'opposition / audit.
+          const siren = (sinfoMapped && sinfoMapped.siren) || target.siren || target.import_ref || 'inconnu';
+          const todayISO = new Date().toISOString().slice(0, 10);
           for (const inter of interlocuteursToCreate) {
             try {
               await fetch(`${API_URL}/prospects/${target.id}/interlocuteurs`, {
@@ -2367,7 +2371,9 @@
                   civilite: inter.civilite || '', prenom: inter.prenom || '', nom: inter.nom || '',
                   fonction: inter.fonction || '', email: inter.email || '', telephone: inter.telephone || '',
                   telephone_direct: '', mobile: '', notes: '',
-                  linkedin_url: inter.linkedin_url || ''
+                  linkedin_url: inter.linkedin_url || '',
+                  source: 'societeinfo',
+                  source_detail: `societeinfo:siren=${siren}:date=${todayISO}:contact_id=${inter.id || 'unknown'}`
                 })
               });
             } catch (e) { console.warn('[SInfo] Erreur interlocuteur:', e.message); }
@@ -2457,8 +2463,11 @@
           const created = { ...payload, id: data.id || data.prospect_id };
 
           // Si des dirigeants SocieteInfo ont été sélectionnés, les créer comme interlocuteurs
+          // RGPD : on marque la source pour traçabilité (cohérent avec applySInfoEnrichment).
           const sInfoInter = newCompanyData._sinfo_interlocuteurs || [];
           if (sInfoInter.length > 0) {
+            const sirenForLog = payload.siren || payload.import_ref || 'inconnu';
+            const todayISO = new Date().toISOString().slice(0, 10);
             for (const inter of sInfoInter) {
               try {
                 await fetch(`${API_URL}/prospects/${created.id}/interlocuteurs`, {
@@ -2476,7 +2485,9 @@
                     telephone: inter.telephone || '',
                     telephone_direct: inter.telephone_direct || '',
                     mobile:   inter.mobile || '',
-                    notes:    inter.notes || ''
+                    notes:    inter.notes || '',
+                    source: 'societeinfo',
+                    source_detail: `societeinfo:siren=${sirenForLog}:date=${todayISO}:contact_id=${inter.id || 'unknown'}`
                   })
                 });
               } catch (e) {
@@ -7751,11 +7762,31 @@
                           </div>
                           {/* Consentements RGPD - opt-in séparés pour communications */}
                           <div style={{display:'flex',gap:'16px',marginBottom:'12px',flexWrap:'wrap',padding:'8px 10px',background:'#f4f7f7',borderRadius:'6px',border:'0.5px dashed #cde0e0'}}>
-                            <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',color:'#4a6868'}} title="Le contact accepte de recevoir des campagnes commerciales (offres, promos, sollicitations)">
-                              <input type="checkbox" checked={!!interlocuteurForm.accept_emailing} onChange={e=>setInterlocuteurForm({...interlocuteurForm,accept_emailing:e.target.checked})} />
-                              <span style={{display:'inline-flex',alignItems:'center'}}>{I(ICONS.mail, 13)}</span>
-                              Emailing commercial
-                            </label>
+                            <div style={{display:'flex',flexDirection:'column',gap:'2px'}}>
+                              <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',color:'#4a6868'}} title="Le contact accepte de recevoir des campagnes commerciales (offres, promos, sollicitations)">
+                                <input type="checkbox" checked={!!interlocuteurForm.accept_emailing} onChange={e=>setInterlocuteurForm({...interlocuteurForm,accept_emailing:e.target.checked})} />
+                                <span style={{display:'inline-flex',alignItems:'center'}}>{I(ICONS.mail, 13)}</span>
+                                Emailing commercial
+                              </label>
+                              {/* Si désabonné : afficher la date du dernier opt-out + source.
+                                  Visible uniquement si accept_emailing=false ET on a une date enregistrée
+                                  (champs renvoyés par GET /api/prospects/:id/interlocuteurs). */}
+                              {!interlocuteurForm.accept_emailing && interlocuteurForm.emailing_unsubscribed_at && (() => {
+                                const dt = new Date(interlocuteurForm.emailing_unsubscribed_at);
+                                const dtStr = dt.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'});
+                                const src = interlocuteurForm.emailing_unsubscribed_source || '';
+                                // Libellé lisible selon la source
+                                const srcLabel = src === 'webhook_brevo' ? 'via Brevo'
+                                               : src === 'manuel' ? 'manuellement'
+                                               : src ? `via ${src}` : '';
+                                return (
+                                  <div style={{fontSize:'11px',color:'#A32D2D',marginLeft:'22px',display:'flex',alignItems:'center',gap:'4px'}}>
+                                    <span style={{fontSize:'10px'}}>❌</span>
+                                    Désabonné le {dtStr} {srcLabel}
+                                  </div>
+                                );
+                              })()}
+                            </div>
                             <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',color:'#4a6868'}} title="Le contact accepte de recevoir des notes d'information (changements tarifs, infos produit, alertes service)">
                               <input type="checkbox" checked={!!interlocuteurForm.accept_notes_info} onChange={e=>setInterlocuteurForm({...interlocuteurForm,accept_notes_info:e.target.checked})} />
                               <span style={{display:'inline-flex',alignItems:'center'}}>{I(ICONS.bell, 13)}</span>
@@ -7944,7 +7975,7 @@
                                     {c.decideur && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'#fdecea',color:'var(--tw-red)'}}>Décideur</span>}
                                     {c.principal && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
                                     <IconBtn title="Modifier le contact"
-                                      onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',linkedin_url:c.linkedin_url||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info}); setShowInterlocuteurForm(true); }}
+                                      onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',linkedin_url:c.linkedin_url||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info,emailing_unsubscribed_at:c.emailing_unsubscribed_at||null,emailing_unsubscribed_source:c.emailing_unsubscribed_source||null}); setShowInterlocuteurForm(true); }}
                                     >{I(ICONS.edit, 13)}</IconBtn>
                                     <IconBtn title="Supprimer le contact" danger
                                       onClick={() => handleDeleteInterlocuteur(c.id)}
