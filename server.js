@@ -2363,6 +2363,15 @@ app.post('/api/webhook/brevo', async (req, res) => {
   }
 
   const payload = req.body || {};
+  // ⚠️ LOG TEMPORAIRE DE DIAGNOSTIC - à retirer après debug
+  // On dump le payload complet pour comprendre quel format/nommage Brevo utilise
+  // pour l'événement de désinscription (event, type, name de l'event...).
+  console.log('[brevo-webhook] payload reçu:', JSON.stringify(payload));
+  console.log('[brevo-webhook] headers:', JSON.stringify({
+    'content-type': req.headers['content-type'],
+    'user-agent': req.headers['user-agent']
+  }));
+
   const eventType = (payload.event || '').toLowerCase();
   const email = (payload.email || '').trim().toLowerCase();
   const campaignId = payload['campaign-id'] || payload.campaign_id || null;
