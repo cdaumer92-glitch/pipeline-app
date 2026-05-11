@@ -526,6 +526,19 @@
       }, children)
     );
 
+    // Badge de type de société (Suspect / Prospect / Client), au niveau module pour
+    // être accessible depuis tous les composants (DashboardConsultant, Dashboard...).
+    // Couleurs cohérentes avec celles utilisées ailleurs dans l'app (voir ligne ~4310).
+    const typeChip = (type) => {
+      const map = {
+        'Suspect':  {cls:'#7a7a7a', bg:'#f0f0f0'},
+        'Prospect': {cls:'#c47100', bg:'#fff3e0'},
+        'Client':   {cls:'#0c7ba8', bg:'#e3f2fd'},
+      };
+      const s = map[type] || {cls:'var(--tw-muted)', bg:'#f5f5f5'};
+      return <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'10px',color:s.cls,background:s.bg}}>{type||'—'}</span>;
+    };
+
     function getActionStatus(actions) {
       if (!actions || actions.length === 0) return { hasAction: false, isLate: false, nextActionDate: null };
       
@@ -5606,18 +5619,6 @@
         };
         const s = map[status] || {cls:'var(--tw-muted)', bg:'#f5f5f5'};
         return <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'10px',color:s.cls,background:s.bg}}>{status||'Prospection'}</span>;
-      };
-
-      // Badge pour le type de société (Suspect / Prospect / Client).
-      // Couleurs cohérentes avec celles utilisées ailleurs dans l'app (voir ligne ~4310).
-      const typeChip = (type) => {
-        const map = {
-          'Suspect':  {cls:'#7a7a7a', bg:'#f0f0f0'},
-          'Prospect': {cls:'#c47100', bg:'#fff3e0'},
-          'Client':   {cls:'#0c7ba8', bg:'#e3f2fd'},
-        };
-        const s = map[type] || {cls:'var(--tw-muted)', bg:'#f5f5f5'};
-        return <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'10px',color:s.cls,background:s.bg}}>{type||'—'}</span>;
       };
 
       const thisYear = new Date().getFullYear();
