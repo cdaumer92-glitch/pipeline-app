@@ -2363,22 +2363,16 @@ app.post('/api/webhook/brevo', async (req, res) => {
   }
 
   const payload = req.body || {};
-  // ⚠️ LOG TEMPORAIRE DE DIAGNOSTIC - à retirer après debug
-  // On dump le payload complet pour comprendre quel format/nommage Brevo utilise
-  // pour l'événement de désinscription (event, type, name de l'event...).
-  console.log('[brevo-webhook] payload reçu:', JSON.stringify(payload));
-  console.log('[brevo-webhook] headers:', JSON.stringify({
-    'content-type': req.headers['content-type'],
-    'user-agent': req.headers['user-agent']
-  }));
-
   const eventType = (payload.event || '').toLowerCase();
   const email = (payload.email || '').trim().toLowerCase();
-  const campaignId = payload['campaign-id'] || payload.campaign_id || null;
+  const campaignId = payload['camp_id'] || payload['campaign-id'] || payload.campaign_id || null;
   const ts = payload.ts ? new Date(payload.ts * 1000).toISOString() : null;
 
-  // On ne traite que les événements de désabonnement
-  const unsubscribeEvents = ['unsubscribed', 'list_unsubscribe'];
+  // Événements de désinscription envoyés par Brevo.
+  // Note : Brevo utilise "unsubscribe" (sans 'd' final) côté marketing,
+  // contrairement à ce qu'on aurait pu attendre. On accepte aussi "unsubscribed"
+  // par tolérance et "list_unsubscribe" (clic header List-Unsubscribe RFC 2369).
+  const unsubscribeEvents = ['unsubscribe', 'unsubscribed', 'list_unsubscribe'];
   if (!unsubscribeEvents.includes(eventType)) {
     // 200 quand même pour que Brevo n'essaie pas de retry indéfiniment
     return res.json({ ok: true, ignored: true, reason: `event "${eventType}" non géré` });
