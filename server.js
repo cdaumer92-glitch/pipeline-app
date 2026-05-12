@@ -444,6 +444,46 @@ async function initDB() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_consents_field_value ON interlocuteurs_consents(field, new_value)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_consents_changed_at ON interlocuteurs_consents(changed_at DESC)`);
 
+    // ========== AUDIT ENVOIS CAMPAGNES BREVO ==========
+    // Trace pérenne de chaque envoi de campagne Brevo déclenché depuis le CRM.
+    // Sert à : audit RGPD (qui a envoyé quoi à qui), debug (quel clone Brevo
+    // correspond à tel envoi), traçabilité commerciale (combien d'envois par
+    // commercial), et cleanup manuel des listes temporaires Brevo à J+7.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS campagnes_envois (
+        id                          SERIAL PRIMARY KEY,
+        -- Références Brevo
+        brevo_campaign_id_source    INTEGER NOT NULL,
+        brevo_campaign_id_envoi     INTEGER,
+        brevo_list_id               INTEGER,
+        brevo_list_name             TEXT,
+        -- Snapshot campagne (au moment de l'envoi, pour audit)
+        campagne_nom                TEXT,
+        campagne_objet              TEXT,
+        sender_email                TEXT,
+        sender_name                 TEXT,
+        -- Destinataires
+        nb_contacts_demandes        INTEGER DEFAULT 0,
+        nb_contacts_envoyes         INTEGER DEFAULT 0,
+        nb_contacts_rgpd_ko         INTEGER DEFAULT 0,
+        contacts_ids                INTEGER[] DEFAULT '{}',
+        -- Filtres utilisés (snapshot JSON pour audit)
+        filtres_json                JSONB,
+        -- Cycle de vie
+        statut                      TEXT DEFAULT 'pending',
+        erreur_message              TEXT,
+        envoye_par                  INTEGER REFERENCES users(id),
+        envoye_par_nom              TEXT,
+        created_at                  TIMESTAMP DEFAULT NOW(),
+        sent_at                     TIMESTAMP,
+        list_cleanup_prevu_at       TIMESTAMP,
+        list_cleaned_at             TIMESTAMP
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_camp_envois_statut ON campagnes_envois(statut)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_camp_envois_created ON campagnes_envois(created_at DESC)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_camp_envois_brevo_source ON campagnes_envois(brevo_campaign_id_source)`);
+
     // ========== MIGRATION GCS → Scaleway : préfixes pdf_url ==========
     await client.query(`
       CREATE TABLE IF NOT EXISTS migrations (
@@ -2529,6 +2569,336 @@ app.get('/api/brevo/campaigns', auth, async (req, res) => {
     replyTo: c.replyTo || null
   }));
   res.json({ campaigns, count: result.data?.count ?? campaigns.length });
+});
+
+// -------- GET /api/brevo/campaigns/:id --------
+// Récupère le détail d'une campagne Brevo (pour preview avant envoi côté UI).
+// Doc : https://developers.brevo.com/reference/getemailcampaign
+app.get('/api/brevo/campaigns/:id', auth, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'id de campagne invalide' });
+  }
+  const result = await brevoFetch(`/emailCampaigns/${id}`);
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  const c = result.data || {};
+  res.json({
+    id: c.id,
+    name: c.name,
+    subject: c.subject,
+    status: c.status,
+    type: c.type,
+    createdAt: c.createdAt,
+    modifiedAt: c.modifiedAt,
+    sender: c.sender || null,
+    replyTo: c.replyTo || null,
+    htmlContent: c.htmlContent || null,
+    recipients: c.recipients || null
+  });
+});
+
+// -------- POST /api/brevo/send-campaign --------
+// Orchestre un envoi de campagne Brevo depuis le CRM.
+// Body : { campaignId: number, contactIds: number[], filtres?: object }
+//
+// Workflow :
+//   1. INSERT campagnes_envois (statut='pending') pour traçabilité immédiate
+//   2. SELECT interlocuteurs CRM + contrôle RGPD strict (accept_emailing=true)
+//      → si KO : UPDATE statut='failed' + retour 400 avec emails KO détaillés
+//   3. GET campagne source (pour snapshot nom/objet/sender)
+//   4. POST clone Brevo → on récupère un id_clone (campagne dédiée à cet envoi)
+//   5. POST liste temp Brevo (folderId=1 par défaut)
+//   6. Upsert contacts Brevo (updateEnabled=true → idempotent)
+//   7. Ajout des contacts à la liste
+//   8. PUT clone.recipients = [listId]
+//   9. POST sendNow sur le clone
+//  10. UPDATE statut='sent' + sent_at + list_cleanup_prevu_at (J+7)
+//
+// En cas d'erreur après le clone : tentative de cleanup (delete clone + delete liste)
+// pour ne pas laisser de pollution côté Brevo, et UPDATE statut='failed'.
+app.post('/api/brevo/send-campaign', auth, async (req, res) => {
+  const { campaignId, contactIds, filtres } = req.body || {};
+
+  // ----- Validation entrée -----
+  const srcCampaignId = parseInt(campaignId);
+  if (!Number.isFinite(srcCampaignId) || srcCampaignId <= 0) {
+    return res.status(400).json({ error: 'campaignId invalide' });
+  }
+  if (!Array.isArray(contactIds) || contactIds.length === 0) {
+    return res.status(400).json({ error: 'contactIds doit être un tableau non vide' });
+  }
+  const ids = contactIds.map(x => parseInt(x)).filter(x => Number.isFinite(x) && x > 0);
+  if (ids.length === 0) {
+    return res.status(400).json({ error: 'aucun contactId valide' });
+  }
+
+  // ----- 1) Insert audit pending -----
+  let auditId;
+  try {
+    const ins = await pool.query(
+      `INSERT INTO campagnes_envois
+         (brevo_campaign_id_source, nb_contacts_demandes, contacts_ids,
+          filtres_json, statut, envoye_par, envoye_par_nom)
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6)
+       RETURNING id`,
+      [srcCampaignId, ids.length, ids, filtres ? JSON.stringify(filtres) : null,
+       req.userId || null, req.userName || null]
+    );
+    auditId = ins.rows[0].id;
+  } catch (err) {
+    console.error('[brevo-send] erreur INSERT audit:', err);
+    return res.status(500).json({ error: 'Erreur audit BDD: ' + err.message });
+  }
+
+  // Helper local : passer la ligne audit en failed avec message
+  async function markFailed(message) {
+    try {
+      await pool.query(
+        `UPDATE campagnes_envois SET statut='failed', erreur_message=$2 WHERE id=$1`,
+        [auditId, message]
+      );
+    } catch (e) {
+      console.error('[brevo-send] erreur UPDATE failed:', e);
+    }
+  }
+
+  // ----- 2) Chargement interlocuteurs + contrôle RGPD strict -----
+  let interlocs;
+  try {
+    const r = await pool.query(
+      `SELECT i.id, i.email, i.prenom, i.nom, i.accept_emailing,
+              p.name AS societe
+         FROM interlocuteurs i
+         LEFT JOIN prospects p ON p.id = i.prospect_id
+        WHERE i.id = ANY($1::int[])`,
+      [ids]
+    );
+    interlocs = r.rows;
+  } catch (err) {
+    await markFailed('Erreur lecture interlocuteurs: ' + err.message);
+    return res.status(500).json({ error: 'Erreur BDD: ' + err.message });
+  }
+
+  // Détection des problèmes RGPD / qualité
+  const missing = ids.filter(id => !interlocs.some(r => r.id === id));
+  const noEmail = interlocs.filter(r => !r.email || !r.email.trim());
+  const optOut = interlocs.filter(r => r.email && r.email.trim() && r.accept_emailing !== true);
+  const eligibles = interlocs.filter(r =>
+    r.email && r.email.trim() && r.accept_emailing === true
+  );
+
+  // Choix #2 : 400 + liste détaillée des emails KO si au moins un problème
+  if (missing.length > 0 || noEmail.length > 0 || optOut.length > 0) {
+    const detail = {
+      missing_ids: missing,
+      no_email: noEmail.map(r => ({ id: r.id, nom: `${r.prenom || ''} ${r.nom || ''}`.trim(), societe: r.societe })),
+      opt_out: optOut.map(r => ({ id: r.id, email: r.email, nom: `${r.prenom || ''} ${r.nom || ''}`.trim(), societe: r.societe }))
+    };
+    await pool.query(
+      `UPDATE campagnes_envois
+          SET statut='failed',
+              nb_contacts_rgpd_ko=$2,
+              erreur_message=$3
+        WHERE id=$1`,
+      [auditId, optOut.length + noEmail.length + missing.length,
+       `RGPD/qualité KO: ${missing.length} introuvable(s), ${noEmail.length} sans email, ${optOut.length} opt-out`]
+    );
+    console.warn(`[brevo-send] envoi #${auditId} bloqué RGPD/qualité`, detail);
+    return res.status(400).json({
+      error: 'Certains contacts ne peuvent pas recevoir cet envoi',
+      audit_id: auditId,
+      detail
+    });
+  }
+
+  if (eligibles.length === 0) {
+    await markFailed('Aucun contact éligible après filtrage');
+    return res.status(400).json({ error: 'Aucun contact éligible', audit_id: auditId });
+  }
+
+  // ----- 3) Récupération de la campagne source (snapshot) -----
+  const srcRes = await brevoFetch(`/emailCampaigns/${srcCampaignId}`);
+  if (!srcRes.ok) {
+    await markFailed(`GET campagne source: ${srcRes.error}`);
+    return res.status(srcRes.status).json({ error: `Campagne source: ${srcRes.error}`, audit_id: auditId });
+  }
+  const src = srcRes.data || {};
+  const snapshot = {
+    nom: src.name || null,
+    objet: src.subject || null,
+    sender_email: src.sender?.email || null,
+    sender_name: src.sender?.name || null
+  };
+
+  // Variables qu'on devra peut-être nettoyer en cas d'erreur
+  let cloneId = null;
+  let listId = null;
+
+  // Cleanup best-effort si erreur après création
+  async function cleanupOnError() {
+    if (cloneId) {
+      try { await brevoFetch(`/emailCampaigns/${cloneId}`, { method: 'DELETE' }); }
+      catch (e) { console.error('[brevo-send] cleanup clone KO:', e); }
+    }
+    if (listId) {
+      try { await brevoFetch(`/contacts/lists/${listId}`, { method: 'DELETE' }); }
+      catch (e) { console.error('[brevo-send] cleanup list KO:', e); }
+    }
+  }
+
+  // ----- 4) Clone de la campagne -----
+  // Doc: POST /v3/emailCampaigns/{campaignId}/clone
+  // Body: { name: "..." } → retourne { id: <newId> }
+  const cloneName = `${snapshot.nom || 'Campagne'} [CRM #${auditId}]`.slice(0, 200);
+  const cloneRes = await brevoFetch(`/emailCampaigns/${srcCampaignId}/clone`, {
+    method: 'POST',
+    body: { name: cloneName }
+  });
+  if (!cloneRes.ok) {
+    await markFailed(`Clone campagne: ${cloneRes.error}`);
+    return res.status(cloneRes.status).json({ error: `Clone: ${cloneRes.error}`, audit_id: auditId });
+  }
+  cloneId = cloneRes.data?.id;
+  if (!cloneId) {
+    await markFailed('Clone campagne: id manquant dans la réponse Brevo');
+    return res.status(502).json({ error: 'Réponse clone invalide', audit_id: auditId });
+  }
+
+  // ----- 5) Création liste temporaire -----
+  // Doc: POST /v3/contacts/lists
+  // Body: { name: "...", folderId: <int> } → retourne { id: <newListId> }
+  const listName = `CRM-envoi-${auditId}-${Date.now()}`.slice(0, 50);
+  const listRes = await brevoFetch('/contacts/lists', {
+    method: 'POST',
+    body: { name: listName, folderId: 1 }
+  });
+  if (!listRes.ok) {
+    await markFailed(`Création liste: ${listRes.error}`);
+    await cleanupOnError();
+    return res.status(listRes.status).json({ error: `Liste: ${listRes.error}`, audit_id: auditId });
+  }
+  listId = listRes.data?.id;
+  if (!listId) {
+    await markFailed('Création liste: id manquant');
+    await cleanupOnError();
+    return res.status(502).json({ error: 'Réponse liste invalide', audit_id: auditId });
+  }
+
+  // ----- 6) Upsert contacts Brevo (idempotent via updateEnabled) -----
+  // Doc: POST /v3/contacts avec updateEnabled=true
+  // On boucle (pas d'endpoint bulk-upsert simple). À ce stade on accepte les
+  // éventuels échecs individuels (email malformé côté Brevo) sans planter
+  // l'envoi global : on les compte et on log.
+  const upsertFailed = [];
+  for (const c of eligibles) {
+    const up = await brevoFetch('/contacts', {
+      method: 'POST',
+      body: {
+        email: c.email.trim().toLowerCase(),
+        attributes: {
+          PRENOM: c.prenom || '',
+          NOM: c.nom || '',
+          SOCIETE: c.societe || ''
+        },
+        updateEnabled: true
+      }
+    });
+    if (!up.ok) {
+      upsertFailed.push({ id: c.id, email: c.email, error: up.error });
+    }
+  }
+  if (upsertFailed.length > 0) {
+    console.warn(`[brevo-send] ${upsertFailed.length} upsert(s) en échec`, upsertFailed);
+  }
+
+  const upsertedEmails = eligibles
+    .filter(c => !upsertFailed.some(f => f.id === c.id))
+    .map(c => c.email.trim().toLowerCase());
+
+  if (upsertedEmails.length === 0) {
+    await markFailed('Aucun contact upserté avec succès');
+    await cleanupOnError();
+    return res.status(502).json({
+      error: 'Échec upsert contacts',
+      audit_id: auditId,
+      upsert_failed: upsertFailed
+    });
+  }
+
+  // ----- 7) Ajout des contacts à la liste -----
+  // Doc: POST /v3/contacts/lists/{listId}/contacts/add
+  // Body: { emails: [...] } - max 150 par requête, on chunke si besoin
+  const CHUNK = 150;
+  for (let i = 0; i < upsertedEmails.length; i += CHUNK) {
+    const chunk = upsertedEmails.slice(i, i + CHUNK);
+    const addRes = await brevoFetch(`/contacts/lists/${listId}/contacts/add`, {
+      method: 'POST',
+      body: { emails: chunk }
+    });
+    if (!addRes.ok) {
+      await markFailed(`Ajout liste (chunk ${i}): ${addRes.error}`);
+      await cleanupOnError();
+      return res.status(addRes.status).json({ error: `Liste add: ${addRes.error}`, audit_id: auditId });
+    }
+  }
+
+  // ----- 8) Assigner la liste au clone -----
+  // Doc: PUT /v3/emailCampaigns/{campaignId} avec body { recipients: { listIds: [...] } }
+  const patchRes = await brevoFetch(`/emailCampaigns/${cloneId}`, {
+    method: 'PUT',
+    body: { recipients: { listIds: [listId] } }
+  });
+  if (!patchRes.ok) {
+    await markFailed(`PUT recipients: ${patchRes.error}`);
+    await cleanupOnError();
+    return res.status(patchRes.status).json({ error: `Recipients: ${patchRes.error}`, audit_id: auditId });
+  }
+
+  // ----- 9) Envoi immédiat -----
+  // Doc: POST /v3/emailCampaigns/{campaignId}/sendNow
+  const sendRes = await brevoFetch(`/emailCampaigns/${cloneId}/sendNow`, { method: 'POST' });
+  if (!sendRes.ok) {
+    await markFailed(`sendNow: ${sendRes.error}`);
+    await cleanupOnError();
+    return res.status(sendRes.status).json({ error: `sendNow: ${sendRes.error}`, audit_id: auditId });
+  }
+
+  // ----- 10) Update audit : succès -----
+  try {
+    await pool.query(
+      `UPDATE campagnes_envois
+          SET statut='sent',
+              brevo_campaign_id_envoi=$2,
+              brevo_list_id=$3,
+              brevo_list_name=$4,
+              campagne_nom=$5,
+              campagne_objet=$6,
+              sender_email=$7,
+              sender_name=$8,
+              nb_contacts_envoyes=$9,
+              sent_at=NOW(),
+              list_cleanup_prevu_at=NOW() + INTERVAL '7 days'
+        WHERE id=$1`,
+      [auditId, cloneId, listId, listName,
+       snapshot.nom, snapshot.objet, snapshot.sender_email, snapshot.sender_name,
+       upsertedEmails.length]
+    );
+  } catch (err) {
+    console.error('[brevo-send] erreur UPDATE success (envoi OK quand même):', err);
+  }
+
+  console.log(`[brevo-send] envoi #${auditId} OK : campagne source ${srcCampaignId} → clone ${cloneId} → liste ${listId} → ${upsertedEmails.length} contact(s)`);
+
+  res.json({
+    ok: true,
+    audit_id: auditId,
+    brevo_campaign_id_source: srcCampaignId,
+    brevo_campaign_id_envoi: cloneId,
+    brevo_list_id: listId,
+    brevo_list_name: listName,
+    nb_contacts_envoyes: upsertedEmails.length,
+    upsert_failed: upsertFailed.length > 0 ? upsertFailed : undefined
+  });
 });
 
 // ===================== ADMIN ROUTES =====================
