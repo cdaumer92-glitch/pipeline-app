@@ -2731,40 +2731,19 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
   };
 
   // Variables qu'on devra peut-être nettoyer en cas d'erreur
-  let cloneId = null;
+  // (cloneId n'existe plus en Option B : on envoie directement la campagne source)
   let listId = null;
 
-  // Cleanup best-effort si erreur après création
+  // Cleanup best-effort si erreur après création de la liste
+  // Note : on ne touche pas à la campagne source elle-même (elle existait avant nous).
   async function cleanupOnError() {
-    if (cloneId) {
-      try { await brevoFetch(`/emailCampaigns/${cloneId}`, { method: 'DELETE' }); }
-      catch (e) { console.error('[brevo-send] cleanup clone KO:', e); }
-    }
     if (listId) {
       try { await brevoFetch(`/contacts/lists/${listId}`, { method: 'DELETE' }); }
       catch (e) { console.error('[brevo-send] cleanup list KO:', e); }
     }
   }
 
-  // ----- 4) Clone de la campagne -----
-  // Doc: POST /v3/emailCampaigns/{campaignId}/clone
-  // Body: { name: "..." } → retourne { id: <newId> }
-  const cloneName = `${snapshot.nom || 'Campagne'} [CRM #${auditId}]`.slice(0, 200);
-  const cloneRes = await brevoFetch(`/emailCampaigns/${srcCampaignId}/clone`, {
-    method: 'POST',
-    body: { name: cloneName }
-  });
-  if (!cloneRes.ok) {
-    await markFailed(`Clone campagne: ${cloneRes.error}`);
-    return res.status(cloneRes.status).json({ error: `Clone: ${cloneRes.error}`, audit_id: auditId });
-  }
-  cloneId = cloneRes.data?.id;
-  if (!cloneId) {
-    await markFailed('Clone campagne: id manquant dans la réponse Brevo');
-    return res.status(502).json({ error: 'Réponse clone invalide', audit_id: auditId });
-  }
-
-  // ----- 5) Création liste temporaire -----
+  // ----- 4) Création liste temporaire -----
   // Doc: POST /v3/contacts/lists
   // Body: { name: "...", folderId: <int> } → retourne { id: <newListId> }
   const listName = `CRM-envoi-${auditId}-${Date.now()}`.slice(0, 50);
@@ -2774,13 +2753,11 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
   });
   if (!listRes.ok) {
     await markFailed(`Création liste: ${listRes.error}`);
-    await cleanupOnError();
     return res.status(listRes.status).json({ error: `Liste: ${listRes.error}`, audit_id: auditId });
   }
   listId = listRes.data?.id;
   if (!listId) {
     await markFailed('Création liste: id manquant');
-    await cleanupOnError();
     return res.status(502).json({ error: 'Réponse liste invalide', audit_id: auditId });
   }
 
@@ -2842,9 +2819,10 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
     }
   }
 
-  // ----- 8) Assigner la liste au clone -----
+  // ----- 6) Assigner la liste à la campagne source -----
   // Doc: PUT /v3/emailCampaigns/{campaignId} avec body { recipients: { listIds: [...] } }
-  const patchRes = await brevoFetch(`/emailCampaigns/${cloneId}`, {
+  // Option B : on modifie directement la campagne source (pas de clone).
+  const patchRes = await brevoFetch(`/emailCampaigns/${srcCampaignId}`, {
     method: 'PUT',
     body: { recipients: { listIds: [listId] } }
   });
@@ -2854,16 +2832,20 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
     return res.status(patchRes.status).json({ error: `Recipients: ${patchRes.error}`, audit_id: auditId });
   }
 
-  // ----- 9) Envoi immédiat -----
+  // ----- 7) Envoi immédiat -----
   // Doc: POST /v3/emailCampaigns/{campaignId}/sendNow
-  const sendRes = await brevoFetch(`/emailCampaigns/${cloneId}/sendNow`, { method: 'POST' });
+  // ⚠️ Point de non-retour : si succès, l'email est parti. La campagne source
+  // passe en statut "sent" côté Brevo et ne pourra plus être renvoyée telle quelle.
+  const sendRes = await brevoFetch(`/emailCampaigns/${srcCampaignId}/sendNow`, { method: 'POST' });
   if (!sendRes.ok) {
     await markFailed(`sendNow: ${sendRes.error}`);
     await cleanupOnError();
     return res.status(sendRes.status).json({ error: `sendNow: ${sendRes.error}`, audit_id: auditId });
   }
 
-  // ----- 10) Update audit : succès -----
+  // ----- 8) Update audit : succès -----
+  // Note : brevo_campaign_id_envoi = brevo_campaign_id_source en Option B
+  // (on garde le champ pour cohérence de schéma + futur usage éventuel).
   try {
     await pool.query(
       `UPDATE campagnes_envois
@@ -2879,7 +2861,7 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
               sent_at=NOW(),
               list_cleanup_prevu_at=NOW() + INTERVAL '7 days'
         WHERE id=$1`,
-      [auditId, cloneId, listId, listName,
+      [auditId, srcCampaignId, listId, listName,
        snapshot.nom, snapshot.objet, snapshot.sender_email, snapshot.sender_name,
        upsertedEmails.length]
     );
@@ -2887,13 +2869,13 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
     console.error('[brevo-send] erreur UPDATE success (envoi OK quand même):', err);
   }
 
-  console.log(`[brevo-send] envoi #${auditId} OK : campagne source ${srcCampaignId} → clone ${cloneId} → liste ${listId} → ${upsertedEmails.length} contact(s)`);
+  console.log(`[brevo-send] envoi #${auditId} OK : campagne ${srcCampaignId} → liste ${listId} → ${upsertedEmails.length} contact(s)`);
 
   res.json({
     ok: true,
     audit_id: auditId,
     brevo_campaign_id_source: srcCampaignId,
-    brevo_campaign_id_envoi: cloneId,
+    brevo_campaign_id_envoi: srcCampaignId,
     brevo_list_id: listId,
     brevo_list_name: listName,
     nb_contacts_envoyes: upsertedEmails.length,
