@@ -2446,6 +2446,91 @@ app.post('/api/webhook/brevo', async (req, res) => {
   }
 });
 
+// =====================================================================
+// BREVO API PROXY (clé API masquée côté serveur)
+// =====================================================================
+// La clé est lue depuis process.env.BREVO_API_KEY (mode "Secret" sur Scaleway).
+// Si non définie, on retourne 503 propre avec un message explicite.
+// Toutes les routes sont protégées par auth (JWT) → seul un user connecté
+// peut consulter les campagnes ou déclencher un envoi.
+//
+// Doc Brevo : https://developers.brevo.com/reference
+// ---------------------------------------------------------------------
+
+const BREVO_BASE = 'https://api.brevo.com/v3';
+
+// Helper : appel API Brevo avec gestion d'erreurs uniforme
+// - path : ex '/emailCampaigns?status=draft'
+// - opts : { method, body } — body est sérialisé en JSON automatiquement
+async function brevoFetch(path, opts = {}) {
+  const KEY = process.env.BREVO_API_KEY;
+  if (!KEY) {
+    return { ok: false, status: 503, error: 'BREVO_API_KEY non configurée côté serveur' };
+  }
+  const url = `${BREVO_BASE}${path}`;
+  const init = {
+    method: opts.method || 'GET',
+    headers: {
+      'api-key': KEY,
+      'accept': 'application/json',
+      'content-type': 'application/json'
+    }
+  };
+  if (opts.body !== undefined) {
+    init.body = JSON.stringify(opts.body);
+  }
+  try {
+    const r = await fetch(url, init);
+    // Brevo renvoie parfois du JSON, parfois du vide (204) → on gère les deux
+    const text = await r.text();
+    let data = null;
+    if (text) {
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    }
+    if (!r.ok) {
+      const msg = (data && (data.message || data.error)) || `Brevo a répondu ${r.status}`;
+      return { ok: false, status: r.status, error: msg, data };
+    }
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, status: 502, error: 'Erreur réseau Brevo: ' + err.message };
+  }
+}
+
+// Helper : router le résultat brevoFetch vers la response Express
+function sendBrevo(res, result) {
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  res.json(result.data);
+}
+
+// -------- GET /api/brevo/campaigns --------
+// Liste les campagnes email en statut "draft" (brouillon).
+// Brevo paginate par défaut sur 50 ; on prend jusqu'à 100.
+// Doc : https://developers.brevo.com/reference/getemailcampaigns-1
+app.get('/api/brevo/campaigns', auth, async (req, res) => {
+  const status = (req.query.status || 'draft').toString();
+  const limit = Math.min(parseInt(req.query.limit || '100'), 100);
+  const offset = Math.max(parseInt(req.query.offset || '0'), 0);
+  const result = await brevoFetch(
+    `/emailCampaigns?type=classic&status=${encodeURIComponent(status)}&limit=${limit}&offset=${offset}`
+  );
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  // Réponse Brevo : { campaigns: [...], count: N }
+  // On simplifie côté client en ne renvoyant que les champs utiles
+  const campaigns = (result.data?.campaigns || []).map(c => ({
+    id: c.id,
+    name: c.name,
+    subject: c.subject,
+    status: c.status,
+    type: c.type,
+    createdAt: c.createdAt,
+    modifiedAt: c.modifiedAt,
+    sender: c.sender || null,
+    replyTo: c.replyTo || null
+  }));
+  res.json({ campaigns, count: result.data?.count ?? campaigns.length });
+});
+
 // ===================== ADMIN ROUTES =====================
 const requireAdmin = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
