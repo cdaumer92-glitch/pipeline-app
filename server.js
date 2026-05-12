@@ -2499,6 +2499,11 @@ app.post('/api/webhook/brevo', async (req, res) => {
 
 const BREVO_BASE = 'https://api.brevo.com/v3';
 
+// Helper : pause asynchrone (utilisé pour laisser à Brevo le temps de
+// propager les opérations entre services internes : add-to-list → moteur
+// d'envoi de campagnes, sendNow → moteur de délivrabilité).
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 // Helper : appel API Brevo avec gestion d'erreurs uniforme
 // - path : ex '/emailCampaigns?status=draft'
 // - opts : { method, body } — body est sérialisé en JSON automatiquement
@@ -2819,7 +2824,40 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
     }
   }
 
-  // ----- 6) Assigner la liste à la campagne source -----
+  // ----- 8) [Correction asynchronicité Brevo] Polling de la liste -----
+  // Brevo répond 200 au add-to-list même si la propagation interne vers le
+  // moteur d'envoi de campagnes n'est pas terminée. On vérifie via GET list
+  // que uniqueSubscribers atteint le nombre attendu avant de continuer.
+  // Sans cette vérif, sendNow peut s'exécuter sur une liste "vue vide" → Brevo
+  // suspend la campagne avec "aucun destinataire au moment de l'envoi".
+  // Doc: GET /v3/contacts/lists/{listId} → champ uniqueSubscribers
+  const expectedCount = upsertedEmails.length;
+  let listReady = false;
+  let lastListCount = 0;
+  // Tentatives : 1s, 3s, 5s cumulés (= 9s max). Suffisant en pratique.
+  for (const waitMs of [1000, 2000, 2000]) {
+    await sleep(waitMs);
+    const checkRes = await brevoFetch(`/contacts/lists/${listId}`);
+    if (!checkRes.ok) {
+      // On ignore l'erreur de check et on retentera, sauf si c'est le dernier essai
+      continue;
+    }
+    lastListCount = checkRes.data?.uniqueSubscribers ?? 0;
+    if (lastListCount >= expectedCount) {
+      listReady = true;
+      break;
+    }
+  }
+  if (!listReady) {
+    await markFailed(`Liste non propagée: ${lastListCount}/${expectedCount} contacts visibles après 5s d'attente`);
+    await cleanupOnError();
+    return res.status(502).json({
+      error: `Brevo n'a pas propagé tous les contacts dans la liste (${lastListCount}/${expectedCount})`,
+      audit_id: auditId
+    });
+  }
+
+  // ----- 9) Assigner la liste à la campagne source -----
   // Doc: PUT /v3/emailCampaigns/{campaignId} avec body { recipients: { listIds: [...] } }
   // Option B : on modifie directement la campagne source (pas de clone).
   const patchRes = await brevoFetch(`/emailCampaigns/${srcCampaignId}`, {
@@ -2832,7 +2870,11 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
     return res.status(patchRes.status).json({ error: `Recipients: ${patchRes.error}`, audit_id: auditId });
   }
 
-  // ----- 7) Envoi immédiat -----
+  // Pause supplémentaire pour laisser Brevo enregistrer la nouvelle association
+  // liste ↔ campagne avant l'envoi (autre point d'asynchronicité interne).
+  await sleep(2000);
+
+  // ----- 10) Envoi immédiat -----
   // Doc: POST /v3/emailCampaigns/{campaignId}/sendNow
   // ⚠️ Point de non-retour : si succès, l'email est parti. La campagne source
   // passe en statut "sent" côté Brevo et ne pourra plus être renvoyée telle quelle.
@@ -2843,13 +2885,45 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
     return res.status(sendRes.status).json({ error: `sendNow: ${sendRes.error}`, audit_id: auditId });
   }
 
-  // ----- 8) Update audit : succès -----
+  // ----- 11) [Correction faux positif] Post-check du statut campagne -----
+  // sendNow renvoie 200 même quand Brevo s'apprête à suspendre l'envoi quelques
+  // secondes plus tard (validation interne de délivrabilité, contenu, etc.).
+  // On relit le statut campagne pour confirmer ou infirmer le succès.
+  // Statuts possibles après sendNow :
+  //   - 'queued' / 'inProcess' / 'sending' / 'sent' → succès réel
+  //   - 'suspended' → faux positif : envoi annulé par Brevo
+  //   - 'draft' → la campagne n'a pas été déclenchée (très improbable ici)
+  await sleep(5000);
+  const statusRes = await brevoFetch(`/emailCampaigns/${srcCampaignId}`);
+  let finalStatus = 'unknown';
+  let finalStatutBdd = 'sent_unverified'; // par défaut si on n'arrive pas à relire
+  let finalError = null;
+  if (statusRes.ok) {
+    finalStatus = statusRes.data?.status || 'unknown';
+    const okStatuses = ['queued', 'inProcess', 'in_process', 'sending', 'sent'];
+    if (okStatuses.includes(finalStatus)) {
+      finalStatutBdd = 'sent';
+    } else if (finalStatus === 'suspended') {
+      finalStatutBdd = 'failed_after_send';
+      finalError = `Campagne suspendue par Brevo (aucun destinataire / délivrabilité / contenu). Vérifier le Deliverability Center.`;
+    } else {
+      // 'draft' ou autre : sendNow n'a pas pris effet
+      finalStatutBdd = 'failed_after_send';
+      finalError = `Statut campagne inattendu après sendNow: '${finalStatus}'`;
+    }
+  } else {
+    // Impossible de relire le statut : on log warn mais on considère l'envoi
+    // comme parti puisque sendNow a renvoyé 200.
+    console.warn(`[brevo-send] Impossible de relire le statut campagne ${srcCampaignId}: ${statusRes.error}`);
+  }
+
+  // ----- 12) Update audit final selon le statut réel -----
   // Note : brevo_campaign_id_envoi = brevo_campaign_id_source en Option B
   // (on garde le champ pour cohérence de schéma + futur usage éventuel).
   try {
     await pool.query(
       `UPDATE campagnes_envois
-          SET statut='sent',
+          SET statut=$10,
               brevo_campaign_id_envoi=$2,
               brevo_list_id=$3,
               brevo_list_name=$4,
@@ -2858,18 +2932,32 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
               sender_email=$7,
               sender_name=$8,
               nb_contacts_envoyes=$9,
+              erreur_message=$11,
               sent_at=NOW(),
               list_cleanup_prevu_at=NOW() + INTERVAL '7 days'
         WHERE id=$1`,
       [auditId, srcCampaignId, listId, listName,
        snapshot.nom, snapshot.objet, snapshot.sender_email, snapshot.sender_name,
-       upsertedEmails.length]
+       upsertedEmails.length, finalStatutBdd, finalError]
     );
   } catch (err) {
-    console.error('[brevo-send] erreur UPDATE success (envoi OK quand même):', err);
+    console.error('[brevo-send] erreur UPDATE final (envoi déclenché quand même):', err);
   }
 
-  console.log(`[brevo-send] envoi #${auditId} OK : campagne ${srcCampaignId} → liste ${listId} → ${upsertedEmails.length} contact(s)`);
+  console.log(`[brevo-send] envoi #${auditId} : campagne ${srcCampaignId} → liste ${listId} (${expectedCount} contacts) → statut Brevo final '${finalStatus}' → audit '${finalStatutBdd}'`);
+
+  // Réponse différenciée selon le résultat réel
+  if (finalStatutBdd === 'failed_after_send') {
+    return res.status(502).json({
+      ok: false,
+      error: finalError,
+      audit_id: auditId,
+      brevo_campaign_id_source: srcCampaignId,
+      brevo_list_id: listId,
+      brevo_status: finalStatus,
+      nb_contacts_envoyes: 0
+    });
+  }
 
   res.json({
     ok: true,
@@ -2878,7 +2966,9 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
     brevo_campaign_id_envoi: srcCampaignId,
     brevo_list_id: listId,
     brevo_list_name: listName,
+    brevo_status: finalStatus,
     nb_contacts_envoyes: upsertedEmails.length,
+    statut: finalStatutBdd,
     upsert_failed: upsertFailed.length > 0 ? upsertFailed : undefined
   });
 });
