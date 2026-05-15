@@ -2973,6 +2973,114 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
   });
 });
 
+// -------- GET /api/brevo/audience --------
+// Retourne la liste des interlocuteurs filtrés pour la page Campagnes Marketing.
+// Query params :
+//   - type : 'client' | 'prospect' | 'suspect' | 'prospect_suspect' | 'all'
+//   - decideur_only : 'true' | 'false' (default 'false')
+//
+// Retourne pour chaque interlocuteur :
+//   id, prenom, nom, fonction, email, accept_emailing, decideur, principal,
+//   prospect_id, societe (= prospects.name), statut_societe
+//
+// Tri : société alphabétique puis nom interlocuteur alphabétique.
+// Filtrage : on n'affiche que les contacts avec email non-vide
+// (sans email = aucune utilité pour une campagne email).
+// Les opt-out (accept_emailing=false) sont inclus dans la liste (le front les
+// décochera par défaut, comportement V1 confirmé avec l'utilisateur).
+app.get('/api/brevo/audience', auth, async (req, res) => {
+  const type = (req.query.type || 'all').toString().toLowerCase();
+  const decideurOnly = req.query.decideur_only === 'true';
+
+  // Mapping type → liste de valeurs statut_societe (qui est case-sensitive en BDD)
+  let statutFilter = null;
+  switch (type) {
+    case 'client':           statutFilter = ['Client']; break;
+    case 'prospect':         statutFilter = ['Prospect']; break;
+    case 'suspect':          statutFilter = ['Suspect']; break;
+    case 'prospect_suspect': statutFilter = ['Prospect', 'Suspect']; break;
+    case 'all':              statutFilter = null; break; // pas de filtre
+    default:
+      return res.status(400).json({ error: `Type invalide: '${type}'. Attendu: client|prospect|suspect|prospect_suspect|all` });
+  }
+
+  // Construction dynamique de la requête
+  // Filtre email : non-null + non-vide + format valide (regex basique RFC)
+  const conditions = [
+    `i.email IS NOT NULL`,
+    `TRIM(i.email) <> ''`,
+    `i.email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'`
+  ];
+  const params = [];
+  if (statutFilter) {
+    params.push(statutFilter);
+    conditions.push(`p.statut_societe = ANY($${params.length}::text[])`);
+  }
+  if (decideurOnly) {
+    conditions.push(`COALESCE(i.decideur, false) = true`);
+  }
+
+  const sql = `
+    SELECT
+      i.id,
+      i.prenom,
+      i.nom,
+      i.fonction,
+      i.email,
+      COALESCE(i.accept_emailing, false) AS accept_emailing,
+      COALESCE(i.decideur, false)        AS decideur,
+      COALESCE(i.principal, false)       AS principal,
+      i.prospect_id,
+      p.name                              AS societe,
+      COALESCE(p.statut_societe, 'Prospect') AS statut_societe
+    FROM interlocuteurs i
+    INNER JOIN prospects p ON p.id = i.prospect_id
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY p.name ASC, i.nom ASC, i.prenom ASC
+  `;
+
+  try {
+    const r = await pool.query(sql, params);
+    res.json({
+      count: r.rows.length,
+      contacts: r.rows
+    });
+  } catch (err) {
+    console.error('[brevo-audience] erreur SQL:', err);
+    res.status(500).json({ error: 'Erreur BDD: ' + err.message });
+  }
+});
+
+// -------- POST /api/brevo/send-test --------
+// Envoie un email de test de la campagne à une adresse fixe (c.daumer@texaswin.fr).
+// Body : { campaignId: number }
+//
+// Cette route est plus simple que send-campaign : elle utilise l'endpoint
+// natif Brevo "sendTest" qui prend une campagne en draft + une liste d'emails
+// et envoie un email de test (avec mention "TEST" dans l'objet par Brevo).
+// Aucune trace en BDD (pas d'audit pour un test technique).
+// Doc: https://developers.brevo.com/reference/sendtestemail
+app.post('/api/brevo/send-test', auth, async (req, res) => {
+  const { campaignId } = req.body || {};
+  const id = parseInt(campaignId);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'campaignId invalide' });
+  }
+
+  // Adresse fixe pour le test : compte ASTI principal
+  const testEmail = 'c.daumer@texaswin.fr';
+
+  const result = await brevoFetch(`/emailCampaigns/${id}/sendTest`, {
+    method: 'POST',
+    body: { emailTo: [testEmail] }
+  });
+
+  if (!result.ok) {
+    return res.status(result.status).json({ error: result.error });
+  }
+  res.json({ ok: true, sent_to: testEmail });
+});
+
 // ===================== ADMIN ROUTES =====================
 const requireAdmin = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
