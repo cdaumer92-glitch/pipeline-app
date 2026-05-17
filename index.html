@@ -695,10 +695,378 @@
       };
     }
 
+    // ===================================================================
+    // COMPOSANT CampagnesPage — Page envoi de campagnes Brevo (Session 2)
+    // ===================================================================
+    // Workflow utilisateur :
+    // 1. Choisir la cible commerciale (Client/Prospect/Suspect/Tous)
+    // 2. Choisir le profil (Tous / Décideurs uniquement)
+    // 3. La liste filtrée s'affiche : Société (alpha) | Prénom | Nom | Fonction | Email
+    //    - Case "Tout sélectionner" en en-tête
+    //    - Case par ligne (les opt-out sont affichés mais décochés par défaut)
+    // 4. Choisir la campagne Brevo (dropdown des brouillons)
+    // 5. Bouton "Envoi de test" → envoie à c.daumer@texaswin.fr
+    // 6. Bouton "Envoyer" → modal confirmation → POST /api/brevo/send-campaign
+    function CampagnesPage({ user, API_URL, onClose }) {
+      const [typeCible, setTypeCible] = React.useState('prospect'); // client|prospect|suspect|prospect_suspect|all
+      const [decideursOnly, setDecideursOnly] = React.useState(false);
+      const [audience, setAudience] = React.useState([]);
+      const [audienceLoading, setAudienceLoading] = React.useState(false);
+      const [audienceError, setAudienceError] = React.useState(null);
+      const [selectedIds, setSelectedIds] = React.useState(new Set());
+      const [campaigns, setCampaigns] = React.useState([]);
+      const [campaignsLoading, setCampaignsLoading] = React.useState(false);
+      const [campaignsError, setCampaignsError] = React.useState(null);
+      const [selectedCampaignId, setSelectedCampaignId] = React.useState('');
+      const [confirmOpen, setConfirmOpen] = React.useState(false);
+      const [sending, setSending] = React.useState(false);
+      const [sendResult, setSendResult] = React.useState(null);
+      const [testSending, setTestSending] = React.useState(false);
+      const [testResult, setTestResult] = React.useState(null);
+
+      const token = () => {
+        try { return localStorage.getItem('token'); } catch { return null; }
+      };
+
+      // Charge l'audience à chaque changement de filtre
+      React.useEffect(() => {
+        let cancelled = false;
+        setAudienceLoading(true);
+        setAudienceError(null);
+        const url = `${API_URL}/brevo/audience?type=${encodeURIComponent(typeCible)}&decideur_only=${decideursOnly ? 'true' : 'false'}`;
+        fetch(url, { headers: { 'Authorization': 'Bearer ' + token() } })
+          .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
+          .then(({ ok, data }) => {
+            if (cancelled) return;
+            if (!ok) {
+              setAudienceError(data.error || 'Erreur de chargement');
+              setAudience([]);
+              setSelectedIds(new Set());
+            } else {
+              setAudience(data.contacts || []);
+              // Sélection par défaut : tous les opt-in cochés, opt-out décochés
+              const optInIds = (data.contacts || [])
+                .filter(c => c.accept_emailing === true)
+                .map(c => c.id);
+              setSelectedIds(new Set(optInIds));
+            }
+          })
+          .catch(err => {
+            if (!cancelled) {
+              setAudienceError('Erreur réseau: ' + err.message);
+              setAudience([]);
+              setSelectedIds(new Set());
+            }
+          })
+          .finally(() => { if (!cancelled) setAudienceLoading(false); });
+        return () => { cancelled = true; };
+      }, [typeCible, decideursOnly, API_URL]);
+
+      // Charge les campagnes Brevo brouillons une seule fois
+      React.useEffect(() => {
+        setCampaignsLoading(true);
+        setCampaignsError(null);
+        fetch(`${API_URL}/brevo/campaigns?status=draft`, { headers: { 'Authorization': 'Bearer ' + token() } })
+          .then(r => r.json().then(data => ({ ok: r.ok, data })))
+          .then(({ ok, data }) => {
+            if (!ok) {
+              setCampaignsError(data.error || 'Erreur de chargement');
+              setCampaigns([]);
+            } else {
+              setCampaigns(data.campaigns || []);
+            }
+          })
+          .catch(err => {
+            setCampaignsError('Erreur réseau: ' + err.message);
+            setCampaigns([]);
+          })
+          .finally(() => setCampaignsLoading(false));
+      }, [API_URL]);
+
+      // Compteurs utiles pour l'affichage
+      const totalContacts = audience.length;
+      const optInCount = audience.filter(c => c.accept_emailing === true).length;
+      const optOutCount = totalContacts - optInCount;
+      const selectedCount = selectedIds.size;
+      const allOptInSelected = optInCount > 0 && audience.filter(c => c.accept_emailing === true).every(c => selectedIds.has(c.id));
+
+      // Toggle case "Tout sélectionner" : ne sélectionne que les opt-in
+      const toggleAll = () => {
+        if (allOptInSelected) {
+          setSelectedIds(new Set());
+        } else {
+          const optInIds = audience.filter(c => c.accept_emailing === true).map(c => c.id);
+          setSelectedIds(new Set(optInIds));
+        }
+      };
+
+      // Toggle une ligne individuelle
+      const toggleOne = (id) => {
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id); else next.add(id);
+          return next;
+        });
+      };
+
+      // --- ENVOI DE TEST ---
+      const handleSendTest = () => {
+        if (!selectedCampaignId) {
+          setTestResult({ ok: false, error: 'Choisis une campagne d\'abord' });
+          return;
+        }
+        setTestSending(true);
+        setTestResult(null);
+        fetch(`${API_URL}/brevo/send-test`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: parseInt(selectedCampaignId) })
+        })
+          .then(r => r.json().then(data => ({ ok: r.ok, data })))
+          .then(({ ok, data }) => {
+            setTestResult(ok ? { ok: true, sent_to: data.sent_to } : { ok: false, error: data.error || 'Erreur inconnue' });
+          })
+          .catch(err => setTestResult({ ok: false, error: 'Erreur réseau: ' + err.message }))
+          .finally(() => setTestSending(false));
+      };
+
+      // --- ENVOI RÉEL ---
+      const handleSendReal = () => {
+        setSending(true);
+        setSendResult(null);
+        fetch(`${API_URL}/brevo/send-campaign`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            campaignId: parseInt(selectedCampaignId),
+            contactIds: Array.from(selectedIds),
+            filtres: { type: typeCible, decideurs_only: decideursOnly }
+          })
+        })
+          .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
+          .then(({ ok, data }) => {
+            setSendResult(ok ? { ok: true, data } : { ok: false, error: data.error, detail: data.detail, audit_id: data.audit_id });
+          })
+          .catch(err => setSendResult({ ok: false, error: 'Erreur réseau: ' + err.message }))
+          .finally(() => {
+            setSending(false);
+            setConfirmOpen(false);
+          });
+      };
+
+      const canSend = selectedCampaignId && selectedCount > 0 && !sending;
+
+      return (
+        <div style={{padding:'24px 32px', maxWidth:'1280px', margin:'0 auto'}}>
+          {/* HEADER */}
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'24px'}}>
+            <div>
+              <h2 style={{margin:0, fontSize:'22px', color:'var(--tw-ink)', fontWeight:600}}>Campagnes Marketing</h2>
+              <div style={{fontSize:'13px', color:'var(--tw-muted)', marginTop:'4px'}}>Envoi de campagnes Brevo aux contacts CRM</div>
+            </div>
+            <button onClick={onClose} style={{padding:'8px 16px', background:'transparent', border:'0.5px solid var(--tw-border)', borderRadius:'8px', cursor:'pointer', fontSize:'13px', color:'var(--tw-slate)'}}>Fermer</button>
+          </div>
+
+          {/* FILTRES */}
+          <div style={{background:'white', border:'0.5px solid var(--tw-border)', borderRadius:'12px', padding:'20px', marginBottom:'20px'}}>
+            <div style={{display:'flex', gap:'40px', flexWrap:'wrap'}}>
+              {/* Filtre 1 : Cible */}
+              <div>
+                <div style={{fontSize:'12px', fontWeight:600, color:'var(--tw-slate)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'10px'}}>Cible commerciale</div>
+                <div style={{display:'flex', gap:'8px', flexWrap:'wrap'}}>
+                  {[
+                    {v:'client', label:'Clients'},
+                    {v:'prospect', label:'Prospects'},
+                    {v:'suspect', label:'Suspects'},
+                    {v:'prospect_suspect', label:'Prospects + Suspects'},
+                    {v:'all', label:'Tous'}
+                  ].map(opt => (
+                    <label key={opt.v} style={{display:'flex', alignItems:'center', gap:'6px', padding:'6px 12px', border:'0.5px solid var(--tw-border)', borderRadius:'8px', cursor:'pointer', fontSize:'13px', background: typeCible===opt.v ? 'var(--tw-teal-light)' : 'white', color: typeCible===opt.v ? 'var(--tw-teal)' : 'var(--tw-ink)', fontWeight: typeCible===opt.v ? 600 : 400}}>
+                      <input type="radio" name="type_cible" value={opt.v} checked={typeCible===opt.v} onChange={() => setTypeCible(opt.v)} style={{display:'none'}} />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Filtre 2 : Profil */}
+              <div>
+                <div style={{fontSize:'12px', fontWeight:600, color:'var(--tw-slate)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'10px'}}>Profil interlocuteur</div>
+                <div style={{display:'flex', gap:'8px'}}>
+                  <label style={{display:'flex', alignItems:'center', gap:'6px', padding:'6px 12px', border:'0.5px solid var(--tw-border)', borderRadius:'8px', cursor:'pointer', fontSize:'13px', background: !decideursOnly ? 'var(--tw-teal-light)' : 'white', color: !decideursOnly ? 'var(--tw-teal)' : 'var(--tw-ink)', fontWeight: !decideursOnly ? 600 : 400}}>
+                    <input type="radio" name="profil" checked={!decideursOnly} onChange={() => setDecideursOnly(false)} style={{display:'none'}} />
+                    Tous les contacts
+                  </label>
+                  <label style={{display:'flex', alignItems:'center', gap:'6px', padding:'6px 12px', border:'0.5px solid var(--tw-border)', borderRadius:'8px', cursor:'pointer', fontSize:'13px', background: decideursOnly ? 'var(--tw-teal-light)' : 'white', color: decideursOnly ? 'var(--tw-teal)' : 'var(--tw-ink)', fontWeight: decideursOnly ? 600 : 400}}>
+                    <input type="radio" name="profil" checked={decideursOnly} onChange={() => setDecideursOnly(true)} style={{display:'none'}} />
+                    Décideurs uniquement
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* LISTE CONTACTS */}
+          <div style={{background:'white', border:'0.5px solid var(--tw-border)', borderRadius:'12px', overflow:'hidden', marginBottom:'20px'}}>
+            <div style={{padding:'14px 20px', borderBottom:'0.5px solid var(--tw-border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <div style={{fontSize:'14px', fontWeight:600, color:'var(--tw-ink)'}}>
+                Contacts {totalContacts > 0 && <span style={{color:'var(--tw-muted)', fontWeight:400, marginLeft:'8px'}}>({totalContacts} affichés · {selectedCount} sélectionnés{optOutCount > 0 ? ` · ${optOutCount} opt-out` : ''})</span>}
+              </div>
+              {audienceLoading && <div style={{fontSize:'12px', color:'var(--tw-muted)'}}>Chargement…</div>}
+            </div>
+            {audienceError && (
+              <div style={{padding:'20px', color:'#a52d2d', fontSize:'13px'}}>Erreur : {audienceError}</div>
+            )}
+            {!audienceError && !audienceLoading && totalContacts === 0 && (
+              <div style={{padding:'40px 20px', color:'var(--tw-muted)', fontSize:'13px', textAlign:'center'}}>Aucun contact ne correspond à ces critères</div>
+            )}
+            {!audienceError && totalContacts > 0 && (
+              <div style={{maxHeight:'420px', overflowY:'auto'}}>
+                <table style={{width:'100%', borderCollapse:'collapse', fontSize:'13px'}}>
+                  <thead>
+                    <tr style={{background:'var(--tw-bg)', position:'sticky', top:0, zIndex:1}}>
+                      <th style={{padding:'10px 12px', textAlign:'left', borderBottom:'0.5px solid var(--tw-border)', width:'40px'}}>
+                        <input type="checkbox" checked={allOptInSelected} onChange={toggleAll} title="Sélectionner tous les contacts opt-in" />
+                      </th>
+                      <th style={{padding:'10px 12px', textAlign:'left', borderBottom:'0.5px solid var(--tw-border)', fontWeight:600, color:'var(--tw-slate)'}}>Société</th>
+                      <th style={{padding:'10px 12px', textAlign:'left', borderBottom:'0.5px solid var(--tw-border)', fontWeight:600, color:'var(--tw-slate)'}}>Prénom</th>
+                      <th style={{padding:'10px 12px', textAlign:'left', borderBottom:'0.5px solid var(--tw-border)', fontWeight:600, color:'var(--tw-slate)'}}>Nom</th>
+                      <th style={{padding:'10px 12px', textAlign:'left', borderBottom:'0.5px solid var(--tw-border)', fontWeight:600, color:'var(--tw-slate)'}}>Fonction</th>
+                      <th style={{padding:'10px 12px', textAlign:'left', borderBottom:'0.5px solid var(--tw-border)', fontWeight:600, color:'var(--tw-slate)'}}>Email</th>
+                      <th style={{padding:'10px 12px', textAlign:'left', borderBottom:'0.5px solid var(--tw-border)', fontWeight:600, color:'var(--tw-slate)'}}>RGPD</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {audience.map(c => {
+                      const isOptOut = c.accept_emailing !== true;
+                      const isSelected = selectedIds.has(c.id);
+                      return (
+                        <tr key={c.id} style={{borderBottom:'0.5px solid var(--tw-border)', background: isOptOut ? '#fef9f9' : 'white'}}>
+                          <td style={{padding:'8px 12px'}}>
+                            <input type="checkbox" checked={isSelected} onChange={() => toggleOne(c.id)} />
+                          </td>
+                          <td style={{padding:'8px 12px', color:'var(--tw-ink)', fontWeight:500}}>{c.societe}</td>
+                          <td style={{padding:'8px 12px', color:'var(--tw-slate)'}}>{c.prenom || ''}</td>
+                          <td style={{padding:'8px 12px', color:'var(--tw-slate)'}}>{c.nom || ''}</td>
+                          <td style={{padding:'8px 12px', color:'var(--tw-muted)'}}>{c.fonction || ''}</td>
+                          <td style={{padding:'8px 12px', color:'var(--tw-slate)'}}>{c.email}</td>
+                          <td style={{padding:'8px 12px'}}>
+                            {isOptOut
+                              ? <span style={{fontSize:'11px', color:'#a52d2d', background:'#fde8e8', padding:'2px 8px', borderRadius:'4px', fontWeight:500}}>Opt-out</span>
+                              : <span style={{fontSize:'11px', color:'#0d7d39', background:'#e6f7ec', padding:'2px 8px', borderRadius:'4px', fontWeight:500}}>Opt-in</span>
+                            }
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* CAMPAGNE + ACTIONS */}
+          <div style={{background:'white', border:'0.5px solid var(--tw-border)', borderRadius:'12px', padding:'20px'}}>
+            <div style={{fontSize:'12px', fontWeight:600, color:'var(--tw-slate)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'10px'}}>Campagne Brevo à envoyer</div>
+            {campaignsError && <div style={{color:'#a52d2d', fontSize:'13px', marginBottom:'10px'}}>Erreur : {campaignsError}</div>}
+            {campaignsLoading && <div style={{color:'var(--tw-muted)', fontSize:'13px', marginBottom:'10px'}}>Chargement des campagnes…</div>}
+            <select
+              value={selectedCampaignId}
+              onChange={(e) => { setSelectedCampaignId(e.target.value); setTestResult(null); }}
+              disabled={campaignsLoading || campaigns.length === 0}
+              style={{width:'100%', padding:'10px 12px', fontSize:'13px', border:'0.5px solid var(--tw-border)', borderRadius:'8px', background:'white', color:'var(--tw-ink)', marginBottom:'16px'}}
+            >
+              <option value="">— Sélectionner une campagne (brouillon uniquement) —</option>
+              {campaigns.map(c => (
+                <option key={c.id} value={c.id}>#{c.id} · {c.name} · "{c.subject}"</option>
+              ))}
+            </select>
+            {!campaignsLoading && campaigns.length === 0 && !campaignsError && (
+              <div style={{fontSize:'12px', color:'var(--tw-muted)', marginBottom:'16px', fontStyle:'italic'}}>
+                Aucune campagne en brouillon. Crée-en une dans Brevo (Marketing → Campagnes → Nouvelle).
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap'}}>
+              <button
+                onClick={handleSendTest}
+                disabled={!selectedCampaignId || testSending}
+                style={{padding:'10px 18px', background:'transparent', border:'0.5px solid var(--tw-border)', borderRadius:'8px', cursor: selectedCampaignId && !testSending ? 'pointer' : 'not-allowed', fontSize:'13px', color:'var(--tw-ink)', fontWeight:500, opacity: selectedCampaignId && !testSending ? 1 : 0.5}}
+              >
+                {testSending ? 'Envoi du test…' : 'Envoi de test à c.daumer@texaswin.fr'}
+              </button>
+              <button
+                onClick={() => setConfirmOpen(true)}
+                disabled={!canSend}
+                style={{padding:'10px 24px', background: canSend ? 'var(--tw-ink)' : 'var(--tw-border)', color:'white', border:'none', borderRadius:'8px', cursor: canSend ? 'pointer' : 'not-allowed', fontSize:'13px', fontWeight:600}}
+              >
+                Envoyer la campagne aux {selectedCount} contact{selectedCount > 1 ? 's' : ''}
+              </button>
+            </div>
+
+            {/* Retour test */}
+            {testResult && (
+              <div style={{marginTop:'12px', padding:'10px 14px', borderRadius:'6px', fontSize:'13px', background: testResult.ok ? '#e6f7ec' : '#fde8e8', color: testResult.ok ? '#0d7d39' : '#a52d2d'}}>
+                {testResult.ok
+                  ? `Test envoyé à ${testResult.sent_to}. Vérifie ta boîte dans 1-2 min.`
+                  : `Erreur test : ${testResult.error}`
+                }
+              </div>
+            )}
+
+            {/* Retour envoi réel */}
+            {sendResult && (
+              <div style={{marginTop:'12px', padding:'12px 16px', borderRadius:'8px', fontSize:'13px', background: sendResult.ok ? '#e6f7ec' : '#fde8e8', color: sendResult.ok ? '#0d7d39' : '#a52d2d'}}>
+                {sendResult.ok ? (
+                  <div>
+                    <div style={{fontWeight:600, marginBottom:'4px'}}>Campagne envoyée avec succès</div>
+                    <div>Audit #{sendResult.data.audit_id} · {sendResult.data.nb_contacts_envoyes} contact(s) · Statut Brevo : {sendResult.data.brevo_status}</div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{fontWeight:600, marginBottom:'4px'}}>Erreur d'envoi</div>
+                    <div>{sendResult.error}</div>
+                    {sendResult.detail && sendResult.detail.opt_out && sendResult.detail.opt_out.length > 0 && (
+                      <div style={{marginTop:'6px', fontSize:'12px'}}>
+                        Contacts opt-out détectés : {sendResult.detail.opt_out.map(c => c.email).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* MODAL CONFIRMATION */}
+          {confirmOpen && (
+            <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999}}>
+              <div style={{background:'white', padding:'28px', borderRadius:'12px', maxWidth:'480px', width:'90%', boxShadow:'0 10px 40px rgba(0,0,0,0.3)'}}>
+                <h3 style={{margin:'0 0 12px 0', fontSize:'18px', color:'var(--tw-ink)'}}>Confirmer l'envoi</h3>
+                <p style={{margin:'0 0 8px 0', fontSize:'14px', color:'var(--tw-slate)', lineHeight:1.5}}>
+                  Tu es sur le point d'envoyer la campagne <strong>#{selectedCampaignId}</strong> à <strong>{selectedCount} contact{selectedCount > 1 ? 's' : ''}</strong>.
+                </p>
+                <p style={{margin:'0 0 20px 0', fontSize:'13px', color:'var(--tw-muted)'}}>
+                  Cette action est irréversible. Les contacts opt-out seront automatiquement exclus côté serveur.
+                </p>
+                <div style={{display:'flex', gap:'10px', justifyContent:'flex-end'}}>
+                  <button onClick={() => setConfirmOpen(false)} disabled={sending} style={{padding:'8px 16px', background:'transparent', border:'0.5px solid var(--tw-border)', borderRadius:'8px', cursor:'pointer', fontSize:'13px'}}>Annuler</button>
+                  <button onClick={handleSendReal} disabled={sending} style={{padding:'8px 20px', background:'var(--tw-ink)', color:'white', border:'none', borderRadius:'8px', cursor: sending ? 'wait' : 'pointer', fontSize:'13px', fontWeight:600}}>
+                    {sending ? 'Envoi en cours…' : 'Confirmer l\'envoi'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     function App() {
       const [user, setUser] = React.useState(null);
       const [isDashboard, setIsDashboard] = React.useState(true);
       const [showAttribution, setShowAttribution] = React.useState(false);
+      const [showCampagnes, setShowCampagnes] = React.useState(false);
       const isUserAdmin = (u) => u && ['Christian', 'Frédéric', 'Frederic'].includes(u.name);
       const [selectedCommercial, setSelectedCommercial] = React.useState(null);
       const [showSettings, setShowSettings] = React.useState(false);
@@ -2613,11 +2981,13 @@
           <Header 
             user={user} 
             onLogout={() => { localStorage.removeItem('user'); setUser(null); }} 
-            onDashboard={() => { setIsDashboard(!isDashboard); setShowAttribution(false); }} 
+            onDashboard={() => { setIsDashboard(!isDashboard); setShowAttribution(false); setShowCampagnes(false); }} 
             isDashboard={isDashboard} 
             onSettings={() => setShowSettings(true)}
-            onAttribution={() => setShowAttribution(true)}
+            onAttribution={() => { setShowAttribution(true); setShowCampagnes(false); }}
             showAttribution={showAttribution}
+            onCampagnes={() => { setShowCampagnes(true); setShowAttribution(false); }}
+            showCampagnes={showCampagnes}
             prospects={isUserAdmin(user) ? prospects : prospects.filter(p => p.assigned_to === user.name)}
             onSelectProspect={handleSelectProspect}
             onNewProspect={handleNewProspect}
@@ -2636,6 +3006,14 @@
               onUpdateProspect={(updated) => {
                 setProspects(prev => prev.map(p => p.id === updated.id ? {...p, ...updated} : p));
               }}
+            />
+          )}
+
+          {showCampagnes && (
+            <CampagnesPage
+              user={user}
+              API_URL={API_URL}
+              onClose={() => setShowCampagnes(false)}
             />
           )}
           
@@ -2662,7 +3040,7 @@
             />
           )}
           
-          {isDashboard ? (
+          {!showCampagnes && (isDashboard ? (
             isUserAdmin(user) ? <Dashboard 
               prospects={prospects} 
               selectedCommercial={selectedCommercial} 
@@ -2883,7 +3261,7 @@
               codesNaf={codesNaf}
             />
           </div>
-          )}
+          ))}
           
           {/* Modal Compteurs Dashboard (au niveau App pour rendu correct) */}
           {showCompteurModal && (
@@ -4562,7 +4940,7 @@
       );
     }
 
-    function Header({ user, onLogout, onDashboard, isDashboard, onSettings, onAttribution, showAttribution, prospects, onSelectProspect, onNewProspect, onAdminJson }) {
+    function Header({ user, onLogout, onDashboard, isDashboard, onSettings, onAttribution, showAttribution, onCampagnes, showCampagnes, prospects, onSelectProspect, onNewProspect, onAdminJson }) {
       const [globalSearch, setGlobalSearch] = React.useState('');
       const [showResults, setShowResults] = React.useState(false);
       const [searchIndex, setSearchIndex] = React.useState(-1);
@@ -4608,13 +4986,17 @@
           {/* NAV PRINCIPALE (gauche) */}
           <nav style={{display:'flex',gap:'2px'}}>
             <button
-              onClick={() => { if (!isDashboard) onDashboard(); if (showAttribution) onDashboard(); }}
-              style={{padding:'6px 12px',borderRadius:'6px',background: isDashboard && !showAttribution ? 'var(--tw-teal-light)' : 'transparent',color: isDashboard && !showAttribution ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: isDashboard && !showAttribution ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',transition:'all .15s'}}
+              onClick={() => { if (!isDashboard || showAttribution || showCampagnes) onDashboard(); }}
+              style={{padding:'6px 12px',borderRadius:'6px',background: isDashboard && !showAttribution && !showCampagnes ? 'var(--tw-teal-light)' : 'transparent',color: isDashboard && !showAttribution && !showCampagnes ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: isDashboard && !showAttribution && !showCampagnes ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',transition:'all .15s'}}
             >Dashboard</button>
             <button
-              onClick={() => { if (isDashboard) onDashboard(); if (showAttribution) onDashboard(); }}
-              style={{padding:'6px 12px',borderRadius:'6px',background: !isDashboard && !showAttribution ? 'var(--tw-teal-light)' : 'transparent',color: !isDashboard && !showAttribution ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: !isDashboard && !showAttribution ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',transition:'all .15s'}}
+              onClick={() => { if (isDashboard || showAttribution || showCampagnes) onDashboard(); }}
+              style={{padding:'6px 12px',borderRadius:'6px',background: !isDashboard && !showAttribution && !showCampagnes ? 'var(--tw-teal-light)' : 'transparent',color: !isDashboard && !showAttribution && !showCampagnes ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: !isDashboard && !showAttribution && !showCampagnes ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',transition:'all .15s'}}
             >Suivi activités</button>
+            <button
+              onClick={onCampagnes}
+              style={{padding:'6px 12px',borderRadius:'6px',background: showCampagnes ? 'var(--tw-teal-light)' : 'transparent',color: showCampagnes ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: showCampagnes ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',transition:'all .15s'}}
+            >Campagnes</button>
             {user.name === 'Christian' && (
               <button
                 onClick={onAttribution}
