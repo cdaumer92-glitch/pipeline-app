@@ -724,9 +724,7 @@
       const [testSending, setTestSending] = React.useState(false);
       const [testResult, setTestResult] = React.useState(null);
 
-      const token = () => {
-        try { return localStorage.getItem('token'); } catch { return null; }
-      };
+      const token = () => (user && user.token) ? user.token : null;
 
       // Charge l'audience à chaque changement de filtre
       React.useEffect(() => {
