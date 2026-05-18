@@ -8188,9 +8188,23 @@
                       // Composant formulaire (utilisé en haut pour création + sous chaque ligne pour édition)
                       const renderContactForm = (isEdit) => (
                         <div style={{background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'16px',marginBottom:'12px'}}>
+                          {/* Prénom + Nom sur la première ligne, en 2 colonnes 1/3 + 2/3.
+                              Saisie séparée pour permettre la personnalisation Brevo
+                              (ex: "Bonjour {{contact.PRENOM}}, ..."). Le prénom est
+                              optionnel (contacts génériques type contact@), le nom est
+                              obligatoire (utilisé pour l'identification visuelle). */}
+                          <div style={{display:'grid',gridTemplateColumns:'1fr 2fr',gap:'10px',marginBottom:'10px'}}>
+                            <input type="text" placeholder="Prénom"
+                              value={interlocuteurForm.prenom||''}
+                              onChange={e=>setInterlocuteurForm({...interlocuteurForm,prenom:e.target.value})}
+                              style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                            <input type="text" placeholder="Nom *"
+                              value={interlocuteurForm.nom||''}
+                              onChange={e=>setInterlocuteurForm({...interlocuteurForm,nom:e.target.value})}
+                              style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                          </div>
                           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
                             {[
-                              {ph:'Nom *', field:'nom'},
                               {ph:'Fonction', field:'fonction'},
                               {ph:'Email', field:'email', type:'email'},
                               {ph:'Téléphone', field:'telephone', type:'tel'},
