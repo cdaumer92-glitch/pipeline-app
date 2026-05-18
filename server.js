@@ -2095,32 +2095,14 @@ Execute uniquement le script. Ne genere pas le document toi-meme.`;
 app.get('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    // On enrichit chaque interlocuteur avec la date et la source du dernier événement
-    // d'opt-out emailing trouvé dans interlocuteurs_consents. Permet d'afficher côté UI
-    // "Désabonné le DD/MM/YYYY via Brevo" sous la case emailing décochée.
-    // - emailing_unsubscribed_at : timestamp du dernier passage à false sur accept_emailing
-    // - emailing_unsubscribed_source : source ('webhook_brevo', 'manuel', etc.)
-    // Si aucun désabo n'a eu lieu, ces 2 champs valent NULL.
+    // emailing_unsubscribed_at + emailing_unsubscribed_source sont désormais des
+    // colonnes physiques (ALTER TABLE en initDB). Plus de sous-SELECT calculé :
+    //   - alimentation : webhook Brevo désabo + cleanup ponctuel + backfill durci
+    //   - sémantique : NULL = jamais désabonné (peut être opt-in OU non sollicité)
+    //   - distinction UI : si accept_emailing=false ET unsubscribed_at=NULL → "Non sollicité"
+    // Sans le sous-SELECT, on évite le bug "création interprétée comme désabo".
     const result = await pool.query(
-      `SELECT i.*,
-              (
-                SELECT c.changed_at
-                  FROM interlocuteurs_consents c
-                 WHERE c.interlocuteur_id = i.id
-                   AND c.field = 'accept_emailing'
-                   AND c.new_value = false
-                 ORDER BY c.changed_at DESC
-                 LIMIT 1
-              ) AS emailing_unsubscribed_at,
-              (
-                SELECT c.source
-                  FROM interlocuteurs_consents c
-                 WHERE c.interlocuteur_id = i.id
-                   AND c.field = 'accept_emailing'
-                   AND c.new_value = false
-                 ORDER BY c.changed_at DESC
-                 LIMIT 1
-              ) AS emailing_unsubscribed_source
+      `SELECT i.*
          FROM interlocuteurs i
         WHERE i.prospect_id = $1
         ORDER BY i.display_order ASC NULLS LAST, (i.principal OR i.decideur) DESC, i.principal DESC, i.nom ASC`,
