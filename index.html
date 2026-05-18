@@ -742,11 +742,14 @@
               setSelectedIds(new Set());
             } else {
               setAudience(data.contacts || []);
-              // Sélection par défaut : tous les opt-in cochés, opt-out décochés
-              const optInIds = (data.contacts || [])
-                .filter(c => c.accept_emailing === true)
-                .map(c => c.id);
-              setSelectedIds(new Set(optInIds));
+              // Sélection par défaut différenciée selon le mode :
+              //  - Cible normale : on coche les opt-in (RGPD-safe)
+              //  - Cible demande_optin : on coche TOUT (puisque tous sont opt-out par
+              //    définition et qu'on veut justement leur demander leur consentement)
+              const ids = (data.contacts || []).filter(c =>
+                typeCible === 'demande_optin' ? true : c.accept_emailing === true
+              ).map(c => c.id);
+              setSelectedIds(new Set(ids));
             }
           })
           .catch(err => {
@@ -782,19 +785,24 @@
       }, [API_URL]);
 
       // Compteurs utiles pour l'affichage
+      const isOptinMode = typeCible === 'demande_optin';
       const totalContacts = audience.length;
       const optInCount = audience.filter(c => c.accept_emailing === true).length;
       const optOutCount = totalContacts - optInCount;
       const selectedCount = selectedIds.size;
-      const allOptInSelected = optInCount > 0 && audience.filter(c => c.accept_emailing === true).every(c => selectedIds.has(c.id));
+      // En mode demande_optin : "tout sélectionner" coche tout (les opt-out sont la cible).
+      // En mode normal : "tout sélectionner" coche seulement les opt-in (RGPD).
+      const selectablePool = isOptinMode
+        ? audience
+        : audience.filter(c => c.accept_emailing === true);
+      const allSelectablePoolSelected = selectablePool.length > 0 && selectablePool.every(c => selectedIds.has(c.id));
 
-      // Toggle case "Tout sélectionner" : ne sélectionne que les opt-in
+      // Toggle case "Tout sélectionner" : selon le mode
       const toggleAll = () => {
-        if (allOptInSelected) {
+        if (allSelectablePoolSelected) {
           setSelectedIds(new Set());
         } else {
-          const optInIds = audience.filter(c => c.accept_emailing === true).map(c => c.id);
-          setSelectedIds(new Set(optInIds));
+          setSelectedIds(new Set(selectablePool.map(c => c.id)));
         }
       };
 
@@ -838,7 +846,10 @@
           body: JSON.stringify({
             campaignId: parseInt(selectedCampaignId),
             contactIds: Array.from(selectedIds),
-            filtres: { type: typeCible, decideurs_only: decideursOnly }
+            filtres: { type: typeCible, decideurs_only: decideursOnly },
+            // Si cible = demande_optin → mode 'opt_in_request' côté serveur
+            // (autorise l'envoi à des contacts opt-out, voir documentation backend)
+            mode: isOptinMode ? 'opt_in_request' : 'normal'
           })
         })
           .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
@@ -877,9 +888,10 @@
                     {v:'prospect', label:'Prospects'},
                     {v:'suspect', label:'Suspects'},
                     {v:'prospect_suspect', label:'Prospects + Suspects'},
-                    {v:'all', label:'Tous'}
+                    {v:'all', label:'Tous'},
+                    {v:'demande_optin', label:'Demandes d\'opt-in', special:true}
                   ].map(opt => (
-                    <label key={opt.v} style={{display:'flex', alignItems:'center', gap:'6px', padding:'6px 12px', border:'0.5px solid var(--tw-border)', borderRadius:'8px', cursor:'pointer', fontSize:'13px', background: typeCible===opt.v ? 'var(--tw-teal-light)' : 'white', color: typeCible===opt.v ? 'var(--tw-teal)' : 'var(--tw-ink)', fontWeight: typeCible===opt.v ? 600 : 400}}>
+                    <label key={opt.v} style={{display:'flex', alignItems:'center', gap:'6px', padding:'6px 12px', border: opt.special ? '0.5px solid #b97800' : '0.5px solid var(--tw-border)', borderRadius:'8px', cursor:'pointer', fontSize:'13px', background: typeCible===opt.v ? (opt.special ? '#fef5e7' : 'var(--tw-teal-light)') : 'white', color: typeCible===opt.v ? (opt.special ? '#b97800' : 'var(--tw-teal)') : (opt.special ? '#b97800' : 'var(--tw-ink)'), fontWeight: typeCible===opt.v ? 600 : 400}}>
                       <input type="radio" name="type_cible" value={opt.v} checked={typeCible===opt.v} onChange={() => setTypeCible(opt.v)} style={{display:'none'}} />
                       {opt.label}
                     </label>
@@ -904,11 +916,22 @@
             </div>
           </div>
 
+          {/* BANDEAU INFO : Mode demande d'opt-in */}
+          {isOptinMode && (
+            <div style={{background:'#fef5e7', border:'0.5px solid #b97800', borderRadius:'12px', padding:'14px 18px', marginBottom:'20px', display:'flex', gap:'12px', alignItems:'flex-start'}}>
+              <div style={{color:'#b97800', fontSize:'18px', lineHeight:1}}>⚠️</div>
+              <div style={{fontSize:'13px', color:'#704a00', lineHeight:1.5}}>
+                <div style={{fontWeight:600, marginBottom:'4px'}}>Mode demande d'opt-in</div>
+                <div>Cette liste contient les contacts <strong>Suspect/Prospect</strong> marqués via la case <em>"Demande d'opt-in"</em> sur leur fiche. La campagne sélectionnée doit contenir un lien <code style={{background:'#fff8eb', padding:'1px 6px', borderRadius:'3px', fontSize:'12px'}}>{'{{contact.OPTIN_LINK}}'}</code> pour générer le lien de confirmation unique par contact. À la confirmation, ils basculeront en opt-in automatiquement.</div>
+              </div>
+            </div>
+          )}
+
           {/* LISTE CONTACTS */}
           <div style={{background:'white', border:'0.5px solid var(--tw-border)', borderRadius:'12px', overflow:'hidden', marginBottom:'20px'}}>
             <div style={{padding:'14px 20px', borderBottom:'0.5px solid var(--tw-border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
               <div style={{fontSize:'14px', fontWeight:600, color:'var(--tw-ink)'}}>
-                Contacts {totalContacts > 0 && <span style={{color:'var(--tw-muted)', fontWeight:400, marginLeft:'8px'}}>({totalContacts} affichés · {selectedCount} sélectionnés{optOutCount > 0 ? ` · ${optOutCount} opt-out` : ''})</span>}
+                Contacts {totalContacts > 0 && <span style={{color:'var(--tw-muted)', fontWeight:400, marginLeft:'8px'}}>({totalContacts} affichés · {selectedCount} sélectionnés{optOutCount > 0 && !isOptinMode ? ` · ${optOutCount} opt-out` : ''})</span>}
               </div>
               {audienceLoading && <div style={{fontSize:'12px', color:'var(--tw-muted)'}}>Chargement…</div>}
             </div>
@@ -924,7 +947,7 @@
                   <thead>
                     <tr style={{background:'var(--tw-bg)', position:'sticky', top:0, zIndex:1}}>
                       <th style={{padding:'10px 12px', textAlign:'left', borderBottom:'0.5px solid var(--tw-border)', width:'40px'}}>
-                        <input type="checkbox" checked={allOptInSelected} onChange={toggleAll} title="Sélectionner tous les contacts opt-in" />
+                        <input type="checkbox" checked={allSelectablePoolSelected} onChange={toggleAll} title={isOptinMode ? "Sélectionner tous les contacts (mode demande d'opt-in)" : "Sélectionner tous les contacts opt-in"} />
                       </th>
                       <th style={{padding:'10px 12px', textAlign:'left', borderBottom:'0.5px solid var(--tw-border)', fontWeight:600, color:'var(--tw-slate)'}}>Société</th>
                       <th style={{padding:'10px 12px', textAlign:'left', borderBottom:'0.5px solid var(--tw-border)', fontWeight:600, color:'var(--tw-slate)'}}>Prénom</th>
@@ -8172,6 +8195,46 @@
                               <span style={{display:'inline-flex',alignItems:'center'}}>{I(ICONS.bell, 13)}</span>
                               Notes d'information
                             </label>
+                            {/* Case "Demande d'opt-in" :
+                                - Visible uniquement en édition (besoin d'un id BDD)
+                                - Visible uniquement pour Suspect/Prospect (règle métier)
+                                - Visible uniquement si pas déjà opt-in (accept_emailing=false)
+                                - Toggle via POST /api/interlocuteurs/:id/demande-optin
+                                Le commercial marque ce contact pour qu'il soit inclus dans
+                                la prochaine campagne de demande d'opt-in. */}
+                            {isEdit && interlocuteurForm.id &&
+                             ['Suspect', 'Prospect'].includes(selectedProspect?.statut_societe) &&
+                             !interlocuteurForm.accept_emailing && (
+                              <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',color:'#4a6868'}} title="Marquer ce contact pour qu'il reçoive un email de demande d'opt-in (lien de confirmation à cliquer)">
+                                <input
+                                  type="checkbox"
+                                  checked={!!interlocuteurForm.demande_optin}
+                                  onChange={async (e) => {
+                                    const newValue = e.target.checked;
+                                    // Optimistic update local
+                                    setInterlocuteurForm(f => ({...f, demande_optin: newValue}));
+                                    try {
+                                      const r = await fetch(`${API_URL}/interlocuteurs/${interlocuteurForm.id}/demande-optin`, {
+                                        method: 'POST',
+                                        headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ value: newValue })
+                                      });
+                                      const data = await r.json();
+                                      if (!r.ok) {
+                                        // Rollback en cas d'erreur
+                                        setInterlocuteurForm(f => ({...f, demande_optin: !newValue}));
+                                        alert('Erreur : ' + (data.error || 'Impossible de mettre à jour'));
+                                      }
+                                    } catch (err) {
+                                      setInterlocuteurForm(f => ({...f, demande_optin: !newValue}));
+                                      alert('Erreur réseau : ' + err.message);
+                                    }
+                                  }}
+                                />
+                                <span style={{display:'inline-flex',alignItems:'center',color:'#b97800'}}>{I(ICONS.mail, 13)}</span>
+                                Demande d'opt-in
+                              </label>
+                            )}
                           </div>
                           {/* Bouton Historique RGPD : visible uniquement en mode édition */}
                           {isEdit && (
@@ -8355,7 +8418,7 @@
                                     {c.decideur && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'#fdecea',color:'var(--tw-red)'}}>Décideur</span>}
                                     {c.principal && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
                                     <IconBtn title="Modifier le contact"
-                                      onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',linkedin_url:c.linkedin_url||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info,emailing_unsubscribed_at:c.emailing_unsubscribed_at||null,emailing_unsubscribed_source:c.emailing_unsubscribed_source||null}); setShowInterlocuteurForm(true); }}
+                                      onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',linkedin_url:c.linkedin_url||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info,demande_optin:!!c.demande_optin,emailing_unsubscribed_at:c.emailing_unsubscribed_at||null,emailing_unsubscribed_source:c.emailing_unsubscribed_source||null}); setShowInterlocuteurForm(true); }}
                                     >{I(ICONS.edit, 13)}</IconBtn>
                                     <IconBtn title="Supprimer le contact" danger
                                       onClick={() => handleDeleteInterlocuteur(c.id)}

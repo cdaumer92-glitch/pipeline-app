@@ -4,6 +4,7 @@ import pkg from 'pg';
 import cors from 'cors';
 import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fileUpload from 'express-fileupload';
@@ -443,6 +444,23 @@ async function initDB() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_consents_interloc ON interlocuteurs_consents(interlocuteur_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_consents_field_value ON interlocuteurs_consents(field, new_value)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_consents_changed_at ON interlocuteurs_consents(changed_at DESC)`);
+
+    // ========== SYSTÈME DOUBLE OPT-IN ==========
+    // Ajout de 4 colonnes à interlocuteurs pour gérer les demandes de consentement :
+    //  - demande_optin : indique qu'un commercial veut envoyer une demande d'opt-in
+    //  - optin_token : token unique généré au moment de l'envoi (URL signée)
+    //  - optin_token_envoye_at : timestamp d'envoi (pour expiration 30j)
+    //  - optin_confirme_at : timestamp du clic de confirmation par le contact
+    //
+    // Workflow : commercial coche demande_optin → campagne d'opt-in envoyée
+    // (génère token) → contact clique le lien → /api/optin/confirm bascule
+    // accept_emailing=true + remet demande_optin=false + stocke optin_confirme_at.
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS demande_optin BOOLEAN DEFAULT FALSE`);
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS optin_token TEXT`);
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS optin_token_envoye_at TIMESTAMP`);
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS optin_confirme_at TIMESTAMP`);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_interloc_optin_token ON interlocuteurs(optin_token) WHERE optin_token IS NOT NULL`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_interloc_demande_optin ON interlocuteurs(demande_optin) WHERE demande_optin = TRUE`);
 
     // ========== AUDIT ENVOIS CAMPAGNES BREVO ==========
     // Trace pérenne de chaque envoi de campagne Brevo déclenché depuis le CRM.
@@ -2622,7 +2640,7 @@ app.get('/api/brevo/campaigns/:id', auth, async (req, res) => {
 // En cas d'erreur après le clone : tentative de cleanup (delete clone + delete liste)
 // pour ne pas laisser de pollution côté Brevo, et UPDATE statut='failed'.
 app.post('/api/brevo/send-campaign', auth, async (req, res) => {
-  const { campaignId, contactIds, filtres } = req.body || {};
+  const { campaignId, contactIds, filtres, mode } = req.body || {};
 
   // ----- Validation entrée -----
   const srcCampaignId = parseInt(campaignId);
@@ -2636,6 +2654,13 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
   if (ids.length === 0) {
     return res.status(400).json({ error: 'aucun contactId valide' });
   }
+  // Mode d'envoi (par défaut 'normal') :
+  //  - 'normal'         : filtre RGPD strict (accept_emailing=true obligatoire)
+  //  - 'opt_in_request' : autorise les opt-out, MAIS uniquement ceux marqués
+  //    demande_optin=true, et statut Suspect/Prospect uniquement. Cas spécial :
+  //    cet envoi sollicite explicitement le consentement, donc l'opt-out actuel
+  //    n'est pas un obstacle (c'est tout l'intérêt).
+  const sendMode = (mode === 'opt_in_request') ? 'opt_in_request' : 'normal';
 
   // ----- 1) Insert audit pending -----
   let auditId;
@@ -2671,8 +2696,11 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
   let interlocs;
   try {
     const r = await pool.query(
-      `SELECT i.id, i.email, i.prenom, i.nom, i.accept_emailing,
-              p.name AS societe
+      `SELECT i.id, i.email, i.prenom, i.nom,
+              COALESCE(i.accept_emailing, false) AS accept_emailing,
+              COALESCE(i.demande_optin, false)   AS demande_optin,
+              p.name AS societe,
+              p.statut_societe
          FROM interlocuteurs i
          LEFT JOIN prospects p ON p.id = i.prospect_id
         WHERE i.id = ANY($1::int[])`,
@@ -2684,34 +2712,71 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
     return res.status(500).json({ error: 'Erreur BDD: ' + err.message });
   }
 
-  // Détection des problèmes RGPD / qualité
+  // Détection des problèmes selon le mode d'envoi
   const missing = ids.filter(id => !interlocs.some(r => r.id === id));
   const noEmail = interlocs.filter(r => !r.email || !r.email.trim());
-  const optOut = interlocs.filter(r => r.email && r.email.trim() && r.accept_emailing !== true);
-  const eligibles = interlocs.filter(r =>
-    r.email && r.email.trim() && r.accept_emailing === true
-  );
 
-  // Choix #2 : 400 + liste détaillée des emails KO si au moins un problème
-  if (missing.length > 0 || noEmail.length > 0 || optOut.length > 0) {
+  let optOut, badStatusForOptin, eligibles;
+  if (sendMode === 'opt_in_request') {
+    // Mode demande d'opt-in : on EXIGE demande_optin=true ET statut Suspect/Prospect.
+    // Les opt-out sont autorisés (c'est tout l'intérêt). Les déjà opt-in sont
+    // refusés (pas la peine de leur redemander leur consentement).
+    badStatusForOptin = interlocs.filter(r =>
+      r.email && r.email.trim() && !['Suspect', 'Prospect'].includes(r.statut_societe)
+    );
+    optOut = []; // pas pertinent en mode opt_in_request
+    const alreadyOptIn = interlocs.filter(r => r.accept_emailing === true);
+    const notMarked = interlocs.filter(r => r.email && r.email.trim() && r.demande_optin !== true);
+    eligibles = interlocs.filter(r =>
+      r.email && r.email.trim() &&
+      r.demande_optin === true &&
+      ['Suspect', 'Prospect'].includes(r.statut_societe)
+    );
+    // En mode opt_in_request on ne renvoie pas les "déjà opt-in" comme un blocage
+    // partiel : on les filtre silencieusement + log côté serveur (cas légitime).
+    if (alreadyOptIn.length > 0) {
+      console.log(`[brevo-send mode=opt_in_request] ${alreadyOptIn.length} contact(s) déjà opt-in, filtrés:`, alreadyOptIn.map(r => r.email));
+    }
+    if (notMarked.length > 0) {
+      console.warn(`[brevo-send mode=opt_in_request] ${notMarked.length} contact(s) sans demande_optin=true, filtrés:`, notMarked.map(r => r.email));
+    }
+  } else {
+    // Mode normal : filtre RGPD strict
+    optOut = interlocs.filter(r => r.email && r.email.trim() && r.accept_emailing !== true);
+    badStatusForOptin = [];
+    eligibles = interlocs.filter(r =>
+      r.email && r.email.trim() && r.accept_emailing === true
+    );
+  }
+
+  // Choix #2 : 400 + liste détaillée des emails KO si au moins un problème bloquant
+  const hasBlocker = missing.length > 0 || noEmail.length > 0 ||
+    (sendMode === 'normal' && optOut.length > 0) ||
+    (sendMode === 'opt_in_request' && badStatusForOptin.length > 0);
+  if (hasBlocker) {
     const detail = {
       missing_ids: missing,
       no_email: noEmail.map(r => ({ id: r.id, nom: `${r.prenom || ''} ${r.nom || ''}`.trim(), societe: r.societe })),
-      opt_out: optOut.map(r => ({ id: r.id, email: r.email, nom: `${r.prenom || ''} ${r.nom || ''}`.trim(), societe: r.societe }))
+      opt_out: optOut.map(r => ({ id: r.id, email: r.email, nom: `${r.prenom || ''} ${r.nom || ''}`.trim(), societe: r.societe })),
+      bad_status_for_optin: badStatusForOptin.map(r => ({ id: r.id, email: r.email, nom: `${r.prenom || ''} ${r.nom || ''}`.trim(), societe: r.societe, statut: r.statut_societe }))
     };
+    const nbKo = optOut.length + noEmail.length + missing.length + badStatusForOptin.length;
+    const errMsg = sendMode === 'opt_in_request'
+      ? `Demande d'opt-in KO: ${missing.length} introuvable(s), ${noEmail.length} sans email, ${badStatusForOptin.length} statut non Suspect/Prospect`
+      : `RGPD/qualité KO: ${missing.length} introuvable(s), ${noEmail.length} sans email, ${optOut.length} opt-out`;
     await pool.query(
       `UPDATE campagnes_envois
           SET statut='failed',
               nb_contacts_rgpd_ko=$2,
               erreur_message=$3
         WHERE id=$1`,
-      [auditId, optOut.length + noEmail.length + missing.length,
-       `RGPD/qualité KO: ${missing.length} introuvable(s), ${noEmail.length} sans email, ${optOut.length} opt-out`]
+      [auditId, nbKo, errMsg]
     );
-    console.warn(`[brevo-send] envoi #${auditId} bloqué RGPD/qualité`, detail);
+    console.warn(`[brevo-send mode=${sendMode}] envoi #${auditId} bloqué`, detail);
     return res.status(400).json({
       error: 'Certains contacts ne peuvent pas recevoir cet envoi',
       audit_id: auditId,
+      mode: sendMode,
       detail
     });
   }
@@ -2766,13 +2831,51 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
     return res.status(502).json({ error: 'Réponse liste invalide', audit_id: auditId });
   }
 
-  // ----- 6) Upsert contacts Brevo (idempotent via updateEnabled) -----
+  // ----- 6) Génération tokens d'opt-in (si mode opt_in_request) -----
+  // Pour chaque éligible, on génère un token unique cryptographique (48 hex chars)
+  // qu'on stocke en BDD AVANT l'upsert Brevo. Comme ça même si Brevo est lent,
+  // notre endpoint /api/optin/confirm pourra valider le token côté serveur.
+  //
+  // En mode 'normal', on génère quand même un token (préventif) : utile si
+  // l'utilisateur a inséré {{contact.OPTIN_LINK}} dans une campagne classique
+  // pour proposer un lien de confirmation à des contacts déjà opt-in qui auraient
+  // perdu leur préférence — pas le cas standard mais ça ne coûte rien.
+  // Note : si plusieurs envois consécutifs pour le même contact, on regénère
+  // un nouveau token à chaque fois (le précédent devient inutilisable).
+  const tokensByContactId = new Map();
+  try {
+    for (const c of eligibles) {
+      const tok = crypto.randomBytes(24).toString('hex'); // 48 chars
+      tokensByContactId.set(c.id, tok);
+    }
+    // Update BDD en une seule passe par ligne (acceptable pour V1 ; pour bulk plus tard)
+    for (const c of eligibles) {
+      const tok = tokensByContactId.get(c.id);
+      await pool.query(
+        `UPDATE interlocuteurs
+            SET optin_token = $2,
+                optin_token_envoye_at = NOW(),
+                optin_confirme_at = NULL
+          WHERE id = $1`,
+        [c.id, tok]
+      );
+    }
+  } catch (err) {
+    await markFailed('Erreur génération tokens opt-in: ' + err.message);
+    await cleanupOnError();
+    return res.status(500).json({ error: 'Erreur tokens opt-in: ' + err.message, audit_id: auditId });
+  }
+
+  // ----- 6bis) Upsert contacts Brevo (idempotent via updateEnabled) -----
   // Doc: POST /v3/contacts avec updateEnabled=true
   // On boucle (pas d'endpoint bulk-upsert simple). À ce stade on accepte les
   // éventuels échecs individuels (email malformé côté Brevo) sans planter
   // l'envoi global : on les compte et on log.
+  // OPTIN_LINK est injecté dans les attributs Brevo : si la campagne contient
+  // {{contact.OPTIN_LINK}}, Brevo le remplacera par le lien unique de chaque contact.
   const upsertFailed = [];
   for (const c of eligibles) {
+    const tok = tokensByContactId.get(c.id);
     const up = await brevoFetch('/contacts', {
       method: 'POST',
       body: {
@@ -2780,7 +2883,8 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
         attributes: {
           PRENOM: c.prenom || '',
           NOM: c.nom || '',
-          SOCIETE: c.societe || ''
+          SOCIETE: c.societe || '',
+          OPTIN_LINK: `${CRM_PUBLIC_URL}/api/optin/confirm?token=${tok}`
         },
         updateEnabled: true
       }
@@ -2992,16 +3096,23 @@ app.get('/api/brevo/audience', auth, async (req, res) => {
   const type = (req.query.type || 'all').toString().toLowerCase();
   const decideurOnly = req.query.decideur_only === 'true';
 
-  // Mapping type → liste de valeurs statut_societe (qui est case-sensitive en BDD)
+  // Mapping type → liste de valeurs statut_societe (case-sensitive en BDD).
+  // Le type 'demande_optin' est spécial : il filtre sur demande_optin=true au
+  // lieu de filtrer sur statut, et impose Suspect/Prospect (règle métier).
   let statutFilter = null;
+  let demandeOptinOnly = false;
   switch (type) {
     case 'client':           statutFilter = ['Client']; break;
     case 'prospect':         statutFilter = ['Prospect']; break;
     case 'suspect':          statutFilter = ['Suspect']; break;
     case 'prospect_suspect': statutFilter = ['Prospect', 'Suspect']; break;
-    case 'all':              statutFilter = null; break; // pas de filtre
+    case 'all':              statutFilter = null; break;
+    case 'demande_optin':
+      statutFilter = ['Suspect', 'Prospect'];
+      demandeOptinOnly = true;
+      break;
     default:
-      return res.status(400).json({ error: `Type invalide: '${type}'. Attendu: client|prospect|suspect|prospect_suspect|all` });
+      return res.status(400).json({ error: `Type invalide: '${type}'. Attendu: client|prospect|suspect|prospect_suspect|all|demande_optin` });
   }
 
   // Construction dynamique de la requête
@@ -3019,6 +3130,11 @@ app.get('/api/brevo/audience', auth, async (req, res) => {
   if (decideurOnly) {
     conditions.push(`COALESCE(i.decideur, false) = true`);
   }
+  if (demandeOptinOnly) {
+    // Type 'demande_optin' : on ne montre que les contacts marqués + pas encore opt-in
+    conditions.push(`COALESCE(i.demande_optin, false) = true`);
+    conditions.push(`COALESCE(i.accept_emailing, false) = false`);
+  }
 
   const sql = `
     SELECT
@@ -3030,6 +3146,9 @@ app.get('/api/brevo/audience', auth, async (req, res) => {
       COALESCE(i.accept_emailing, false) AS accept_emailing,
       COALESCE(i.decideur, false)        AS decideur,
       COALESCE(i.principal, false)       AS principal,
+      COALESCE(i.demande_optin, false)   AS demande_optin,
+      i.optin_token_envoye_at,
+      i.optin_confirme_at,
       i.prospect_id,
       p.name                              AS societe,
       COALESCE(p.statut_societe, 'Prospect') AS statut_societe
@@ -3079,6 +3198,247 @@ app.post('/api/brevo/send-test', auth, async (req, res) => {
     return res.status(result.status).json({ error: result.error });
   }
   res.json({ ok: true, sent_to: testEmail });
+});
+
+// =====================================================================
+// SYSTÈME D'OPT-IN (DOUBLE CONFIRMATION)
+// =====================================================================
+// Workflow :
+//   1) Le commercial coche "Demande d'opt-in" sur la fiche interlocuteur
+//      → POST /api/interlocuteurs/:id/demande-optin (toggle)
+//   2) Il envoie une campagne avec la cible "Demandes d'opt-in en attente"
+//      → send-campaign génère un optin_token unique par contact, stocke en BDD
+//        et l'expose à Brevo via l'attribut OPTIN_LINK
+//   3) Le contact clique le lien {{contact.OPTIN_LINK}} dans son email
+//      → GET /api/optin/confirm?token=XXX (PUBLIC, pas d'auth)
+//      → bascule accept_emailing=true, optin_confirme_at=NOW(), demande_optin=false
+//      → renvoie une page HTML stylée de remerciement
+//
+// Validité du token : 30 jours (paramétrable via OPTIN_TOKEN_TTL_DAYS).
+// ---------------------------------------------------------------------
+
+const OPTIN_TOKEN_TTL_DAYS = parseInt(process.env.OPTIN_TOKEN_TTL_DAYS || '30');
+// URL publique du CRM (utilisée pour construire le lien d'opt-in dans les emails).
+// Configurable via env si déploiement multi-environnement.
+const CRM_PUBLIC_URL = process.env.CRM_PUBLIC_URL || 'https://crm.texaswin.fr';
+
+// -------- POST /api/interlocuteurs/:id/demande-optin --------
+// Toggle (ou set explicite via body) du champ demande_optin sur un interlocuteur.
+// Body optionnel : { value: true|false }. Sans body → toggle.
+// Trace dans interlocuteurs_consents avec source='manual_demande_optin'.
+app.post('/api/interlocuteurs/:id/demande-optin', auth, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'id interlocuteur invalide' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Lecture état actuel + statut prospect (pour valider qu'on est sur Suspect/Prospect)
+    const cur = await client.query(
+      `SELECT i.id, i.demande_optin, i.accept_emailing, p.statut_societe
+         FROM interlocuteurs i
+         LEFT JOIN prospects p ON p.id = i.prospect_id
+        WHERE i.id = $1`,
+      [id]
+    );
+    if (cur.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Interlocuteur introuvable' });
+    }
+    const row = cur.rows[0];
+    // Règle métier : seuls Suspect/Prospect peuvent recevoir une demande d'opt-in
+    if (!['Suspect', 'Prospect'].includes(row.statut_societe)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: `Demande d'opt-in non applicable à ${row.statut_societe || 'inconnu'} (Suspects/Prospects uniquement)` });
+    }
+    // Pas de demande d'opt-in si déjà opt-in (inutile)
+    if (row.accept_emailing === true) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Ce contact est déjà opt-in (accept_emailing=true)' });
+    }
+
+    const oldValue = row.demande_optin === true;
+    const newValue = (typeof req.body?.value === 'boolean') ? req.body.value : !oldValue;
+
+    await client.query(
+      `UPDATE interlocuteurs SET demande_optin = $2 WHERE id = $1`,
+      [id, newValue]
+    );
+    // Trace dans interlocuteurs_consents (uniquement si changement réel)
+    if (oldValue !== newValue) {
+      await client.query(
+        `INSERT INTO interlocuteurs_consents
+           (interlocuteur_id, field, old_value, new_value, changed_by, source)
+         VALUES ($1, 'demande_optin', $2, $3, $4, 'manual_demande_optin')`,
+        [id, String(oldValue), String(newValue), req.userName || null]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true, id, demande_optin: newValue });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[demande-optin] erreur:', err);
+    res.status(500).json({ error: 'Erreur BDD: ' + err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// -------- GET /api/optin/confirm?token=XXX --------
+// ENDPOINT PUBLIC (pas d'auth) : URL cliquée par le contact dans l'email.
+// Renvoie une page HTML stylée — pas du JSON — car c'est l'utilisateur final
+// qui voit cette page dans son navigateur.
+//
+// Logique :
+//   - Token introuvable / expiré → page d'erreur explicative
+//   - Token déjà confirmé → page "Vous êtes déjà inscrit"
+//   - Token valide non confirmé → bascule accept_emailing=true + page de remerciement
+app.get('/api/optin/confirm', async (req, res) => {
+  const token = (req.query.token || '').toString().trim();
+
+  // Helper pour générer une page HTML stylée TexasWin/ASTI
+  const renderPage = (status, title, message, ctaText, ctaUrl) => {
+    const color = status === 'success' ? '#0d7d39' : status === 'info' ? '#007d89' : '#a52d2d';
+    const bg = status === 'success' ? '#e6f7ec' : status === 'info' ? '#e0f4f5' : '#fde8e8';
+    return `<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title} — ASTI / TexasWin</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;background:#f8f9fb;color:#1a2530}
+  .wrap{max-width:600px;margin:60px auto;padding:0 20px}
+  .card{background:white;border-radius:16px;padding:48px 40px;box-shadow:0 4px 24px rgba(0,0,0,0.06);text-align:center}
+  .logo{display:inline-flex;align-items:center;gap:10px;margin-bottom:32px;font-weight:600;color:#1a2530;font-size:18px}
+  .logo-mark{width:32px;height:32px;border-radius:8px;background:#007d89;color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+  .badge{display:inline-block;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;background:${bg};color:${color};margin-bottom:20px}
+  h1{margin:0 0 12px 0;font-size:24px;color:#1a2530;font-weight:600}
+  p{margin:0 0 16px 0;color:#5a6573;line-height:1.6;font-size:15px}
+  .pitch{background:#f8f9fb;border-radius:10px;padding:20px;margin:24px 0;text-align:left;font-size:14px}
+  .pitch h3{margin:0 0 10px 0;font-size:14px;color:#007d89;text-transform:uppercase;letter-spacing:0.5px;font-weight:600}
+  .pitch p{margin:0 0 8px 0;font-size:14px}
+  .cta{display:inline-block;margin-top:24px;padding:12px 28px;background:#1a2530;color:white;text-decoration:none;border-radius:10px;font-weight:600;font-size:14px;transition:background .15s}
+  .cta:hover{background:#0d2424}
+  .foot{margin-top:32px;font-size:12px;color:#94a3b0}
+</style>
+</head><body>
+<div class="wrap"><div class="card">
+  <div class="logo"><div class="logo-mark">T</div>TexasWin</div>
+  <div class="badge">${status === 'success' ? '✓ Inscription confirmée' : status === 'info' ? 'Information' : 'Erreur'}</div>
+  <h1>${title}</h1>
+  <p>${message}</p>
+  ${status === 'success' ? `
+    <div class="pitch">
+      <h3>À propos de TexasWin</h3>
+      <p>TexasWin est l'ERP de référence spécialisé pour les marques et distributeurs du secteur textile et mode, édité par ASTI depuis plus de 20 ans.</p>
+      <p>Vous recevrez prochainement nos communications : nouveautés produit, retours d'expérience clients, événements professionnels.</p>
+    </div>
+  ` : ''}
+  ${ctaText && ctaUrl ? `<a href="${ctaUrl}" class="cta">${ctaText}</a>` : ''}
+  <div class="foot">ASTI · 19 rue de la Résistance, 42300 Roanne · <a href="mailto:c.daumer@texaswin.fr" style="color:#94a3b0">c.daumer@texaswin.fr</a></div>
+</div></div>
+</body></html>`;
+  };
+
+  if (!token || token.length < 10) {
+    return res.status(400).type('html').send(renderPage(
+      'error',
+      'Lien invalide',
+      'Ce lien de confirmation est incorrect ou incomplet. Si vous souhaitez vous inscrire à nos communications, contactez-nous directement.',
+      'Visiter texaswin.fr', 'https://www.texaswin.fr'
+    ));
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Lecture du contact correspondant au token
+    const r = await client.query(
+      `SELECT id, prenom, nom, email, accept_emailing, optin_token_envoye_at, optin_confirme_at
+         FROM interlocuteurs
+        WHERE optin_token = $1`,
+      [token]
+    );
+    if (r.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).type('html').send(renderPage(
+        'error',
+        'Lien introuvable',
+        'Ce lien de confirmation n\'existe pas ou a déjà été révoqué. Si vous souhaitez vous inscrire à nos communications, contactez-nous directement.',
+        'Visiter texaswin.fr', 'https://www.texaswin.fr'
+      ));
+    }
+    const c = r.rows[0];
+
+    // Cas 1 : déjà confirmé → page "déjà inscrit"
+    if (c.optin_confirme_at) {
+      await client.query('ROLLBACK');
+      return res.type('html').send(renderPage(
+        'info',
+        'Vous êtes déjà inscrit',
+        `Bonjour${c.prenom ? ' ' + c.prenom : ''}, votre inscription a déjà été confirmée le ${new Date(c.optin_confirme_at).toLocaleDateString('fr-FR')}. Vous recevrez bien nos prochaines communications.`,
+        'Visiter texaswin.fr', 'https://www.texaswin.fr'
+      ));
+    }
+
+    // Cas 2 : token expiré (>30j) → page d'erreur
+    if (c.optin_token_envoye_at) {
+      const ageMs = Date.now() - new Date(c.optin_token_envoye_at).getTime();
+      const ageDays = ageMs / (1000 * 60 * 60 * 24);
+      if (ageDays > OPTIN_TOKEN_TTL_DAYS) {
+        await client.query('ROLLBACK');
+        return res.status(410).type('html').send(renderPage(
+          'error',
+          'Lien expiré',
+          `Ce lien de confirmation a expiré (validité ${OPTIN_TOKEN_TTL_DAYS} jours). Si vous souhaitez vous inscrire à nos communications, contactez-nous directement.`,
+          'Nous contacter', 'mailto:c.daumer@texaswin.fr'
+        ));
+      }
+    }
+
+    // Cas 3 : token valide → confirmation
+    await client.query(
+      `UPDATE interlocuteurs
+          SET accept_emailing = TRUE,
+              optin_confirme_at = NOW(),
+              demande_optin = FALSE,
+              emailing_unsubscribed_at = NULL,
+              emailing_unsubscribed_source = NULL
+        WHERE id = $1`,
+      [c.id]
+    );
+    // Double trace dans interlocuteurs_consents
+    await client.query(
+      `INSERT INTO interlocuteurs_consents
+         (interlocuteur_id, field, old_value, new_value, changed_by, source)
+       VALUES ($1, 'accept_emailing', $2, 'true', 'contact_self', 'optin_confirme_lien')`,
+      [c.id, String(c.accept_emailing === true)]
+    );
+    await client.query('COMMIT');
+
+    console.log(`[optin/confirm] interlocuteur ${c.id} (${c.email}) a confirmé son opt-in`);
+
+    return res.type('html').send(renderPage(
+      'success',
+      `Merci${c.prenom ? ' ' + c.prenom : ''} !`,
+      `Votre inscription est confirmée. Vous recevrez désormais nos communications à l'adresse ${c.email}.`,
+      'Visiter texaswin.fr', 'https://www.texaswin.fr'
+    ));
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[optin/confirm] erreur:', err);
+    return res.status(500).type('html').send(renderPage(
+      'error',
+      'Erreur technique',
+      'Une erreur est survenue lors de la confirmation. Réessayez dans quelques minutes ou contactez-nous directement.',
+      'Nous contacter', 'mailto:c.daumer@texaswin.fr'
+    ));
+  } finally {
+    client.release();
+  }
 });
 
 // ===================== ADMIN ROUTES =====================
@@ -4790,10 +5150,35 @@ app.post('/api/prospects/bulk-import-sinfo', auth, requireAdmin, async (req, res
 
 
 // ===================== START =====================
+
+// Helper de démarrage : vérifie et crée si nécessaire l'attribut Brevo OPTIN_LINK
+// utilisé par le système de demande d'opt-in (workflow de confirmation par email).
+// Doc Brevo : POST /v3/contacts/attributes/normal/{name} avec body {type: "text"}
+// Si l'attribut existe déjà, Brevo répond 400 "attribute already exists" — on ignore.
+async function ensureBrevoOptinAttribute() {
+  if (!process.env.BREVO_API_KEY) {
+    console.log('ℹ️  BREVO_API_KEY non définie : création attribut OPTIN_LINK skip');
+    return;
+  }
+  const result = await brevoFetch('/contacts/attributes/normal/OPTIN_LINK', {
+    method: 'POST',
+    body: { type: 'text' }
+  });
+  if (result.ok) {
+    console.log('✅ Attribut Brevo OPTIN_LINK créé');
+  } else if (result.status === 400 && /already|exist/i.test(result.error || '')) {
+    console.log('✅ Attribut Brevo OPTIN_LINK déjà présent');
+  } else {
+    console.warn('⚠️  Création attribut OPTIN_LINK échouée:', result.error);
+  }
+}
+
 initDB().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Serveur sur port ${PORT}`);
     console.log('✅ BD PostgreSQL connectée');
+    // Lance la vérif Brevo en arrière-plan (non bloquant)
+    ensureBrevoOptinAttribute().catch(e => console.error('ensureBrevoOptinAttribute:', e));
   });
 }).catch(err => {
   console.error('Erreur démarrage:', err);
