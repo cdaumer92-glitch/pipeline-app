@@ -462,6 +462,39 @@ async function initDB() {
     await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_interloc_optin_token ON interlocuteurs(optin_token) WHERE optin_token IS NOT NULL`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_interloc_demande_optin ON interlocuteurs(demande_optin) WHERE demande_optin = TRUE`);
 
+    // ========== COLONNES PHYSIQUES "OPT-OUT" ==========
+    // Promotion de emailing_unsubscribed_at en colonne physique (au lieu du
+    // sous-SELECT calculé dans /api/prospects/:id/interlocuteurs) pour deux
+    // raisons :
+    //  1. Performance lecture sur les pages où on liste beaucoup d'interlocuteurs
+    //     (notamment /api/brevo/audience où on peut avoir 500+ contacts).
+    //  2. Distinguer côté UI les 3 états RGPD :
+    //     - opt-in confirmé (accept_emailing=true)
+    //     - opt-out explicite (accept_emailing=false ET emailing_unsubscribed_at non-null)
+    //     - non sollicité (accept_emailing=false ET emailing_unsubscribed_at NULL)
+    //
+    // Le webhook Brevo désabo écrira désormais directement dans ces colonnes,
+    // en plus de continuer à tracer dans interlocuteurs_consents (audit).
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS emailing_unsubscribed_at TIMESTAMP`);
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS emailing_unsubscribed_source TEXT`);
+    // Backfill une seule fois depuis interlocuteurs_consents si les colonnes sont NULL
+    // mais qu'un événement opt-out existe en historique.
+    await client.query(`
+      UPDATE interlocuteurs i
+         SET emailing_unsubscribed_at = sub.changed_at,
+             emailing_unsubscribed_source = sub.source
+        FROM (
+          SELECT DISTINCT ON (interlocuteur_id)
+                 interlocuteur_id, changed_at, source
+            FROM interlocuteurs_consents
+           WHERE field = 'accept_emailing' AND new_value = 'false'
+           ORDER BY interlocuteur_id, changed_at DESC
+        ) sub
+       WHERE i.id = sub.interlocuteur_id
+         AND i.emailing_unsubscribed_at IS NULL
+         AND COALESCE(i.accept_emailing, false) = false
+    `);
+
     // ========== AUDIT ENVOIS CAMPAGNES BREVO ==========
     // Trace pérenne de chaque envoi de campagne Brevo déclenché depuis le CRM.
     // Sert à : audit RGPD (qui a envoyé quoi à qui), debug (quel clone Brevo
@@ -2479,6 +2512,8 @@ app.post('/api/webhook/brevo', async (req, res) => {
       await client.query(
         `UPDATE interlocuteurs
             SET accept_emailing = false,
+                emailing_unsubscribed_at = CURRENT_TIMESTAMP,
+                emailing_unsubscribed_source = 'webhook_brevo',
                 updated_at = CURRENT_TIMESTAMP
           WHERE id = $1`,
         [row.id]
@@ -3149,6 +3184,8 @@ app.get('/api/brevo/audience', auth, async (req, res) => {
       COALESCE(i.demande_optin, false)   AS demande_optin,
       i.optin_token_envoye_at,
       i.optin_confirme_at,
+      i.emailing_unsubscribed_at,
+      i.emailing_unsubscribed_source,
       i.prospect_id,
       p.name                              AS societe,
       COALESCE(p.statut_societe, 'Prospect') AS statut_societe

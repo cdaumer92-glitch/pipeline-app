@@ -784,11 +784,12 @@
           .finally(() => setCampaignsLoading(false));
       }, [API_URL]);
 
-      // Compteurs utiles pour l'affichage
+      // Compteurs utiles pour l'affichage (3 états RGPD distincts)
       const isOptinMode = typeCible === 'demande_optin';
       const totalContacts = audience.length;
       const optInCount = audience.filter(c => c.accept_emailing === true).length;
-      const optOutCount = totalContacts - optInCount;
+      const optOutCount = audience.filter(c => c.accept_emailing !== true && c.emailing_unsubscribed_at).length;
+      const nonSolliciteCount = audience.filter(c => c.accept_emailing !== true && !c.emailing_unsubscribed_at).length;
       const selectedCount = selectedIds.size;
       // En mode demande_optin : "tout sélectionner" coche tout (les opt-out sont la cible).
       // En mode normal : "tout sélectionner" coche seulement les opt-in (RGPD).
@@ -930,8 +931,23 @@
           {/* LISTE CONTACTS */}
           <div style={{background:'white', border:'0.5px solid var(--tw-border)', borderRadius:'12px', overflow:'hidden', marginBottom:'20px'}}>
             <div style={{padding:'14px 20px', borderBottom:'0.5px solid var(--tw-border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-              <div style={{fontSize:'14px', fontWeight:600, color:'var(--tw-ink)'}}>
-                Contacts {totalContacts > 0 && <span style={{color:'var(--tw-muted)', fontWeight:400, marginLeft:'8px'}}>({totalContacts} affichés · {selectedCount} sélectionnés{optOutCount > 0 && !isOptinMode ? ` · ${optOutCount} opt-out` : ''})</span>}
+              <div style={{display:'flex', alignItems:'center', gap:'12px', flexWrap:'wrap'}}>
+                <div style={{fontSize:'14px', fontWeight:600, color:'var(--tw-ink)'}}>
+                  Contacts {totalContacts > 0 && <span style={{color:'var(--tw-muted)', fontWeight:400, marginLeft:'4px'}}>({totalContacts} · {selectedCount} sélectionnés)</span>}
+                </div>
+                {totalContacts > 0 && !isOptinMode && (
+                  <div style={{display:'flex', gap:'6px', alignItems:'center'}}>
+                    {optInCount > 0 && (
+                      <span style={{fontSize:'11px', color:'#0d7d39', background:'#e6f7ec', padding:'2px 8px', borderRadius:'4px', fontWeight:500}}>{optInCount} opt-in</span>
+                    )}
+                    {nonSolliciteCount > 0 && (
+                      <span title="Aucune demande de consentement encore envoyée" style={{fontSize:'11px', color:'#5a6573', background:'#f1f4f7', padding:'2px 8px', borderRadius:'4px', fontWeight:500}}>{nonSolliciteCount} non sollicités</span>
+                    )}
+                    {optOutCount > 0 && (
+                      <span title="Contacts qui se sont désabonnés explicitement" style={{fontSize:'11px', color:'#a52d2d', background:'#fde8e8', padding:'2px 8px', borderRadius:'4px', fontWeight:500}}>{optOutCount} opt-out</span>
+                    )}
+                  </div>
+                )}
               </div>
               {audienceLoading && <div style={{fontSize:'12px', color:'var(--tw-muted)'}}>Chargement…</div>}
             </div>
@@ -959,10 +975,17 @@
                   </thead>
                   <tbody>
                     {audience.map(c => {
-                      const isOptOut = c.accept_emailing !== true;
+                      // 3 états RGPD distincts (clarification CNIL) :
+                      //  - opt-in : accept_emailing=true → vert
+                      //  - opt-out : accept_emailing=false ET emailing_unsubscribed_at non-null → rouge
+                      //  - non sollicité : accept_emailing=false ET emailing_unsubscribed_at NULL → gris
+                      const rgpdStatus = c.accept_emailing === true ? 'optin'
+                        : (c.emailing_unsubscribed_at ? 'optout' : 'non_sollicite');
                       const isSelected = selectedIds.has(c.id);
+                      // Fond de ligne : rouge clair pour opt-out, neutre pour non sollicité
+                      const rowBg = rgpdStatus === 'optout' ? '#fef9f9' : 'white';
                       return (
-                        <tr key={c.id} style={{borderBottom:'0.5px solid var(--tw-border)', background: isOptOut ? '#fef9f9' : 'white'}}>
+                        <tr key={c.id} style={{borderBottom:'0.5px solid var(--tw-border)', background: rowBg}}>
                           <td style={{padding:'8px 12px'}}>
                             <input type="checkbox" checked={isSelected} onChange={() => toggleOne(c.id)} />
                           </td>
@@ -972,10 +995,15 @@
                           <td style={{padding:'8px 12px', color:'var(--tw-muted)'}}>{c.fonction || ''}</td>
                           <td style={{padding:'8px 12px', color:'var(--tw-slate)'}}>{c.email}</td>
                           <td style={{padding:'8px 12px'}}>
-                            {isOptOut
-                              ? <span style={{fontSize:'11px', color:'#a52d2d', background:'#fde8e8', padding:'2px 8px', borderRadius:'4px', fontWeight:500}}>Opt-out</span>
-                              : <span style={{fontSize:'11px', color:'#0d7d39', background:'#e6f7ec', padding:'2px 8px', borderRadius:'4px', fontWeight:500}}>Opt-in</span>
-                            }
+                            {rgpdStatus === 'optin' && (
+                              <span style={{fontSize:'11px', color:'#0d7d39', background:'#e6f7ec', padding:'2px 8px', borderRadius:'4px', fontWeight:500}}>Opt-in</span>
+                            )}
+                            {rgpdStatus === 'optout' && (
+                              <span title={`Désabonné le ${new Date(c.emailing_unsubscribed_at).toLocaleDateString('fr-FR')}${c.emailing_unsubscribed_source ? ' via ' + c.emailing_unsubscribed_source : ''}`} style={{fontSize:'11px', color:'#a52d2d', background:'#fde8e8', padding:'2px 8px', borderRadius:'4px', fontWeight:500}}>Opt-out</span>
+                            )}
+                            {rgpdStatus === 'non_sollicite' && (
+                              <span title="Aucune demande de consentement envoyée à ce contact à ce jour. Ce contact n'est pas opt-out (il ne s'est jamais désabonné), il est simplement en attente de sollicitation." style={{fontSize:'11px', color:'#5a6573', background:'#f1f4f7', padding:'2px 8px', borderRadius:'4px', fontWeight:500}}>Non sollicité</span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -8171,9 +8199,10 @@
                                 <span style={{display:'inline-flex',alignItems:'center'}}>{I(ICONS.mail, 13)}</span>
                                 Emailing commercial
                               </label>
-                              {/* Si désabonné : afficher la date du dernier opt-out + source.
-                                  Visible uniquement si accept_emailing=false ET on a une date enregistrée
-                                  (champs renvoyés par GET /api/prospects/:id/interlocuteurs). */}
+                              {/* Affichage du statut RGPD côté fiche interlocuteur :
+                                    - opt-in (case cochée) : pas de message
+                                    - opt-out explicite (case décochée + date désabo) : message rouge "Désabonné le ..."
+                                    - non sollicité (case décochée + pas de date désabo) : message gris neutre */}
                               {!interlocuteurForm.accept_emailing && interlocuteurForm.emailing_unsubscribed_at && (() => {
                                 const dt = new Date(interlocuteurForm.emailing_unsubscribed_at);
                                 const dtStr = dt.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'});
@@ -8189,6 +8218,12 @@
                                   </div>
                                 );
                               })()}
+                              {!interlocuteurForm.accept_emailing && !interlocuteurForm.emailing_unsubscribed_at && interlocuteurForm.id && (
+                                <div title="Aucune demande de consentement n'a été envoyée à ce contact. Il n'est pas opt-out — il est juste en attente de sollicitation." style={{fontSize:'11px',color:'#5a6573',marginLeft:'22px',display:'flex',alignItems:'center',gap:'4px',fontStyle:'italic'}}>
+                                  <span style={{fontSize:'10px'}}>○</span>
+                                  Consentement jamais demandé
+                                </div>
+                              )}
                             </div>
                             <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',color:'#4a6868'}} title="Le contact accepte de recevoir des notes d'information (changements tarifs, infos produit, alertes service)">
                               <input type="checkbox" checked={!!interlocuteurForm.accept_notes_info} onChange={e=>setInterlocuteurForm({...interlocuteurForm,accept_notes_info:e.target.checked})} />
