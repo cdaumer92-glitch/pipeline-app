@@ -1210,7 +1210,8 @@
         principal: false,
         decideur: false,
         accept_emailing: false,
-        accept_notes_info: false
+        accept_notes_info: false,
+        demande_optin: false
       });
       // États pour les devis
       const [devisList, setDevisList] = React.useState([]);
@@ -1433,7 +1434,8 @@
               principal: false,
               decideur: false,
               accept_emailing: false,
-              accept_notes_info: false
+              accept_notes_info: false,
+              demande_optin: false
             });
           } else {
             window.showToast({title:'Erreur lors de la sauvegarde', type:'error'});
@@ -8231,14 +8233,14 @@
                               Notes d'information
                             </label>
                             {/* Case "Demande d'opt-in" :
-                                - Visible uniquement en édition (besoin d'un id BDD)
-                                - Visible uniquement pour Suspect/Prospect (règle métier)
-                                - Visible uniquement si pas déjà opt-in (accept_emailing=false)
-                                - Toggle via POST /api/interlocuteurs/:id/demande-optin
-                                Le commercial marque ce contact pour qu'il soit inclus dans
-                                la prochaine campagne de demande d'opt-in. */}
-                            {isEdit && interlocuteurForm.id &&
-                             ['Suspect', 'Prospect'].includes(selectedProspect?.statut_societe) &&
+                                Visible pour Suspect/Prospect (règle métier) + contact pas déjà opt-in.
+                                Comportement :
+                                  - En édition (fiche déjà en BDD) : toggle persiste immédiatement
+                                    via POST /api/interlocuteurs/:id/demande-optin (changement à chaud).
+                                  - En création (fiche pas encore sauvegardée) : mise à jour du state
+                                    local uniquement. La valeur sera envoyée dans le POST de création
+                                    via le champ demande_optin du body. */}
+                            {['Suspect', 'Prospect'].includes(selectedProspect?.statut_societe) &&
                              !interlocuteurForm.accept_emailing && (
                               <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',color:'#4a6868'}} title="Marquer ce contact pour qu'il reçoive un email de demande d'opt-in (lien de confirmation à cliquer)">
                                 <input
@@ -8246,7 +8248,12 @@
                                   checked={!!interlocuteurForm.demande_optin}
                                   onChange={async (e) => {
                                     const newValue = e.target.checked;
-                                    // Optimistic update local
+                                    // Cas 1 : création (pas encore d'id) → simple update state local
+                                    if (!interlocuteurForm.id) {
+                                      setInterlocuteurForm(f => ({...f, demande_optin: newValue}));
+                                      return;
+                                    }
+                                    // Cas 2 : édition → optimistic update + persistance API
                                     setInterlocuteurForm(f => ({...f, demande_optin: newValue}));
                                     try {
                                       const r = await fetch(`${API_URL}/interlocuteurs/${interlocuteurForm.id}/demande-optin`, {
@@ -8403,7 +8410,7 @@
                                 </button>
                               )}
                             </div>
-                            <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({nom:'',fonction:'',email:'',telephone:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false}); setShowInterlocuteurForm(true); }}
+                            <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({nom:'',fonction:'',email:'',telephone:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false,demande_optin:false}); setShowInterlocuteurForm(true); }}
                               style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Contact</button>
                           </div>
 

@@ -2179,10 +2179,15 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, source, source_detail } = req.body;
+    const { nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail } = req.body;
 
     const acceptEmailing = !!accept_emailing;
     const acceptNotesInfo = !!accept_notes_info;
+    // demande_optin : optionnel à la création. Si true, le contact apparaîtra
+    // directement dans la cible "Demandes d'opt-in en attente" de la page Campagnes.
+    // Pas de validation Suspect/Prospect ici (le filtre est appliqué côté UI page Campagnes
+    // ET côté endpoint /api/interlocuteurs/:id/demande-optin pour les toggles ultérieurs).
+    const demandeOptin = !!demande_optin;
     const linkedinClean = (linkedin_url && String(linkedin_url).trim()) || null;
     // RGPD : par défaut, contact créé manuellement depuis le CRM.
     // Le front peut surcharger (ex: 'societeinfo' à l'import enrichissement).
@@ -2199,16 +2204,16 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
     }
 
     const result = await client.query(
-      `INSERT INTO interlocuteurs (prospect_id, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, source, source_detail)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO interlocuteurs (prospect_id, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
-      [id, nom, fonction, email, telephone, linkedinClean, principal || false, decideur || false, acceptEmailing, acceptNotesInfo, sourceClean, sourceDetailClean]
+      [id, nom, fonction, email, telephone, linkedinClean, principal || false, decideur || false, acceptEmailing, acceptNotesInfo, demandeOptin, sourceClean, sourceDetailClean]
     );
 
     const newInterloc = result.rows[0];
 
     // RGPD - Option A : on logue la création initiale dans l'historique
-    // pour avoir une trace complète depuis J1 (vrai pour les 2 flags).
+    // pour avoir une trace complète depuis J1 (vrai pour les 2 flags + demande_optin si coché).
     const ipAddr = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || null;
     const userAgent = req.headers['user-agent'] || null;
     await client.query(
@@ -2226,6 +2231,22 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
         acceptNotesInfo
       ]
     );
+    // Trace dédiée pour demande_optin uniquement si coché à la création
+    // (sinon ça pollue l'historique avec des "false" inutiles).
+    if (demandeOptin) {
+      await client.query(
+        `INSERT INTO interlocuteurs_consents
+           (interlocuteur_id, field, old_value, new_value, source, source_detail, changed_by, ip_address, user_agent)
+         VALUES ($1, 'demande_optin', NULL, 'true', 'manual_crm_create', $2, $3, $4, $5)`,
+        [
+          newInterloc.id,
+          `Création interlocuteur avec demande d'opt-in cochée (prospect_id=${id})`,
+          req.userName || null,
+          ipAddr,
+          userAgent
+        ]
+      );
+    }
 
     await client.query('COMMIT');
     res.json(newInterloc);
