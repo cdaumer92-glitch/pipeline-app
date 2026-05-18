@@ -365,6 +365,30 @@
     console.log('[Pipeline] Version chargée: ' + new Date().toISOString());
     const API_URL = '/api';
 
+    // ==================== HELPER NOMS INTERLOCUTEURS ====================
+    // Combinaison prenom + nom pour affichage. Gère les 3 cas :
+    //  - prenom + nom    → "Maurice Leblanc"
+    //  - juste nom       → "Leblanc" (anciens contacts non splittés ou contacts sans prénom)
+    //  - juste prenom    → "Maurice" (rare, mais cohérent)
+    //  - rien            → "" (jamais affiché en pratique)
+    // Source unique pour toute l'app : si on change le format un jour, c'est ici.
+    function displayName(c) {
+      if (!c) return '';
+      const p = (c.prenom || '').trim();
+      const n = (c.nom || '').trim();
+      return [p, n].filter(Boolean).join(' ');
+    }
+    // Variante "initiales" pour les avatars (max 2 lettres)
+    function displayInitials(c) {
+      if (!c) return '?';
+      const p = (c.prenom || '').trim();
+      const n = (c.nom || '').trim();
+      // Priorité : 1ère lettre prénom + 1ère lettre nom, sinon 2 premières du nom
+      if (p && n) return (p[0] + n[0]).toUpperCase();
+      const src = p || n || '?';
+      return src.split(/\s+/).map(w => w[0]).filter(Boolean).join('').toUpperCase().slice(0, 2) || '?';
+    }
+
     // ==================== SYSTÈME DE TOAST ====================
     // Notifications non-bloquantes (succès, erreur, warning, info)
     // Usage : showToast('Devis sauvegardé', 'success') ou showToast({title:'...', message:'...', type:'success', duration:3000})
@@ -1202,6 +1226,7 @@
       
       const [interlocuteurForm, setInterlocuteurForm] = React.useState({
         id: null,
+        prenom: '',
         nom: '',
         fonction: '',
         email: '',
@@ -1426,6 +1451,7 @@
             setShowInterlocuteurForm(false);
             setInterlocuteurForm({
               id: null,
+              prenom: '',
               nom: '',
               fonction: '',
               email: '',
@@ -8410,7 +8436,7 @@
                                 </button>
                               )}
                             </div>
-                            <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({nom:'',fonction:'',email:'',telephone:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false,demande_optin:false}); setShowInterlocuteurForm(true); }}
+                            <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({prenom:'',nom:'',fonction:'',email:'',telephone:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false,demande_optin:false}); setShowInterlocuteurForm(true); }}
                               style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Contact</button>
                           </div>
 
@@ -8422,7 +8448,7 @@
                           ) : interlocuteurs.map(c => {
                             const avatarColors = ['var(--tw-teal)','#667eea','#f0932b','#2ec27e','#e74c3c','#9b59b6'];
                             const col = avatarColors[c.id % avatarColors.length];
-                            const ini = (c.nom||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+                            const ini = displayInitials(c);
                             const isEditingThis = editingId === c.id;
                             const isDragging = draggedContactId === c.id;
                             const isDragOver = dragOverContactId === c.id && draggedContactId !== c.id;
@@ -8446,7 +8472,7 @@
                                   <span title="Glisser pour réordonner" style={{flexShrink:0,color:'var(--tw-muted)',fontSize:'14px',cursor:'grab',userSelect:'none',lineHeight:1}}>⋮⋮</span>
                                   <div style={{width:'34px',height:'34px',borderRadius:'50%',background:col,color:'white',fontWeight:'600',fontSize:'12px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{ini}</div>
                                   <div style={{flex:1,minWidth:0}}>
-                                    <div style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{c.nom}</div>
+                                    <div style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{displayName(c)}</div>
                                     <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'2px',display:'flex',gap:'10px',flexWrap:'wrap'}}>
                                       {c.fonction && <span>{c.fonction}</span>}
                                       {c.email && <a href={`mailto:${c.email}`} style={{color:'var(--tw-teal)',textDecoration:'none'}}>✉ {c.email}</a>}
@@ -8460,7 +8486,7 @@
                                     {c.decideur && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'#fdecea',color:'var(--tw-red)'}}>Décideur</span>}
                                     {c.principal && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
                                     <IconBtn title="Modifier le contact"
-                                      onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',linkedin_url:c.linkedin_url||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info,demande_optin:!!c.demande_optin,emailing_unsubscribed_at:c.emailing_unsubscribed_at||null,emailing_unsubscribed_source:c.emailing_unsubscribed_source||null}); setShowInterlocuteurForm(true); }}
+                                      onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,prenom:c.prenom||'',nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',linkedin_url:c.linkedin_url||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info,demande_optin:!!c.demande_optin,emailing_unsubscribed_at:c.emailing_unsubscribed_at||null,emailing_unsubscribed_source:c.emailing_unsubscribed_source||null}); setShowInterlocuteurForm(true); }}
                                     >{I(ICONS.edit, 13)}</IconBtn>
                                     <IconBtn title="Supprimer le contact" danger
                                       onClick={() => handleDeleteInterlocuteur(c.id)}
@@ -9299,13 +9325,29 @@
                       {interlocuteurForm.id ? 'Modifier l\'interlocuteur' : 'Nouvel interlocuteur'}
                     </h4>
                     <div style={{display: 'grid', gap: '12px'}}>
-                      <input
-                        type="text"
-                        placeholder="Nom *"
-                        value={interlocuteurForm.nom}
-                        onChange={(e) => setInterlocuteurForm({...interlocuteurForm, nom: e.target.value})}
-                        style={{...styles.formInput, fontSize: '14px'}}
-                      />
+                      {/* Saisie séparée prénom / nom :
+                          - Prénom : optionnel (certains contacts génériques type "contact@"
+                            n'ont pas de prénom)
+                          - Nom : obligatoire (utilisé pour identifier visuellement le contact)
+                          Le champ Nom contient désormais UNIQUEMENT le nom de famille,
+                          plus le combo prénom+nom comme c'était le cas historiquement.
+                          Les anciens contacts sont splittés automatiquement par migration. */}
+                      <div style={{display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px'}}>
+                        <input
+                          type="text"
+                          placeholder="Prénom"
+                          value={interlocuteurForm.prenom || ''}
+                          onChange={(e) => setInterlocuteurForm({...interlocuteurForm, prenom: e.target.value})}
+                          style={{...styles.formInput, fontSize: '14px'}}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Nom *"
+                          value={interlocuteurForm.nom}
+                          onChange={(e) => setInterlocuteurForm({...interlocuteurForm, nom: e.target.value})}
+                          style={{...styles.formInput, fontSize: '14px'}}
+                        />
+                      </div>
                       <input
                         type="text"
                         placeholder="Fonction"
@@ -9427,7 +9469,7 @@
                           )}
                         </div>
                         <div style={{fontSize: '16px', fontWeight: 'bold', color: '#333', marginBottom: '8px', paddingRight: '140px'}}>
-                          {interlocuteur.nom}
+                          {displayName(interlocuteur)}
                         </div>
                         {/* Fonction, Email, Tél sur une seule ligne */}
                         <div style={{display: 'flex', gap: '20px', fontSize: '14px', color: '#666', marginBottom: '10px', flexWrap: 'wrap'}}>
@@ -9988,8 +10030,8 @@
                     <option value="Interne">Interne</option>
                     {interlocuteurs && interlocuteurs.length > 0 ? (
                       interlocuteurs.map(interlocuteur => (
-                        <option key={interlocuteur.id} value={interlocuteur.nom}>
-                          {interlocuteur.nom} {interlocuteur.fonction && `(${interlocuteur.fonction})`}
+                        <option key={interlocuteur.id} value={displayName(interlocuteur)}>
+                          {displayName(interlocuteur)} {interlocuteur.fonction && `(${interlocuteur.fonction})`}
                         </option>
                       ))
                     ) : (

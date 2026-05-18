@@ -404,6 +404,34 @@ async function initDB() {
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS prenom TEXT`);
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS civilite TEXT`);
 
+    // Migration auto : split nom→prenom/nom pour les contacts existants.
+    // Heuristique : si prenom est NULL et nom contient un espace, on split sur le
+    // PREMIER espace : tout ce qui précède devient prenom, le reste devient nom.
+    // - "Maurice Leblanc"      → prenom="Maurice", nom="Leblanc" ✅
+    // - "Paul-Louis Michel"    → prenom="Paul-Louis", nom="Michel" ✅
+    // - "Jean Pierre De La Tour" → prenom="Jean", nom="Pierre De La Tour" ⚠️ partiellement faux
+    //   (mais récupérable manuellement à l'ouverture de la fiche)
+    // - "M. COUADAU"           → prenom="M.", nom="COUADAU" ⚠️ à corriger manuellement
+    // - "TMIM YOAN"            → prenom="TMIM", nom="YOAN" ⚠️ probablement à inverser
+    //
+    // On exclut les noms commençant par un préfixe civilité connu (M., Mme, etc.)
+    // pour ne PAS les splitter automatiquement → laissés intacts pour correction manuelle.
+    await client.query(`
+      UPDATE interlocuteurs
+         SET prenom = TRIM(SPLIT_PART(nom, ' ', 1)),
+             nom    = TRIM(SUBSTRING(nom FROM POSITION(' ' IN nom) + 1))
+       WHERE (prenom IS NULL OR TRIM(prenom) = '')
+         AND nom IS NOT NULL
+         AND nom LIKE '% %'
+         AND nom NOT ILIKE 'M.%'
+         AND nom NOT ILIKE 'Mme%'
+         AND nom NOT ILIKE 'Mlle%'
+         AND nom NOT ILIKE 'Mr %'
+         AND nom NOT ILIKE 'Mr.%'
+         AND nom NOT ILIKE 'Dr %'
+         AND nom NOT ILIKE 'Dr.%'
+    `);
+
     // Migration: flags de communication (RGPD - opt-in séparés)
     //   accept_emailing   : accepte les campagnes commerciales (offres, promos, sollicitations)
     //   accept_notes_info : accepte les notes d'information (changements tarifs, infos produit, alertes)
@@ -2179,10 +2207,14 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail } = req.body;
+    const { prenom, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail } = req.body;
 
     const acceptEmailing = !!accept_emailing;
     const acceptNotesInfo = !!accept_notes_info;
+    // prenom et nom sont désormais 2 champs séparés. prenom est optionnel
+    // (peut être NULL pour des contacts génériques type "contact@", "info@").
+    const prenomClean = (prenom && String(prenom).trim()) || null;
+    const nomClean = (nom && String(nom).trim()) || null;
     // demande_optin : optionnel à la création. Si true, le contact apparaîtra
     // directement dans la cible "Demandes d'opt-in en attente" de la page Campagnes.
     // Pas de validation Suspect/Prospect ici (le filtre est appliqué côté UI page Campagnes
@@ -2204,10 +2236,10 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
     }
 
     const result = await client.query(
-      `INSERT INTO interlocuteurs (prospect_id, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `INSERT INTO interlocuteurs (prospect_id, prenom, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
-      [id, nom, fonction, email, telephone, linkedinClean, principal || false, decideur || false, acceptEmailing, acceptNotesInfo, demandeOptin, sourceClean, sourceDetailClean]
+      [id, prenomClean, nomClean, fonction, email, telephone, linkedinClean, principal || false, decideur || false, acceptEmailing, acceptNotesInfo, demandeOptin, sourceClean, sourceDetailClean]
     );
 
     const newInterloc = result.rows[0];
@@ -2263,7 +2295,7 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
   const client = await pool.connect();
   try {
     const { prospectId, id } = req.params;
-    const { nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info } = req.body;
+    const { prenom, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info } = req.body;
 
     await client.query('BEGIN');
 
@@ -2299,7 +2331,8 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
                           : (String(linkedin_url).trim() === '' ? '' : String(linkedin_url).trim());
     const result = await client.query(
       `UPDATE interlocuteurs
-       SET nom = $1, fonction = $2, email = $3, telephone = $4, principal = $5, decideur = $6,
+       SET prenom = CASE WHEN $12::text IS NULL THEN prenom ELSE $12::text END,
+           nom = $1, fonction = $2, email = $3, telephone = $4, principal = $5, decideur = $6,
            accept_emailing = COALESCE($7, accept_emailing),
            accept_notes_info = COALESCE($8, accept_notes_info),
            linkedin_url = CASE WHEN $11::text IS NULL THEN linkedin_url
@@ -2313,7 +2346,14 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
         accept_emailing === undefined ? null : !!accept_emailing,
         accept_notes_info === undefined ? null : !!accept_notes_info,
         id, prospectId,
-        linkedinValue
+        linkedinValue,
+        // $12 prenom : sémantique différenciée
+        //   - undefined côté JS → null SQL → SET prenom = prenom (garde valeur, compat ascendante)
+        //   - chaîne vide → null en BDD (effacer le prénom)
+        //   - valeur réelle → update vers cette valeur
+        // Note : '' devient null grâce à la conversion plus bas (qui retourne null pour '')
+        (prenom === undefined) ? null
+                               : (String(prenom).trim() === '' ? null : String(prenom).trim())
       ]
     );
 
