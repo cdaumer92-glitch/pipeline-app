@@ -477,8 +477,12 @@ async function initDB() {
     // en plus de continuer à tracer dans interlocuteurs_consents (audit).
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS emailing_unsubscribed_at TIMESTAMP`);
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS emailing_unsubscribed_source TEXT`);
-    // Backfill une seule fois depuis interlocuteurs_consents si les colonnes sont NULL
-    // mais qu'un événement opt-out existe en historique.
+    // Backfill : remontée des vrais désabonnements depuis interlocuteurs_consents.
+    // RÈGLE CRITIQUE : un événement de création (old_value IS NULL) n'est PAS un
+    // désabonnement, c'est juste l'enregistrement de l'état initial du contact.
+    // Bug fix v2 : on filtre old_value = 'true' (= passage true→false réel)
+    // ET on exclut explicitement la source 'manual_crm_create' qui ne représente
+    // jamais un désabonnement (c'est la création de fiche).
     await client.query(`
       UPDATE interlocuteurs i
          SET emailing_unsubscribed_at = sub.changed_at,
@@ -487,12 +491,26 @@ async function initDB() {
           SELECT DISTINCT ON (interlocuteur_id)
                  interlocuteur_id, changed_at, source
             FROM interlocuteurs_consents
-           WHERE field = 'accept_emailing' AND new_value = 'false'
+           WHERE field = 'accept_emailing'
+             AND new_value = 'false'
+             AND old_value = 'true'
+             AND source <> 'manual_crm_create'
            ORDER BY interlocuteur_id, changed_at DESC
         ) sub
        WHERE i.id = sub.interlocuteur_id
          AND i.emailing_unsubscribed_at IS NULL
          AND COALESCE(i.accept_emailing, false) = false
+    `);
+
+    // Cleanup ponctuel : si la migration précédente (bug v1) a écrit des
+    // emailing_unsubscribed_at/source pointant vers une création (manual_crm_create
+    // ou similaire), on les remet à NULL pour rétablir l'état "Non sollicité"
+    // attendu juridiquement (pas de désabo réel).
+    await client.query(`
+      UPDATE interlocuteurs
+         SET emailing_unsubscribed_at = NULL,
+             emailing_unsubscribed_source = NULL
+       WHERE emailing_unsubscribed_source = 'manual_crm_create'
     `);
 
     // ========== AUDIT ENVOIS CAMPAGNES BREVO ==========
