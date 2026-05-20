@@ -3464,7 +3464,14 @@ app.get('/api/brevo/campaign-stats/:id', auth, async (req, res) => {
 
   // 2. Détail nominatif depuis campagne_events (best-effort)
   let events = { clicked: [], bounced: [], opened: [] };
+  // Tableau récapitulatif par destinataire : un objet par email avec ses flags.
+  // Sources croisées :
+  //   - campagnes_envois.contacts_ids → liste des destinataires (snapshot envoi)
+  //   - interlocuteurs → prénom/nom pour affichage
+  //   - campagne_events → flags delivered/opened/clicked/bounced/unsubscribed
+  let recipients = [];
   try {
+    // a) Événements groupés par email + type
     const ev = await pool.query(
       `SELECT email, event_type, MAX(event_at) AS last_at
          FROM campagne_events
@@ -3472,14 +3479,68 @@ app.get('/api/brevo/campaign-stats/:id', auth, async (req, res) => {
         GROUP BY email, event_type`,
       [id]
     );
+    // Map email → {delivered, opened, clicked, bounced, unsubscribed, lastAt}
+    const byEmail = new Map();
+    const ensure = (email) => {
+      const e = email.toLowerCase();
+      if (!byEmail.has(e)) byEmail.set(e, { email: e, delivered: false, opened: false, clicked: false, bounced: false, unsubscribed: false, prenom: null, nom: null, societe: null });
+      return byEmail.get(e);
+    };
     for (const row of ev.rows) {
-      const entry = { email: row.email, at: row.last_at };
-      if (row.event_type === 'click') events.clicked.push(entry);
-      else if (['hard_bounce', 'soft_bounce', 'invalid_email', 'blocked'].includes(row.event_type)) events.bounced.push(entry);
-      else if (['opened', 'unique_opened'].includes(row.event_type)) events.opened.push(entry);
+      const r = ensure(row.email);
+      const t = row.event_type;
+      if (t === 'delivered') r.delivered = true;
+      else if (t === 'click') { r.clicked = true; events.clicked.push({ email: row.email, at: row.last_at }); }
+      else if (['opened', 'unique_opened'].includes(t)) { r.opened = true; events.opened.push({ email: row.email, at: row.last_at }); }
+      else if (['hard_bounce', 'soft_bounce', 'invalid_email', 'blocked'].includes(t)) { r.bounced = true; events.bounced.push({ email: row.email, at: row.last_at }); }
+      else if (['unsubscribe', 'unsubscribed'].includes(t)) r.unsubscribed = true;
     }
+
+    // b) Ajouter les destinataires du snapshot d'envoi (même sans événement)
+    //    pour afficher TOUS les contacts, pas seulement ceux qui ont réagi.
+    const envoiRow = await pool.query(
+      `SELECT contacts_ids FROM campagnes_envois
+        WHERE brevo_campaign_id_envoi = $1 OR brevo_campaign_id_source = $1
+        ORDER BY created_at DESC LIMIT 1`,
+      [id]
+    );
+    const contactIds = (envoiRow.rows[0]?.contacts_ids) || [];
+    if (contactIds.length > 0) {
+      const interlocs = await pool.query(
+        `SELECT id, email, prenom, nom FROM interlocuteurs WHERE id = ANY($1::int[])`,
+        [contactIds]
+      );
+      for (const i of interlocs.rows) {
+        if (!i.email) continue;
+        const r = ensure(i.email);
+        // Renseigne prénom/nom depuis la fiche CRM (premier trouvé pour cet email)
+        if (!r.prenom && !r.nom) { r.prenom = i.prenom; r.nom = i.nom; }
+        // Un contact présent dans le snapshot est forcément "envoyé" → on considère
+        // delivered=true par défaut si aucun bounce n'a été reçu (best-effort).
+        if (!r.bounced && !r.delivered) r.delivered = true;
+      }
+    }
+
+    // c) Pour les emails présents dans les events mais pas dans le snapshot
+    //    (ex: campagne envoyée hors CRM), tenter d'enrichir prénom/nom par email
+    const emailsSansNom = [...byEmail.values()].filter(r => !r.prenom && !r.nom).map(r => r.email);
+    if (emailsSansNom.length > 0) {
+      const enrich = await pool.query(
+        `SELECT DISTINCT ON (LOWER(email)) LOWER(email) AS email, prenom, nom
+           FROM interlocuteurs
+          WHERE LOWER(email) = ANY($1::text[])
+          ORDER BY LOWER(email), id ASC`,
+        [emailsSansNom]
+      );
+      for (const row of enrich.rows) {
+        const r = byEmail.get(row.email);
+        if (r) { r.prenom = row.prenom; r.nom = row.nom; }
+      }
+    }
+
+    recipients = [...byEmail.values()].sort((a, b) => (a.nom || a.email).localeCompare(b.nom || b.email));
   } catch (err) {
-    console.error('[campaign-stats] erreur lecture events:', err);
+    console.error('[campaign-stats] erreur construction recipients:', err);
   }
 
   res.json({
@@ -3487,7 +3548,8 @@ app.get('/api/brevo/campaign-stats/:id', auth, async (req, res) => {
     brevo_available: result.ok,
     brevo_error: result.ok ? null : result.error,
     aggregated,
-    events
+    events,
+    recipients
   });
 });
 
