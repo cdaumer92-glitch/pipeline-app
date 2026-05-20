@@ -581,6 +581,33 @@ async function initDB() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_camp_envois_created ON campagnes_envois(created_at DESC)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_camp_envois_brevo_source ON campagnes_envois(brevo_campaign_id_source)`);
 
+    // ========== TRACKING ÉVÉNEMENTS CAMPAGNES (webhook Brevo) ==========
+    // Stocke chaque événement reçu du webhook Brevo, par email et par campagne.
+    // Permet de répondre à : qui a reçu / ouvert / cliqué / bouncé.
+    // event_type valeurs Brevo : delivered, opened (unique_opened), click,
+    //   hard_bounce, soft_bounce, invalid_email, deferred, blocked, spam, error.
+    // On lie à campagnes_envois via brevo_campaign_id quand on peut le résoudre,
+    // et à interlocuteurs via l'email (best-effort, un email = potentiellement
+    // plusieurs fiches CRM).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS campagne_events (
+        id                  SERIAL PRIMARY KEY,
+        brevo_campaign_id   INTEGER,
+        email               TEXT NOT NULL,
+        event_type          TEXT NOT NULL,
+        event_at            TIMESTAMP DEFAULT NOW(),
+        raw_payload         JSONB,
+        created_at          TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_camp_events_campaign ON campagne_events(brevo_campaign_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_camp_events_email ON campagne_events(email)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_camp_events_type ON campagne_events(event_type)`);
+    // Anti-doublon : un même event (campagne+email+type+timestamp) ne doit pas être
+    // inséré 2 fois si Brevo renvoie le webhook (retry réseau). On déduplique sur
+    // un index unique partiel basé sur les 4 colonnes.
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_camp_events_dedup ON campagne_events(brevo_campaign_id, email, event_type, event_at)`);
+
     // ========== MIGRATION GCS → Scaleway : préfixes pdf_url ==========
     await client.query(`
       CREATE TABLE IF NOT EXISTS migrations (
@@ -2540,6 +2567,35 @@ app.post('/api/webhook/brevo', async (req, res) => {
   const campaignId = payload['camp_id'] || payload['campaign-id'] || payload.campaign_id || null;
   const ts = payload.ts ? new Date(payload.ts * 1000).toISOString() : null;
 
+  // ===== TRACKING : enregistrer TOUS les événements de suivi dans campagne_events =====
+  // Événements Brevo de tracking (pour stats déliverabilité/ouvertures/clics).
+  // On les stocke systématiquement (best-effort), indépendamment du traitement
+  // opt-out qui suit. Cela alimente la page Historique des campagnes.
+  const trackingEvents = [
+    'delivered', 'opened', 'unique_opened', 'click', 'clicks',
+    'hard_bounce', 'soft_bounce', 'invalid_email', 'blocked', 'deferred',
+    'spam', 'error', 'unsubscribe', 'unsubscribed'
+  ];
+  if (email && trackingEvents.includes(eventType)) {
+    try {
+      // Normalisation : Brevo envoie "clicks" ou "click" selon les versions → on uniformise en "click"
+      const normalizedType = (eventType === 'clicks') ? 'click'
+                           : (eventType === 'unique_opened') ? 'opened'
+                           : eventType;
+      const eventAt = ts || new Date().toISOString();
+      // ON CONFLICT DO NOTHING : déduplication via l'index unique (retry Brevo)
+      await pool.query(
+        `INSERT INTO campagne_events (brevo_campaign_id, email, event_type, event_at, raw_payload)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (brevo_campaign_id, email, event_type, event_at) DO NOTHING`,
+        [campaignId ? parseInt(campaignId) : null, email, normalizedType, eventAt, JSON.stringify(payload)]
+      );
+    } catch (err) {
+      // On ne bloque jamais le webhook sur une erreur de tracking
+      console.error('[brevo-webhook] erreur insert campagne_events:', err.message);
+    }
+  }
+
   // Événements de désinscription envoyés par Brevo.
   // Note : Brevo utilise "unsubscribe" (sans 'd' final) côté marketing,
   // contrairement à ce qu'on aurait pu attendre. On accepte aussi "unsubscribed"
@@ -2547,7 +2603,7 @@ app.post('/api/webhook/brevo', async (req, res) => {
   const unsubscribeEvents = ['unsubscribe', 'unsubscribed', 'list_unsubscribe'];
   if (!unsubscribeEvents.includes(eventType)) {
     // 200 quand même pour que Brevo n'essaie pas de retry indéfiniment
-    return res.json({ ok: true, ignored: true, reason: `event "${eventType}" non géré` });
+    return res.json({ ok: true, ignored: true, reason: `event "${eventType}" non géré (tracking enregistré)` });
   }
 
   if (!email) {
@@ -3296,6 +3352,97 @@ app.post('/api/brevo/send-test', auth, async (req, res) => {
     return res.status(result.status).json({ error: result.error });
   }
   res.json({ ok: true, sent_to: testEmail });
+});
+
+// -------- GET /api/brevo/envois --------
+// Historique des campagnes envoyées depuis le CRM (table campagnes_envois).
+// Retourne les envois triés du plus récent au plus ancien, avec les infos audit.
+// Pas d'appel Brevo ici (rapide) : les stats détaillées viennent de campaign-stats.
+app.get('/api/brevo/envois', auth, async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '50'), 200);
+  try {
+    const r = await pool.query(
+      `SELECT id, brevo_campaign_id_source, brevo_campaign_id_envoi,
+              campagne_nom, campagne_objet, sender_email, sender_name,
+              nb_contacts_demandes, nb_contacts_envoyes, nb_contacts_rgpd_ko,
+              statut, erreur_message, envoye_par_nom,
+              created_at, sent_at, filtres_json
+         FROM campagnes_envois
+        ORDER BY created_at DESC
+        LIMIT $1`,
+      [limit]
+    );
+    res.json({ count: r.rows.length, envois: r.rows });
+  } catch (err) {
+    console.error('[brevo-envois] erreur SQL:', err);
+    res.status(500).json({ error: 'Erreur BDD: ' + err.message });
+  }
+});
+
+// -------- GET /api/brevo/campaign-stats/:id --------
+// Stats agrégées d'une campagne Brevo (délivrés, ouverts, cliqués, bounces).
+// Combine 2 sources :
+//   1. API Brevo GET /v3/emailCampaigns/{id} → statistics.globalStats (agrégé)
+//   2. Table campagne_events locale → détail nominatif (qui a cliqué/bouncé)
+// Doc : https://developers.brevo.com/reference/getemailcampaign
+app.get('/api/brevo/campaign-stats/:id', auth, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'id de campagne invalide' });
+  }
+
+  // 1. Stats agrégées Brevo
+  const result = await brevoFetch(`/emailCampaigns/${id}`);
+  let aggregated = null;
+  if (result.ok) {
+    const stats = result.data?.statistics?.globalStats || {};
+    const sent = stats.sent || 0;
+    const delivered = stats.delivered || 0;
+    aggregated = {
+      sent,
+      delivered,
+      hardBounces: stats.hardBounces || 0,
+      softBounces: stats.softBounces || 0,
+      uniqueOpens: stats.uniqueViews || 0,
+      opens: stats.viewed || 0,
+      uniqueClicks: stats.uniqueClicks || 0,
+      clicks: stats.clickers || 0,
+      unsubscriptions: stats.unsubscriptions || 0,
+      complaints: stats.complaints || 0,
+      // Taux calculés (base = délivrés, standard marketing)
+      tauxDelivrabilite: sent > 0 ? Math.round((delivered / sent) * 1000) / 10 : 0,
+      tauxOuverture: delivered > 0 ? Math.round(((stats.uniqueViews || 0) / delivered) * 1000) / 10 : 0,
+      tauxClic: delivered > 0 ? Math.round(((stats.uniqueClicks || 0) / delivered) * 1000) / 10 : 0
+    };
+  }
+
+  // 2. Détail nominatif depuis campagne_events (best-effort)
+  let events = { clicked: [], bounced: [], opened: [] };
+  try {
+    const ev = await pool.query(
+      `SELECT email, event_type, MAX(event_at) AS last_at
+         FROM campagne_events
+        WHERE brevo_campaign_id = $1
+        GROUP BY email, event_type`,
+      [id]
+    );
+    for (const row of ev.rows) {
+      const entry = { email: row.email, at: row.last_at };
+      if (row.event_type === 'click') events.clicked.push(entry);
+      else if (['hard_bounce', 'soft_bounce', 'invalid_email', 'blocked'].includes(row.event_type)) events.bounced.push(entry);
+      else if (['opened', 'unique_opened'].includes(row.event_type)) events.opened.push(entry);
+    }
+  } catch (err) {
+    console.error('[campaign-stats] erreur lecture events:', err);
+  }
+
+  res.json({
+    campaign_id: id,
+    brevo_available: result.ok,
+    brevo_error: result.ok ? null : result.error,
+    aggregated,
+    events
+  });
 });
 
 // =====================================================================

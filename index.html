@@ -731,7 +731,149 @@
     // 4. Choisir la campagne Brevo (dropdown des brouillons)
     // 5. Bouton "Envoi de test" → envoie à c.daumer@texaswin.fr
     // 6. Bouton "Envoyer" → modal confirmation → POST /api/brevo/send-campaign
+    // ===================================================================
+    // COMPOSANT CampagnesHistorique — Historique + stats des envois
+    // ===================================================================
+    function CampagnesHistorique({ user, API_URL }) {
+      const [envois, setEnvois] = React.useState([]);
+      const [loading, setLoading] = React.useState(false);
+      const [error, setError] = React.useState(null);
+      const [expandedId, setExpandedId] = React.useState(null);
+      const [statsCache, setStatsCache] = React.useState({});
+      const [statsLoading, setStatsLoading] = React.useState(null);
+
+      const token = () => (user && user.token) ? user.token : null;
+
+      React.useEffect(() => {
+        setLoading(true);
+        setError(null);
+        fetch(`${API_URL}/brevo/envois?limit=100`, { headers: { 'Authorization': 'Bearer ' + token() } })
+          .then(r => r.json().then(data => ({ ok: r.ok, data })))
+          .then(({ ok, data }) => {
+            if (!ok) { setError(data.error || 'Erreur de chargement'); setEnvois([]); }
+            else setEnvois(data.envois || []);
+          })
+          .catch(err => { setError('Erreur réseau: ' + err.message); setEnvois([]); })
+          .finally(() => setLoading(false));
+      }, [API_URL]);
+
+      const loadStats = (brevoCampaignId) => {
+        if (!brevoCampaignId || statsCache[brevoCampaignId]) return;
+        setStatsLoading(brevoCampaignId);
+        fetch(`${API_URL}/brevo/campaign-stats/${brevoCampaignId}`, { headers: { 'Authorization': 'Bearer ' + token() } })
+          .then(r => r.json().then(data => ({ ok: r.ok, data })))
+          .then(({ ok, data }) => { if (ok) setStatsCache(prev => ({ ...prev, [brevoCampaignId]: data })); })
+          .catch(err => console.error('Stats error:', err))
+          .finally(() => setStatsLoading(null));
+      };
+
+      const toggleExpand = (envoi) => {
+        const cid = envoi.brevo_campaign_id_envoi || envoi.brevo_campaign_id_source;
+        if (expandedId === envoi.id) setExpandedId(null);
+        else { setExpandedId(envoi.id); loadStats(cid); }
+      };
+
+      const statutBadge = (statut) => {
+        const map = {
+          'sent': { label: 'Envoyé', bg: '#e6f7ec', col: '#0d7d39' },
+          'sent_unverified': { label: 'Envoyé (non vérifié)', bg: '#fef5e7', col: '#b97800' },
+          'failed': { label: 'Échec', bg: '#fde8e8', col: '#a52d2d' },
+          'failed_after_send': { label: 'Suspendu', bg: '#fde8e8', col: '#a52d2d' },
+          'pending': { label: 'En attente', bg: '#f1f4f7', col: '#5a6573' }
+        };
+        const s = map[statut] || { label: statut, bg: '#f1f4f7', col: '#5a6573' };
+        return <span style={{fontSize:'11px', color:s.col, background:s.bg, padding:'2px 8px', borderRadius:'4px', fontWeight:500}}>{s.label}</span>;
+      };
+
+      const fmtDate = (d) => d ? new Date(d).toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+
+      return (
+        <div>
+          <div style={{fontSize:'14px', fontWeight:600, color:'var(--tw-ink)', marginBottom:'16px'}}>
+            Historique des envois {envois.length > 0 && <span style={{color:'var(--tw-muted)', fontWeight:400}}>({envois.length})</span>}
+          </div>
+          {loading && <div style={{color:'var(--tw-muted)', fontSize:'13px', padding:'20px', textAlign:'center'}}>Chargement…</div>}
+          {error && <div style={{color:'#a52d2d', fontSize:'13px', padding:'20px'}}>Erreur : {error}</div>}
+          {!loading && !error && envois.length === 0 && (
+            <div style={{color:'var(--tw-muted)', fontSize:'13px', padding:'40px 20px', textAlign:'center'}}>Aucun envoi enregistré pour le moment</div>
+          )}
+          {envois.map(e => {
+            const cid = e.brevo_campaign_id_envoi || e.brevo_campaign_id_source;
+            const isExpanded = expandedId === e.id;
+            const stats = statsCache[cid];
+            return (
+              <div key={e.id} style={{border:'0.5px solid var(--tw-border)', borderRadius:'10px', marginBottom:'10px', overflow:'hidden', background:'white'}}>
+                <div onClick={() => toggleExpand(e)} style={{padding:'14px 18px', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'12px'}}>
+                  <div style={{flex:1, minWidth:0}}>
+                    <div style={{fontSize:'14px', fontWeight:600, color:'var(--tw-ink)'}}>
+                      {e.campagne_nom || `Campagne #${e.brevo_campaign_id_source}`}
+                      <span style={{fontSize:'12px', color:'var(--tw-muted)', fontWeight:400, marginLeft:'8px'}}>#{e.brevo_campaign_id_source}</span>
+                    </div>
+                    <div style={{fontSize:'12px', color:'var(--tw-muted)', marginTop:'3px'}}>
+                      {e.campagne_objet && <span>"{e.campagne_objet}" · </span>}
+                      {fmtDate(e.sent_at || e.created_at)}
+                      {e.envoye_par_nom && <span> · par {e.envoye_par_nom}</span>}
+                    </div>
+                  </div>
+                  <div style={{display:'flex', alignItems:'center', gap:'10px', flexShrink:0}}>
+                    <span style={{fontSize:'12px', color:'var(--tw-slate)'}}>{e.nb_contacts_envoyes} envoyé{e.nb_contacts_envoyes > 1 ? 's' : ''}</span>
+                    {statutBadge(e.statut)}
+                    <span style={{color:'var(--tw-muted)', fontSize:'12px'}}>{isExpanded ? '▲' : '▼'}</span>
+                  </div>
+                </div>
+                {isExpanded && (
+                  <div style={{borderTop:'0.5px solid var(--tw-border)', padding:'16px 18px', background:'var(--tw-bg)'}}>
+                    {(e.statut === 'failed' || e.statut === 'failed_after_send') ? (
+                      <div style={{fontSize:'13px', color:'#a52d2d'}}>{e.erreur_message || 'Envoi échoué'}</div>
+                    ) : statsLoading === cid ? (
+                      <div style={{fontSize:'13px', color:'var(--tw-muted)'}}>Chargement des statistiques Brevo…</div>
+                    ) : stats ? (
+                      <div>
+                        {stats.aggregated ? (
+                          <div style={{display:'flex', gap:'24px', flexWrap:'wrap', marginBottom:'16px'}}>
+                            <div><div style={{fontSize:'22px', fontWeight:700, color:'var(--tw-ink)'}}>{stats.aggregated.delivered}</div><div style={{fontSize:'11px', color:'var(--tw-muted)'}}>Délivrés ({stats.aggregated.tauxDelivrabilite}%)</div></div>
+                            <div><div style={{fontSize:'22px', fontWeight:700, color:'#0d7d39'}}>{stats.aggregated.uniqueOpens}</div><div style={{fontSize:'11px', color:'var(--tw-muted)'}}>Ouvertures ({stats.aggregated.tauxOuverture}%)</div></div>
+                            <div><div style={{fontSize:'22px', fontWeight:700, color:'#007d89'}}>{stats.aggregated.uniqueClicks}</div><div style={{fontSize:'11px', color:'var(--tw-muted)'}}>Clics ({stats.aggregated.tauxClic}%)</div></div>
+                            <div><div style={{fontSize:'22px', fontWeight:700, color:'#a52d2d'}}>{stats.aggregated.hardBounces + stats.aggregated.softBounces}</div><div style={{fontSize:'11px', color:'var(--tw-muted)'}}>Bounces</div></div>
+                            <div><div style={{fontSize:'22px', fontWeight:700, color:'#b97800'}}>{stats.aggregated.unsubscriptions}</div><div style={{fontSize:'11px', color:'var(--tw-muted)'}}>Désabos</div></div>
+                          </div>
+                        ) : (
+                          <div style={{fontSize:'13px', color:'var(--tw-muted)', marginBottom:'12px'}}>Stats Brevo indisponibles{stats.brevo_error ? ` (${stats.brevo_error})` : ''}.</div>
+                        )}
+                        {stats.events && (stats.events.clicked.length > 0 || stats.events.bounced.length > 0) && (
+                          <div style={{display:'flex', gap:'24px', flexWrap:'wrap', fontSize:'12px'}}>
+                            {stats.events.clicked.length > 0 && (
+                              <div>
+                                <div style={{fontWeight:600, color:'#007d89', marginBottom:'4px'}}>A cliqué ({stats.events.clicked.length})</div>
+                                {stats.events.clicked.map((c, i) => <div key={i} style={{color:'var(--tw-slate)'}}>{c.email}</div>)}
+                              </div>
+                            )}
+                            {stats.events.bounced.length > 0 && (
+                              <div>
+                                <div style={{fontWeight:600, color:'#a52d2d', marginBottom:'4px'}}>Email invalide / bounce ({stats.events.bounced.length})</div>
+                                {stats.events.bounced.map((c, i) => <div key={i} style={{color:'var(--tw-slate)'}}>{c.email}</div>)}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {stats.events && stats.events.clicked.length === 0 && stats.events.bounced.length === 0 && stats.aggregated && (
+                          <div style={{fontSize:'12px', color:'var(--tw-muted)', fontStyle:'italic'}}>Détail nominatif (clics/bounces) pas encore reçu via webhook. Les stats agrégées ci-dessus viennent de Brevo.</div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{fontSize:'13px', color:'var(--tw-muted)'}}>Cliquez pour charger les statistiques</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
     function CampagnesPage({ user, API_URL, onClose }) {
+      const [activeView, setActiveView] = React.useState('envoyer');
       const [typeCible, setTypeCible] = React.useState('prospect'); // client|prospect|suspect|prospect_suspect|all
       const [decideursOnly, setDecideursOnly] = React.useState(false);
       const [audience, setAudience] = React.useState([]);
@@ -901,6 +1043,16 @@
             <button onClick={onClose} style={{padding:'8px 16px', background:'transparent', border:'0.5px solid var(--tw-border)', borderRadius:'8px', cursor:'pointer', fontSize:'13px', color:'var(--tw-slate)'}}>Fermer</button>
           </div>
 
+          {/* ONGLETS Envoyer / Historique */}
+          <div style={{display:'flex', gap:'4px', marginBottom:'20px', borderBottom:'1px solid var(--tw-border)'}}>
+            <button onClick={() => setActiveView('envoyer')} style={{padding:'10px 18px', background:'transparent', border:'none', borderBottom: activeView==='envoyer' ? '2px solid var(--tw-teal)' : '2px solid transparent', cursor:'pointer', fontSize:'14px', fontWeight: activeView==='envoyer' ? 600 : 400, color: activeView==='envoyer' ? 'var(--tw-teal)' : 'var(--tw-slate)', marginBottom:'-1px'}}>Envoyer une campagne</button>
+            <button onClick={() => setActiveView('historique')} style={{padding:'10px 18px', background:'transparent', border:'none', borderBottom: activeView==='historique' ? '2px solid var(--tw-teal)' : '2px solid transparent', cursor:'pointer', fontSize:'14px', fontWeight: activeView==='historique' ? 600 : 400, color: activeView==='historique' ? 'var(--tw-teal)' : 'var(--tw-slate)', marginBottom:'-1px'}}>Historique &amp; statistiques</button>
+          </div>
+
+          {activeView === 'historique' ? (
+            <CampagnesHistorique user={user} API_URL={API_URL} />
+          ) : (
+          <React.Fragment>
           {/* FILTRES */}
           <div style={{background:'white', border:'0.5px solid var(--tw-border)', borderRadius:'12px', padding:'20px', marginBottom:'20px'}}>
             <div style={{display:'flex', gap:'40px', flexWrap:'wrap'}}>
@@ -1110,6 +1262,8 @@
               </div>
             )}
           </div>
+          </React.Fragment>
+          )}
 
           {/* MODAL CONFIRMATION */}
           {confirmOpen && (
