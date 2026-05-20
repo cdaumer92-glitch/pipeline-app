@@ -3036,7 +3036,8 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
           PRENOM: c.prenom || '',
           NOM: c.nom || '',
           SOCIETE: c.societe || '',
-          OPTIN_LINK: `${CRM_PUBLIC_URL}/api/optin/confirm?token=${tok}`
+          OPTIN_LINK: `${CRM_PUBLIC_URL}/api/optin/confirm?token=${tok}`,
+          OPTOUT_LINK: `${CRM_PUBLIC_URL}/api/optin/refuse?token=${tok}`
         },
         updateEnabled: true
       }
@@ -3540,14 +3541,22 @@ app.post('/api/interlocuteurs/:id/demande-optin', auth, async (req, res) => {
 //   - Token introuvable / expiré → page d'erreur explicative
 //   - Token déjà confirmé → page "Vous êtes déjà inscrit"
 //   - Token valide non confirmé → bascule accept_emailing=true + page de remerciement
-app.get('/api/optin/confirm', async (req, res) => {
-  const token = (req.query.token || '').toString().trim();
-
-  // Helper pour générer une page HTML stylée TexasWin/ASTI
-  const renderPage = (status, title, message, ctaText, ctaUrl) => {
-    const color = status === 'success' ? '#0d7d39' : status === 'info' ? '#007d89' : '#a52d2d';
-    const bg = status === 'success' ? '#e6f7ec' : status === 'info' ? '#e0f4f5' : '#fde8e8';
-    return `<!DOCTYPE html>
+// Helper module-level pour générer une page HTML stylée TexasWin/ASTI.
+// Partagé entre /api/optin/confirm et /api/optin/refuse.
+// Params :
+//   - status : 'success' | 'info' | 'error' | 'optout' (détermine couleurs + badge)
+//   - title, message : textes principaux
+//   - ctaText, ctaUrl : bouton optionnel
+//   - showPitch : si true, affiche le bloc "À propos de TexasWin" (uniquement opt-in confirmé)
+function renderOptinPage(status, title, message, ctaText, ctaUrl, showPitch) {
+  const palette = {
+    success: { color: '#0d7d39', bg: '#e6f7ec', badge: '✓ Inscription confirmée' },
+    info:    { color: '#007d89', bg: '#e0f4f5', badge: 'Information' },
+    error:   { color: '#a52d2d', bg: '#fde8e8', badge: 'Erreur' },
+    optout:  { color: '#5a6573', bg: '#f1f4f7', badge: 'Désinscription confirmée' }
+  };
+  const p = palette[status] || palette.info;
+  return `<!DOCTYPE html>
 <html lang="fr"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -3559,7 +3568,7 @@ app.get('/api/optin/confirm', async (req, res) => {
   .card{background:white;border-radius:16px;padding:48px 40px;box-shadow:0 4px 24px rgba(0,0,0,0.06);text-align:center}
   .logo{display:inline-flex;align-items:center;gap:10px;margin-bottom:32px;font-weight:600;color:#1a2530;font-size:18px}
   .logo-mark{width:32px;height:32px;border-radius:8px;background:#007d89;color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
-  .badge{display:inline-block;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;background:${bg};color:${color};margin-bottom:20px}
+  .badge{display:inline-block;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;background:${p.bg};color:${p.color};margin-bottom:20px}
   h1{margin:0 0 12px 0;font-size:24px;color:#1a2530;font-weight:600}
   p{margin:0 0 16px 0;color:#5a6573;line-height:1.6;font-size:15px}
   .pitch{background:#f8f9fb;border-radius:10px;padding:20px;margin:24px 0;text-align:left;font-size:14px}
@@ -3572,10 +3581,10 @@ app.get('/api/optin/confirm', async (req, res) => {
 </head><body>
 <div class="wrap"><div class="card">
   <div class="logo"><div class="logo-mark">T</div>TexasWin</div>
-  <div class="badge">${status === 'success' ? '✓ Inscription confirmée' : status === 'info' ? 'Information' : 'Erreur'}</div>
+  <div class="badge">${p.badge}</div>
   <h1>${title}</h1>
   <p>${message}</p>
-  ${status === 'success' ? `
+  ${showPitch ? `
     <div class="pitch">
       <h3>À propos de TexasWin</h3>
       <p>TexasWin est l'ERP de référence spécialisé pour les marques et distributeurs du secteur textile et mode, édité par ASTI depuis plus de 20 ans.</p>
@@ -3586,7 +3595,15 @@ app.get('/api/optin/confirm', async (req, res) => {
   <div class="foot">ASTI · 19 rue de la Résistance, 42300 Roanne · <a href="mailto:c.daumer@texaswin.fr" style="color:#94a3b0">c.daumer@texaswin.fr</a></div>
 </div></div>
 </body></html>`;
-  };
+}
+
+app.get('/api/optin/confirm', async (req, res) => {
+  const token = (req.query.token || '').toString().trim();
+
+  // Wrapper local : conserve la signature historique (status, title, message, ctaText, ctaUrl)
+  // et active le pitch automatiquement pour le statut 'success'.
+  const renderPage = (status, title, message, ctaText, ctaUrl) =>
+    renderOptinPage(status, title, message, ctaText, ctaUrl, status === 'success');
 
   if (!token || token.length < 10) {
     return res.status(400).type('html').send(renderPage(
@@ -3686,8 +3703,85 @@ app.get('/api/optin/confirm', async (req, res) => {
   }
 });
 
-// ===================== ADMIN ROUTES =====================
-const requireAdmin = async (req, res, next) => {
+// -------- GET /api/optin/refuse?token=XXX --------
+// ENDPOINT PUBLIC (pas d'auth) : URL cliquée par le contact qui REFUSE l'opt-in.
+// Miroir de /api/optin/confirm mais en sens inverse : marque le contact comme
+// opt-out définitif (accept_emailing=false + emailing_unsubscribed_at) pour qu'il
+// n'apparaisse plus jamais dans les cibles de demande d'opt-in (liste propre).
+// Réutilise le même token que celui généré pour la demande d'opt-in.
+app.get('/api/optin/refuse', async (req, res) => {
+  const token = (req.query.token || '').toString().trim();
+  const renderPage = (status, title, message, ctaText, ctaUrl) =>
+    renderOptinPage(status, title, message, ctaText, ctaUrl, false);
+
+  if (!token || token.length < 10) {
+    return res.status(400).type('html').send(renderPage(
+      'error', 'Lien invalide',
+      'Ce lien est incorrect ou incomplet. Si vous souhaitez ne plus être contacté, écrivez-nous directement.',
+      'Nous contacter', 'mailto:c.daumer@texaswin.fr'
+    ));
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const r = await client.query(
+      `SELECT id, prenom, nom, email, accept_emailing, optin_confirme_at
+         FROM interlocuteurs
+        WHERE optin_token = $1`,
+      [token]
+    );
+    if (r.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).type('html').send(renderPage(
+        'error', 'Lien introuvable',
+        'Ce lien n\'existe pas ou a déjà été traité. Si vous souhaitez ne plus être contacté, écrivez-nous directement.',
+        'Nous contacter', 'mailto:c.daumer@texaswin.fr'
+      ));
+    }
+    const c = r.rows[0];
+
+    // Marque opt-out définitif + désactive la demande d'opt-in
+    await client.query(
+      `UPDATE interlocuteurs
+          SET accept_emailing = FALSE,
+              demande_optin = FALSE,
+              emailing_unsubscribed_at = NOW(),
+              emailing_unsubscribed_source = 'optin_refuse_lien',
+              optin_confirme_at = NULL
+        WHERE id = $1`,
+      [c.id]
+    );
+    await client.query(
+      `INSERT INTO interlocuteurs_consents
+         (interlocuteur_id, field, old_value, new_value, changed_by, source)
+       VALUES ($1, 'accept_emailing', $2, 'false', 'contact_self', 'optin_refuse_lien')`,
+      [c.id, String(c.accept_emailing === true)]
+    );
+    await client.query('COMMIT');
+
+    console.log(`[optin/refuse] interlocuteur ${c.id} (${c.email}) a refusé l'opt-in`);
+
+    return res.type('html').send(renderPage(
+      'optout',
+      'C\'est noté',
+      `Votre choix a bien été enregistré : nous ne vous adresserons pas de communications commerciales à l'adresse ${c.email}. Nous restons naturellement à votre disposition si vous changez d'avis.`,
+      'Visiter texaswin.fr', 'https://www.texaswin.fr'
+    ));
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[optin/refuse] erreur:', err);
+    return res.status(500).type('html').send(renderPage(
+      'error', 'Erreur technique',
+      'Une erreur est survenue. Réessayez dans quelques minutes ou contactez-nous directement.',
+      'Nous contacter', 'mailto:c.daumer@texaswin.fr'
+    ));
+  } finally {
+    client.release();
+  }
+});
+
+
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Non authentifié' });
   
@@ -5402,19 +5496,24 @@ app.post('/api/prospects/bulk-import-sinfo', auth, requireAdmin, async (req, res
 // Si l'attribut existe déjà, Brevo répond 400 "attribute already exists" — on ignore.
 async function ensureBrevoOptinAttribute() {
   if (!process.env.BREVO_API_KEY) {
-    console.log('ℹ️  BREVO_API_KEY non définie : création attribut OPTIN_LINK skip');
+    console.log('ℹ️  BREVO_API_KEY non définie : création attributs OPTIN/OPTOUT_LINK skip');
     return;
   }
-  const result = await brevoFetch('/contacts/attributes/normal/OPTIN_LINK', {
-    method: 'POST',
-    body: { type: 'text' }
-  });
-  if (result.ok) {
-    console.log('✅ Attribut Brevo OPTIN_LINK créé');
-  } else if (result.status === 400 && /already|exist/i.test(result.error || '')) {
-    console.log('✅ Attribut Brevo OPTIN_LINK déjà présent');
-  } else {
-    console.warn('⚠️  Création attribut OPTIN_LINK échouée:', result.error);
+  // Crée les 2 attributs nécessaires aux liens personnalisés dans les campagnes :
+  //   - OPTIN_LINK  : lien de confirmation (bascule en opt-in au clic)
+  //   - OPTOUT_LINK : lien de refus (bascule en opt-out définitif au clic)
+  for (const attr of ['OPTIN_LINK', 'OPTOUT_LINK']) {
+    const result = await brevoFetch(`/contacts/attributes/normal/${attr}`, {
+      method: 'POST',
+      body: { type: 'text' }
+    });
+    if (result.ok) {
+      console.log(`✅ Attribut Brevo ${attr} créé`);
+    } else if (result.status === 400 && /already|exist/i.test(result.error || '')) {
+      console.log(`✅ Attribut Brevo ${attr} déjà présent`);
+    } else {
+      console.warn(`⚠️  Création attribut ${attr} échouée:`, result.error);
+    }
   }
 }
 
