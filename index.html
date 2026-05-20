@@ -773,6 +773,23 @@
         else { setExpandedId(envoi.id); loadStats(cid); }
       };
 
+      // Archive un envoi (soft delete) : le retire de la liste affichée.
+      // La ligne reste en BDD (traçabilité RGPD), elle est juste masquée.
+      const archiveEnvoi = (envoiId, e) => {
+        e.stopPropagation(); // évite de déplier la ligne au clic sur le bouton
+        if (!window.confirm('Archiver cet envoi ? Il sera masqué de l\'historique (mais conservé en base pour la traçabilité).')) return;
+        fetch(`${API_URL}/brevo/envois/${envoiId}/archive`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ archived: true })
+        })
+          .then(r => r.json().then(data => ({ ok: r.ok, data })))
+          .then(({ ok }) => {
+            if (ok) setEnvois(prev => prev.filter(x => x.id !== envoiId));
+          })
+          .catch(err => alert('Erreur : ' + err.message));
+      };
+
       const statutBadge = (statut) => {
         const map = {
           'sent': { label: 'Envoyé', bg: '#e6f7ec', col: '#0d7d39' },
@@ -818,6 +835,7 @@
                   <div style={{display:'flex', alignItems:'center', gap:'10px', flexShrink:0}}>
                     <span style={{fontSize:'12px', color:'var(--tw-slate)'}}>{e.nb_contacts_envoyes} envoyé{e.nb_contacts_envoyes > 1 ? 's' : ''}</span>
                     {statutBadge(e.statut)}
+                    <button onClick={(ev) => archiveEnvoi(e.id, ev)} title="Archiver cet envoi (le masquer de l'historique)" style={{background:'transparent', border:'none', cursor:'pointer', color:'var(--tw-muted)', fontSize:'14px', padding:'2px 6px', borderRadius:'4px', lineHeight:1}}>🗑</button>
                     <span style={{color:'var(--tw-muted)', fontSize:'12px'}}>{isExpanded ? '▲' : '▼'}</span>
                   </div>
                 </div>

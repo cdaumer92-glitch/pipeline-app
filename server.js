@@ -580,6 +580,9 @@ async function initDB() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_camp_envois_statut ON campagnes_envois(statut)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_camp_envois_created ON campagnes_envois(created_at DESC)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_camp_envois_brevo_source ON campagnes_envois(brevo_campaign_id_source)`);
+    // Archivage (soft delete) : masque l'envoi de la vue historique sans le supprimer
+    // de la BDD (conserve la traçabilité RGPD : qui a reçu quoi et quand).
+    await client.query(`ALTER TABLE campagnes_envois ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP`);
 
     // ========== TRACKING ÉVÉNEMENTS CAMPAGNES (webhook Brevo) ==========
     // Stocke chaque événement reçu du webhook Brevo, par email et par campagne.
@@ -3361,14 +3364,16 @@ app.post('/api/brevo/send-test', auth, async (req, res) => {
 // Pas d'appel Brevo ici (rapide) : les stats détaillées viennent de campaign-stats.
 app.get('/api/brevo/envois', auth, async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit || '50'), 200);
+  const includeArchived = req.query.include_archived === 'true';
   try {
     const r = await pool.query(
       `SELECT id, brevo_campaign_id_source, brevo_campaign_id_envoi,
               campagne_nom, campagne_objet, sender_email, sender_name,
               nb_contacts_demandes, nb_contacts_envoyes, nb_contacts_rgpd_ko,
               statut, erreur_message, envoye_par_nom,
-              created_at, sent_at, filtres_json
+              created_at, sent_at, filtres_json, archived_at
          FROM campagnes_envois
+        ${includeArchived ? '' : 'WHERE archived_at IS NULL'}
         ORDER BY created_at DESC
         LIMIT $1`,
       [limit]
@@ -3376,6 +3381,31 @@ app.get('/api/brevo/envois', auth, async (req, res) => {
     res.json({ count: r.rows.length, envois: r.rows });
   } catch (err) {
     console.error('[brevo-envois] erreur SQL:', err);
+    res.status(500).json({ error: 'Erreur BDD: ' + err.message });
+  }
+});
+
+// -------- POST /api/brevo/envois/:id/archive --------
+// Archive (soft delete) ou désarchive un envoi de l'historique.
+// Body : { archived: true|false }. Conserve la ligne en BDD (traçabilité RGPD).
+app.post('/api/brevo/envois/:id/archive', auth, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'id invalide' });
+  }
+  const archived = req.body?.archived !== false; // par défaut true
+  try {
+    const r = await pool.query(
+      `UPDATE campagnes_envois
+          SET archived_at = ${archived ? 'NOW()' : 'NULL'}
+        WHERE id = $1
+        RETURNING id, archived_at`,
+      [id]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Envoi introuvable' });
+    res.json({ ok: true, id, archived_at: r.rows[0].archived_at });
+  } catch (err) {
+    console.error('[brevo-envois-archive] erreur:', err);
     res.status(500).json({ error: 'Erreur BDD: ' + err.message });
   }
 });
@@ -3397,18 +3427,10 @@ app.get('/api/brevo/campaign-stats/:id', auth, async (req, res) => {
   // pas (ou mal) les stats. Doc : developers.brevo.com/reference/get-email-campaign
   const result = await brevoFetch(`/emailCampaigns/${id}?statistics=globalStats`);
   let aggregated = null;
-  let debugStructure = null;
   if (result.ok) {
     // La structure peut varier : statistics.globalStats peut être un objet
     // unique OU un tableau (campagne multi-listes). On gère les deux.
     const statsRaw = result.data?.statistics?.globalStats;
-    // Capture la structure pour debug (clés présentes, sans le HTML volumineux)
-    debugStructure = {
-      has_statistics: !!result.data?.statistics,
-      statistics_keys: result.data?.statistics ? Object.keys(result.data.statistics) : [],
-      globalStats_type: Array.isArray(statsRaw) ? 'array' : typeof statsRaw,
-      globalStats_sample: statsRaw || null
-    };
     // Normalise en objet : si tableau, on additionne; si objet, on prend tel quel
     let stats = {};
     if (Array.isArray(statsRaw)) {
@@ -3465,8 +3487,7 @@ app.get('/api/brevo/campaign-stats/:id', auth, async (req, res) => {
     brevo_available: result.ok,
     brevo_error: result.ok ? null : result.error,
     aggregated,
-    events,
-    _debug: debugStructure  // TEMPORAIRE : à retirer une fois le diagnostic fait
+    events
   });
 });
 
