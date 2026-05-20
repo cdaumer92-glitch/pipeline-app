@@ -3393,10 +3393,34 @@ app.get('/api/brevo/campaign-stats/:id', auth, async (req, res) => {
   }
 
   // 1. Stats agrégées Brevo
-  const result = await brevoFetch(`/emailCampaigns/${id}`);
+  // IMPORTANT : il faut passer ?statistics=globalStats sinon Brevo ne renvoie
+  // pas (ou mal) les stats. Doc : developers.brevo.com/reference/get-email-campaign
+  const result = await brevoFetch(`/emailCampaigns/${id}?statistics=globalStats`);
   let aggregated = null;
+  let debugStructure = null;
   if (result.ok) {
-    const stats = result.data?.statistics?.globalStats || {};
+    // La structure peut varier : statistics.globalStats peut être un objet
+    // unique OU un tableau (campagne multi-listes). On gère les deux.
+    const statsRaw = result.data?.statistics?.globalStats;
+    // Capture la structure pour debug (clés présentes, sans le HTML volumineux)
+    debugStructure = {
+      has_statistics: !!result.data?.statistics,
+      statistics_keys: result.data?.statistics ? Object.keys(result.data.statistics) : [],
+      globalStats_type: Array.isArray(statsRaw) ? 'array' : typeof statsRaw,
+      globalStats_sample: statsRaw || null
+    };
+    // Normalise en objet : si tableau, on additionne; si objet, on prend tel quel
+    let stats = {};
+    if (Array.isArray(statsRaw)) {
+      // Additionne les compteurs de chaque entrée du tableau
+      for (const s of statsRaw) {
+        for (const k of Object.keys(s)) {
+          if (typeof s[k] === 'number') stats[k] = (stats[k] || 0) + s[k];
+        }
+      }
+    } else if (statsRaw && typeof statsRaw === 'object') {
+      stats = statsRaw;
+    }
     const sent = stats.sent || 0;
     const delivered = stats.delivered || 0;
     aggregated = {
@@ -3410,7 +3434,6 @@ app.get('/api/brevo/campaign-stats/:id', auth, async (req, res) => {
       clicks: stats.clickers || 0,
       unsubscriptions: stats.unsubscriptions || 0,
       complaints: stats.complaints || 0,
-      // Taux calculés (base = délivrés, standard marketing)
       tauxDelivrabilite: sent > 0 ? Math.round((delivered / sent) * 1000) / 10 : 0,
       tauxOuverture: delivered > 0 ? Math.round(((stats.uniqueViews || 0) / delivered) * 1000) / 10 : 0,
       tauxClic: delivered > 0 ? Math.round(((stats.uniqueClicks || 0) / delivered) * 1000) / 10 : 0
@@ -3442,7 +3465,8 @@ app.get('/api/brevo/campaign-stats/:id', auth, async (req, res) => {
     brevo_available: result.ok,
     brevo_error: result.ok ? null : result.error,
     aggregated,
-    events
+    events,
+    _debug: debugStructure  // TEMPORAIRE : à retirer une fois le diagnostic fait
   });
 });
 
