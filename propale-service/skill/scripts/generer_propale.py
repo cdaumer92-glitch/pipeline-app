@@ -135,13 +135,13 @@ def cell_hdr(txt,w,align="center",bg="003366"):
             f'<w:shd w:val="clear" w:color="auto" w:fill="{bg}"/></w:tcPr>'
             f'<w:p><w:pPr><w:jc w:val="{align}"/></w:pPr>'
             f'<w:r><w:rPr><w:color w:val="FFFFFF"/><w:b/><w:sz w:val="20"/></w:rPr>'
-            f'<w:t>{txt}</w:t></w:r></w:p></w:tc>')
+            f'<w:t xml:space="preserve">{_xml_escape(txt)}</w:t></w:r></w:p></w:tc>')
 
 def cell_body(txt,w,align="left"):
     return (f'<w:tc><w:tcPr><w:tcW w:w="{w}" w:type="dxa"/></w:tcPr>'
             f'<w:p><w:pPr><w:jc w:val="{align}"/></w:pPr>'
             f'<w:r><w:rPr><w:sz w:val="20"/></w:rPr>'
-            f'<w:t>{txt}</w:t></w:r></w:p></w:tc>')
+            f'<w:t xml:space="preserve">{_xml_escape(txt)}</w:t></w:r></w:p></w:tc>')
 
 def cell_empty(w,bg="D5E8F0"):
     return (f'<w:tc><w:tcPr><w:tcW w:w="{w}" w:type="dxa"/>'
@@ -152,7 +152,7 @@ def cell_total(txt,w,align="left",color="003366",bg="D5E8F0"):
             f'<w:shd w:val="clear" w:color="auto" w:fill="{bg}"/></w:tcPr>'
             f'<w:p><w:pPr><w:jc w:val="{align}"/></w:pPr>'
             f'<w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="{color}"/></w:rPr>'
-            f'<w:t>{txt}</w:t></w:r></w:p></w:tc>')
+            f'<w:t xml:space="preserve">{_xml_escape(txt)}</w:t></w:r></w:p></w:tc>')
 
 def row(*cells): return '<w:tr><w:trPr><w:cantSplit/></w:trPr>'+''.join(cells)+'</w:tr>'
 
@@ -215,6 +215,15 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
     if ',' in contact:
         contact = contact.split(',', 1)[0].strip()
     adresse    = data.get("adresse","")
+    # Versions échappées XML pour injection dans le document.
+    # IMPORTANT : on garde les versions BRUTES (societe, contact, adresse) pour
+    # les usages non-XML (nom de fichier, calcul de référence), et on utilise les
+    # versions _esc UNIQUEMENT aux points d'injection dans le XML du .docx.
+    # Sans ça, un nom contenant &, < ou > (ex: "Nat & Nin", "Dupont & Fils")
+    # casse le XML → document Word illisible.
+    societe_esc = _xml_escape(societe)
+    contact_esc = _xml_escape(contact)
+    adresse_esc = _xml_escape(adresse)
     commercial = data.get("commercial","christian").lower()
     modules    = [m.lower() for m in data.get("modules_retenus",[])]
     nb         = len(modules)
@@ -273,7 +282,7 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
     with open(doc) as f: content=f.read()
 
     # 1. Société
-    content=content.replace('Soci\xe9t\xe9\xa0NOM SOCIETE',societe)
+    content=content.replace('Soci\xe9t\xe9\xa0NOM SOCIETE',societe_esc)
 
     # 2. Contact + adresse (SANS fonction)
     # NB: defusedxml.minidom convertit les entités &#xXXXX; en caractères Unicode bruts lors du pretty-print.
@@ -300,7 +309,7 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
              f'<w:ind w:left="5245"/><w:rPr><w:rFonts w:ascii="Poppins" w:hAnsi="Poppins"/>'
              f'</w:rPr></w:pPr>\n'
              f'      <w:r><w:rPr><w:rFonts w:ascii="Poppins" w:hAnsi="Poppins"/></w:rPr>'
-             f'<w:t>\u00c0 l\u2019attention de {contact}</w:t></w:r>\n'
+             f'<w:t>\u00c0 l\u2019attention de {contact_esc}</w:t></w:r>\n'
              f'    </w:p>')
     if adresse:
         new_c += (f'\n    <w:p w14:paraId="39243FFE" w14:textId="77777777" w:rsidR="00EE4216" '
@@ -309,7 +318,7 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
                   f'<w:ind w:left="5245"/><w:rPr><w:rFonts w:ascii="Poppins" w:hAnsi="Poppins"/>'
                   f'</w:rPr></w:pPr>\n'
                   f'      <w:r><w:rPr><w:rFonts w:ascii="Poppins" w:hAnsi="Poppins"/></w:rPr>'
-                  f'<w:t>{adresse}</w:t></w:r>\n'
+                  f'<w:t>{adresse_esc}</w:t></w:r>\n'
                   f'    </w:p>')
     # Fail-safe : si le bloc cherché n'est pas trouvé, on logge un warning (sera visible dans Cockpit/Grafana)
     # pour ne pas générer silencieusement une propale sans contact ni adresse.
@@ -403,8 +412,9 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
                 content = content.replace(old_block, "")
 
     # 3. Date + référence
-    content=content.replace('>2025<',f'>{date_fr}<')
-    content=content.replace('>Master Propale<',f'>{ref}<')
+    # ref contient le nom de société (sans espaces) → peut contenir &, <, > → échapper
+    content=content.replace('>2025<',f'>{_xml_escape(date_fr)}<')
+    content=content.replace('>Master Propale<',f'>{_xml_escape(ref)}<')
 
     # 4. Commercial : supprimer les 2 paragraphes existants (Christian + Roger) et injecter le bon
     COMMERCIAUX = {
