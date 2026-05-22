@@ -5365,6 +5365,7 @@ app.post('/api/import', auth, async (req, res) => {
         'Secteur': 'secteur', 'secteur': 'secteur',
         'Notes société': 'notes', 'notes': 'notes',
         'SIREN': 'siren', 'Siren': 'siren', 'siren': 'siren', 'N° SIREN': 'siren',
+        'Marques': 'marques', 'marques': 'marques', 'Marque': 'marques',
         'Civilité': 'contact_civilite', 'contact_civilite': 'contact_civilite',
         'Prénom contact': 'contact_prenom', 'contact_prenom': 'contact_prenom',
         'Nom contact': 'contact_nom', 'contact_nom': 'contact_nom',
@@ -5407,6 +5408,16 @@ app.post('/api/import', auth, async (req, res) => {
             // SIREN : on retire espaces/points et on ne garde que les chiffres (max 9).
             // Évite l'erreur "value too long" sur VARCHAR(9) si saisi "572 000 537".
             const sirenClean = (row['siren'] || '').toString().replace(/[^0-9]/g, '').slice(0, 9) || null;
+            // Marques : champ TEXT[]. Saisie séparée par point-virgule (sûr car les noms
+            // de marques peuvent contenir des virgules). On tolère aussi la virgule si
+            // aucun point-virgule n'est présent. Trim + suppression des entrées vides.
+            const marquesRaw = (row['marques'] || '').toString().trim();
+            let marquesArr = null;
+            if (marquesRaw) {
+              const sep = marquesRaw.includes(';') ? ';' : ',';
+              marquesArr = marquesRaw.split(sep).map(m => m.trim()).filter(Boolean);
+              if (marquesArr.length === 0) marquesArr = null;
+            }
             if (existing.rows.length > 0) {
               pid = existing.rows[0].id;
               // Mise à jour des infos société (sans écraser par du vide)
@@ -5422,22 +5433,23 @@ app.post('/api/import', auth, async (req, res) => {
                    secteur = COALESCE(NULLIF($9,''), secteur),
                    notes = COALESCE(NULLIF($10,''), notes),
                    siren = COALESCE($12, siren),
+                   marques = COALESCE($13, marques),
                    updated_at = NOW()
                  WHERE id = $11`,
                 [statut, statusPipeline, row['adresse'] || '', row['cp'] || '',
                  row['ville'] || '', row['telephone_societe'] || '', row['email_societe'] || '',
-                 row['site_web'] || '', row['secteur'] || '', row['notes'] || '', pid, sirenClean]
+                 row['site_web'] || '', row['secteur'] || '', row['notes'] || '', pid, sirenClean, marquesArr]
               );
               updated++;
             } else {
               const ins = await pool.query(
                 `INSERT INTO prospects (name, statut_societe, status, adresse, cp, ville,
-                   phone, email_societe, website, secteur, notes, siren, assigned_to, user_id, status_date)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,$13,CURRENT_DATE)
+                   phone, email_societe, website, secteur, notes, siren, marques, assigned_to, user_id, status_date)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULL,$14,CURRENT_DATE)
                  RETURNING id`,
                 [nomSociete, statut, statusPipeline, row['adresse'] || null, row['cp'] || null,
                  row['ville'] || null, row['telephone_societe'] || null, row['email_societe'] || null,
-                 row['site_web'] || null, row['secteur'] || null, row['notes'] || null, sirenClean, req.userId]
+                 row['site_web'] || null, row['secteur'] || null, row['notes'] || null, sirenClean, marquesArr, req.userId]
               );
               pid = ins.rows[0].id;
               created++;
