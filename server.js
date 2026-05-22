@@ -5340,6 +5340,159 @@ app.post('/api/import', auth, async (req, res) => {
 
     const workbook = XLSX.read(req.files.file.data, { type: 'buffer' });
 
+    // ========================================================
+    // MODE 1 — Onglet unique "Clients" (1 ligne = société + contact)
+    // Si un onglet "Clients" existe, on l'utilise en priorité.
+    // Chaque ligne porte les colonnes société ET les colonnes contact.
+    // Les sociétés sont dédoublonnées automatiquement (1ère occurrence crée,
+    // les suivantes rattachent juste le contact).
+    // ========================================================
+    const sheetClients = workbook.Sheets['Clients'];
+    if (sheetClients) {
+      const lignesRaw = XLSX.utils.sheet_to_json(sheetClients, { defval: '' });
+      // Mapping libellés affichés (français) → clés techniques.
+      // Permet au fichier d'avoir des en-têtes lisibles pour l'assistante,
+      // tout en restant lu correctement par l'import.
+      const MAP = {
+        'Nom société *': 'nom_societe', 'Nom société': 'nom_societe', 'nom_societe': 'nom_societe',
+        'Statut *': 'statut', 'Statut': 'statut', 'statut': 'statut',
+        'Adresse': 'adresse', 'adresse': 'adresse',
+        'Code postal': 'cp', 'cp': 'cp',
+        'Ville': 'ville', 'ville': 'ville',
+        'Tél. société': 'telephone_societe', 'telephone_societe': 'telephone_societe',
+        'Email société': 'email_societe', 'email_societe': 'email_societe',
+        'Site web': 'site_web', 'site_web': 'site_web',
+        'Secteur': 'secteur', 'secteur': 'secteur',
+        'Notes société': 'notes', 'notes': 'notes',
+        'SIREN': 'siren', 'Siren': 'siren', 'siren': 'siren', 'N° SIREN': 'siren',
+        'Civilité': 'contact_civilite', 'contact_civilite': 'contact_civilite',
+        'Prénom contact': 'contact_prenom', 'contact_prenom': 'contact_prenom',
+        'Nom contact': 'contact_nom', 'contact_nom': 'contact_nom',
+        'Fonction': 'contact_fonction', 'contact_fonction': 'contact_fonction',
+        'Tél. contact': 'contact_telephone', 'contact_telephone': 'contact_telephone',
+        'Email contact *': 'contact_email', 'Email contact': 'contact_email', 'contact_email': 'contact_email',
+        'Contact principal': 'contact_principal', 'contact_principal': 'contact_principal',
+        'Demande opt-in': 'demande_optin', 'demande_optin': 'demande_optin'
+      };
+      // Normalise chaque ligne : remappe les clés libellées vers les clés techniques
+      const lignes = lignesRaw.map(raw => {
+        const o = {};
+        for (const [k, v] of Object.entries(raw)) {
+          const cle = MAP[k.trim()] || k.trim();
+          o[cle] = v;
+        }
+        return o;
+      });
+      const statutsValides = ['Suspect', 'Prospect', 'Client'];
+      let created = 0, updated = 0, contactsAdded = 0, errors = [];
+      const societesVues = new Map(); // nom_lower → prospect_id (cache dans ce batch)
+
+      for (let idx = 0; idx < lignes.length; idx++) {
+        const row = lignes[idx];
+        const ligneNum = idx + 2; // +2 : ligne 1 = en-têtes, base 1
+        const nomSociete = (row['nom_societe'] || '').trim();
+        if (!nomSociete) continue; // ligne vide, on saute silencieusement
+
+        const statut = statutsValides.includes(row['statut']) ? row['statut'] : 'Prospect';
+        const statusPipeline = statut === 'Client' ? 'Gagné' : 'Prospection';
+
+        // --- 1. Société : créer ou récupérer (avec cache batch) ---
+        let pid = societesVues.get(nomSociete.toLowerCase());
+        try {
+          if (!pid) {
+            const existing = await pool.query(
+              `SELECT id FROM prospects WHERE LOWER(name) = LOWER($1) LIMIT 1`,
+              [nomSociete]
+            );
+            // SIREN : on retire espaces/points et on ne garde que les chiffres (max 9).
+            // Évite l'erreur "value too long" sur VARCHAR(9) si saisi "572 000 537".
+            const sirenClean = (row['siren'] || '').toString().replace(/[^0-9]/g, '').slice(0, 9) || null;
+            if (existing.rows.length > 0) {
+              pid = existing.rows[0].id;
+              // Mise à jour des infos société (sans écraser par du vide)
+              await pool.query(
+                `UPDATE prospects SET
+                   statut_societe = $1, status = $2,
+                   adresse = COALESCE(NULLIF($3,''), adresse),
+                   cp = COALESCE(NULLIF($4,''), cp),
+                   ville = COALESCE(NULLIF($5,''), ville),
+                   phone = COALESCE(NULLIF($6,''), phone),
+                   email_societe = COALESCE(NULLIF($7,''), email_societe),
+                   website = COALESCE(NULLIF($8,''), website),
+                   secteur = COALESCE(NULLIF($9,''), secteur),
+                   notes = COALESCE(NULLIF($10,''), notes),
+                   siren = COALESCE($12, siren),
+                   updated_at = NOW()
+                 WHERE id = $11`,
+                [statut, statusPipeline, row['adresse'] || '', row['cp'] || '',
+                 row['ville'] || '', row['telephone_societe'] || '', row['email_societe'] || '',
+                 row['site_web'] || '', row['secteur'] || '', row['notes'] || '', pid, sirenClean]
+              );
+              updated++;
+            } else {
+              const ins = await pool.query(
+                `INSERT INTO prospects (name, statut_societe, status, adresse, cp, ville,
+                   phone, email_societe, website, secteur, notes, siren, assigned_to, user_id, status_date)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,$13,CURRENT_DATE)
+                 RETURNING id`,
+                [nomSociete, statut, statusPipeline, row['adresse'] || null, row['cp'] || null,
+                 row['ville'] || null, row['telephone_societe'] || null, row['email_societe'] || null,
+                 row['site_web'] || null, row['secteur'] || null, row['notes'] || null, sirenClean, req.userId]
+              );
+              pid = ins.rows[0].id;
+              created++;
+            }
+            societesVues.set(nomSociete.toLowerCase(), pid);
+          }
+        } catch (e) {
+          errors.push(`Ligne ${ligneNum} (${nomSociete}) : ${e.message}`);
+          continue;
+        }
+
+        // --- 2. Contact (si renseigné sur cette ligne) ---
+        const nom = (row['contact_nom'] || '').trim();
+        const prenom = (row['contact_prenom'] || '').trim();
+        const email = (row['contact_email'] || '').trim() || null;
+        if (!nom && !prenom && !email) continue; // pas de contact sur cette ligne
+
+        // Dédoublonnage contact
+        let dupQuery, dupParams;
+        if (email) {
+          dupQuery = `SELECT id FROM interlocuteurs WHERE prospect_id=$1 AND LOWER(email)=LOWER($2) LIMIT 1`;
+          dupParams = [pid, email];
+        } else {
+          dupQuery = `SELECT id FROM interlocuteurs WHERE prospect_id=$1 AND LOWER(nom)=LOWER($2) AND LOWER(COALESCE(prenom,''))=LOWER($3) LIMIT 1`;
+          dupParams = [pid, nom, prenom];
+        }
+        const dupRes = await pool.query(dupQuery, dupParams);
+        if (dupRes.rows.length > 0) continue;
+
+        const principal = ['oui','yes','1','true','x'].includes((row['contact_principal'] || '').toString().toLowerCase().trim());
+        // Demande d'opt-in : si la colonne vaut oui/x → demande_optin = true
+        const demandeOptin = ['oui','yes','1','true','x'].includes((row['demande_optin'] || '').toString().toLowerCase().trim());
+
+        try {
+          await pool.query(
+            `INSERT INTO interlocuteurs (prospect_id, civilite, prenom, nom, fonction,
+               telephone, email, principal, demande_optin, source, source_detail)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+            [pid, row['contact_civilite'] || null, prenom || null, nom || null,
+             row['contact_fonction'] || null, row['contact_telephone'] || null,
+             email, principal, demandeOptin, 'import_excel',
+             `import_excel:date=${new Date().toISOString().slice(0,10)}`]
+          );
+          contactsAdded++;
+        } catch (e) {
+          errors.push(`Ligne ${ligneNum} contact ${nom} : ${e.message}`);
+        }
+      }
+
+      return res.json({ ok: true, mode: 'onglet_unique', created, updated, contactsAdded, errors, total: lignes.length });
+    }
+
+    // ========================================================
+    // MODE 2 — Deux onglets séparés (Societes + Contacts) — rétrocompat
+    // ========================================================
     // ── Onglet Societes ──
     const sheetSoc = workbook.Sheets['Societes'] || workbook.Sheets[workbook.SheetNames[0]];
     if (!sheetSoc) return res.status(400).json({ error: 'Onglet "Societes" introuvable' });
