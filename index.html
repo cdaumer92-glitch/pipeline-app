@@ -914,6 +914,251 @@
       );
     }
 
+    // ===================================================================
+    // COMPOSANT CampagnesRelances — Séquence de relance opt-in (semi-auto)
+    // ===================================================================
+    function CampagnesRelances({ user, API_URL }) {
+      const [seq, setSeq] = React.useState(null);
+      const [loading, setLoading] = React.useState(false);
+      const [error, setError] = React.useState(null);
+      const [config, setConfig] = React.useState(null);
+      const [campagnesBrevo, setCampagnesBrevo] = React.useState([]);
+      const [processing, setProcessing] = React.useState(false);
+      const [feedback, setFeedback] = React.useState(null);
+
+      const token = () => (user && user.token) ? user.token : null;
+      const authH = () => ({ 'Authorization': 'Bearer ' + token(), 'Content-Type': 'application/json' });
+
+      // Chargement initial : config + séquence + liste campagnes Brevo (pour le sélecteur de config)
+      const loadAll = React.useCallback(() => {
+        setLoading(true);
+        setError(null);
+        Promise.all([
+          fetch(`${API_URL}/optin/sequence`, { headers: authH() }).then(r => r.json()),
+          fetch(`${API_URL}/optin/config`, { headers: authH() }).then(r => r.json()),
+          fetch(`${API_URL}/brevo/campaigns`, { headers: authH() }).then(r => r.json()).catch(() => ({ campaigns: [] }))
+        ])
+          .then(([seqData, cfgData, campData]) => {
+            if (seqData.error) { setError(seqData.error); }
+            else setSeq(seqData);
+            setConfig(cfgData || {});
+            setCampagnesBrevo(campData.campaigns || campData.campagnes || []);
+          })
+          .catch(err => setError('Erreur réseau: ' + err.message))
+          .finally(() => setLoading(false));
+      }, [API_URL]);
+
+      React.useEffect(() => { loadAll(); }, [loadAll]);
+
+      // Sauvegarde de la config (campagnes de relance)
+      const saveConfig = (field, campaignId, campaignNom) => {
+        const newCfg = { ...config };
+        if (field === 'relance1') { newCfg.campagne_relance1_id = campaignId; newCfg.campagne_relance1_nom = campaignNom; }
+        if (field === 'relance2') { newCfg.campagne_relance2_id = campaignId; newCfg.campagne_relance2_nom = campaignNom; }
+        setConfig(newCfg);
+        fetch(`${API_URL}/optin/config`, {
+          method: 'POST', headers: authH(),
+          body: JSON.stringify({
+            campagne_relance1_id: newCfg.campagne_relance1_id,
+            campagne_relance1_nom: newCfg.campagne_relance1_nom,
+            campagne_relance2_id: newCfg.campagne_relance2_id,
+            campagne_relance2_nom: newCfg.campagne_relance2_nom
+          })
+        }).catch(err => alert('Erreur sauvegarde config: ' + err.message));
+      };
+
+      // Exécute une relance : envoie via send-campaign PUIS avance l'étape.
+      // numEtape = 1 (relance 1) ou 2 (relance 2)
+      const lancerRelance = async (numEtape, contacts) => {
+        const campId = numEtape === 1 ? config?.campagne_relance1_id : config?.campagne_relance2_id;
+        if (!campId) {
+          alert(`Aucune campagne configurée pour la relance ${numEtape}. Configure-la d'abord ci-dessus.`);
+          return;
+        }
+        if (!window.confirm(`Envoyer la relance ${numEtape} à ${contacts.length} contact(s) ?`)) return;
+        setProcessing(true);
+        setFeedback(null);
+        try {
+          const ids = contacts.map(c => c.id);
+          // 1. Envoi via send-campaign (mode opt_in_request, mécanique éprouvée)
+          const sendRes = await fetch(`${API_URL}/brevo/send-campaign`, {
+            method: 'POST', headers: authH(),
+            body: JSON.stringify({ campaignId: parseInt(campId), contactIds: ids, mode: 'opt_in_request', filtres: { type: 'demande_optin' } })
+          });
+          const sendData = await sendRes.json();
+          if (!sendRes.ok) {
+            setFeedback({ type: 'error', msg: `Échec envoi : ${sendData.error || 'erreur inconnue'}` });
+            setProcessing(false);
+            return;
+          }
+          // 2. Avancer l'étape (seulement si envoi OK)
+          await fetch(`${API_URL}/optin/avancer-etape`, {
+            method: 'POST', headers: authH(),
+            body: JSON.stringify({ contactIds: ids, etape_cible: numEtape })
+          });
+          setFeedback({ type: 'success', msg: `Relance ${numEtape} envoyée à ${ids.length} contact(s). Statut Brevo : ${sendData.statut_brevo || 'envoyé'}.` });
+          loadAll(); // recharge la séquence
+        } catch (err) {
+          setFeedback({ type: 'error', msg: 'Erreur : ' + err.message });
+        } finally {
+          setProcessing(false);
+        }
+      };
+
+      // Clôture : décoche demande_optin pour les contacts donnés
+      const cloturer = async (contacts) => {
+        if (!window.confirm(`Clôturer la séquence pour ${contacts.length} contact(s) ? Ils retourneront en "non sollicité" et ne seront plus relancés.`)) return;
+        setProcessing(true);
+        setFeedback(null);
+        try {
+          const ids = contacts.map(c => c.id);
+          const r = await fetch(`${API_URL}/optin/cloturer`, {
+            method: 'POST', headers: authH(),
+            body: JSON.stringify({ contactIds: ids })
+          });
+          const data = await r.json();
+          if (!r.ok) { setFeedback({ type: 'error', msg: data.error || 'Erreur clôture' }); }
+          else { setFeedback({ type: 'success', msg: `${data.cloture} contact(s) clôturé(s).` }); loadAll(); }
+        } catch (err) {
+          setFeedback({ type: 'error', msg: 'Erreur : ' + err.message });
+        } finally {
+          setProcessing(false);
+        }
+      };
+
+      const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+
+      // Rendu d'une liste de contacts avec bouton d'action groupée
+      const renderGroupe = (titre, desc, contacts, couleur, actionLabel, onAction) => (
+        <div style={{background: 'white', border: '0.5px solid var(--tw-border)', borderRadius: '12px', padding: '20px', marginBottom: '16px'}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: contacts.length ? '14px' : '0'}}>
+            <div>
+              <div style={{fontSize: '15px', fontWeight: 600, color: couleur}}>{titre} <span style={{color: 'var(--tw-muted)', fontWeight: 400}}>({contacts.length})</span></div>
+              <div style={{fontSize: '12px', color: 'var(--tw-muted)', marginTop: '2px'}}>{desc}</div>
+            </div>
+            {contacts.length > 0 && (
+              <button onClick={() => onAction(contacts)} disabled={processing} style={{padding: '8px 16px', background: couleur, color: 'white', border: 'none', borderRadius: '8px', cursor: processing ? 'wait' : 'pointer', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap'}}>{actionLabel}</button>
+            )}
+          </div>
+          {contacts.length > 0 ? (
+            <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '12px'}}>
+              <thead>
+                <tr style={{borderBottom: '1px solid var(--tw-border)', textAlign: 'left'}}>
+                  <th style={{padding: '6px 8px', fontWeight: 600, color: 'var(--tw-slate)'}}>Société</th>
+                  <th style={{padding: '6px 8px', fontWeight: 600, color: 'var(--tw-slate)'}}>Prénom</th>
+                  <th style={{padding: '6px 8px', fontWeight: 600, color: 'var(--tw-slate)'}}>Nom</th>
+                  <th style={{padding: '6px 8px', fontWeight: 600, color: 'var(--tw-slate)'}}>Email</th>
+                  <th style={{padding: '6px 8px', fontWeight: 600, color: 'var(--tw-slate)'}}>Dernier envoi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contacts.map(c => (
+                  <tr key={c.id} style={{borderBottom: '0.5px solid var(--tw-border)'}}>
+                    <td style={{padding: '6px 8px', color: 'var(--tw-ink)', fontWeight: 500}}>{c.societe}</td>
+                    <td style={{padding: '6px 8px', color: 'var(--tw-slate)'}}>{c.prenom || ''}</td>
+                    <td style={{padding: '6px 8px', color: 'var(--tw-slate)'}}>{c.nom || ''}</td>
+                    <td style={{padding: '6px 8px', color: 'var(--tw-slate)'}}>{c.email}</td>
+                    <td style={{padding: '6px 8px', color: 'var(--tw-muted)'}}>{fmtDate(c.dernier_envoi_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div style={{fontSize: '12px', color: 'var(--tw-muted)', fontStyle: 'italic', marginTop: '8px'}}>Aucun contact dans ce groupe pour le moment.</div>
+          )}
+        </div>
+      );
+
+      if (loading) return <div style={{padding: '40px', textAlign: 'center', color: 'var(--tw-muted)'}}>Chargement de la séquence…</div>;
+      if (error) return <div style={{padding: '20px', color: '#a52d2d', fontSize: '13px'}}>Erreur : {error}</div>;
+
+      // Liste des campagnes Brevo pour les sélecteurs de config
+      const campOptions = campagnesBrevo.map(c => ({ id: c.id, nom: c.name || c.nom || `Campagne #${c.id}` }));
+
+      return (
+        <div>
+          {/* Feedback */}
+          {feedback && (
+            <div style={{padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', background: feedback.type === 'success' ? '#e6f7ec' : '#fde8e8', color: feedback.type === 'success' ? '#0d7d39' : '#a52d2d'}}>{feedback.msg}</div>
+          )}
+
+          {/* CONFIG des campagnes de relance */}
+          <div style={{background: 'var(--tw-bg)', border: '0.5px solid var(--tw-border)', borderRadius: '12px', padding: '20px', marginBottom: '20px'}}>
+            <div style={{fontSize: '14px', fontWeight: 600, color: 'var(--tw-ink)', marginBottom: '4px'}}>Configuration des relances</div>
+            <div style={{fontSize: '12px', color: 'var(--tw-muted)', marginBottom: '14px'}}>Associe une campagne Brevo (brouillon, avec {'{{ contact.OPTIN_LINK }}'}) à chaque étape de relance. Délai entre étapes : {seq?.delai_jours_ouvres || 5} jours ouvrés.</div>
+            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px'}}>
+              {[
+                { key: 'relance1', label: '1ère relance', cur: config?.campagne_relance1_id },
+                { key: 'relance2', label: '2ème relance (dernière tentative)', cur: config?.campagne_relance2_id }
+              ].map(({ key, label, cur }) => (
+                <div key={key}>
+                  <label style={{fontSize: '12px', fontWeight: 600, color: 'var(--tw-slate)', display: 'block', marginBottom: '6px'}}>{label}</label>
+                  <select
+                    value={cur || ''}
+                    onChange={(e) => {
+                      const opt = campOptions.find(o => String(o.id) === e.target.value);
+                      saveConfig(key, opt ? opt.id : null, opt ? opt.nom : null);
+                    }}
+                    style={{width: '100%', padding: '8px 10px', border: '0.5px solid var(--tw-border)', borderRadius: '8px', fontSize: '13px'}}>
+                    <option value="">— Choisir une campagne —</option>
+                    {campOptions.map(o => <option key={o.id} value={o.id}>#{o.id} · {o.nom}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* GROUPES */}
+          {renderGroupe(
+            'Relances à faire — 1ère relance',
+            'Contacts dont la demande initiale date de plus de ' + (seq?.delai_jours_ouvres || 5) + ' jours ouvrés, sans réponse.',
+            seq?.relance1 || [], '#007d89', 'Envoyer la 1ère relance',
+            (contacts) => lancerRelance(1, contacts)
+          )}
+          {renderGroupe(
+            'Relances à faire — dernière tentative',
+            'Contacts relancés une fois, sans réponse depuis ' + (seq?.delai_jours_ouvres || 5) + ' jours ouvrés.',
+            seq?.relance2 || [], '#b97800', 'Envoyer la dernière relance',
+            (contacts) => lancerRelance(2, contacts)
+          )}
+          {renderGroupe(
+            'À clôturer',
+            'Contacts sans réponse après les 2 relances. Les clôturer les retire de la séquence (retour "non sollicité").',
+            seq?.cloture || [], '#a52d2d', 'Clôturer (décocher)',
+            (contacts) => cloturer(contacts)
+          )}
+
+          {/* EN ATTENTE (informatif, pas d'action) */}
+          {seq?.enAttente && seq.enAttente.length > 0 && (
+            <div style={{background: 'white', border: '0.5px solid var(--tw-border)', borderRadius: '12px', padding: '20px', marginBottom: '16px'}}>
+              <div style={{fontSize: '15px', fontWeight: 600, color: 'var(--tw-slate)'}}>En attente <span style={{color: 'var(--tw-muted)', fontWeight: 400}}>({seq.enAttente.length})</span></div>
+              <div style={{fontSize: '12px', color: 'var(--tw-muted)', marginTop: '2px', marginBottom: '12px'}}>Contacts dans la séquence dont le délai n'est pas encore écoulé. Ils apparaîtront dans les groupes ci-dessus le moment venu.</div>
+              <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '12px'}}>
+                <thead>
+                  <tr style={{borderBottom: '1px solid var(--tw-border)', textAlign: 'left'}}>
+                    <th style={{padding: '6px 8px', fontWeight: 600, color: 'var(--tw-slate)'}}>Société</th>
+                    <th style={{padding: '6px 8px', fontWeight: 600, color: 'var(--tw-slate)'}}>Contact</th>
+                    <th style={{padding: '6px 8px', fontWeight: 600, color: 'var(--tw-slate)'}}>Prochaine action</th>
+                    <th style={{padding: '6px 8px', fontWeight: 600, color: 'var(--tw-slate)'}}>Éligible le</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {seq.enAttente.map(c => (
+                    <tr key={c.id} style={{borderBottom: '0.5px solid var(--tw-border)'}}>
+                      <td style={{padding: '6px 8px', color: 'var(--tw-ink)', fontWeight: 500}}>{c.societe}</td>
+                      <td style={{padding: '6px 8px', color: 'var(--tw-slate)'}}>{[c.prenom, c.nom].filter(Boolean).join(' ')}</td>
+                      <td style={{padding: '6px 8px', color: 'var(--tw-muted)'}}>{c.prochaine === 'relance1' ? '1ère relance' : c.prochaine === 'relance2' ? 'Dernière relance' : 'Clôture'}</td>
+                      <td style={{padding: '6px 8px', color: 'var(--tw-muted)'}}>{fmtDate(c.echeance)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     function CampagnesPage({ user, API_URL, onClose }) {
       const [activeView, setActiveView] = React.useState('envoyer');
       const [typeCible, setTypeCible] = React.useState('prospect'); // client|prospect|suspect|prospect_suspect|all
@@ -1089,10 +1334,13 @@
           <div style={{display:'flex', gap:'4px', marginBottom:'20px', borderBottom:'1px solid var(--tw-border)'}}>
             <button onClick={() => setActiveView('envoyer')} style={{padding:'10px 18px', background:'transparent', border:'none', borderBottom: activeView==='envoyer' ? '2px solid var(--tw-teal)' : '2px solid transparent', cursor:'pointer', fontSize:'14px', fontWeight: activeView==='envoyer' ? 600 : 400, color: activeView==='envoyer' ? 'var(--tw-teal)' : 'var(--tw-slate)', marginBottom:'-1px'}}>Envoyer une campagne</button>
             <button onClick={() => setActiveView('historique')} style={{padding:'10px 18px', background:'transparent', border:'none', borderBottom: activeView==='historique' ? '2px solid var(--tw-teal)' : '2px solid transparent', cursor:'pointer', fontSize:'14px', fontWeight: activeView==='historique' ? 600 : 400, color: activeView==='historique' ? 'var(--tw-teal)' : 'var(--tw-slate)', marginBottom:'-1px'}}>Historique &amp; statistiques</button>
+            <button onClick={() => setActiveView('relances')} style={{padding:'10px 18px', background:'transparent', border:'none', borderBottom: activeView==='relances' ? '2px solid var(--tw-teal)' : '2px solid transparent', cursor:'pointer', fontSize:'14px', fontWeight: activeView==='relances' ? 600 : 400, color: activeView==='relances' ? 'var(--tw-teal)' : 'var(--tw-slate)', marginBottom:'-1px'}}>Relances opt-in</button>
           </div>
 
           {activeView === 'historique' ? (
             <CampagnesHistorique user={user} API_URL={API_URL} />
+          ) : activeView === 'relances' ? (
+            <CampagnesRelances user={user} API_URL={API_URL} />
           ) : (
           <React.Fragment>
           {/* FILTRES */}

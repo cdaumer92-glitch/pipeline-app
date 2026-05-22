@@ -490,6 +490,49 @@ async function initDB() {
     await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_interloc_optin_token ON interlocuteurs(optin_token) WHERE optin_token IS NOT NULL`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_interloc_demande_optin ON interlocuteurs(demande_optin) WHERE demande_optin = TRUE`);
 
+    // ========== SÉQUENCE DE RELANCE OPT-IN (semi-auto) ==========
+    // Suit où en est chaque contact dans la séquence de relance :
+    //   optin_etape : 0 = demande initiale envoyée (aucune relance)
+    //                 1 = 1ère relance envoyée
+    //                 2 = 2ème relance (dernière tentative) envoyée
+    //   optin_dernier_envoi_at : date du dernier envoi opt-in (initial OU relance).
+    //     Sert de point de départ pour calculer les 5 jours ouvrés jusqu'à la
+    //     prochaine relance. Le chrono REDÉMARRE à chaque envoi (choix validé).
+    //
+    // Workflow :
+    //   - Envoi initial (manuel) → optin_etape=0, optin_dernier_envoi_at=NOW
+    //   - 5j ouvrés après → contact éligible relance 1 → après envoi : optin_etape=1
+    //   - 5j ouvrés après → éligible relance 2 → après envoi : optin_etape=2
+    //   - 5j ouvrés après → éligible clôture → demande_optin=false (manuel)
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS optin_etape INTEGER DEFAULT 0`);
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS optin_dernier_envoi_at TIMESTAMP`);
+    // Backfill : pour les contacts déjà en demande_optin avec un envoi déjà fait,
+    // on initialise dernier_envoi_at depuis optin_token_envoye_at (l'envoi initial).
+    await client.query(`
+      UPDATE interlocuteurs
+         SET optin_dernier_envoi_at = optin_token_envoye_at
+       WHERE demande_optin = TRUE
+         AND optin_dernier_envoi_at IS NULL
+         AND optin_token_envoye_at IS NOT NULL
+    `);
+
+    // Table de configuration de la séquence : associe les 2 campagnes Brevo
+    // utilisées pour relance 1 et relance 2. Une seule ligne (singleton, id=1).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS optin_config (
+        id                      INTEGER PRIMARY KEY DEFAULT 1,
+        campagne_relance1_id    INTEGER,
+        campagne_relance1_nom   TEXT,
+        campagne_relance2_id    INTEGER,
+        campagne_relance2_nom   TEXT,
+        delai_jours_ouvres      INTEGER DEFAULT 5,
+        updated_at              TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT optin_config_singleton CHECK (id = 1)
+      )
+    `);
+    // Garantir qu'une ligne existe (insert si absente)
+    await client.query(`INSERT INTO optin_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
+
     // ========== COLONNES PHYSIQUES "OPT-OUT" ==========
     // Promotion de emailing_unsubscribed_at en colonne physique (au lieu du
     // sous-SELECT calculé dans /api/prospects/:id/interlocuteurs) pour deux
@@ -3010,6 +3053,7 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
         `UPDATE interlocuteurs
             SET optin_token = $2,
                 optin_token_envoye_at = NOW(),
+                optin_dernier_envoi_at = NOW(),
                 optin_confirme_at = NULL
           WHERE id = $1`,
         [c.id, tok]
@@ -3574,6 +3618,276 @@ const OPTIN_TOKEN_TTL_DAYS = parseInt(process.env.OPTIN_TOKEN_TTL_DAYS || '30');
 // URL publique du CRM (utilisée pour construire le lien d'opt-in dans les emails).
 // Configurable via env si déploiement multi-environnement.
 const CRM_PUBLIC_URL = process.env.CRM_PUBLIC_URL || 'https://crm.texaswin.fr';
+
+// ===================================================================
+// HELPERS JOURS OUVRÉS (pour la séquence de relance opt-in)
+// ===================================================================
+// Calcule les jours fériés français pour une année donnée.
+// Inclut les fériés fixes + ceux calculés depuis Pâques (algorithme de Gauss/Meeus).
+function feriesFrancais(annee) {
+  // Calcul du dimanche de Pâques (algorithme de Meeus/Jones/Butcher)
+  const a = annee % 19;
+  const b = Math.floor(annee / 100);
+  const c = annee % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const moisPaques = Math.floor((h + l - 7 * m + 114) / 31);   // 3=mars, 4=avril
+  const jourPaques = ((h + l - 7 * m + 114) % 31) + 1;
+  const paques = new Date(annee, moisPaques - 1, jourPaques);
+
+  // Helper : ajoute n jours à une date
+  const addDays = (date, n) => {
+    const r = new Date(date);
+    r.setDate(r.getDate() + n);
+    return r;
+  };
+  // Format YYYY-MM-DD (clé de comparaison)
+  const key = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+  return new Set([
+    `${annee}-01-01`,                    // Jour de l'an
+    key(addDays(paques, 1)),             // Lundi de Pâques
+    `${annee}-05-01`,                    // Fête du travail
+    `${annee}-05-08`,                    // Victoire 1945
+    key(addDays(paques, 39)),            // Ascension (Pâques + 39j)
+    key(addDays(paques, 50)),            // Lundi de Pentecôte (Pâques + 50j)
+    `${annee}-07-14`,                    // Fête nationale
+    `${annee}-08-15`,                    // Assomption
+    `${annee}-11-01`,                    // Toussaint
+    `${annee}-11-11`,                    // Armistice 1918
+    `${annee}-12-25`,                    // Noël
+  ]);
+}
+
+// Vérifie si une date est un jour ouvré (ni WE, ni férié français)
+function estJourOuvre(date) {
+  const jour = date.getDay(); // 0=dimanche, 6=samedi
+  if (jour === 0 || jour === 6) return false;
+  const feries = feriesFrancais(date.getFullYear());
+  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return !feries.has(key);
+}
+
+// Ajoute N jours OUVRÉS à une date de départ (retourne une nouvelle Date).
+// Ex : ajouterJoursOuvres(vendredi, 1) → lundi suivant
+function ajouterJoursOuvres(dateDepart, n) {
+  const r = new Date(dateDepart);
+  let restants = n;
+  while (restants > 0) {
+    r.setDate(r.getDate() + 1);
+    if (estJourOuvre(r)) restants--;
+  }
+  return r;
+}
+
+// Indique si la date d'échéance (dateDepart + n jours ouvrés) est atteinte ou
+// dépassée par rapport à maintenant. Utilisé pour savoir si une relance est "due".
+function echeanceAtteinte(dateDepart, n) {
+  if (!dateDepart) return false;
+  const echeance = ajouterJoursOuvres(new Date(dateDepart), n);
+  return new Date() >= echeance;
+}
+
+// ===================================================================
+// SÉQUENCE DE RELANCE OPT-IN — ENDPOINTS
+// ===================================================================
+
+// -------- GET /api/optin/config --------
+// Retourne la config de séquence (les 2 campagnes de relance + délai).
+app.get('/api/optin/config', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT * FROM optin_config WHERE id = 1`);
+    res.json(r.rows[0] || {});
+  } catch (err) {
+    console.error('[optin/config GET] erreur:', err);
+    res.status(500).json({ error: 'Erreur BDD: ' + err.message });
+  }
+});
+
+// -------- POST /api/optin/config --------
+// Met à jour les campagnes associées aux relances 1 et 2.
+// Body : { campagne_relance1_id, campagne_relance1_nom, campagne_relance2_id,
+//          campagne_relance2_nom, delai_jours_ouvres }
+app.post('/api/optin/config', auth, async (req, res) => {
+  const b = req.body || {};
+  try {
+    const r = await pool.query(
+      `UPDATE optin_config
+          SET campagne_relance1_id  = $1,
+              campagne_relance1_nom = $2,
+              campagne_relance2_id  = $3,
+              campagne_relance2_nom = $4,
+              delai_jours_ouvres    = COALESCE($5, delai_jours_ouvres),
+              updated_at            = NOW()
+        WHERE id = 1
+        RETURNING *`,
+      [
+        b.campagne_relance1_id ? parseInt(b.campagne_relance1_id) : null,
+        b.campagne_relance1_nom || null,
+        b.campagne_relance2_id ? parseInt(b.campagne_relance2_id) : null,
+        b.campagne_relance2_nom || null,
+        b.delai_jours_ouvres ? parseInt(b.delai_jours_ouvres) : null
+      ]
+    );
+    res.json({ ok: true, config: r.rows[0] });
+  } catch (err) {
+    console.error('[optin/config POST] erreur:', err);
+    res.status(500).json({ error: 'Erreur BDD: ' + err.message });
+  }
+});
+
+// -------- GET /api/optin/sequence --------
+// Liste les contacts de la séquence de relance, répartis en 3 groupes :
+//   - relance1 : contacts à l'étape 0, dont le délai depuis l'envoi initial est écoulé
+//   - relance2 : contacts à l'étape 1, dont le délai depuis la relance 1 est écoulé
+//   - cloture  : contacts à l'étape 2, dont le délai depuis la relance 2 est écoulé
+// Un contact n'apparaît QUE si son échéance (5j ouvrés) est atteinte.
+// Les contacts opt-in ou opt-out sont automatiquement exclus (demande_optin=false
+// les sort, ou accept_emailing=true). On filtre donc sur demande_optin=true.
+app.get('/api/optin/sequence', auth, async (req, res) => {
+  try {
+    // Récupère le délai configuré
+    const cfg = await pool.query(`SELECT delai_jours_ouvres FROM optin_config WHERE id = 1`);
+    const delai = cfg.rows[0]?.delai_jours_ouvres || 5;
+
+    // Tous les contacts en attente dans la séquence (demande_optin=true, pas encore opt-in)
+    const r = await pool.query(
+      `SELECT i.id, i.prenom, i.nom, i.email,
+              i.optin_etape, i.optin_dernier_envoi_at, i.optin_token_envoye_at,
+              p.name AS societe, p.statut_societe
+         FROM interlocuteurs i
+         LEFT JOIN prospects p ON p.id = i.prospect_id
+        WHERE COALESCE(i.demande_optin, false) = true
+          AND COALESCE(i.accept_emailing, false) = false
+          AND i.email IS NOT NULL AND TRIM(i.email) <> ''
+        ORDER BY i.optin_dernier_envoi_at ASC NULLS LAST`
+    );
+
+    const relance1 = [], relance2 = [], cloture = [], enAttente = [];
+    for (const c of r.rows) {
+      // Point de départ du chrono : dernier envoi (ou envoi initial du token si pas encore set)
+      const ref = c.optin_dernier_envoi_at || c.optin_token_envoye_at;
+      const due = echeanceAtteinte(ref, delai);
+      const etape = c.optin_etape || 0;
+      const item = {
+        id: c.id, prenom: c.prenom, nom: c.nom, email: c.email,
+        societe: c.societe, statut_societe: c.statut_societe,
+        etape, dernier_envoi_at: ref,
+        echeance: ref ? ajouterJoursOuvres(new Date(ref), delai).toISOString() : null
+      };
+      if (etape === 0) {
+        due ? relance1.push(item) : enAttente.push({ ...item, prochaine: 'relance1' });
+      } else if (etape === 1) {
+        due ? relance2.push(item) : enAttente.push({ ...item, prochaine: 'relance2' });
+      } else if (etape >= 2) {
+        due ? cloture.push(item) : enAttente.push({ ...item, prochaine: 'cloture' });
+      }
+    }
+
+    res.json({
+      delai_jours_ouvres: delai,
+      relance1, relance2, cloture, enAttente,
+      counts: {
+        relance1: relance1.length,
+        relance2: relance2.length,
+        cloture: cloture.length,
+        enAttente: enAttente.length
+      }
+    });
+  } catch (err) {
+    console.error('[optin/sequence] erreur:', err);
+    res.status(500).json({ error: 'Erreur BDD: ' + err.message });
+  }
+});
+
+// -------- POST /api/optin/avancer-etape --------
+// Appelé par le front APRÈS un envoi de relance réussi (via send-campaign).
+// Incrémente optin_etape et met à jour optin_dernier_envoi_at pour les contacts
+// qui viennent d'être relancés. Découplé de l'envoi pour ne pas avancer l'étape
+// si l'envoi a échoué.
+// Body : { contactIds: [...], etape_cible: 1|2 }
+//   etape_cible = la NOUVELLE étape à appliquer (1 après relance 1, 2 après relance 2)
+app.post('/api/optin/avancer-etape', auth, async (req, res) => {
+  const { contactIds, etape_cible } = req.body || {};
+  if (!Array.isArray(contactIds) || contactIds.length === 0) {
+    return res.status(400).json({ error: 'contactIds requis (tableau non vide)' });
+  }
+  const etape = parseInt(etape_cible);
+  if (![1, 2].includes(etape)) {
+    return res.status(400).json({ error: 'etape_cible doit être 1 ou 2' });
+  }
+  const ids = contactIds.map(x => parseInt(x)).filter(x => Number.isFinite(x) && x > 0);
+  if (ids.length === 0) return res.status(400).json({ error: 'aucun contactId valide' });
+
+  try {
+    const r = await pool.query(
+      `UPDATE interlocuteurs
+          SET optin_etape = $2,
+              optin_dernier_envoi_at = NOW()
+        WHERE id = ANY($1::int[])
+          AND COALESCE(demande_optin, false) = true
+        RETURNING id`,
+      [ids, etape]
+    );
+    // Trace dans l'historique consents
+    for (const row of r.rows) {
+      await pool.query(
+        `INSERT INTO interlocuteurs_consents
+           (interlocuteur_id, field, old_value, new_value, changed_by, source)
+         VALUES ($1, 'optin_etape', $2, $3, $4, 'relance_optin')`,
+        [row.id, String(etape - 1), String(etape), req.userName || null]
+      );
+    }
+    res.json({ ok: true, updated: r.rows.length, etape });
+  } catch (err) {
+    console.error('[optin/avancer-etape] erreur:', err);
+    res.status(500).json({ error: 'Erreur BDD: ' + err.message });
+  }
+});
+
+// -------- POST /api/optin/cloturer --------
+// Clôture la séquence pour les contacts donnés : décoche demande_optin.
+// Le contact retourne en "non sollicité" (ni opt-in ni opt-out explicite).
+// Body : { contactIds: [...] }
+app.post('/api/optin/cloturer', auth, async (req, res) => {
+  const { contactIds } = req.body || {};
+  if (!Array.isArray(contactIds) || contactIds.length === 0) {
+    return res.status(400).json({ error: 'contactIds requis (tableau non vide)' });
+  }
+  const ids = contactIds.map(x => parseInt(x)).filter(x => Number.isFinite(x) && x > 0);
+  if (ids.length === 0) return res.status(400).json({ error: 'aucun contactId valide' });
+
+  try {
+    const r = await pool.query(
+      `UPDATE interlocuteurs
+          SET demande_optin = false,
+              optin_etape = 0
+        WHERE id = ANY($1::int[])
+          AND COALESCE(demande_optin, false) = true
+        RETURNING id`,
+      [ids]
+    );
+    for (const row of r.rows) {
+      await pool.query(
+        `INSERT INTO interlocuteurs_consents
+           (interlocuteur_id, field, old_value, new_value, changed_by, source)
+         VALUES ($1, 'demande_optin', 'true', 'false', $2, 'cloture_sequence_optin')`,
+        [row.id, req.userName || null]
+      );
+    }
+    res.json({ ok: true, cloture: r.rows.length });
+  } catch (err) {
+    console.error('[optin/cloturer] erreur:', err);
+    res.status(500).json({ error: 'Erreur BDD: ' + err.message });
+  }
+});
 
 // -------- POST /api/interlocuteurs/:id/demande-optin --------
 // Toggle (ou set explicite via body) du champ demande_optin sur un interlocuteur.
