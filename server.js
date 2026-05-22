@@ -3655,6 +3655,72 @@ app.post('/api/interlocuteurs/:id/demande-optin', auth, async (req, res) => {
 //   - title, message : textes principaux
 //   - ctaText, ctaUrl : bouton optionnel
 //   - showPitch : si true, affiche le bloc "À propos de TexasWin" (uniquement opt-in confirmé)
+// Page de désinscription personnalisée TexasWin (design "Promis, on disparaît").
+// Servie publiquement sur GET /desinscription pour :
+//   1. La redirection après désabonnement Brevo (config dans Brevo → page perso → URL)
+//   2. (cohérence visuelle) le lien de refus opt-in qui peut y rediriger aussi
+function renderUnsubscribePage() {
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TexasWin — D&eacute;sinscription</title>
+  <style>
+    body { margin: 0; padding: 0; background-color: #eef1f5; font-family: Arial, Helvetica, sans-serif; -webkit-font-smoothing: antialiased; }
+    .wrap { max-width: 640px; margin: 0 auto; padding: 40px 20px; }
+    .card { background: #ffffff; border-radius: 16px; padding: 44px 48px; }
+    .brand { text-align: center; margin-bottom: 30px; }
+    .logo { display: inline-flex; width: 38px; height: 38px; background: #007d89; border-radius: 9px; color: #fff; font-weight: 700; font-size: 18px; align-items: center; justify-content: center; vertical-align: middle; }
+    .brand-name { font-size: 24px; font-weight: 700; color: #1f2933; vertical-align: middle; margin-left: 12px; }
+    .badge { display: inline-block; margin-left: 10px; background: #fdeede; color: #9a6212; font-size: 13px; font-weight: 600; padding: 6px 15px; border-radius: 16px; vertical-align: middle; }
+    h1 { text-align: center; font-size: 32px; font-weight: 700; color: #1f2933; margin: 0 0 20px; }
+    .lead { text-align: center; font-size: 16px; line-height: 1.6; color: #5a6573; margin: 0 0 30px; }
+    .box { background: #f5f7fa; border-radius: 12px; padding: 24px 28px; margin-bottom: 32px; }
+    .box-title { font-size: 13px; font-weight: 700; letter-spacing: 0.5px; color: #007d89; margin: 0 0 14px; }
+    .box p { font-size: 15px; line-height: 1.6; color: #5a6573; margin: 0 0 12px; }
+    .box p:last-child { margin-bottom: 0; }
+    .cta { text-align: center; margin-bottom: 34px; }
+    .cta a { display: inline-block; background: #007d89; color: #ffffff; font-size: 15px; font-weight: 700; padding: 15px 32px; border-radius: 8px; text-decoration: none; }
+    .foot { text-align: center; font-size: 13px; color: #94a3b0; margin: 0; }
+    .foot a { color: #94a3b0; }
+    @media screen and (max-width: 600px) {
+      .card { padding: 32px 24px; }
+      h1 { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+
+      <div class="brand">
+        <span class="logo">T</span><span class="brand-name">TexasWin</span><span class="badge">C'est not&eacute;</span>
+      </div>
+
+      <h1>Promis, on dispara&icirc;t !</h1>
+
+      <p class="lead">Votre adresse est retir&eacute;e de notre liste. Plus aucun message de notre part &mdash; on tient parole, c'est tout l'int&eacute;r&ecirc;t de demander la permission avant.</p>
+
+      <div class="box">
+        <p class="box-title">ET SI VOUS CHANGEZ D'AVIS ?</p>
+        <p>Aucune rancune, bien au contraire. Le textile bouge vite, et le jour o&ugrave; vous voudrez reprendre le fil &mdash; IA, innovations, tendances du secteur &mdash; la porte sera grande ouverte.</p>
+        <p>Il vous suffira de nous le dire, et nous serons ravis de vous compter &agrave; nouveau parmi nos lecteurs.</p>
+      </div>
+
+      <div class="cta">
+        <a href="https://texaswin.fr" target="_blank">Visiter texaswin.fr</a>
+      </div>
+
+      <p class="foot">ASTI &middot; 19 rue de la R&eacute;sistance, 42300 Roanne &middot; <a href="mailto:c.daumer@texaswin.fr">c.daumer@texaswin.fr</a></p>
+
+    </div>
+  </div>
+</body>
+</html>
+`;
+}
+
 function renderOptinPage(status, title, message, ctaText, ctaUrl, showPitch) {
   const palette = {
     success: { color: '#0d7d39', bg: '#e6f7ec', badge: '✓ Inscription confirmée' },
@@ -3869,12 +3935,9 @@ app.get('/api/optin/refuse', async (req, res) => {
 
     console.log(`[optin/refuse] interlocuteur ${c.id} (${c.email}) a refusé l'opt-in`);
 
-    return res.type('html').send(renderPage(
-      'optout',
-      'C\'est noté',
-      `Votre choix a bien été enregistré : nous ne vous adresserons pas de communications commerciales à l'adresse ${c.email}. Nous restons naturellement à votre disposition si vous changez d'avis.`,
-      'Visiter texaswin.fr', 'https://www.texaswin.fr'
-    ));
+    // Affiche la page de désinscription personnalisée "Promis, on disparaît"
+    // (cohérence visuelle avec la redirection Brevo). Le travail BDD est déjà fait ci-dessus.
+    return res.type('html').send(renderUnsubscribePage());
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('[optin/refuse] erreur:', err);
@@ -3886,6 +3949,18 @@ app.get('/api/optin/refuse', async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+// -------- GET /desinscription --------
+// Page PUBLIQUE de confirmation de désinscription (design "Promis, on disparaît").
+// Sert deux usages :
+//   1. Cible de redirection après désabonnement Brevo (à configurer dans Brevo :
+//      page de désinscription personnalisée → option URL → https://crm.texaswin.fr/desinscription)
+//   2. Page de cohérence visuelle pour les confirmations de désinscription
+// Ne fait AUCune écriture en BDD : le désabonnement réel est déjà traité par
+// Brevo (qui blackliste + déclenche le webhook). Cette page est purement informative.
+app.get('/desinscription', (req, res) => {
+  res.type('html').send(renderUnsubscribePage());
 });
 
 // ===================== ADMIN ROUTES =====================
