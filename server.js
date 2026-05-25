@@ -172,6 +172,12 @@ async function initDB() {
     await client.query(`
       ALTER TABLE devis ADD COLUMN IF NOT EXISTS config_json JSONB
     `);
+    // Lien "annulé et remplacé" : quand un devis est annulé au profit d'un nouveau,
+    // remplace_par_devis_id pointe vers le nouveau devis (sur l'ancien),
+    // et remplace_devis_id pointe vers l'ancien (sur le nouveau). Double sens pour
+    // pouvoir afficher "remplacé par n°X" sur l'ancien et "remplace n°Y" sur le nouveau.
+    await client.query(`ALTER TABLE devis ADD COLUMN IF NOT EXISTS remplace_par_devis_id INTEGER`);
+    await client.query(`ALTER TABLE devis ADD COLUMN IF NOT EXISTS remplace_devis_id INTEGER`);
 
     // Table interlocuteurs
     await client.query(`CREATE TABLE IF NOT EXISTS interlocuteurs (
@@ -1730,6 +1736,57 @@ app.put('/api/devis/:id', auth, async (req, res) => {
   } catch (err) {
     console.error('❌ Erreur PUT /api/devis/:id:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/devis/:id/annuler-remplacer - Annule un devis et crée un remplaçant
+// L'ancien devis passe en statut "Annulé". Un nouveau devis est créé en copiant
+// les infos de l'ancien (nom, montants, affaire, modules...). Les deux sont liés :
+//   - ancien.remplace_par_devis_id = nouveau.id
+//   - nouveau.remplace_devis_id = ancien.id
+app.post('/api/devis/:id/annuler-remplacer', auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    await client.query('BEGIN');
+
+    // 1. Récupérer l'ancien devis
+    const old = await client.query('SELECT * FROM devis WHERE id = $1', [id]);
+    if (old.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Devis introuvable' });
+    }
+    const d = old.rows[0];
+
+    // 2. Créer le nouveau devis (copie de l'ancien, statut En cours, sans PDF)
+    const nouveauNom = (d.devis_name || 'Devis') + ' (v2)';
+    const ins = await client.query(
+      `INSERT INTO devis (prospect_id, affaire_id, devis_name, devis_status, quote_date,
+         setup_amount, monthly_amount, annual_amount, training_amount, chance_percent,
+         modules, comment, config_json, remplace_devis_id, created_at)
+       VALUES ($1,$2,$3,'En cours',CURRENT_DATE,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+       RETURNING *`,
+      [d.prospect_id, d.affaire_id, nouveauNom,
+       d.setup_amount, d.monthly_amount, d.annual_amount, d.training_amount,
+       d.chance_percent, d.modules, d.comment, d.config_json, d.id]
+    );
+    const nouveau = ins.rows[0];
+
+    // 3. Annuler l'ancien + le lier au nouveau
+    await client.query(
+      `UPDATE devis SET devis_status = 'Annulé', remplace_par_devis_id = $1,
+         updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [nouveau.id, d.id]
+    );
+
+    await client.query('COMMIT');
+    res.json({ ok: true, ancien_id: d.id, nouveau });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('❌ Erreur annuler-remplacer:', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 

@@ -536,6 +536,7 @@
       clock:      React.createElement(React.Fragment, null, React.createElement('circle',{cx:12,cy:12,r:10}), React.createElement('polyline',{points:'12 6 12 12 16 14'})),
       mail:       React.createElement(React.Fragment, null, React.createElement('path',{d:'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z'}), React.createElement('polyline',{points:'22,6 12,13 2,6'})),
       bell:       React.createElement(React.Fragment, null, React.createElement('path',{d:'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'}), React.createElement('path',{d:'M13.73 21a2 2 0 0 1-3.46 0'})),
+      replace:    React.createElement(React.Fragment, null, React.createElement('polyline',{points:'1 4 1 10 7 10'}), React.createElement('polyline',{points:'23 20 23 14 17 14'}), React.createElement('path',{d:'M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15'})),
     };
 
     // Petit bouton icône réutilisable (action discrète sur card)
@@ -2185,6 +2186,30 @@
         }
       };
 
+      // Annule un devis et crée automatiquement un remplaçant (copie) lié.
+      const handleAnnulerRemplacer = async (devisId) => {
+        if (!window.confirm('Annuler ce devis et créer un devis de remplacement ?\n\nL\'ancien devis passera en statut "Annulé" et un nouveau devis sera créé en reprenant ses informations.')) return;
+        try {
+          const res = await fetch(`${API_URL}/devis/${devisId}/annuler-remplacer`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' }
+          });
+          if (res.ok) {
+            window.showToast({title: 'Devis annulé et remplacé', type:'success'});
+            if (selectedProspect?.id) {
+              await fetchDevis(selectedProspect.id);
+              await fetchAffaires(selectedProspect.id);
+            }
+          } else {
+            const data = await res.json().catch(() => ({}));
+            window.showToast({title:'Erreur : ' + (data.error || 'annulation impossible'), type:'error'});
+          }
+        } catch (err) {
+          console.error('Erreur handleAnnulerRemplacer:', err);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
+        }
+      };
+
       const handleDeleteDevis = async (devisId) => {
         if (!window.confirm('Supprimer ce devis ?')) return;
 
@@ -3773,6 +3798,7 @@
               handleEditDevis={handleEditDevis}
               handleSaveDevis={handleSaveDevis}
               handleQuickDevisStatus={handleQuickDevisStatus}
+              handleAnnulerRemplacer={handleAnnulerRemplacer}
               handleDeleteDevis={handleDeleteDevis}
               handleRattacherDevisAffaire={handleRattacherDevisAffaire}
               handleUploadDevisPdf={handleUploadDevisPdf}
@@ -8030,7 +8056,7 @@
       );
     }
 
-    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, fetchInterlocuteurs, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, draggedContactId, setDraggedContactId, dragOverContactId, setDragOverContactId, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
+    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, fetchInterlocuteurs, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, draggedContactId, setDraggedContactId, dragOverContactId, setDragOverContactId, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
@@ -9424,6 +9450,7 @@
                     handleEditDevis={handleEditDevis}
                     handleSaveDevis={handleSaveDevis}
                     handleQuickDevisStatus={handleQuickDevisStatus}
+                    handleAnnulerRemplacer={handleAnnulerRemplacer}
                     handleDeleteDevis={handleDeleteDevis}
                     handleDeleteDevisPDF={handleDeleteDevisPDF}
                     handleUploadDevisPdfDirect={handleUploadDevisPdfDirect}
@@ -10048,7 +10075,7 @@
       );
     }
 
-    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect }) {
+    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect }) {
       const [actionNotes, setActionNotes] = React.useState({});
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
@@ -10173,6 +10200,7 @@
                                 {affaireDevis.map(devis => {
                                   const statusColor = devis.devis_status === 'Gagné' ? '#0f6e56'
                                                     : devis.devis_status === 'Perdu' ? '#a52d2d'
+                                                    : devis.devis_status === 'Annulé' ? '#8a95a5'
                                                     : devis.devis_status === 'Discussion' ? '#0a5085'
                                                     : devis.devis_status === 'Envoyé' ? '#b06e2a'
                                                     : 'var(--tw-slate)';
@@ -10192,6 +10220,12 @@
                                             <span style={{fontSize:'11px',color:'var(--tw-muted)'}}>{new Date(devis.quote_date).toLocaleDateString('fr-FR')}</span>
                                           )}
                                           <span style={{fontSize:'11px',fontWeight:500,padding:'2px 8px',borderRadius:'10px',background:'var(--tw-bg)',color:statusColor,border:'0.5px solid var(--tw-border)'}}>{devis.chance_percent || 0}% {devis.devis_status || ''}</span>
+                                          {devis.remplace_par_devis_id && (
+                                            <span style={{fontSize:'10px',fontWeight:600,padding:'2px 8px',borderRadius:'10px',background:'#fde8e8',color:'#a52d2d'}} title="Ce devis a été annulé et remplacé">⊘ Remplacé par devis n°{devis.remplace_par_devis_id}</span>
+                                          )}
+                                          {devis.remplace_devis_id && (
+                                            <span style={{fontSize:'10px',fontWeight:600,padding:'2px 8px',borderRadius:'10px',background:'#e6f0f7',color:'#0a5085'}} title="Ce devis remplace un devis annulé">↻ Remplace devis n°{devis.remplace_devis_id}</span>
+                                          )}
                                         </div>
                                         <div style={{display:'flex',alignItems:'center',gap:'2px'}} onClick={(e) => e.stopPropagation()}>
                                           {devis.pdf_url ? (
@@ -10232,10 +10266,14 @@
                                             </>
                                           )}
                                           <IconBtn title="Modifier le devis" onClick={() => handleEditDevis(devis)}>{I(ICONS.edit, 13)}</IconBtn>
+                                          {devis.devis_status !== 'Annulé' && !devis.remplace_par_devis_id && (
+                                            <IconBtn title="Annuler et remplacer par un nouveau devis" onClick={(e) => { e.stopPropagation(); handleAnnulerRemplacer(devis.id); }}>{I(ICONS.replace, 13)}</IconBtn>
+                                          )}
                                           <IconBtn title="Supprimer le devis" danger onClick={() => handleDeleteDevis(devis.id)}>{I(ICONS.trash, 13)}</IconBtn>
                                         </div>
                                       </div>
                                       {/* Barre de progression du statut : boutons cliquables pour faire avancer le devis */}
+                                      {devis.devis_status !== 'Annulé' && (
                                       <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'10px',flexWrap:'wrap'}} onClick={(e) => e.stopPropagation()}>
                                         {['En cours','Envoyé','Discussion','Gagné','Perdu'].map((etape, idx) => {
                                           const isActive = (devis.devis_status || 'En cours') === etape;
@@ -10258,6 +10296,7 @@
                                           );
                                         })}
                                       </div>
+                                      )}
                                       {/* Ligne 2 : 4 mini-cartes pour les montants */}
                                       <div style={{display:'grid',gridTemplateColumns:'repeat(4, 1fr)',gap:'10px',paddingTop:'10px',borderTop:'0.5px solid var(--tw-border)'}}>
                                         <div>
