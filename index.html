@@ -8443,10 +8443,10 @@
                       <TabIcon path={t.icon}/>
                       {t.label}
                       {t.count > 0 && (
-                        <span style={{fontSize:'11px',fontWeight:500,padding:'1px 7px',borderRadius:'10px',
-                          background: active ? 'var(--tw-teal)' : 'var(--tw-bg)',
-                          color: active ? 'white' : 'var(--tw-ink)',
-                          border: active ? 'none' : '0.5px solid var(--tw-border)'}}>{t.count}</span>
+                        <span style={{fontSize:'11px',fontWeight:600,padding:'1px 7px',borderRadius:'10px',
+                          background: active ? 'var(--tw-teal)' : (t.id === 'affaires' ? 'var(--tw-teal)' : 'var(--tw-bg)'),
+                          color: active ? 'white' : (t.id === 'affaires' ? 'white' : 'var(--tw-ink)'),
+                          border: (active || t.id === 'affaires') ? 'none' : '0.5px solid var(--tw-border)'}}>{t.count}</span>
                       )}
                     </button>
                   );
@@ -10101,17 +10101,17 @@
                     const PALETTE_AFFAIRES = ['#007d89','#b06e2a','#7048a8','#0a7a4a','#a8385f','#2a6cb0','#9a6212','#46807a'];
                     const couleurAffaire = PALETTE_AFFAIRES[(affaire.id || 0) % PALETTE_AFFAIRES.length];
                     return (
-                      <div key={affaire.id} style={{background:'white',borderRadius:'10px',border:'0.5px solid var(--tw-border)',borderLeft:`4px solid ${couleurAffaire}`,overflow:'hidden',transition:'border-color .15s'}}>
+                      <div key={affaire.id} style={{background:'white',borderRadius:'10px',border:'0.5px solid var(--tw-border)',overflow:'hidden',transition:'border-color .15s'}}>
                         {/* Bandeau accordéon */}
                         <div onClick={() => setSelectedAffaireId(isOpen ? null : affaire.id)}
-                          style={{padding:'12px 14px',cursor:'pointer',background: isOpen ? '#fafaf9' : 'white',borderBottom: isOpen ? '0.5px solid var(--tw-border)' : 'none'}}>
+                          style={{padding:'12px 14px',cursor:'pointer',background: isOpen ? '#fafaf9' : 'white',borderBottom: isOpen ? '0.5px solid var(--tw-border)' : 'none',borderLeft:`4px solid ${couleurAffaire}`}}>
                           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:'10px'}}>
                             <div style={{flex:1,minWidth:0}}>
                               <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
                                 <span style={{color:'var(--tw-muted)',display:'inline-flex'}}>
                                   {I(isOpen ? ICONS.chevron : ICONS.chevronR, 12)}
                                 </span>
-                                <span style={{width:'8px',height:'8px',borderRadius:'50%',background:couleurAffaire,flexShrink:0}}></span>
+                                <span style={{width:'9px',height:'9px',borderRadius:'50%',background:couleurAffaire,flexShrink:0,boxShadow:`0 0 0 2px ${couleurAffaire}22`}}></span>
                                 <span style={{fontSize:'13px',fontWeight:500,color:'var(--tw-ink)'}}>{affaire.nom_affaire}</span>
                                 <span style={{fontSize:'11px',fontWeight:500,padding:'2px 8px',borderRadius:'10px',background:statutColor.bg,color:statutColor.fg}}>{affaire.statut_global || 'En cours'}</span>
                                 <span style={{fontSize:'11px',color:'var(--tw-muted)'}}>· {affaireDevis.length} devis</span>
