@@ -1686,37 +1686,38 @@ app.put('/api/devis/:id', auth, async (req, res) => {
     
     console.log('🔧 PUT /api/devis/' + id);
     console.log('Body reçu:', req.body);
-    
+
+    // PUT partiel : on ne met à jour QUE les champs réellement fournis dans le body.
+    // Tout champ absent (undefined) reste inchangé en BDD. Indispensable pour les
+    // mises à jour ciblées (ex: changement de statut seul depuis la carte résumé),
+    // qui ne doivent pas écraser le nom, les montants ou le rattachement à l'affaire.
+    const has = (k) => Object.prototype.hasOwnProperty.call(req.body, k);
+    const sets = [];
+    const vals = [];
+    let n = 1;
+    const addSet = (col, value) => { sets.push(`${col} = $${n++}`); vals.push(value); };
+
+    if (has('devis_name'))     addSet('devis_name', devis_name);
+    if (has('devis_status') && devis_status) addSet('devis_status', devis_status);
+    if (has('quote_date'))     addSet('quote_date', quote_date === '' ? null : quote_date);
+    if (has('setup_amount'))   addSet('setup_amount', setup_amount || 0);
+    if (has('monthly_amount')) addSet('monthly_amount', monthly_amount || 0);
+    if (has('annual_amount'))  addSet('annual_amount', annual_amount || 0);
+    if (has('training_amount'))addSet('training_amount', training_amount || 0);
+    if (has('chance_percent')) addSet('chance_percent', chance_percent || 0);
+    if (has('modules'))        addSet('modules', JSON.stringify(modules || {}));
+    if (has('comment'))        addSet('comment', comment || null);
+    if (has('affaire_id'))     addSet('affaire_id', affaire_id !== undefined ? affaire_id : null);
+
+    if (sets.length === 0) {
+      return res.status(400).json({ error: 'Aucun champ à mettre à jour' });
+    }
+    sets.push('updated_at = CURRENT_TIMESTAMP');
+    vals.push(id);
+
     const result = await pool.query(
-      `UPDATE devis SET
-        devis_name = $1,
-        devis_status = COALESCE($2, devis_status),
-        quote_date = $3,
-        setup_amount = $4,
-        monthly_amount = $5,
-        annual_amount = $6,
-        training_amount = $7,
-        chance_percent = $8,
-        modules = $9,
-        comment = $10,
-        affaire_id = $11,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $12
-      RETURNING *`,
-      [
-        devis_name,
-        devis_status || null,
-        quote_date === '' ? null : quote_date, // Convertir chaîne vide en null pour PostgreSQL
-        setup_amount || 0,
-        monthly_amount || 0,
-        annual_amount || 0,
-        training_amount || 0,
-        chance_percent || 0,
-        JSON.stringify(modules || {}),
-        comment || null,
-        affaire_id !== undefined ? affaire_id : null,
-        id
-      ]
+      `UPDATE devis SET ${sets.join(', ')} WHERE id = $${n} RETURNING *`,
+      vals
     );
     
     console.log('✅ Devis mis à jour:', result.rows[0]);
