@@ -2164,6 +2164,8 @@
 
       // Changement rapide du statut d'un devis depuis la carte résumé (sans ouvrir le formulaire).
       // Met à jour devis_status via PUT, puis rafraîchit la liste.
+      // Cas spécial "Perdu" : propose de basculer aussi l'affaire en Perdu. Si d'autres
+      // devis de l'affaire sont encore actifs, demande confirmation avant.
       const handleQuickDevisStatus = async (devisId, newStatus) => {
         try {
           const res = await fetch(`${API_URL}/devis/${devisId}`, {
@@ -2173,6 +2175,34 @@
           });
           if (res.ok) {
             window.showToast({title: 'Statut mis à jour : ' + newStatus, type:'success'});
+
+            // Si le devis passe en Perdu, gérer la répercussion sur l'affaire.
+            if (newStatus === 'Perdu') {
+              const devis = devisList.find(d => d.id === devisId);
+              const affaireId = devis?.affaire_id;
+              if (affaireId) {
+                // Autres devis encore actifs dans la même affaire (ni Perdu, ni Annulé, ni Gagné)
+                const autresActifs = devisList.filter(d =>
+                  d.affaire_id === affaireId && d.id !== devisId &&
+                  !['Perdu','Annulé','Gagné'].includes(d.devis_status)
+                );
+                let basculer = true;
+                if (autresActifs.length > 0) {
+                  basculer = window.confirm(
+                    `Cette affaire a encore ${autresActifs.length} devis actif(s).\n\nVoulez-vous quand même passer l'affaire entière en "Perdu" ?`
+                  );
+                }
+                if (basculer) {
+                  const motif = devis?.motif_perte || '';
+                  await fetch(`${API_URL}/affaires/${affaireId}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ statut_global: 'Perdu', motif_perte: motif })
+                  });
+                }
+              }
+            }
+
             if (selectedProspect?.id) {
               await fetchDevis(selectedProspect.id);
               await fetchAffaires(selectedProspect.id);
@@ -2182,6 +2212,37 @@
           }
         } catch (err) {
           console.error('Erreur handleQuickDevisStatus:', err);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
+        }
+      };
+
+      // Enregistre le motif de perte d'un devis (champ commentaire). Si l'affaire est
+      // déjà en Perdu, met aussi à jour son motif pour que la synthèse reste cohérente.
+      const handleSaveMotifPerte = async (devisId, motif, affaireId) => {
+        try {
+          await fetch(`${API_URL}/devis/${devisId}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ motif_perte: motif })
+          });
+          // Répercuter sur l'affaire si elle est perdue
+          if (affaireId) {
+            const aff = affairesList.find(a => a.id === affaireId);
+            if (aff && aff.statut_global === 'Perdu') {
+              await fetch(`${API_URL}/affaires/${affaireId}`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ motif_perte: motif })
+              });
+            }
+          }
+          window.showToast({title:'Motif enregistré', type:'success'});
+          if (selectedProspect?.id) {
+            await fetchDevis(selectedProspect.id);
+            await fetchAffaires(selectedProspect.id);
+          }
+        } catch (err) {
+          console.error('Erreur handleSaveMotifPerte:', err);
           window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
@@ -3799,6 +3860,7 @@
               handleSaveDevis={handleSaveDevis}
               handleQuickDevisStatus={handleQuickDevisStatus}
               handleAnnulerRemplacer={handleAnnulerRemplacer}
+              handleSaveMotifPerte={handleSaveMotifPerte}
               handleDeleteDevis={handleDeleteDevis}
               handleRattacherDevisAffaire={handleRattacherDevisAffaire}
               handleUploadDevisPdf={handleUploadDevisPdf}
@@ -8056,7 +8118,7 @@
       );
     }
 
-    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, fetchInterlocuteurs, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, draggedContactId, setDraggedContactId, dragOverContactId, setDragOverContactId, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
+    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, fetchInterlocuteurs, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, draggedContactId, setDraggedContactId, dragOverContactId, setDragOverContactId, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
@@ -9451,6 +9513,7 @@
                     handleSaveDevis={handleSaveDevis}
                     handleQuickDevisStatus={handleQuickDevisStatus}
                     handleAnnulerRemplacer={handleAnnulerRemplacer}
+                    handleSaveMotifPerte={handleSaveMotifPerte}
                     handleDeleteDevis={handleDeleteDevis}
                     handleDeleteDevisPDF={handleDeleteDevisPDF}
                     handleUploadDevisPdfDirect={handleUploadDevisPdfDirect}
@@ -10075,7 +10138,33 @@
       );
     }
 
-    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect }) {
+    // Champ de saisie du motif de perte d'un devis. État local pour ne pas
+    // sauvegarder à chaque frappe ; bouton "Enregistrer" actif si le texte a changé.
+    function MotifPerteField({ devisId, affaireId, initialValue, onSave }) {
+      const [val, setVal] = React.useState(initialValue || '');
+      const dirty = val !== (initialValue || '');
+      return (
+        <div>
+          <textarea
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            placeholder="Pourquoi ce devis est-il perdu ? (prix, concurrent, délai, projet annulé...)"
+            rows={2}
+            style={{width:'100%',padding:'8px 10px',fontSize:'12px',border:'0.5px solid var(--tw-border)',borderRadius:'6px',resize:'vertical',fontFamily:"'DM Sans',sans-serif",boxSizing:'border-box'}}
+          />
+          {dirty && (
+            <div style={{display:'flex',justifyContent:'flex-end',marginTop:'6px'}}>
+              <button
+                onClick={() => onSave(devisId, val, affaireId)}
+                style={{fontSize:'11px',fontWeight:600,padding:'5px 12px',borderRadius:'6px',border:'none',background:'var(--tw-teal)',color:'white',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}
+              >Enregistrer le motif</button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect }) {
       const [actionNotes, setActionNotes] = React.useState({});
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
@@ -10168,6 +10257,13 @@
                                   </div>
                                 );
                               })()}
+                              {/* Motif de perte de l'affaire (synthèse) */}
+                              {affaire.statut_global === 'Perdu' && affaire.motif_perte && (
+                                <div style={{fontSize:'11px',marginTop:'6px',marginLeft:'20px',color:'#a52d2d',display:'flex',alignItems:'flex-start',gap:'5px'}}>
+                                  <span style={{fontWeight:600,whiteSpace:'nowrap'}}>Motif de perte :</span>
+                                  <span style={{color:'var(--tw-slate)'}}>{affaire.motif_perte}</span>
+                                </div>
+                              )}
                             </div>
                             {/* Actions sur l'affaire */}
                             <div style={{display:'flex',alignItems:'center',gap:'2px'}} onClick={(e) => e.stopPropagation()}>
@@ -10283,13 +10379,13 @@
                                                   onClick={(e) => { e.stopPropagation(); handleAnnulerRemplacer(devis.id); }}
                                                   title="Annuler ce devis et créer un devis de remplacement"
                                                   style={{
-                                                    fontSize:'10px', fontWeight:600,
+                                                    fontSize:'10px', fontWeight:500,
                                                     padding:'4px 9px', borderRadius:'6px', cursor:'pointer',
-                                                    border:'1px solid #b06e2a', background:'#fdeede', color:'#b06e2a',
+                                                    border:'1px solid var(--tw-border)', background:'white', color:'var(--tw-muted)',
                                                     transition:'all .12s', whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:'4px'
                                                   }}
-                                                  onMouseEnter={(e) => { e.currentTarget.style.background = '#b06e2a'; e.currentTarget.style.color = 'white'; }}
-                                                  onMouseLeave={(e) => { e.currentTarget.style.background = '#fdeede'; e.currentTarget.style.color = '#b06e2a'; }}
+                                                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--tw-slate)'; e.currentTarget.style.color = 'var(--tw-slate)'; }}
+                                                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--tw-border)'; e.currentTarget.style.color = 'var(--tw-muted)'; }}
                                                 >↻ Annuler &amp; remplacer</button>
                                               )}
                                               <button
@@ -10330,6 +10426,18 @@
                                           <p style={{margin:'2px 0 0',fontSize:'13px',fontWeight:500,color:'var(--tw-ink)',fontVariantNumeric:'tabular-nums'}}>{(devis.training_amount||0).toLocaleString('fr-FR', {maximumFractionDigits:0})} €</p>
                                         </div>
                                       </div>
+                                      {/* Motif de perte : visible uniquement si le devis est Perdu */}
+                                      {devis.devis_status === 'Perdu' && (
+                                        <div style={{marginTop:'10px',paddingTop:'10px',borderTop:'0.5px solid var(--tw-border)'}} onClick={(e) => e.stopPropagation()}>
+                                          <label style={{display:'block',fontSize:'10px',fontWeight:600,color:'#a52d2d',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'5px'}}>Motif de la perte</label>
+                                          <MotifPerteField
+                                            devisId={devis.id}
+                                            affaireId={devis.affaire_id}
+                                            initialValue={devis.motif_perte || ''}
+                                            onSave={handleSaveMotifPerte}
+                                          />
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}

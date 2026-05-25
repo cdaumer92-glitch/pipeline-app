@@ -148,6 +148,8 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     )`);
+    // Motif de perte de l'affaire (remonté depuis le devis perdu, affiché en synthèse).
+    await client.query(`ALTER TABLE affaires ADD COLUMN IF NOT EXISTS motif_perte TEXT`);
 
     // Table devis
     await client.query(`CREATE TABLE IF NOT EXISTS devis (
@@ -178,6 +180,8 @@ async function initDB() {
     // pouvoir afficher "remplacé par n°X" sur l'ancien et "remplace n°Y" sur le nouveau.
     await client.query(`ALTER TABLE devis ADD COLUMN IF NOT EXISTS remplace_par_devis_id INTEGER`);
     await client.query(`ALTER TABLE devis ADD COLUMN IF NOT EXISTS remplace_devis_id INTEGER`);
+    // Motif de perte : explication saisie quand un devis passe en statut "Perdu".
+    await client.query(`ALTER TABLE devis ADD COLUMN IF NOT EXISTS motif_perte TEXT`);
 
     // Table interlocuteurs
     await client.query(`CREATE TABLE IF NOT EXISTS interlocuteurs (
@@ -1458,14 +1462,21 @@ app.get('/api/affaires/:id', auth, async (req, res) => {
 app.put('/api/affaires/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { nom_affaire, description, statut_global } = req.body;
-    
+    const { nom_affaire, description, statut_global, motif_perte } = req.body;
+
+    // PUT partiel : ne met à jour que les champs fournis (COALESCE).
+    // Permet de passer juste le statut (ex: bascule en Perdu) sans écraser
+    // le nom ou la description de l'affaire.
     const result = await pool.query(
-      `UPDATE affaires 
-       SET nom_affaire = $1, description = $2, statut_global = $3, updated_at = NOW()
-       WHERE id = $4
+      `UPDATE affaires
+       SET nom_affaire   = COALESCE($1, nom_affaire),
+           description   = COALESCE($2, description),
+           statut_global = COALESCE($3, statut_global),
+           motif_perte   = COALESCE($4, motif_perte),
+           updated_at = NOW()
+       WHERE id = $5
        RETURNING *`,
-      [nom_affaire, description, statut_global, id]
+      [nom_affaire ?? null, description ?? null, statut_global ?? null, motif_perte ?? null, id]
     );
     
     if (result.rows.length === 0) {
@@ -1687,7 +1698,8 @@ app.put('/api/devis/:id', auth, async (req, res) => {
       chance_percent,
       modules,
       comment,
-      affaire_id
+      affaire_id,
+      motif_perte
     } = req.body;
     
     console.log('🔧 PUT /api/devis/' + id);
@@ -1713,6 +1725,7 @@ app.put('/api/devis/:id', auth, async (req, res) => {
     if (has('chance_percent')) addSet('chance_percent', chance_percent || 0);
     if (has('modules'))        addSet('modules', JSON.stringify(modules || {}));
     if (has('comment'))        addSet('comment', comment || null);
+    if (has('motif_perte'))    addSet('motif_perte', motif_perte || null);
     if (has('affaire_id'))     addSet('affaire_id', affaire_id !== undefined ? affaire_id : null);
 
     if (sets.length === 0) {
