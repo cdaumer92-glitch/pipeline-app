@@ -2161,6 +2161,30 @@
         }
       };
 
+      // Changement rapide du statut d'un devis depuis la carte résumé (sans ouvrir le formulaire).
+      // Met à jour devis_status via PUT, puis rafraîchit la liste.
+      const handleQuickDevisStatus = async (devisId, newStatus) => {
+        try {
+          const res = await fetch(`${API_URL}/devis/${devisId}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ devis_status: newStatus })
+          });
+          if (res.ok) {
+            window.showToast({title: 'Statut mis à jour : ' + newStatus, type:'success'});
+            if (selectedProspect?.id) {
+              await fetchDevis(selectedProspect.id);
+              await fetchAffaires(selectedProspect.id);
+            }
+          } else {
+            window.showToast({title:'Erreur mise à jour du statut', type:'error'});
+          }
+        } catch (err) {
+          console.error('Erreur handleQuickDevisStatus:', err);
+          window.showToast({title:'Erreur: ' + err.message, type:'error'});
+        }
+      };
+
       const handleDeleteDevis = async (devisId) => {
         if (!window.confirm('Supprimer ce devis ?')) return;
 
@@ -3748,6 +3772,7 @@
               handleAddDevis={handleAddDevis} handleAddDevisLibre={handleAddDevisLibre} handleAddDevisTexasWin={handleAddDevisTexasWin} showDevisTypeModal={showDevisTypeModal} setShowDevisTypeModal={setShowDevisTypeModal}
               handleEditDevis={handleEditDevis}
               handleSaveDevis={handleSaveDevis}
+              handleQuickDevisStatus={handleQuickDevisStatus}
               handleDeleteDevis={handleDeleteDevis}
               handleRattacherDevisAffaire={handleRattacherDevisAffaire}
               handleUploadDevisPdf={handleUploadDevisPdf}
@@ -8005,7 +8030,7 @@
       );
     }
 
-    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, fetchInterlocuteurs, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, draggedContactId, setDraggedContactId, dragOverContactId, setDragOverContactId, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
+    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, fetchInterlocuteurs, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, draggedContactId, setDraggedContactId, dragOverContactId, setDragOverContactId, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
@@ -9398,6 +9423,7 @@
                     handleAddDevis={handleAddDevis} handleAddDevisLibre={handleAddDevisLibre} handleAddDevisTexasWin={handleAddDevisTexasWin} showDevisTypeModal={showDevisTypeModal} setShowDevisTypeModal={setShowDevisTypeModal}
                     handleEditDevis={handleEditDevis}
                     handleSaveDevis={handleSaveDevis}
+                    handleQuickDevisStatus={handleQuickDevisStatus}
                     handleDeleteDevis={handleDeleteDevis}
                     handleDeleteDevisPDF={handleDeleteDevisPDF}
                     handleUploadDevisPdfDirect={handleUploadDevisPdfDirect}
@@ -10022,7 +10048,7 @@
       );
     }
 
-    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect }) {
+    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect }) {
       const [actionNotes, setActionNotes] = React.useState({});
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
@@ -10202,6 +10228,29 @@
                                           <IconBtn title="Modifier le devis" onClick={() => handleEditDevis(devis)}>{I(ICONS.edit, 13)}</IconBtn>
                                           <IconBtn title="Supprimer le devis" danger onClick={() => handleDeleteDevis(devis.id)}>{I(ICONS.trash, 13)}</IconBtn>
                                         </div>
+                                      </div>
+                                      {/* Barre de progression du statut : boutons cliquables pour faire avancer le devis */}
+                                      <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'10px',flexWrap:'wrap'}} onClick={(e) => e.stopPropagation()}>
+                                        {['En cours','Envoyé','Discussion','Gagné','Perdu'].map((etape, idx) => {
+                                          const isActive = (devis.devis_status || 'En cours') === etape;
+                                          const etapeColor = etape === 'Gagné' ? '#0f6e56' : etape === 'Perdu' ? '#a52d2d' : etape === 'Discussion' ? '#0a5085' : etape === 'Envoyé' ? '#b06e2a' : 'var(--tw-slate)';
+                                          return (
+                                            <button key={etape}
+                                              onClick={(e) => { e.stopPropagation(); if (!isActive) handleQuickDevisStatus(devis.id, etape); }}
+                                              title={isActive ? 'Statut actuel' : 'Passer à : ' + etape}
+                                              style={{
+                                                fontSize:'10px', fontWeight: isActive ? 700 : 500,
+                                                padding:'4px 9px', borderRadius:'6px', cursor: isActive ? 'default' : 'pointer',
+                                                border: '1px solid ' + (isActive ? etapeColor : 'var(--tw-border)'),
+                                                background: isActive ? etapeColor : 'white',
+                                                color: isActive ? 'white' : 'var(--tw-muted)',
+                                                transition:'all .12s', whiteSpace:'nowrap'
+                                              }}
+                                              onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.borderColor = etapeColor; e.currentTarget.style.color = etapeColor; } }}
+                                              onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.borderColor = 'var(--tw-border)'; e.currentTarget.style.color = 'var(--tw-muted)'; } }}
+                                            >{etape}</button>
+                                          );
+                                        })}
                                       </div>
                                       {/* Ligne 2 : 4 mini-cartes pour les montants */}
                                       <div style={{display:'grid',gridTemplateColumns:'repeat(4, 1fr)',gap:'10px',paddingTop:'10px',borderTop:'0.5px solid var(--tw-border)'}}>
