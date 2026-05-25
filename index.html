@@ -10266,9 +10266,6 @@
                                             </>
                                           )}
                                           <IconBtn title="Modifier le devis" onClick={() => handleEditDevis(devis)}>{I(ICONS.edit, 13)}</IconBtn>
-                                          {devis.devis_status !== 'Annulé' && !devis.remplace_par_devis_id && (
-                                            <IconBtn title="Annuler et remplacer par un nouveau devis" onClick={(e) => { e.stopPropagation(); handleAnnulerRemplacer(devis.id); }}>{I(ICONS.replace, 13)}</IconBtn>
-                                          )}
                                           <IconBtn title="Supprimer le devis" danger onClick={() => handleDeleteDevis(devis.id)}>{I(ICONS.trash, 13)}</IconBtn>
                                         </div>
                                       </div>
@@ -10279,20 +10276,37 @@
                                           const isActive = (devis.devis_status || 'En cours') === etape;
                                           const etapeColor = etape === 'Gagné' ? '#0f6e56' : etape === 'Perdu' ? '#a52d2d' : etape === 'Discussion' ? '#0a5085' : etape === 'Envoyé' ? '#b06e2a' : 'var(--tw-slate)';
                                           return (
-                                            <button key={etape}
-                                              onClick={(e) => { e.stopPropagation(); if (!isActive) handleQuickDevisStatus(devis.id, etape); }}
-                                              title={isActive ? 'Statut actuel' : 'Passer à : ' + etape}
-                                              style={{
-                                                fontSize:'10px', fontWeight: isActive ? 700 : 500,
-                                                padding:'4px 9px', borderRadius:'6px', cursor: isActive ? 'default' : 'pointer',
-                                                border: '1px solid ' + (isActive ? etapeColor : 'var(--tw-border)'),
-                                                background: isActive ? etapeColor : 'white',
-                                                color: isActive ? 'white' : 'var(--tw-muted)',
-                                                transition:'all .12s', whiteSpace:'nowrap'
-                                              }}
-                                              onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.borderColor = etapeColor; e.currentTarget.style.color = etapeColor; } }}
-                                              onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.borderColor = 'var(--tw-border)'; e.currentTarget.style.color = 'var(--tw-muted)'; } }}
-                                            >{etape}</button>
+                                            <React.Fragment key={etape}>
+                                              {/* Avant Gagné : bouton Annuler & remplacer (sauf si déjà remplacé) */}
+                                              {etape === 'Gagné' && !devis.remplace_par_devis_id && (
+                                                <button
+                                                  onClick={(e) => { e.stopPropagation(); handleAnnulerRemplacer(devis.id); }}
+                                                  title="Annuler ce devis et créer un devis de remplacement"
+                                                  style={{
+                                                    fontSize:'10px', fontWeight:600,
+                                                    padding:'4px 9px', borderRadius:'6px', cursor:'pointer',
+                                                    border:'1px solid #b06e2a', background:'#fdeede', color:'#b06e2a',
+                                                    transition:'all .12s', whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:'4px'
+                                                  }}
+                                                  onMouseEnter={(e) => { e.currentTarget.style.background = '#b06e2a'; e.currentTarget.style.color = 'white'; }}
+                                                  onMouseLeave={(e) => { e.currentTarget.style.background = '#fdeede'; e.currentTarget.style.color = '#b06e2a'; }}
+                                                >↻ Annuler &amp; remplacer</button>
+                                              )}
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); if (!isActive) handleQuickDevisStatus(devis.id, etape); }}
+                                                title={isActive ? 'Statut actuel' : 'Passer à : ' + etape}
+                                                style={{
+                                                  fontSize:'10px', fontWeight: isActive ? 700 : 500,
+                                                  padding:'4px 9px', borderRadius:'6px', cursor: isActive ? 'default' : 'pointer',
+                                                  border: '1px solid ' + (isActive ? etapeColor : 'var(--tw-border)'),
+                                                  background: isActive ? etapeColor : 'white',
+                                                  color: isActive ? 'white' : 'var(--tw-muted)',
+                                                  transition:'all .12s', whiteSpace:'nowrap'
+                                                }}
+                                                onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.borderColor = etapeColor; e.currentTarget.style.color = etapeColor; } }}
+                                                onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.borderColor = 'var(--tw-border)'; e.currentTarget.style.color = 'var(--tw-muted)'; } }}
+                                              >{etape}</button>
+                                            </React.Fragment>
                                           );
                                         })}
                                       </div>
