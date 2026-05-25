@@ -10179,14 +10179,14 @@
                                   return (
                                     <div key={devis.id}
                                       onClick={() => handleEditDevis(devis)}
-                                      style={{padding:'12px 14px',background:'white',borderRadius:'8px',border:'0.5px solid var(--tw-border)',borderLeft:'3px solid #0f6e56',cursor:'pointer',transition:'border-color .15s, background .15s'}}
+                                      style={{padding:'12px 14px',background:'white',borderRadius:'8px',border:'0.5px solid var(--tw-border)',cursor:'pointer',transition:'background .15s'}}
                                       onMouseEnter={(e) => { e.currentTarget.style.background='#fafaf9'; }}
                                       onMouseLeave={(e) => { e.currentTarget.style.background='white'; }}
                                     >
                                       {/* Ligne 1 : nom + date + status + actions */}
                                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px',marginBottom:'10px'}}>
                                         <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap',minWidth:0,flex:1}}>
-                                          <span style={{fontSize:'9px',fontWeight:700,color:'#0f6e56',background:'#d8f0e3',padding:'2px 6px',borderRadius:'4px',letterSpacing:'.4px',textTransform:'uppercase'}}>Devis</span>
+                                          <span style={{width:'7px',height:'7px',borderRadius:'50%',background:'#0f6e56',flexShrink:0}} title="Devis"></span>
                                           <span style={{fontSize:'12px',fontWeight:500,color:'var(--tw-ink)',fontFamily:'"DM Mono", monospace'}}>{devis.devis_name || 'Sans nom'}</span>
                                           {devis.quote_date && (
                                             <span style={{fontSize:'11px',color:'var(--tw-muted)'}}>{new Date(devis.quote_date).toLocaleDateString('fr-FR')}</span>
@@ -10309,7 +10309,6 @@
                                         background: action.completed ? '#f6faf6' : 'white',
                                         borderRadius:'8px',
                                         border:'0.5px solid ' + (action.completed ? '#cfe5d2' : 'var(--tw-border)'),
-                                        borderLeft:'3px solid #b06e2a',
                                         overflow:'hidden'
                                       }}>
                                         <div onClick={() => setExpandedActionId(isExpanded ? null : action.id)}
@@ -10321,9 +10320,9 @@
                                               style={{cursor:'pointer',accentColor:'var(--tw-teal)'}}
                                             />
                                             <div style={{flex:1,minWidth:0}}>
-                                              <div style={{fontSize:'12px',fontWeight:500,color:action.completed ? 'var(--tw-muted)' : 'var(--tw-ink)',textDecoration:action.completed ? 'line-through' : 'none'}}>
-                                                <span style={{fontSize:'9px',fontWeight:700,color:'#b06e2a',background:'#fdeede',padding:'2px 6px',borderRadius:'4px',letterSpacing:'.4px',textTransform:'uppercase',marginRight:'8px',textDecoration:'none',display:'inline-block'}}>Action</span>
-                                                {action.action_type}
+                                              <div style={{fontSize:'12px',fontWeight:500,color:action.completed ? 'var(--tw-muted)' : 'var(--tw-ink)',textDecoration:action.completed ? 'line-through' : 'none',display:'flex',alignItems:'center',gap:'8px'}}>
+                                                <span style={{width:'7px',height:'7px',borderRadius:'50%',background:'#b06e2a',flexShrink:0}} title="Action"></span>
+                                                <span>{action.action_type}</span>
                                                 <span style={{fontWeight:400,color:'var(--tw-slate)',marginLeft:'8px'}}>· {new Date(action.planned_date).toLocaleDateString('fr-FR')}</span>
                                                 {(action.actor || action.contact) && (
                                                   <span style={{fontWeight:400,color:'var(--tw-muted)',marginLeft:'8px'}}>
