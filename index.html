@@ -2164,8 +2164,8 @@
 
       // Changement rapide du statut d'un devis depuis la carte résumé (sans ouvrir le formulaire).
       // Met à jour devis_status via PUT, puis rafraîchit la liste.
-      // Cas spécial "Perdu" : propose de basculer aussi l'affaire en Perdu. Si d'autres
-      // devis de l'affaire sont encore actifs, demande confirmation avant.
+      // NB : passer un devis en "Perdu" ne touche PLUS automatiquement à l'affaire.
+      // La bascule éventuelle de l'affaire se fait à la validation du motif (handleSaveMotifPerte).
       const handleQuickDevisStatus = async (devisId, newStatus) => {
         try {
           const res = await fetch(`${API_URL}/devis/${devisId}`, {
@@ -2176,29 +2176,22 @@
           if (res.ok) {
             window.showToast({title: 'Statut mis à jour : ' + newStatus, type:'success'});
 
-            // Si le devis passe en Perdu, gérer la répercussion sur l'affaire.
-            if (newStatus === 'Perdu') {
+            // Si on SORT un devis du statut Perdu (vers un statut actif) et que son
+            // affaire est en Perdu, on PROPOSE de rétablir l'affaire en "En cours".
+            if (newStatus !== 'Perdu') {
               const devis = devisList.find(d => d.id === devisId);
               const affaireId = devis?.affaire_id;
-              if (affaireId) {
-                // Autres devis encore actifs dans la même affaire (ni Perdu, ni Annulé, ni Gagné)
-                const autresActifs = devisList.filter(d =>
-                  d.affaire_id === affaireId && d.id !== devisId &&
-                  !['Perdu','Annulé','Gagné'].includes(d.devis_status)
-                );
-                let basculer = true;
-                if (autresActifs.length > 0) {
-                  basculer = window.confirm(
-                    `Cette affaire a encore ${autresActifs.length} devis actif(s).\n\nVoulez-vous quand même passer l'affaire entière en "Perdu" ?`
-                  );
-                }
-                if (basculer) {
-                  const motif = devis?.motif_perte || '';
-                  await fetch(`${API_URL}/affaires/${affaireId}`, {
-                    method: 'PUT',
-                    headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ statut_global: 'Perdu', motif_perte: motif })
-                  });
+              if (affaireId && devis?.devis_status === 'Perdu') {
+                const aff = affairesList.find(a => a.id === affaireId);
+                if (aff && aff.statut_global === 'Perdu') {
+                  if (window.confirm('L\'affaire de ce devis est en "Perdu".\n\nVoulez-vous la rétablir en "En cours" ?')) {
+                    await fetch(`${API_URL}/affaires/${affaireId}`, {
+                      method: 'PUT',
+                      headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ statut_global: 'En cours' })
+                    });
+                    window.showToast({title:'Affaire rétablie en "En cours"', type:'success'});
+                  }
                 }
               }
             }
@@ -2216,26 +2209,52 @@
         }
       };
 
-      // Enregistre le motif de perte d'un devis (champ commentaire). Si l'affaire est
-      // déjà en Perdu, met aussi à jour son motif pour que la synthèse reste cohérente.
+      // Enregistre le motif de perte d'un devis (bouton "Valider le motif").
+      // Le motif est obligatoire (non vide). Après enregistrement, propose de
+      // basculer l'affaire en Perdu (avec confirmation si d'autres devis actifs).
       const handleSaveMotifPerte = async (devisId, motif, affaireId) => {
+        if (!motif || !motif.trim()) {
+          window.showToast({title:'Le motif de perte ne peut pas être vide', type:'error'});
+          return;
+        }
         try {
+          // 1. Enregistrer le motif sur le devis
           await fetch(`${API_URL}/devis/${devisId}`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ motif_perte: motif })
+            body: JSON.stringify({ motif_perte: motif.trim() })
           });
-          // Répercuter sur l'affaire si elle est perdue
+
+          // 2. Proposer de basculer l'affaire en Perdu
           if (affaireId) {
             const aff = affairesList.find(a => a.id === affaireId);
-            if (aff && aff.statut_global === 'Perdu') {
+            // Ne re-proposer que si l'affaire n'est pas déjà Perdue
+            if (aff && aff.statut_global !== 'Perdu') {
+              const autresActifs = devisList.filter(d =>
+                d.affaire_id === affaireId && d.id !== devisId &&
+                !['Perdu','Annulé','Gagné'].includes(d.devis_status)
+              );
+              let msg = 'Voulez-vous passer l\'affaire entière en "Perdu" ?';
+              if (autresActifs.length > 0) {
+                msg = `Cette affaire a encore ${autresActifs.length} devis actif(s).\n\n` + msg;
+              }
+              if (window.confirm(msg)) {
+                await fetch(`${API_URL}/affaires/${affaireId}`, {
+                  method: 'PUT',
+                  headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ statut_global: 'Perdu', motif_perte: motif.trim() })
+                });
+              }
+            } else if (aff && aff.statut_global === 'Perdu') {
+              // Affaire déjà perdue : on met juste à jour son motif pour cohérence
               await fetch(`${API_URL}/affaires/${affaireId}`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ motif_perte: motif })
+                body: JSON.stringify({ motif_perte: motif.trim() })
               });
             }
           }
+
           window.showToast({title:'Motif enregistré', type:'success'});
           if (selectedProspect?.id) {
             await fetchDevis(selectedProspect.id);
@@ -10139,10 +10158,12 @@
     }
 
     // Champ de saisie du motif de perte d'un devis. État local pour ne pas
-    // sauvegarder à chaque frappe ; bouton "Enregistrer" actif si le texte a changé.
+    // sauvegarder à chaque frappe. Le motif est obligatoire : le bouton "Valider
+    // le motif" est désactivé tant que le champ est vide. Valider déclenche aussi
+    // la proposition de passer l'affaire en Perdu (géré par onSave).
     function MotifPerteField({ devisId, affaireId, initialValue, onSave }) {
       const [val, setVal] = React.useState(initialValue || '');
-      const dirty = val !== (initialValue || '');
+      const vide = !val.trim();
       return (
         <div>
           <textarea
@@ -10152,14 +10173,17 @@
             rows={2}
             style={{width:'100%',padding:'8px 10px',fontSize:'12px',border:'0.5px solid var(--tw-border)',borderRadius:'6px',resize:'vertical',fontFamily:"'DM Sans',sans-serif",boxSizing:'border-box'}}
           />
-          {dirty && (
-            <div style={{display:'flex',justifyContent:'flex-end',marginTop:'6px'}}>
-              <button
-                onClick={() => onSave(devisId, val, affaireId)}
-                style={{fontSize:'11px',fontWeight:600,padding:'5px 12px',borderRadius:'6px',border:'none',background:'var(--tw-teal)',color:'white',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}
-              >Enregistrer le motif</button>
-            </div>
-          )}
+          <div style={{display:'flex',justifyContent:'flex-end',marginTop:'6px'}}>
+            <button
+              onClick={() => onSave(devisId, val, affaireId)}
+              disabled={vide}
+              title={vide ? 'Saisissez un motif avant de valider' : 'Valider le motif et choisir le statut de l\'affaire'}
+              style={{fontSize:'11px',fontWeight:600,padding:'5px 12px',borderRadius:'6px',border:'none',
+                background: vide ? 'var(--tw-border)' : 'var(--tw-teal)',
+                color: vide ? 'var(--tw-muted)' : 'white',
+                cursor: vide ? 'not-allowed' : 'pointer', fontFamily:"'DM Sans',sans-serif"}}
+            >Valider le motif</button>
+          </div>
         </div>
       );
     }
