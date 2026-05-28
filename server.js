@@ -1463,16 +1463,20 @@ app.put('/api/affaires/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
     const { nom_affaire, description, statut_global, motif_perte } = req.body;
+    // Si on rétablit l'affaire hors de "Perdu", on efface le motif de perte.
+    const motifFinal = (statut_global && statut_global !== 'Perdu') ? null
+                     : (motif_perte ?? null);
 
     // PUT partiel : ne met à jour que les champs fournis (COALESCE).
     // Permet de passer juste le statut (ex: bascule en Perdu) sans écraser
-    // le nom ou la description de l'affaire.
+    // le nom ou la description de l'affaire. Le motif est forcé à null si on quitte Perdu.
     const result = await pool.query(
       `UPDATE affaires
        SET nom_affaire   = COALESCE($1, nom_affaire),
            description   = COALESCE($2, description),
            statut_global = COALESCE($3, statut_global),
-           motif_perte   = COALESCE($4, motif_perte),
+           motif_perte   = CASE WHEN $3 IS NOT NULL AND $3 <> 'Perdu' THEN NULL
+                                ELSE COALESCE($4, motif_perte) END,
            updated_at = NOW()
        WHERE id = $5
        RETURNING *`,
@@ -4480,143 +4484,6 @@ app.post('/api/admin/sessions/:id/disconnect', requireAdmin, async (req, res) =>
   } catch (err) {
     console.error('Erreur déconnexion session:', err);
     res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// GET /api/admin/devis/:id/config-json — Télécharger le JSON de config d'un devis (admin uniquement)
-app.get('/api/admin/devis/:id/config-json', requireAdmin, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT d.config_json, d.devis_name, p.name as societe_name
-       FROM devis d
-       LEFT JOIN prospects p ON p.id = d.prospect_id
-       WHERE d.id = $1`,
-      [req.params.id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Devis non trouvé' });
-    }
-
-    const { config_json, societe_name } = result.rows[0];
-
-    if (!config_json) {
-      return res.status(404).json({ error: 'Aucun JSON de propale stocké pour ce devis (généré avant cette fonctionnalité, ou propale jamais générée)' });
-    }
-
-    const slug = (societe_name || 'devis').replace(/[^a-zA-Z0-9_-]/g, '_');
-    const filename = `propale_${slug}_devis-${req.params.id}.json`;
-
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(JSON.stringify(config_json, null, 2));
-  } catch (err) {
-    console.error('Erreur GET /api/admin/devis/:id/config-json:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ── Routes admin pour le panneau de récupération JSON (cascade Société → Affaire → Devis) ──
-
-// GET /api/admin/societes-with-json?q=xxx — Autocomplete toutes les sociétés (renommée mais filtre relâché)
-// Renvoie toutes les sociétés correspondant au texte ; le filtrage par "ayant un JSON" est fait après sélection
-// (dans /api/admin/societes/:id/affaires-with-json) pour donner un meilleur feedback à l'utilisateur.
-app.get('/api/admin/societes-with-json', requireAdmin, async (req, res) => {
-  try {
-    const q = ((req.query.q || '').trim());
-    if (q.length < 2) return res.json([]);
-
-    const result = await pool.query(
-      `SELECT id, name
-       FROM prospects
-       WHERE name ILIKE $1
-       ORDER BY name ASC
-       LIMIT 20`,
-      [`%${q}%`]
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Erreur GET /api/admin/societes-with-json:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/admin/societes/:id/affaires-with-json — Affaires d'une société (toutes, même sans propale)
-// Le filtrage par "ayant un JSON" est fait au niveau devis (via /api/admin/affaires/:id/devis-with-json)
-app.get('/api/admin/societes/:id/affaires-with-json', requireAdmin, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT id, nom_affaire, statut_global
-       FROM affaires
-       WHERE prospect_id = $1
-       ORDER BY created_at DESC`,
-      [req.params.id]
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Erreur GET /api/admin/societes/:id/affaires-with-json:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/admin/diag-json?societe=Test%20CDA — Route diagnostic : scanne par nom de société
-// Montre tous les devis et leur état config_json sans avoir besoin de l'ID
-app.get('/api/admin/diag-json', requireAdmin, async (req, res) => {
-  try {
-    const q = (req.query.societe || '').trim();
-    if (!q) return res.status(400).json({ error: 'paramètre ?societe=NomDeLaSociete requis' });
-
-    const prospect = await pool.query(
-      `SELECT id, name FROM prospects WHERE name ILIKE $1 ORDER BY name LIMIT 5`,
-      [`%${q}%`]
-    );
-    if (prospect.rows.length === 0) {
-      return res.json({ found: false, query: q });
-    }
-
-    const results = [];
-    for (const p of prospect.rows) {
-      const devis = await pool.query(
-        `SELECT d.id, d.devis_name, d.affaire_id, d.prospect_id,
-                (d.config_json IS NOT NULL) AS has_json,
-                CASE WHEN d.config_json IS NOT NULL THEN OCTET_LENGTH(d.config_json::text) ELSE 0 END AS json_size,
-                a.nom_affaire, a.prospect_id AS affaire_prospect_id
-         FROM devis d
-         LEFT JOIN affaires a ON a.id = d.affaire_id
-         WHERE d.prospect_id = $1
-         ORDER BY d.created_at DESC`,
-        [p.id]
-      );
-      results.push({
-        prospect_id: p.id,
-        prospect_name: p.name,
-        nb_devis: devis.rows.length,
-        devis: devis.rows
-      });
-    }
-
-    res.json({ found: true, query: q, results });
-  } catch (err) {
-    console.error('Erreur GET /api/admin/diag-json:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/admin/affaires/:id/devis-with-json — Devis d'une affaire qui ont config_json
-app.get('/api/admin/affaires/:id/devis-with-json', requireAdmin, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT id, devis_name, devis_status, quote_date, created_at
-       FROM devis
-       WHERE affaire_id = $1
-         AND config_json IS NOT NULL
-       ORDER BY created_at DESC`,
-      [req.params.id]
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Erreur GET /api/admin/affaires/:id/devis-with-json:', err);
-    res.status(500).json({ error: err.message });
   }
 });
 
