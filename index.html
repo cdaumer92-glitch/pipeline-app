@@ -8324,6 +8324,13 @@
                                       e.target.value='';
                                     }
                                   }}
+                                  onBlur={e=>{
+                                    const val=e.target.value.trim().replace(/,$/,'');
+                                    if(val&&!(infoForm.marques||[]).includes(val)){
+                                      setInfoForm(f=>({...f,marques:[...(f.marques||[]),val]}));
+                                      e.target.value='';
+                                    }
+                                  }}
                                 />
                               </div>
                               <div style={{fontSize:'10px',color:'#999',marginTop:'2px'}}>Entrée ou virgule pour ajouter</div>
@@ -9523,6 +9530,13 @@
                           if (val && !(formData.marques||[]).includes(val)) {
                             handleChange('marques', [...(formData.marques||[]), val]);
                           }
+                          e.target.value = '';
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = e.target.value.trim().replace(/,$/, '');
+                        if (val && !(formData.marques||[]).includes(val)) {
+                          handleChange('marques', [...(formData.marques||[]), val]);
                           e.target.value = '';
                         }
                       }}
