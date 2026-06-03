@@ -5560,7 +5560,17 @@
                   <tbody>
                     {nonAttribues.map((p, idx) => (
                       <tr key={p.id} style={{borderBottom:'1px solid var(--tw-border)',background:idx%2===0?'white':'var(--tw-bg)'}}>
-                        <td style={{padding:'10px 8px',fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{prospectDisplayName(p)}</td>
+                        <td style={{padding:'10px 8px',fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>
+                          <div>{prospectDisplayName(p)}</div>
+                          {(() => {
+                            // Téléphone affiché sous le nom pour éviter d'attribuer une société "muette".
+                            // Sociétés sans tél = orange + libellé explicite, pour les repérer d'un coup d'œil.
+                            const tel = p.tel_standard || p.phone;
+                            return tel
+                              ? <div style={{fontSize:'12px',fontWeight:'500',color:'var(--tw-slate)',marginTop:'2px'}}>☎ {tel}</div>
+                              : <div style={{fontSize:'11px',fontWeight:'600',color:'var(--tw-orange)',marginTop:'2px'}}>☎ pas de téléphone</div>;
+                          })()}
+                        </td>
                         <td style={{padding:'10px 8px'}}>
                           <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 8px',borderRadius:'10px',
                             background:p.statut_societe==='Client'?'var(--tw-teal-light)':p.statut_societe==='Prospect'?'#fff8e1':'#f5f5f5',
