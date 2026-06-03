@@ -1181,14 +1181,30 @@ function renderSection4() {
 
     // Cellules qté / remise / total
     let qtyCellHtml, remiseCellHtml, totalCellHtml;
+    const editableForfaitCell = (key, montant) => {
+      const has = getForfaitOverride(key) !== undefined;
+      return `<td class="right">
+        <span style="display:inline-flex;align-items:center;gap:4px;justify-content:flex-end;">
+          <input type="number" step="0.01" min="0"
+            class="inline-total total-s4-${key}"
+            value="${montant.toFixed(2)}"
+            title="Forfait modifiable. Laisser vide pour revenir au tarif par défaut."
+            style="width:92px;text-align:right;font-weight:700;${has ? 'color:#9b2d4e;' : ''}"
+            onchange="setForfaitOverride('${key}', this.value)">
+          <span onclick="setForfaitOverride('${key}', '')"
+            title="Revenir au tarif par défaut"
+            style="cursor:pointer;font-size:13px;color:#9eb5b5;${has ? '' : 'visibility:hidden;'}">↺</span>
+        </span>
+      </td>`;
+    };
     if (it.kind === 'auto') {
       qtyCellHtml = '<td class="center">—</td>';
       remiseCellHtml = '<td class="center">—</td>';
-      totalCellHtml = `<td class="right">${fmtEur(it.prix)}</td>`;
+      totalCellHtml = editableForfaitCell(it.key, forfaitMontant(it.key, it.prix));
     } else if (it.kind === 'forfait') {
       qtyCellHtml = '<td class="center">Forfait</td>';
       remiseCellHtml = '<td class="center">—</td>';
-      totalCellHtml = `<td class="right">${fmtEur(it.prix)}</td>`;
+      totalCellHtml = editableForfaitCell(it.key, forfaitMontant(it.key, it.prix));
     } else if (it.kind === 'tjm') {
       if (sectionValues.section4[it.key] === undefined) sectionValues.section4[it.key] = { qty: it.defaultQty||0, remise: 0 };
       const sv = sectionValues.section4[it.key];
@@ -1351,6 +1367,72 @@ function validateKubLicences() {
 }
 
 
+// Total d'une ligne section2 : si un override de total a été saisi à la main
+// (moduleState.s2Overrides[i], ex. tarif Sage négocié 1451 pour 2 licences), on le prend tel quel.
+// Sinon calcul auto = prix unitaire × qté × (1 - remise%).
+// Stocké dans moduleState car c'est le seul objet persisté dans le devis sauvegardé.
+function getS2Override(i) {
+  const ov = moduleState.s2Overrides;
+  if (!ov) return undefined;
+  const v = ov[i];
+  return (v === undefined || v === null || v === '') ? undefined : v;
+}
+// ── Override du montant d'un forfait de prestation (FAS, setup, connecteur…) ──
+// Stocké dans moduleState.prestForfaitOverrides[key] → persisté dans le devis.
+// Vide/absent = on garde le prix par défaut (calculé) de l'item.
+function getForfaitOverride(key) {
+  const ov = moduleState.prestForfaitOverrides;
+  if (!ov) return undefined;
+  const v = ov[key];
+  return (v === undefined || v === null || v === '') ? undefined : v;
+}
+function forfaitMontant(key, prixDefaut) {
+  const ov = getForfaitOverride(key);
+  if (ov !== undefined) {
+    const v = parseFloat(ov);
+    if (!isNaN(v)) return v;
+  }
+  return prixDefaut;
+}
+function setForfaitOverride(key, raw) {
+  if (!moduleState.prestForfaitOverrides) moduleState.prestForfaitOverrides = {};
+  const txt = (raw == null ? '' : String(raw)).trim();
+  if (txt === '') {
+    delete moduleState.prestForfaitOverrides[key];
+  } else {
+    const v = parseFloat(txt.replace(',', '.'));
+    if (isNaN(v)) delete moduleState.prestForfaitOverrides[key];
+    else moduleState.prestForfaitOverrides[key] = v;
+  }
+  renderSection4();
+  calculate();
+}
+
+function lineTotalS2(item, sv, i) {
+  if (!sv) return 0;
+  const ov = getS2Override(i);
+  if (ov !== undefined) {
+    const v = parseFloat(ov);
+    if (!isNaN(v)) return v;
+  }
+  return item.prix * sv.qty * (1 - (sv.remise || 0) / 100);
+}
+
+// Stocke (ou efface) l'override de total saisi à la main sur une ligne section2
+function setS2TotalOverride(i, raw) {
+  if (!moduleState.s2Overrides) moduleState.s2Overrides = {};
+  const txt = (raw == null ? '' : String(raw)).trim();
+  if (txt === '') {
+    delete moduleState.s2Overrides[i];
+  } else {
+    const v = parseFloat(txt.replace(',', '.'));
+    if (isNaN(v)) delete moduleState.s2Overrides[i];
+    else moduleState.s2Overrides[i] = v;
+  }
+  renderSection2(); // re-render pour MAJ couleur/bouton reset
+  calculate();
+}
+
 function renderSection2() {
   const kub = moduleState.kub > 0;
   const sage = moduleState.comptaSage;
@@ -1367,7 +1449,8 @@ function renderSection2() {
     if (!showSage && !showKub) return;
     if (sectionValues['section2_'+i] === undefined) sectionValues['section2_'+i] = {qty: item.qtyFixed||1, remise:0, checked: item.mandatory||false};
     const sv = sectionValues['section2_'+i];
-    const total = item.prix * sv.qty * (1 - sv.remise/100);
+    const total = lineTotalS2(item, sv, i);
+    const hasOverride = getS2Override(i) !== undefined;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${item.nom}</td>
@@ -1375,7 +1458,19 @@ function renderSection2() {
         onchange="sectionValues['section2_${i}'].qty=parseFloat(this.value)||0;calculate()"></td>
       <td class="center"><input type="number" class="inline-qty" value="${sv.remise}" min="0" max="100"
         onchange="sectionValues['section2_${i}'].remise=parseFloat(this.value)||0;calculate()"></td>
-      <td class="right total-s2-${i}">${fmtEur(total)}</td>
+      <td class="right">
+        <span style="display:inline-flex;align-items:center;gap:4px;justify-content:flex-end;">
+          <input type="number" step="0.01" min="0"
+            class="inline-total total-s2-input-${i}"
+            value="${total.toFixed(2)}"
+            title="Total de la ligne — modifiable pour un tarif négocié (ex. Sage 2 licences). Laisser vide pour le calcul automatique."
+            style="width:92px;text-align:right;font-weight:700;${hasOverride ? 'color:#9b2d4e;' : ''}"
+            onchange="setS2TotalOverride(${i}, this.value)">
+          <span class="s2-reset-${i}" onclick="setS2TotalOverride(${i}, '')"
+            title="Revenir au calcul automatique"
+            style="cursor:pointer;font-size:13px;color:#9eb5b5;${hasOverride ? '' : 'visibility:hidden;'}">↺</span>
+        </span>
+      </td>
       <td class="center">${item.unite}</td>`;
     tbody.appendChild(tr);
   });
@@ -2044,11 +2139,11 @@ function calculate() {
     if (!showKub && !showSage) return;
     const sv = sectionValues['section2_'+i];
     if (!sv) return;
-    const ligneTotal = item.prix * sv.qty * (1 - sv.remise/100);
+    const ligneTotal = lineTotalS2(item, sv, i);
     s2total += ligneTotal;
-    // Bug 1 : MAJ du total affiché sur la ligne
-    const cell = document.querySelector('.total-s2-' + i);
-    if (cell) cell.textContent = fmtEur(ligneTotal);
+    // MAJ du total affiché sur la ligne (input éditable) — sans écraser si l'utilisateur est en train de saisir
+    const inp = document.querySelector('.total-s2-input-' + i);
+    if (inp && document.activeElement !== inp) inp.value = ligneTotal.toFixed(2);
   });
   totalAnnuel += s2total;
   if (s2total > 0) document.getElementById('total_section2').textContent = fmtNum(s2total) + ' €/an';
@@ -2056,11 +2151,11 @@ function calculate() {
   // Section 4 : prestations
   let s4total = 0;
   const marge = (parseFloat(document.getElementById('margeSetup')?.value)||30)/100;
-  const fasP = 1150; // Forfait fixe (pas de marge sur la FAS)
-  const setupP = calcSetupTW();
+  const fasP = forfaitMontant('fas', 1150); // Forfait fixe (pas de marge sur la FAS), modifiable
+  const setupP = forfaitMontant('setup_tw', calcSetupTW());
   if (biz>0||fab>0) s4total += fasP;
   if (biz>0||fab>0) s4total += setupP;
-  if (moduleState.comptaSage) s4total += 1150;
+  if (moduleState.comptaSage) s4total += forfaitMontant('setup_sage', 1150);
 
   // Items TJM depuis sectionValues
   const tjmKeys = ['modif_etats','recup','net_install','net_accom','mag_siege','mag_mag','vrp_install','col_install','log_install','jet_install','dev_spec','gestion_proj'];
@@ -2072,7 +2167,7 @@ function calculate() {
     if (forfaitKeys.includes(k)) {
       // Vérif si actif
       const actif = (k==='kub_connect' && kub>0) || (k==='felec_param' && moduleState.facturationElec);
-      if (actif) s4total += forfaitPrices[k];
+      if (actif) s4total += forfaitMontant(k, forfaitPrices[k]);
       return;
     }
     if (k.startsWith('flux_')) {
@@ -2260,16 +2355,21 @@ function buildConfigJson() {
       const showSage = item.dependModule === 'comptaSage' && ms.comptaSage;
       const showKub = item.dependKub && (ms.kub||0) > 0;
       if (!showSage && !showKub) return;
+      const hasOverride = getS2Override(i) !== undefined;
       const prixBrut = item.prix * sv.qty;
-      const net = prixBrut * (1 - sv.remise/100);
+      // net = total override saisi à la main (tarif négocié) sinon calcul auto
+      const net = hasOverride ? lineTotalS2(item, sv, i) : prixBrut * (1 - sv.remise/100);
+      // PU affiché : si override, on recalcule un PU cohérent (total / qté) pour la propale
+      const puAffiche = (hasOverride && sv.qty > 0) ? (net / sv.qty) : item.prix;
       const ligne = {
         nom: item.nom,
         qty: sv.qty,
-        prix_unitaire: item.prix,
+        prix_unitaire: puAffiche,
         montant: net,
         unite: item.unite || '€/an'
       };
-      if (sv.remise > 0) { ligne.prix_brut = prixBrut; ligne.remise_pct = sv.remise; }
+      // Remise affichée uniquement si pas d'override manuel (sinon le total prime)
+      if (!hasOverride && sv.remise > 0) { ligne.prix_brut = prixBrut; ligne.remise_pct = sv.remise; }
       lignesLicences.push(ligne);
     });
   }
@@ -2290,8 +2390,8 @@ function buildConfigJson() {
     lignesPrest.push(ligne);
   };
   const marge = (parseFloat(document.getElementById('margeSetup')?.value)||30)/100;
-  const fasP = 1150; // Forfait fixe (pas de marge sur la FAS)
-  const setupP = calcSetupTW();
+  const fasP = forfaitMontant('fas', 1150); // Forfait fixe (pas de marge sur la FAS), modifiable
+  const setupP = forfaitMontant('setup_tw', calcSetupTW());
 
   // Helper : applique le customLabel s'il existe, sinon le label par défaut
   const lbl = (key, defaultLabel) => (ms.customLabels && ms.customLabels[key]) ? ms.customLabels[key] : defaultLabel;
@@ -2304,7 +2404,8 @@ function buildConfigJson() {
     prestDef.setup_tw = { defaultLabel: 'Mise en place hébergement TexasWin', duree: 'Forfait', montant: setupP, qty: 1, prix_unitaire: setupP, unite: '€/forfait' };
   }
   if (ms.comptaSage) {
-    prestDef.setup_sage = { defaultLabel: 'Mise en place hébergement Sage', duree: 'Forfait', montant: 1150, qty: 1, prix_unitaire: 1150, unite: '€/forfait' };
+    const sageSetup = forfaitMontant('setup_sage', 1150);
+    prestDef.setup_sage = { defaultLabel: 'Mise en place hébergement Sage', duree: 'Forfait', montant: sageSetup, qty: 1, prix_unitaire: sageSetup, unite: '€/forfait' };
   }
   // TJM depuis sectionValues
   const nomMapTjm = {
@@ -2333,8 +2434,8 @@ function buildConfigJson() {
     prestDef['flux_'+i] = { defaultLabel: n+' : Installation et paramétrage', duree: sv.qty+' j', montant, qty: sv.qty, prix_unitaire: 1150, unite: '€/jour' };
   }
   // Forfaits
-  if ((ms.kub||0) > 0) prestDef.kub_connect = { defaultLabel: 'Mise en oeuvre Connecteur Kub → MyReport', duree: 'Forfait', montant: 2500, qty: 1, prix_unitaire: 2500, unite: '€/forfait' };
-  if (ms.facturationElec) prestDef.felec_param = { defaultLabel: 'Mise en oeuvre Facturation électronique', duree: 'Forfait', montant: 1150, qty: 1, prix_unitaire: 1150, unite: '€/forfait' };
+  if ((ms.kub||0) > 0) { const kc = forfaitMontant('kub_connect', 2500); prestDef.kub_connect = { defaultLabel: 'Mise en oeuvre Connecteur Kub → MyReport', duree: 'Forfait', montant: kc, qty: 1, prix_unitaire: kc, unite: '€/forfait' }; }
+  if (ms.facturationElec) { const fp = forfaitMontant('felec_param', 1150); prestDef.felec_param = { defaultLabel: 'Mise en oeuvre Facturation électronique', duree: 'Forfait', montant: fp, qty: 1, prix_unitaire: fp, unite: '€/forfait' }; }
   // Custom
   (ms.extra_prestations || []).forEach(line => {
     const pu = parseFloat(line.pu) || 0;
@@ -2935,18 +3036,26 @@ async function initFromUrlParams() {
     await loadDevisForEdit();
   }
 
-  // Afficher le bouton "Enregistrer / Mettre à jour" si on a une affaire
-  if (CTX.affaire_id) {
-    const btn = document.getElementById('btnSaveInAffaire');
-    if (btn) {
-      btn.style.display = '';
-      if (CTX.devis_id) {
-        // Mode édition : bouton bleu "Mettre à jour le devis"
-        btn.innerHTML = '🔄 Mettre à jour le devis';
-        btn.style.background = '#0284c7';
-        btn.style.borderColor = '#0284c7';
-        btn.setAttribute('onclick', 'updateDevis()');
-      }
+  // Afficher le bouton "Enregistrer / Mettre à jour".
+  // Mode édition (devis_id présent) : on met à jour le devis existant via PUT,
+  //   que le devis soit rattaché à une affaire ou non (le PUT ne dépend pas de l'affaire).
+  // Mode création (pas de devis_id) : on n'affiche le bouton que s'il y a une affaire
+  //   (la création passe par POST /api/affaires/:id/devis).
+  const btnSave = document.getElementById('btnSaveInAffaire');
+  if (btnSave) {
+    if (CTX.devis_id) {
+      // Mode édition : bouton bleu "Mettre à jour le devis"
+      btnSave.style.display = '';
+      btnSave.innerHTML = '🔄 Mettre à jour le devis';
+      btnSave.style.background = '#0284c7';
+      btnSave.style.borderColor = '#0284c7';
+      btnSave.setAttribute('onclick', 'updateDevis()');
+      btnSave.onclick = updateDevis; // double sécurité : écrase aussi le handler inline du HTML
+    } else if (CTX.affaire_id) {
+      // Mode création depuis une affaire
+      btnSave.style.display = '';
+      btnSave.setAttribute('onclick', 'openSaveInAffaireModal()');
+      btnSave.onclick = openSaveInAffaireModal;
     }
   }
 
