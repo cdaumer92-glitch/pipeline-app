@@ -116,8 +116,26 @@ async function initDB() {
 
     // Migration: Ajouter website si elle n'existe pas
     await client.query(`
-      ALTER TABLE prospects 
+      ALTER TABLE prospects
       ADD COLUMN IF NOT EXISTS website TEXT
+    `);
+
+    // Migration: Ajouter tel_standard si elle n'existe pas (colonne affichée par la fiche société).
+    await client.query(`
+      ALTER TABLE prospects
+      ADD COLUMN IF NOT EXISTS tel_standard TEXT
+    `);
+
+    // Backfill: recopier phone -> tel_standard quand tel_standard est vide.
+    // Contexte : l'import en lot SocieteInfo (et les imports CSV) écrivaient le numéro dans
+    // `phone`, alors que la fiche société affiche `tel_standard` — d'où des téléphones
+    // "invisibles" malgré une donnée présente. Idempotent (ne touche que les lignes où
+    // tel_standard est NULL/vide et phone renseigné) : ne réécrase jamais un tel_standard existant.
+    await client.query(`
+      UPDATE prospects
+      SET tel_standard = phone
+      WHERE (tel_standard IS NULL OR tel_standard = '')
+        AND phone IS NOT NULL AND phone <> ''
     `);
 
     // Migration: Ajouter contact dans next_actions si elle n'existe pas
@@ -6050,12 +6068,15 @@ app.post('/api/prospects/bulk-import-sinfo', auth, requireAdmin, async (req, res
       // Insertion - utilise les vrais noms de colonnes du schéma prospects
       // NOTE: on duplique le siren dans le tableau de params car PostgreSQL refuse de réutiliser
       // un même $N pour deux colonnes de types différents (import_ref TEXT vs siren VARCHAR(9))
+      // NOTE: le téléphone est écrit dans tel_standard ET phone — l'UI (fiche société) affiche
+      // tel_standard, alors que d'autres flux (exports, imports CSV) utilisent phone. Les deux
+      // colonnes étant de type TEXT, on réutilise le même paramètre $8 pour les deux.
       const ins = await pool.query(
         `INSERT INTO prospects
            (name, ville, cp, adresse, statut_societe, status, assigned_to,
-            import_source, import_date, import_ref, siren, phone, website, code_naf)
+            import_source, import_date, import_ref, siren, phone, tel_standard, website, code_naf)
          VALUES ($1, $2, $3, $4, 'Suspect', 'Prospection', NULL,
-                 'SInfo-Multi', $5, $6, $7, $8, $9, $10)
+                 'SInfo-Multi', $5, $6, $7, $8, $8, $9, $10)
          RETURNING id, name`,
         [
           c.name || null,
