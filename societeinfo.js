@@ -531,20 +531,47 @@
    */
   function companyToProspect(si) {
     if (!si) return {};
+
+    // L'API SocieteInfo renvoie DEUX formes selon l'endpoint :
+    //  • LISTE (/v2/companies.json) + mock : objet PLAT
+    //      { name, registration_number, formatted_address, phone?, website?, ... }
+    //      ⚠️ l'endpoint liste ne renvoie NI téléphone NI site web — uniquement l'identité + l'adresse.
+    //  • DÉTAIL (/v2/company.json/{siren}) : objet IMBRIQUÉ
+    //      { organization:{ name, commercial_name, address:{street,postal_code,city}, ... },
+    //        contacts:{ phones:[{value}], email, emails:[...] },
+    //        web_infos:{ website_url, ... } }
+    //      C'est la SEULE forme qui porte le téléphone (contacts.phones[0].value) et le site (web_infos.website_url).
+    // On gère les deux ici pour que l'appelant n'ait pas à connaître la forme.
+    const org = si.organization || null;
+    const ct  = si.contacts || null;
+    const web = si.web_infos || null;
+
     // Nom : priorité au nom commercial / marque, sinon raison sociale
-    const name = si.name || si.brandName || si.commercialName || si.companyName || '';
+    const name = (org && (org.commercial_name || org.business_name || org.name))
+      || si.name || si.brandName || si.commercialName || si.companyName || '';
 
     // SIREN : registration_number (vrai nom dans l'API SocieteInfo) ou fallbacks
-    const siren = String(si.registration_number || si.siren || si.companyId || '').replace(/\D/g, '').slice(0, 9);
+    const siren = String(
+      (org && org.registration_number) || si.registration_number || si.siren || si.companyId || ''
+    ).replace(/\D/g, '').slice(0, 9);
 
-    // Code NAF
-    const code_naf = si.naf_code || si.naf || si.nafCode || si.activityCode || '';
+    // Code NAF : dans le détail, l'activité est sous organization.activity (objet ou string selon les cas)
+    const orgActivity = org && org.activity;
+    const code_naf = (orgActivity && typeof orgActivity === 'object' && (orgActivity.code || orgActivity.naf_code || orgActivity.naf))
+      || (org && org.naf_code)
+      || si.naf_code || si.naf || si.nafCode || si.activityCode || '';
 
-    // Adresse : SocieteInfo renvoie souvent formatted_address (CP + ville déjà concaténés)
+    // Adresse : objet imbriqué (détail) > formatted_address (liste) > objet plat > string
     let adresseComplete = '';
     let cp = '';
     let ville = '';
-    if (si.formatted_address) {
+    if (org && org.address && typeof org.address === 'object') {
+      const a = org.address;
+      const street = a.street || a.line1 || '';
+      cp = a.postal_code || a.postCode || a.postalCode || a.zip || '';
+      ville = a.city || a.locality || '';
+      adresseComplete = [street, cp, ville].filter(Boolean).join(' ').trim();
+    } else if (si.formatted_address) {
       adresseComplete = si.formatted_address;
       // Extraire CP + ville depuis "93160 NOISY-LE-GRAND"
       const m = si.formatted_address.match(/^(\d{5})\s+(.+)$/);
@@ -558,22 +585,42 @@
       adresseComplete = si.address || si.addressLine || '';
     }
 
-    // Téléphone
-    const tel_standard = si.phone || si.phoneNumber || si.tel || '';
+    // Téléphone : détail → contacts.phones[0].value ; sinon fallbacks plats
+    let tel_standard = '';
+    if (ct && Array.isArray(ct.phones) && ct.phones.length) {
+      const p = ct.phones[0];
+      tel_standard = (p && typeof p === 'object') ? (p.value || p.number || p.tel || '') : (p || '');
+    } else {
+      tel_standard = si.phone || si.phoneNumber || si.tel || '';
+    }
 
-    // Site web
-    const website = si.website || si.url || '';
+    // Email société : détail → contacts.email (ou 1er de contacts.emails)
+    let email = '';
+    if (ct) {
+      if (ct.email) email = ct.email;
+      else if (Array.isArray(ct.emails) && ct.emails.length) {
+        const e = ct.emails[0];
+        email = (e && typeof e === 'object') ? (e.value || e.email || '') : (e || '');
+      }
+    }
+    if (!email) email = si.email || '';
+
+    // Site web : détail → web_infos.website_url ; sinon fallbacks plats
+    const website = (web && web.website_url) || si.website || si.url || '';
 
     // Marques (tableau de strings dans le CRM)
     let marques = [];
     if (Array.isArray(si.brands)) {
       marques = si.brands.map(b => (typeof b === 'string' ? b : (b.name || b.brand || ''))).filter(Boolean);
+    } else if (org && org.brand) {
+      marques = [typeof org.brand === 'string' ? org.brand : (org.brand.name || '')].filter(Boolean);
     } else if (si.brandName && si.brandName !== si.name) {
       marques = [si.brandName];
     }
 
-    // Secteur (libellé NAF / activité)
-    const secteur = si.activity || si.nafLabel || si.activityLabel || '';
+    // Secteur (libellé NAF / activité) : détail → organization.activity (string ou {label})
+    const secteur = (typeof orgActivity === 'string' ? orgActivity : (orgActivity && (orgActivity.label || orgActivity.text)))
+      || si.activity || si.nafLabel || si.activityLabel || '';
 
     return {
       name,
@@ -583,6 +630,7 @@
       cp,
       ville,
       tel_standard,
+      email,
       website,
       marques,
       secteur,

@@ -358,12 +358,53 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <!-- Module SocieteInfo : appelle le proxy backend /api/societeinfo/* avec le token JWT -->
-  <script src="societeinfo.js?v=2026-05-04"></script>
+  <script src="societeinfo.js?v=2026-06-03"></script>
 
   <script type="text/babel">
     // ================== APP PRINCIPALE ==================
     console.log('[Pipeline] Version chargée: ' + new Date().toISOString());
     const API_URL = '/api';
+
+    // ==================== HELPERS SOCIETEINFO : débit maîtrisé ====================
+    // L'API SocieteInfo limite le débit (429 Too Many Requests) : enchaîner des dizaines
+    // d'appels en parallèle la fait cracher (429/500). Ces deux helpers encadrent tous
+    // nos traitements en lot (marquage contacts, enrichissement à l'import).
+
+    // Réexécute un appel SInfo en cas d'erreur transitoire (429 rate-limit / 500),
+    // avec back-off exponentiel. Les autres erreurs (404, etc.) remontent immédiatement.
+    // Les erreurs SInfo portent err.status (cf. call() dans societeinfo.js).
+    async function siCallWithRetry(fn, { retries = 2, baseDelay = 600 } = {}) {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await fn();
+        } catch (err) {
+          const transient = err && (err.status === 429 || err.status === 500);
+          if (!transient || attempt >= retries) throw err;
+          await new Promise(r => setTimeout(r, baseDelay * (attempt + 1)));
+        }
+      }
+    }
+
+    // Applique `worker` à chaque item avec une concurrence bornée (pool de N workers
+    // tirant dans une file commune). Retourne un tableau aligné sur `items` :
+    // { value } en cas de succès, { error } si le worker a échoué (sans interrompre les autres).
+    async function mapWithConcurrency(items, worker, concurrency = 4) {
+      const results = new Array(items.length);
+      let cursor = 0;
+      const run = async () => {
+        while (cursor < items.length) {
+          const idx = cursor++;
+          try {
+            results[idx] = { value: await worker(items[idx], idx) };
+          } catch (error) {
+            results[idx] = { error };
+          }
+        }
+      };
+      const pool = Array.from({ length: Math.min(concurrency, items.length) }, run);
+      await Promise.all(pool);
+      return results;
+    }
 
     // ==================== HELPER NOMS INTERLOCUTEURS ====================
     // Combinaison prenom + nom pour affichage. Gère les 3 cas :
@@ -6619,6 +6660,8 @@
       // détectés via 2e appel parallèle email_type=personal. Coût : +1 crédit/page.
       const [prospWithContactsSirens, setProspWithContactsSirens] = React.useState(new Set());
       const [prospImporting, setProspImporting] = React.useState(false);
+      // Progression de l'enrichissement (récupération du téléphone/site via getCompany) pendant l'import
+      const [prospEnrichProgress, setProspEnrichProgress] = React.useState(null);
       const [prospImportResult, setProspImportResult] = React.useState(null);
 
       const commerciaux = [...new Set(prospects.map(p => p.assigned_to).filter(Boolean))].sort();
@@ -6685,8 +6728,9 @@
       }, [prospPlaceSearch, showProspectionModal]);
 
       // Lance la recherche multi-critères + détection des sociétés ayant
-      // des contacts disponibles via N appels parallèles à /v2/contacts.json
-      // en mode show_all_anonymized=true (gratuit). Le badge ✉️ ne s'affiche
+      // des contacts disponibles via des appels à /v2/contacts.json (concurrence
+      // bornée à 4 + retry, cf. mapWithConcurrency/siCallWithRetry) en mode
+      // show_all_anonymized=true (gratuit). Le badge ✉️ ne s'affiche
       // que si la société a vraiment au moins 1 contact dans la base SocieteInfo,
       // ce qui correspond effectivement à ce que l'enrichissement pourra ramener.
       // Coût : 1 crédit pour la recherche principale + 0 pour le marquage des contacts.
@@ -6720,18 +6764,22 @@
           // société, on dégrade gracieusement (pas de badge mais résultat affiché).
           const sirens = items.map(c => c.registration_number).filter(Boolean);
           if (sirens.length > 0) {
-            const contactsChecks = await Promise.allSettled(
-              sirens.map(s => window.SInfo.getContacts(s))
+            // Concurrence bornée (4) + retry/back-off sur 429 : on ne sature plus
+            // l'API SocieteInfo comme le faisait l'ancien map parallèle de 25 appels.
+            const contactsChecks = await mapWithConcurrency(
+              sirens,
+              (s) => siCallWithRetry(() => window.SInfo.getContacts(s)),
+              4
             );
             const contactsSirens = new Set();
             contactsChecks.forEach((res, idx) => {
-              if (res.status === 'fulfilled') {
+              if (res.value) {
                 const r = res.value || {};
                 const list = r.contacts || r.result || r.results || [];
                 const count = (typeof r.contacts_count === 'number') ? r.contacts_count : (Array.isArray(list) ? list.length : 0);
                 if (count > 0) contactsSirens.add(sirens[idx]);
               }
-              // status === 'rejected' → on ne marque pas, pas grave
+              // res.error → on ne marque pas, dégradation gracieuse
             });
             setProspWithContactsSirens(contactsSirens);
           } else {
@@ -6793,18 +6841,52 @@
         setProspImporting(true);
         setProspError('');
         try {
-          const companies = prospResults
-            .filter(c => prospSelected.has(c.registration_number))
-            .map(c => ({
-              siren:        c.registration_number,
-              name:         c.name,
-              city:         c.formatted_address ? (c.formatted_address.match(/\b\d{5}\s+(.+)$/) || [])[1] : null,
-              postal_code:  c.formatted_address ? (c.formatted_address.match(/\b(\d{5})\b/) || [])[1] : null,
-              address:      c.formatted_address,
-              phone:        c.phone || null,
-              website:      c.website || null,
-              naf_code:     c.naf_code || prospNafCode || null
-            }));
+          const selected = prospResults.filter(c => prospSelected.has(c.registration_number));
+
+          // ── Enrichissement téléphone + site web ──────────────────────────
+          // L'endpoint liste /v2/companies.json ne renvoie NI téléphone NI site web
+          // (uniquement identité + adresse). Le filtre "avec téléphone" garantit qu'un
+          // numéro EXISTE chez SocieteInfo, mais pour l'obtenir il faut l'appel détail
+          // /v2/company.json/{siren} (getCompany), payant 1 crédit/société.
+          // On enrichit donc UNIQUEMENT les sociétés que l'on importe vraiment.
+          // Séquentiel + throttle 350ms car les appels parallèles déclenchent des 429
+          // (Too Many Requests) côté SocieteInfo.
+          setProspEnrichProgress({ done: 0, total: selected.length });
+          const companies = [];
+          for (let i = 0; i < selected.length; i++) {
+            const c = selected[i];
+            const siren = c.registration_number;
+            // Base depuis la liste : nom + adresse sont déjà fiables sans appel détail
+            const entry = {
+              siren,
+              name:        c.name,
+              city:        c.formatted_address ? (c.formatted_address.match(/\b\d{5}\s+(.+)$/) || [])[1] : null,
+              postal_code: c.formatted_address ? (c.formatted_address.match(/\b(\d{5})\b/) || [])[1] : null,
+              address:     c.formatted_address,
+              phone:       null,
+              website:     null,
+              naf_code:    c.naf_code || prospNafCode || null
+            };
+            try {
+              const det = await siCallWithRetry(() => window.SInfo.getCompany(siren));
+              const mapped = window.SInfo.companyToProspect((det && det.result) || det);
+              if (mapped.tel_standard) entry.phone = mapped.tel_standard;
+              if (mapped.website)      entry.website = mapped.website;
+              // Adresse plus précise depuis le détail si disponible
+              if (mapped.adresse)      entry.address = mapped.adresse;
+              if (mapped.cp)           entry.postal_code = mapped.cp;
+              if (mapped.ville)        entry.city = mapped.ville;
+              if (mapped.code_naf)     entry.naf_code = mapped.code_naf;
+            } catch (e) {
+              // Dégradation gracieuse : on importe quand même la société, juste sans téléphone
+              console.warn('[Import SInfo] enrichissement échoué pour SIREN ' + siren + ' :', e.message);
+            }
+            companies.push(entry);
+            setProspEnrichProgress({ done: i + 1, total: selected.length });
+            // Throttle anti-429 entre deux appels (pas après le dernier)
+            if (i < selected.length - 1) await new Promise(r => setTimeout(r, 350));
+          }
+          setProspEnrichProgress(null);
 
           const res = await fetch(`${API_URL}/prospects/bulk-import-sinfo`, {
             method: 'POST',
@@ -6833,6 +6915,7 @@
           setProspError(err.message || 'Erreur import');
         } finally {
           setProspImporting(false);
+          setProspEnrichProgress(null);
         }
       };
       const thisYear = new Date().getFullYear();
@@ -7660,7 +7743,11 @@
                       <button onClick={runProspectionImport}
                         disabled={prospSelected.size === 0 || prospImporting}
                         style={{padding:'8px 18px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'7px',cursor:(prospSelected.size===0||prospImporting)?'not-allowed':'pointer',fontSize:'13px',fontWeight:600,opacity:(prospSelected.size===0||prospImporting)?0.5:1}}>
-                        {prospImporting ? 'Import en cours…' : `📥 Importer ${prospSelected.size} suspect(s)`}
+                        {prospImporting
+                          ? (prospEnrichProgress
+                              ? `Enrichissement ${prospEnrichProgress.done}/${prospEnrichProgress.total}…`
+                              : 'Import en cours…')
+                          : `📥 Importer ${prospSelected.size} suspect(s)`}
                       </button>
                     )}
                   </div>
