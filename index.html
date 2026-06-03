@@ -406,6 +406,24 @@
       return results;
     }
 
+    // Construit l'objet `infoForm` de la fiche société à partir d'un prospect.
+    // Factorisé pour être réutilisé par les deux effets de synchronisation
+    // (init au changement de fiche + re-sync quand le contenu change, ex. enrichissement).
+    function buildInfoForm(p) {
+      return {
+        name: p?.name || '',
+        adresse: p?.adresse || '',
+        website: p?.website || '',
+        tel_standard: p?.tel_standard || '',
+        assigned_to: p?.assigned_to || '',
+        notes: p?.notes || '',
+        siren: p?.siren || '',
+        code_naf: p?.code_naf || '',
+        created_at: p?.created_at ? new Date(p.created_at).toISOString().split('T')[0] : '',
+        marques: Array.isArray(p?.marques) ? p.marques : [],
+      };
+    }
+
     // ==================== HELPER NOMS INTERLOCUTEURS ====================
     // Combinaison prenom + nom pour affichage. Gère les 3 cas :
     //  - prenom + nom    → "Maurice Leblanc"
@@ -7981,19 +7999,21 @@
         setClientDataLoaded(false);
         setClientTab('infos');
         setInfoEdit(false);
-        setInfoForm({
-          name: selectedProspect?.name||'',
-          adresse: selectedProspect?.adresse||'',
-          website: selectedProspect?.website||'',
-          tel_standard: selectedProspect?.tel_standard||'',
-          assigned_to: selectedProspect?.assigned_to||'',
-          notes: selectedProspect?.notes||'',
-          siren: selectedProspect?.siren||'',
-          code_naf: selectedProspect?.code_naf||'',
-          created_at: selectedProspect?.created_at ? new Date(selectedProspect.created_at).toISOString().split('T')[0] : '',
-          marques: Array.isArray(selectedProspect?.marques) ? selectedProspect.marques : [],
-        });
+        setInfoForm(buildInfoForm(selectedProspect));
       }, [selectedProspect?.id]);
+
+      // Re-synchronise infoForm quand le CONTENU de la fiche change sans changement d'id
+      // (ex: enrichissement SocieteInfo qui met à jour la même société). Sans cet effet,
+      // l'écran restait figé jusqu'à un rechargement manuel. On ne réécrit jamais pendant
+      // une édition manuelle en cours (infoEdit) pour ne pas écraser la saisie de l'utilisateur.
+      React.useEffect(() => {
+        if (infoEdit) return;
+        setInfoForm(buildInfoForm(selectedProspect));
+      }, [
+        selectedProspect?.name, selectedProspect?.adresse, selectedProspect?.website,
+        selectedProspect?.tel_standard, selectedProspect?.code_naf, selectedProspect?.notes,
+        selectedProspect?.marques, selectedProspect?.import_date,
+      ]);
 
       React.useEffect(() => {
         if (selectedProspect?.statut_societe === 'Client') {
