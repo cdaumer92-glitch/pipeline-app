@@ -1043,8 +1043,8 @@ function renderSection3() {
   const items = [
     { show: biz,        nom: `Hébergement serveur TexasWin (${maxU} users)`, total: hebTW,                    unite: '€/mois' },
     { show: net,        nom: 'Hébergement serveur Net' + ((moduleState.net_agents_val||0) > 0 ? ' — ' + (netPaliers.find(p=>p.max===moduleState.net_agents_val)?.label||'') : ` (${moduleState.net_users||0} users)`), total: calcHebNet(), unite: '€/mois' },
-    { show: kub,        nom: `Hébergement serveur Kub (${kubQ} users)`,       total: hebKub,                  unite: '€/mois' },
-    { show: sage,       nom: 'Allocation ressources Sage',                    total: 135,                     unite: '€/mois' },
+    { show: kub,        key: 'heb_kub',   editable: true, nom: `Hébergement serveur Kub (${kubQ} users)`,       total: infraMontant('heb_kub', hebKub),  unite: '€/mois' },
+    { show: sage,       key: 'alloc_sage', editable: true, nom: 'Allocation ressources Sage',                    total: infraMontant('alloc_sage', 135), unite: '€/mois' },
     { show: mag,        nom: 'Gestion des Flux MAG',                          total: 40,                      unite: '€/mois' },
     { show: magCaisses, nom: `Support MAG — ${moduleState.mag_caisses} caisse(s)`, total: 15 * moduleState.mag_caisses, unite: '€/mois' },
     { show: flux,       nom: `Gestion des Flux (${fluxNoms.map((n,i)=>n||('Flux '+(i+1))).join(', ')})`, total: 40 * moduleState.fluxTiers, unite: '€/mois' },
@@ -1055,7 +1055,25 @@ function renderSection3() {
   items.forEach(it => {
     if (!it.show) return;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${it.nom}</td><td class="center">—</td><td class="center">—</td><td class="right">${fmtEur(it.total)}</td><td class="center">${it.unite}</td>`;
+    if (it.editable && it.key) {
+      const has = getInfraOverride(it.key) !== undefined;
+      const totalCell = `<td class="right">
+        <span style="display:inline-flex;align-items:center;gap:4px;justify-content:flex-end;">
+          <input type="number" step="0.01" min="0"
+            class="inline-total total-s3-${it.key}"
+            value="${it.total.toFixed(2)}"
+            title="Montant modifiable. Laisser vide pour revenir au calcul automatique. Une éventuelle remise de l'aperçu s'applique par-dessus."
+            style="width:92px;text-align:right;font-weight:700;${has ? 'color:#9b2d4e;' : ''}"
+            onchange="setInfraOverride('${it.key}', this.value)">
+          <span onclick="setInfraOverride('${it.key}', '')"
+            title="Revenir au calcul automatique"
+            style="cursor:pointer;font-size:13px;color:#9eb5b5;${has ? '' : 'visibility:hidden;'}">↺</span>
+        </span>
+      </td>`;
+      tr.innerHTML = `<td>${it.nom}</td><td class="center">—</td><td class="center">—</td>${totalCell}<td class="center">${it.unite}</td>`;
+    } else {
+      tr.innerHTML = `<td>${it.nom}</td><td class="center">—</td><td class="center">—</td><td class="right">${fmtEur(it.total)}</td><td class="center">${it.unite}</td>`;
+    }
     tbody.appendChild(tr);
   });
   if (!tbody.children.length) {
@@ -1408,6 +1426,37 @@ function setForfaitOverride(key, raw) {
   calculate();
 }
 
+// ── Override du montant de base d'une ligne Infrastructure (héb. Net, héb. Kub, alloc. Sage) ──
+// Stocké dans moduleState.infraOverrides[key] → persisté dans le devis.
+// Le montant saisi remplace le calcul auto ; la remise % de l'aperçu s'applique ensuite par-dessus.
+function getInfraOverride(key) {
+  const ov = moduleState.infraOverrides;
+  if (!ov) return undefined;
+  const v = ov[key];
+  return (v === undefined || v === null || v === '') ? undefined : v;
+}
+function infraMontant(key, montantDefaut) {
+  const ov = getInfraOverride(key);
+  if (ov !== undefined) {
+    const v = parseFloat(ov);
+    if (!isNaN(v)) return v;
+  }
+  return montantDefaut;
+}
+function setInfraOverride(key, raw) {
+  if (!moduleState.infraOverrides) moduleState.infraOverrides = {};
+  const txt = (raw == null ? '' : String(raw)).trim();
+  if (txt === '') {
+    delete moduleState.infraOverrides[key];
+  } else {
+    const v = parseFloat(txt.replace(',', '.'));
+    if (isNaN(v)) delete moduleState.infraOverrides[key];
+    else moduleState.infraOverrides[key] = v;
+  }
+  renderSection3();
+  calculate();
+}
+
 function lineTotalS2(item, sv, i) {
   if (!sv) return 0;
   const ov = getS2Override(i);
@@ -1654,8 +1703,7 @@ function buildLignesModulesInfra() {
     } else if (netSiegeActif) {
       addAbo('Module Net B2B — Siège', null, 328, 'net', '€/mois');
     }
-  }
-  addAbo('Module Kub (Business Intelligence)', (ms.kub||0), 20, 'kub', '€/mois/user');
+  }  addAbo('Module Kub (Business Intelligence)', (ms.kub||0), 20, 'kub', '€/mois/user');
   if ((ms.mag||0)>0) addAbo('Module Mag : Concentrateur', 1, 99, 'mag', '€/mois');
   addAbo('Module Mag (Nb Caisses déployées)', (ms.mag_caisses||0), 49, 'mag', '€/mois/caisse');
   addAbo('Module VRP (Représentant)', (ms.vrp||0), 53, 'vrp', '€/mois/user');
@@ -1672,8 +1720,8 @@ function buildLignesModulesInfra() {
   const _fluxNomsLocal = (fluxNoms || []).map((n, i) => n || ('Flux ' + (i+1)));
   if ((ms.fluxTiers||0)>0) addAbo('Gestion des Flux ('+_fluxNomsLocal.slice(0, ms.fluxTiers).join(', ')+')', null, 40*(ms.fluxTiers||0), null, '€/mois');
   if (ms.facturationElec) addAbo('Gestion Facturation électronique (réception)', null, 40, null, '€/mois');
-  if (ms.comptaSage) addAbo('Allocation ressources Sage', null, 135, null, '€/mois');
-  if ((ms.kub||0)>0) addAbo('Hébergement serveur Kub', null, calcHebKub(), null, '€/mois');
+  if (ms.comptaSage) addAbo('Allocation ressources Sage', null, infraMontant('alloc_sage', 135), null, '€/mois');
+  if ((ms.kub||0)>0) addAbo('Hébergement serveur Kub', null, infraMontant('heb_kub', calcHebKub()), null, '€/mois');
   if (ms.middlewareStandalone) addAbo('Concentrateur middleware multi-magasin', null, 99, null, '€/mois');
 
   // Lignes custom ajoutées dans le drawer de chaque module
