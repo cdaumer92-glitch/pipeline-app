@@ -517,6 +517,10 @@ async function initDB() {
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS optin_confirme_at TIMESTAMP`);
     await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_interloc_optin_token ON interlocuteurs(optin_token) WHERE optin_token IS NOT NULL`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_interloc_demande_optin ON interlocuteurs(demande_optin) WHERE demande_optin = TRUE`);
+    // Rattache chaque contact à SA campagne d'opt-in (séquence). Posé au Mail 1, permet
+    // d'agréger par campagne : nb contacts, opt-in obtenus, taux de conversion, statut.
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS optin_sequence_id TEXT`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_interloc_optin_seq ON interlocuteurs(optin_sequence_id) WHERE optin_sequence_id IS NOT NULL`);
 
     // ========== SÉQUENCE DE RELANCE OPT-IN (semi-auto) ==========
     // Suit où en est chaque contact dans la séquence de relance :
@@ -750,6 +754,29 @@ async function initDB() {
       }
     } catch (e) {
       console.error('[migration] Backfill séquences opt-in (non bloquant):', e.message);
+    }
+
+    // Backfill : rattache chaque CONTACT à sa séquence d'opt-in (interlocuteurs.optin_sequence_id)
+    // à partir des envois Mail 1 (sequence_etape = 0) — leurs contacts_ids sont les contacts de la campagne.
+    try {
+      const mail1Envois = (await client.query(
+        `SELECT sequence_id, contacts_ids FROM campagnes_envois
+          WHERE sequence_etape = 0 AND sequence_id IS NOT NULL AND contacts_ids IS NOT NULL`
+      )).rows;
+      let linked = 0;
+      for (const m of mail1Envois) {
+        const cids = (m.contacts_ids || []).filter(Boolean);
+        if (cids.length === 0) continue;
+        const up = await client.query(
+          `UPDATE interlocuteurs SET optin_sequence_id = $1
+            WHERE id = ANY($2::int[]) AND optin_sequence_id IS NULL`,
+          [m.sequence_id, cids]
+        );
+        linked += up.rowCount || 0;
+      }
+      if (linked > 0) console.log(`[migration] Backfill contact→séquence opt-in : ${linked} contact(s) rattaché(s).`);
+    } catch (e) {
+      console.error('[migration] Backfill contact→séquence opt-in (non bloquant):', e.message);
     }
 
     // ========== TRACKING ÉVÉNEMENTS CAMPAGNES (webhook Brevo) ==========
@@ -3277,9 +3304,10 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
                 optin_token_envoye_at = NOW(),
                 optin_dernier_envoi_at = NOW(),
                 optin_confirme_at = NULL,
-                demande_optin = true
+                demande_optin = true,
+                optin_sequence_id = COALESCE(optin_sequence_id, $3)
           WHERE id = $1`,
-        [c.id, tok]
+        [c.id, tok, sequenceId]
       );
     }
   } catch (err) {
@@ -4091,6 +4119,113 @@ app.get('/api/optin/sequence', auth, async (req, res) => {
     });
   } catch (err) {
     console.error('[optin/sequence] erreur:', err);
+    res.status(500).json({ error: 'Erreur BDD: ' + err.message });
+  }
+});
+
+// -------- GET /api/optin/campaigns --------
+// Vue "campagne" pour les écrans En cours / Terminées : agrège les séquences opt-in
+// (par sequence_id) avec leurs vagues envoyées + les chiffres contacts (nb, opt-in
+// obtenus, en attente, conversion) + la prochaine vague due. 100% BDD (pas d'appel
+// Brevo) → rapide. Les ouvertures/clics par vague restent chargés à la demande.
+app.get('/api/optin/campaigns', auth, async (req, res) => {
+  try {
+    const ocfg = (await pool.query(`SELECT etapes_json, delai_jours_ouvres FROM optin_config WHERE id = 1`)).rows[0] || {};
+    const etapesCfg = Array.isArray(ocfg.etapes_json) ? ocfg.etapes_json : [];
+    const globalDelai = ocfg.delai_jours_ouvres || 5;
+    const nbRelances = etapesCfg.length;
+    const delaiPourEtape = (e) => { const d = etapesCfg[e] ? parseInt(etapesCfg[e].delai_jours_ouvres) : NaN; return (Number.isFinite(d) && d > 0) ? d : globalDelai; };
+
+    // Vagues envoyées, par séquence
+    const envois = (await pool.query(
+      `SELECT sequence_id, sequence_etape, brevo_campaign_id_envoi, brevo_campaign_id_source,
+              campagne_nom, sent_at, created_at, nb_contacts_envoyes
+         FROM campagnes_envois
+        WHERE sequence_id IS NOT NULL AND archived_at IS NULL
+        ORDER BY sequence_etape ASC, created_at ASC`
+    )).rows;
+
+    // Agrégats contacts par séquence
+    const contactsAgg = (await pool.query(
+      `SELECT optin_sequence_id AS sid,
+              COUNT(*)::int AS nb_contacts,
+              COUNT(*) FILTER (WHERE COALESCE(accept_emailing,false) = true)::int AS nb_optin,
+              COUNT(*) FILTER (WHERE COALESCE(demande_optin,false) = true AND COALESCE(accept_emailing,false) = false)::int AS nb_en_attente
+         FROM interlocuteurs
+        WHERE optin_sequence_id IS NOT NULL
+        GROUP BY optin_sequence_id`
+    )).rows;
+    const aggBySid = {};
+    contactsAgg.forEach(a => { aggBySid[a.sid] = a; });
+
+    // Contacts encore en attente (pour calculer la prochaine vague due)
+    const pend = (await pool.query(
+      `SELECT optin_sequence_id AS sid, optin_etape, optin_dernier_envoi_at, optin_token_envoye_at
+         FROM interlocuteurs
+        WHERE optin_sequence_id IS NOT NULL
+          AND COALESCE(demande_optin,false) = true
+          AND COALESCE(accept_emailing,false) = false`
+    )).rows;
+
+    const seqMap = {};
+    for (const e of envois) (seqMap[e.sequence_id] = seqMap[e.sequence_id] || []).push(e);
+
+    const campaigns = Object.keys(seqMap).map(sid => {
+      const waves = seqMap[sid].slice().sort((a, b) => (a.sequence_etape || 0) - (b.sequence_etape || 0));
+      const first = waves[0], last = waves[waves.length - 1];
+      const nom = (first.campagne_nom || 'Campagne opt-in').replace(/\s*-?\s*Mail\s*\d+\s*$/i, '').trim() || 'Campagne opt-in';
+      const agg = aggBySid[sid] || { nb_contacts: 0, nb_optin: 0, nb_en_attente: 0 };
+
+      // Prochaine vague due : on parcourt les contacts en attente de cette séquence.
+      let nbDue = 0, prochaineVague = null, echeance = null;
+      for (const c of pend) {
+        if (c.sid !== sid) continue;
+        const etape = c.optin_etape || 0;
+        if (etape >= nbRelances) continue; // plus de relance configurée → clôture
+        const ref = c.optin_dernier_envoi_at || c.optin_token_envoye_at;
+        const dl = delaiPourEtape(etape);
+        const ech = ref ? ajouterJoursOuvres(new Date(ref), dl) : null;
+        const isDue = echeanceAtteinte(ref, dl);
+        if (isDue) {
+          nbDue++;
+          if (prochaineVague === null || (etape + 1) < prochaineVague) prochaineVague = etape + 1;
+        }
+        if (ech && (!echeance || ech < new Date(echeance))) {
+          echeance = ech.toISOString();
+          if (prochaineVague === null) prochaineVague = etape + 1;
+        }
+      }
+      const statut = (agg.nb_en_attente > 0) ? 'en_cours' : 'terminee';
+      return {
+        sequence_id: sid,
+        nom,
+        date_debut: first.sent_at || first.created_at,
+        date_fin: statut === 'terminee' ? (last.sent_at || last.created_at) : null,
+        statut,
+        nb_relances_config: nbRelances,
+        vagues: waves.map(w => ({
+          etape: w.sequence_etape,
+          brevo_id: w.brevo_campaign_id_envoi || w.brevo_campaign_id_source,
+          nom: w.campagne_nom,
+          date: w.sent_at || w.created_at,
+          nb_envoyes: w.nb_contacts_envoyes
+        })),
+        nb_contacts: agg.nb_contacts,
+        nb_optin: agg.nb_optin,
+        nb_en_attente: agg.nb_en_attente,
+        taux_conversion: agg.nb_contacts > 0 ? Math.round((agg.nb_optin / agg.nb_contacts) * 100) : 0,
+        prochaine_vague: prochaineVague,
+        nb_due: nbDue,
+        echeance_prochaine: echeance
+      };
+    }).sort((a, b) => new Date(b.date_debut) - new Date(a.date_debut));
+
+    res.json({
+      en_cours: campaigns.filter(c => c.statut === 'en_cours'),
+      terminees: campaigns.filter(c => c.statut === 'terminee')
+    });
+  } catch (err) {
+    console.error('[optin/campaigns] erreur:', err);
     res.status(500).json({ error: 'Erreur BDD: ' + err.message });
   }
 });
