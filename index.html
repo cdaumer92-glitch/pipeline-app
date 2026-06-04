@@ -792,6 +792,114 @@
     // 5. Bouton "Envoi de test" → envoie à c.daumer@texaswin.fr
     // 6. Bouton "Envoyer" → modal confirmation → POST /api/brevo/send-campaign
     // ===================================================================
+    // COMPOSANT CampagnesVue — Cartes campagnes opt-in (En cours / Terminées)
+    // Alimenté par GET /api/optin/campaigns. statut = 'en_cours' | 'terminee'.
+    // ===================================================================
+    function CampagnesVue({ user, API_URL, statut }) {
+      const [data, setData] = React.useState(null);
+      const [loading, setLoading] = React.useState(false);
+      const [error, setError] = React.useState(null);
+      const token = () => (user && user.token) ? user.token : null;
+
+      React.useEffect(() => {
+        setLoading(true); setError(null);
+        fetch(`${API_URL}/optin/campaigns`, { headers: { 'Authorization': 'Bearer ' + token() } })
+          .then(r => r.json().then(d => ({ ok: r.ok, d })))
+          .then(({ ok, d }) => { if (!ok) setError(d.error || 'Erreur'); else setData(d); })
+          .catch(e => setError('Erreur réseau: ' + e.message))
+          .finally(() => setLoading(false));
+      }, [API_URL]);
+
+      const fmtD = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+      const fmtDM = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '—';
+
+      const Stat = ({ n, k, color }) => (
+        <div style={{flex: 1, minWidth: '92px', background: 'var(--tw-bg)', borderRadius: '11px', padding: '13px 14px'}}>
+          <div style={{fontSize: '22px', fontWeight: 800, lineHeight: 1, color: color || 'var(--tw-ink)'}}>{n}</div>
+          <div style={{fontSize: '11px', color: 'var(--tw-muted)', marginTop: '5px'}}>{k}</div>
+        </div>
+      );
+
+      // Stepper : Mail 1 + N relances + Clôture
+      const renderStepper = (camp) => {
+        const sentEtapes = new Set((camp.vagues || []).map(v => v.etape));
+        const dateByEtape = {};
+        (camp.vagues || []).forEach(v => { dateByEtape[v.etape] = v.date; });
+        const steps = [{ cap: 'Mail 1', etape: 0 }];
+        for (let i = 1; i <= (camp.nb_relances_config || 0); i++) steps.push({ cap: 'Relance ' + i, etape: i });
+        steps.push({ cap: 'Clôture', etape: (camp.nb_relances_config || 0) + 1, final: true });
+        const nextEtape = (camp.statut === 'terminee') ? -1 : (camp.prochaine_vague != null ? camp.prochaine_vague : -1);
+        return (
+          <div style={{display: 'flex', alignItems: 'center', margin: '16px 0 4px'}}>
+            {steps.map((s, idx) => {
+              const done = sentEtapes.has(s.etape);
+              const current = !done && s.etape === nextEtape;
+              const dot = done ? '✓' : (s.final ? '★' : String(s.etape + 1));
+              const bg = done ? 'var(--tw-green)' : current ? 'var(--tw-teal)' : '#fff';
+              const bd = done ? 'var(--tw-green)' : current ? 'var(--tw-teal)' : 'var(--tw-border)';
+              const col = (done || current) ? '#fff' : 'var(--tw-muted)';
+              return (
+                <React.Fragment key={idx}>
+                  <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', width: '90px', flexShrink: 0}}>
+                    <div style={{width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, background: bg, border: '2px solid ' + bd, color: col, boxShadow: current ? '0 0 0 4px #e6f5f5' : 'none'}}>{dot}</div>
+                    <div style={{fontSize: '11px', fontWeight: 600, marginTop: '6px', color: 'var(--tw-slate)', textAlign: 'center'}}>{s.cap}</div>
+                    <div style={{fontSize: '10px', color: 'var(--tw-muted)'}}>{done ? fmtDM(dateByEtape[s.etape]) : (current ? 'à venir' : '—')}</div>
+                  </div>
+                  {idx < steps.length - 1 && <div style={{flex: 1, height: '3px', background: done ? 'var(--tw-green)' : 'var(--tw-border)', marginTop: '-28px', borderRadius: '2px'}}></div>}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        );
+      };
+
+      if (loading) return <div style={{padding: '30px', textAlign: 'center', color: 'var(--tw-muted)', fontSize: '13px'}}>Chargement…</div>;
+      if (error) return <div style={{padding: '20px', color: '#a52d2d', fontSize: '13px'}}>Erreur : {error}</div>;
+      const list = (data && (statut === 'terminee' ? data.terminees : data.en_cours)) || [];
+      if (list.length === 0) return <div style={{padding: '40px 20px', textAlign: 'center', color: 'var(--tw-muted)', fontSize: '13px'}}>{statut === 'terminee' ? 'Aucune campagne terminée pour le moment.' : 'Aucune campagne en cours. Lance-en une depuis « Créer une campagne ».'}</div>;
+
+      return (
+        <div>
+          {list.map(camp => (
+            <div key={camp.sequence_id} style={{background: '#fff', border: '1px solid var(--tw-border)', borderRadius: '14px', padding: '22px', marginBottom: '18px', boxShadow: '0 1px 2px rgba(20,40,40,.03)'}}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '14px'}}>
+                <div>
+                  <div style={{fontSize: '16px', fontWeight: 700, color: 'var(--tw-ink)'}}>🎯 {camp.nom}
+                    <span style={{fontSize: '11px', fontWeight: 700, padding: '3px 11px', borderRadius: '20px', marginLeft: '10px', background: statut === 'terminee' ? '#e6f7ec' : '#eaf6ff', color: statut === 'terminee' ? 'var(--tw-green)' : '#1a6aa8'}}>{statut === 'terminee' ? 'Terminée' : 'En cours'}</span>
+                  </div>
+                  <div style={{fontSize: '12px', color: 'var(--tw-muted)', marginTop: '3px'}}>
+                    {statut === 'terminee' ? `${fmtD(camp.date_debut)} → ${fmtD(camp.date_fin)}` : `Démarrée le ${fmtD(camp.date_debut)}`} · {camp.nb_contacts} contact{camp.nb_contacts > 1 ? 's' : ''} · {(camp.vagues || []).length} mail{(camp.vagues || []).length > 1 ? 's' : ''} envoyé{(camp.vagues || []).length > 1 ? 's' : ''}
+                  </div>
+                </div>
+              </div>
+
+              {renderStepper(camp)}
+
+              <div style={{display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '18px'}}>
+                <Stat n={camp.nb_contacts} k="Contacts" />
+                <Stat n={camp.nb_optin} k="Opt-in obtenus" color="var(--tw-teal)" />
+                <Stat n={camp.nb_en_attente} k="En attente" color="var(--tw-orange)" />
+                <Stat n={camp.taux_conversion + '%'} k="Taux conversion" color="var(--tw-green)" />
+              </div>
+
+              {statut !== 'terminee' && (
+                <div style={{display: 'flex', alignItems: 'center', gap: '14px', background: '#eef9f6', border: '1px solid #cfe9e2', borderRadius: '11px', padding: '13px 16px', marginTop: '18px'}}>
+                  {camp.nb_due > 0 ? (
+                    <div style={{fontSize: '13px', fontWeight: 600, color: '#0a5c4f'}}>📨 <b>{camp.nb_due} contact{camp.nb_due > 1 ? 's' : ''}</b> sans réaction → relance {camp.prochaine_vague} à envoyer. <span style={{fontWeight: 400, color: 'var(--tw-slate)'}}>(groupes « Relances à faire » ci-dessous)</span></div>
+                  ) : camp.echeance_prochaine ? (
+                    <div style={{fontSize: '13px', fontWeight: 600, color: '#0a5c4f'}}>⏳ Prochaine relance (Relance {camp.prochaine_vague}) à prévoir vers le <b>{fmtD(camp.echeance_prochaine)}</b>.</div>
+                  ) : (
+                    <div style={{fontSize: '13px', fontWeight: 600, color: '#0a5c4f'}}>{camp.nb_en_attente} contact{camp.nb_en_attente > 1 ? 's' : ''} en attente de réponse.</div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // ===================================================================
     // COMPOSANT CampagnesHistorique — Historique + stats des envois
     // ===================================================================
     function CampagnesHistorique({ user, API_URL }) {
@@ -1541,17 +1649,27 @@
             <button onClick={onClose} style={{padding:'8px 16px', background:'transparent', border:'0.5px solid var(--tw-border)', borderRadius:'8px', cursor:'pointer', fontSize:'13px', color:'var(--tw-slate)'}}>Fermer</button>
           </div>
 
-          {/* ONGLETS Envoyer / Historique */}
-          <div style={{display:'flex', gap:'4px', marginBottom:'20px', borderBottom:'1px solid var(--tw-border)'}}>
-            <button onClick={() => setActiveView('envoyer')} style={{padding:'10px 18px', background:'transparent', border:'none', borderBottom: activeView==='envoyer' ? '2px solid var(--tw-teal)' : '2px solid transparent', cursor:'pointer', fontSize:'14px', fontWeight: activeView==='envoyer' ? 600 : 400, color: activeView==='envoyer' ? 'var(--tw-teal)' : 'var(--tw-slate)', marginBottom:'-1px'}}>Envoyer une campagne</button>
-            <button onClick={() => setActiveView('historique')} style={{padding:'10px 18px', background:'transparent', border:'none', borderBottom: activeView==='historique' ? '2px solid var(--tw-teal)' : '2px solid transparent', cursor:'pointer', fontSize:'14px', fontWeight: activeView==='historique' ? 600 : 400, color: activeView==='historique' ? 'var(--tw-teal)' : 'var(--tw-slate)', marginBottom:'-1px'}}>Historique &amp; statistiques</button>
-            <button onClick={() => setActiveView('relances')} style={{padding:'10px 18px', background:'transparent', border:'none', borderBottom: activeView==='relances' ? '2px solid var(--tw-teal)' : '2px solid transparent', cursor:'pointer', fontSize:'14px', fontWeight: activeView==='relances' ? 600 : 400, color: activeView==='relances' ? 'var(--tw-teal)' : 'var(--tw-slate)', marginBottom:'-1px'}}>Relances opt-in</button>
+          {/* ONGLETS : cycle de vie d'une campagne */}
+          <div style={{display:'flex', gap:'4px', marginBottom:'20px', borderBottom:'1px solid var(--tw-border)', flexWrap:'wrap'}}>
+            {[
+              {v:'envoyer',    label:'➕ Créer une campagne'},
+              {v:'encours',    label:'🚀 En cours'},
+              {v:'terminees',  label:'✅ Terminées'},
+              {v:'historique', label:'📊 Historique détaillé'}
+            ].map(t => (
+              <button key={t.v} onClick={() => setActiveView(t.v)} style={{padding:'10px 18px', background:'transparent', border:'none', borderBottom: activeView===t.v ? '2px solid var(--tw-teal)' : '2px solid transparent', cursor:'pointer', fontSize:'14px', fontWeight: activeView===t.v ? 600 : 400, color: activeView===t.v ? 'var(--tw-teal)' : 'var(--tw-slate)', marginBottom:'-1px'}}>{t.label}</button>
+            ))}
           </div>
 
-          {activeView === 'historique' ? (
+          {activeView === 'encours' ? (
+            <React.Fragment>
+              <CampagnesVue user={user} API_URL={API_URL} statut="en_cours" />
+              <CampagnesRelances user={user} API_URL={API_URL} />
+            </React.Fragment>
+          ) : activeView === 'terminees' ? (
+            <CampagnesVue user={user} API_URL={API_URL} statut="terminee" />
+          ) : activeView === 'historique' ? (
             <CampagnesHistorique user={user} API_URL={API_URL} />
-          ) : activeView === 'relances' ? (
-            <CampagnesRelances user={user} API_URL={API_URL} />
           ) : (
           <React.Fragment>
           {/* FILTRES */}
