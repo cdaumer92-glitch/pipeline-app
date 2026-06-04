@@ -1177,7 +1177,7 @@
     // ===================================================================
     // COMPOSANT CampagnesRelances — Séquence de relance opt-in (semi-auto)
     // ===================================================================
-    function CampagnesRelances({ user, API_URL }) {
+    function CampagnesRelances({ user, API_URL, mode = 'all' }) {
       const [seq, setSeq] = React.useState(null);
       const [loading, setLoading] = React.useState(false);
       const [error, setError] = React.useState(null);
@@ -1380,7 +1380,8 @@
             <div style={{padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', background: feedback.type === 'success' ? '#e6f7ec' : '#fde8e8', color: feedback.type === 'success' ? '#0d7d39' : '#a52d2d'}}>{feedback.msg}</div>
           )}
 
-          {/* CONFIG : constructeur de séquence (N vagues) */}
+          {/* CONFIG : constructeur de séquence (N vagues) — masqué en mode 'actions' */}
+          {(mode !== 'actions') && (
           <div style={{background: 'var(--tw-bg)', border: '0.5px solid var(--tw-border)', borderRadius: '12px', padding: '20px', marginBottom: '20px'}}>
             <div style={{fontSize: '14px', fontWeight: 600, color: 'var(--tw-ink)', marginBottom: '4px'}}>Séquence de relances</div>
             <div style={{fontSize: '12px', color: 'var(--tw-muted)', marginBottom: '14px'}}>
@@ -1414,7 +1415,10 @@
               {etapesDirty && <span style={{fontSize: '12px', color: '#b97800'}}>Modifications non enregistrées</span>}
             </div>
           </div>
+          )}
 
+          {/* GROUPES + EN ATTENTE : masqués en mode 'builder' (réservés à l'onglet « En cours ») */}
+          {(mode !== 'builder') && (<React.Fragment>
           {/* GROUPES */}
           {renderGroupe(
             'Relances à faire — 1ère relance',
@@ -1474,6 +1478,7 @@
               </table>
             </div>
           )}
+          </React.Fragment>)}
         </div>
       );
     }
@@ -1664,7 +1669,7 @@
           {activeView === 'encours' ? (
             <React.Fragment>
               <CampagnesVue user={user} API_URL={API_URL} statut="en_cours" />
-              <CampagnesRelances user={user} API_URL={API_URL} />
+              <CampagnesRelances user={user} API_URL={API_URL} mode="actions" />
             </React.Fragment>
           ) : activeView === 'terminees' ? (
             <CampagnesVue user={user} API_URL={API_URL} statut="terminee" />
@@ -1672,6 +1677,8 @@
             <CampagnesHistorique user={user} API_URL={API_URL} />
           ) : (
           <React.Fragment>
+          {/* Constructeur de séquence (relances Mail 2, 3…) — défini dès la création */}
+          <CampagnesRelances user={user} API_URL={API_URL} mode="builder" />
           {/* FILTRES */}
           <div style={{background:'white', border:'0.5px solid var(--tw-border)', borderRadius:'12px', padding:'20px', marginBottom:'20px'}}>
             <div style={{display:'flex', gap:'40px', flexWrap:'wrap'}}>
