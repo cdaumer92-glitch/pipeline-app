@@ -1483,8 +1483,147 @@
       );
     }
 
+    // ===================================================================
+    // COMPOSANT CampagnesLancement — colonne gauche : créer / lancer une campagne opt-in
+    // ===================================================================
+    function CampagnesLancement({ user, API_URL, onLaunched }) {
+      const [defs, setDefs] = React.useState([]);
+      const [campaignsBrevo, setCampaignsBrevo] = React.useState([]);
+      const [feedback, setFeedback] = React.useState(null);
+      const [creating, setCreating] = React.useState(false);
+      const [editId, setEditId] = React.useState(null);
+      const [nom, setNom] = React.useState('');
+      const [etapes, setEtapes] = React.useState([{ brevo_id: null, brevo_nom: null, delai_jours_ouvres: 0 }]);
+      const [launchingId, setLaunchingId] = React.useState(null);
+      const [saving, setSaving] = React.useState(false);
+      const token = () => (user && user.token) ? user.token : '';
+      const authH = () => ({ 'Authorization': 'Bearer ' + token(), 'Content-Type': 'application/json' });
+
+      const load = React.useCallback(() => {
+        Promise.all([
+          fetch(`${API_URL}/optin/campaign-defs`, { headers: authH() }).then(r => r.json()).catch(() => ({ campagnes: [] })),
+          fetch(`${API_URL}/brevo/campaigns`, { headers: authH() }).then(r => r.json()).catch(() => ({ campaigns: [] }))
+        ]).then(([d, c]) => { setDefs(d.campagnes || []); setCampaignsBrevo(c.campaigns || c.campagnes || []); });
+      }, [API_URL]);
+      React.useEffect(() => { load(); }, [load]);
+
+      const campOptions = campaignsBrevo.map(c => ({ id: c.id, nom: c.name || c.nom || `Campagne #${c.id}` }));
+      const brevoNom = (id) => { const o = campOptions.find(o => String(o.id) === String(id)); return o ? o.nom : (id ? `#${id}` : ''); };
+
+      const startCreate = () => { setCreating(true); setEditId(null); setNom(''); setEtapes([{ brevo_id: null, brevo_nom: null, delai_jours_ouvres: 0 }]); setFeedback(null); };
+      const startEdit = (def) => { setCreating(true); setEditId(def.id); setNom(def.nom); setEtapes((def.etapes_json || []).map(e => ({ brevo_id: e.brevo_id, brevo_nom: e.brevo_nom, delai_jours_ouvres: e.delai_jours_ouvres || 5 }))); setFeedback(null); };
+      const addMail = () => setEtapes(p => [...p, { brevo_id: null, brevo_nom: null, delai_jours_ouvres: 5 }]);
+      const removeMail = (i) => setEtapes(p => p.filter((_, j) => j !== i));
+      const updMail = (i, patch) => setEtapes(p => p.map((e, j) => j === i ? { ...e, ...patch } : e));
+
+      const saveCampaign = async () => {
+        if (!nom.trim()) { setFeedback({ type: 'error', msg: 'Donne un nom à la campagne.' }); return; }
+        const clean = etapes.filter(e => e.brevo_id);
+        if (clean.length === 0) { setFeedback({ type: 'error', msg: 'Choisis au moins le Mail 1.' }); return; }
+        setSaving(true);
+        try {
+          const body = { nom: nom.trim(), etapes: clean };
+          if (editId) body.id = editId;
+          const r = await fetch(`${API_URL}/optin/campaign-defs`, { method: 'POST', headers: authH(), body: JSON.stringify(body) });
+          const d = await r.json();
+          if (!r.ok) { setFeedback({ type: 'error', msg: d.error || 'Erreur enregistrement' }); }
+          else { setFeedback({ type: 'success', msg: `Campagne « ${nom.trim()} » enregistrée.` }); setCreating(false); load(); }
+        } catch (e) { setFeedback({ type: 'error', msg: e.message }); } finally { setSaving(false); }
+      };
+
+      const deleteCampaign = async (def) => {
+        if (!window.confirm(`Supprimer la campagne « ${def.nom} » ?`)) return;
+        await fetch(`${API_URL}/optin/campaign-defs/${def.id}`, { method: 'DELETE', headers: authH() });
+        load();
+      };
+
+      const launch = async (def) => {
+        if (!window.confirm(`Lancer « ${def.nom} » ?\n\nLe Mail 1 sera envoyé à tous les contacts Suspect/Prospect non-sollicités, et les relances s'enchaîneront selon la séquence.`)) return;
+        setLaunchingId(def.id); setFeedback(null);
+        try {
+          const aR = await fetch(`${API_URL}/optin/campaign-defs/${def.id}/activate`, { method: 'POST', headers: authH() });
+          const aD = await aR.json();
+          if (!aR.ok) throw new Error(aD.error || 'Activation impossible');
+          if (!aD.mail1_brevo_id) throw new Error('Le Mail 1 n\'est pas défini dans cette campagne.');
+          const audR = await fetch(`${API_URL}/brevo/audience?type=demande_optin`, { headers: authH() });
+          const audD = await audR.json();
+          const ids = (audD.contacts || []).map(c => c.id);
+          if (ids.length === 0) throw new Error('Aucun contact non-sollicité à cibler.');
+          const sR = await fetch(`${API_URL}/brevo/send-campaign`, { method: 'POST', headers: authH(), body: JSON.stringify({ campaignId: aD.mail1_brevo_id, contactIds: ids, mode: 'opt_in_request', filtres: { type: 'demande_optin', campagne: def.nom } }) });
+          const sD = await sR.json();
+          if (!sR.ok) throw new Error(sD.error || 'Envoi du Mail 1 échoué');
+          setFeedback({ type: 'success', msg: `« ${def.nom} » lancée : Mail 1 envoyé à ${ids.length} contact(s) non-sollicité(s).` });
+          if (onLaunched) onLaunched();
+        } catch (e) { setFeedback({ type: 'error', msg: e.message }); } finally { setLaunchingId(null); }
+      };
+
+      const inputS = { width: '100%', padding: '8px 10px', border: '1px solid var(--tw-border)', borderRadius: '8px', fontSize: '13px', fontFamily: 'inherit' };
+
+      return (
+        <div>
+          {feedback && (
+            <div style={{padding: '11px 14px', borderRadius: '8px', marginBottom: '14px', fontSize: '13px', background: feedback.type === 'success' ? '#e6f7ec' : '#fde8e8', color: feedback.type === 'success' ? '#0d7d39' : '#a52d2d'}}>{feedback.msg}</div>
+          )}
+
+          {/* Formulaire création / édition */}
+          {creating ? (
+            <div style={{background: '#fff', border: '1px solid var(--tw-border)', borderRadius: '14px', padding: '20px', marginBottom: '18px'}}>
+              <div style={{fontSize: '15px', fontWeight: 700, marginBottom: '14px'}}>{editId ? 'Modifier la campagne' : 'Nouvelle campagne'}</div>
+              <label style={{fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.4px', color: 'var(--tw-muted)', display: 'block', marginBottom: '6px'}}>Nom de la campagne</label>
+              <input value={nom} onChange={e => setNom(e.target.value)} placeholder="ex. Opt-in textile — juin 2026" style={{...inputS, marginBottom: '16px'}} />
+              <label style={{fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.4px', color: 'var(--tw-muted)', display: 'block', marginBottom: '8px'}}>Emails de la séquence (dans l'ordre)</label>
+              {etapes.map((et, i) => (
+                <div key={i} style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '9px', flexWrap: 'wrap'}}>
+                  <span style={{fontSize: '12px', fontWeight: 700, color: i === 0 ? 'var(--tw-teal)' : 'var(--tw-slate)', minWidth: '64px'}}>{i === 0 ? 'Mail 1' : 'Mail ' + (i + 1)}</span>
+                  <select value={et.brevo_id || ''} onChange={e => { const o = campOptions.find(o => String(o.id) === e.target.value); updMail(i, { brevo_id: o ? o.id : null, brevo_nom: o ? o.nom : null }); }} style={{flex: 1, minWidth: '150px', ...inputS}}>
+                    <option value="">— Choisir l'email Brevo —</option>
+                    {campOptions.map(o => <option key={o.id} value={o.id}>#{o.id} · {o.nom}</option>)}
+                  </select>
+                  {i === 0 ? (
+                    <span style={{fontSize: '11px', color: 'var(--tw-muted)', minWidth: '92px'}}>envoi immédiat</span>
+                  ) : (
+                    <span style={{fontSize: '12px', color: 'var(--tw-slate)', display: 'flex', alignItems: 'center', gap: '5px'}}>après <input type="number" min="1" value={et.delai_jours_ouvres} onChange={e => updMail(i, { delai_jours_ouvres: parseInt(e.target.value) || 1 })} style={{width: '48px', padding: '5px', border: '1px solid var(--tw-border)', borderRadius: '6px', fontSize: '13px', textAlign: 'center'}} /> j</span>
+                  )}
+                  {i > 0 && <button onClick={() => removeMail(i)} style={{background: 'transparent', border: 'none', color: '#a52d2d', cursor: 'pointer', fontSize: '17px', lineHeight: 1}}>×</button>}
+                </div>
+              ))}
+              <button onClick={addMail} style={{padding: '6px 12px', background: 'white', color: 'var(--tw-teal)', border: '1px solid var(--tw-teal)', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 600, marginTop: '4px'}}>+ Ajouter un mail (relance)</button>
+              <div style={{display: 'flex', gap: '8px', marginTop: '18px'}}>
+                <button onClick={saveCampaign} disabled={saving} style={{padding: '9px 18px', background: 'var(--tw-teal)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600}}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+                <button onClick={() => setCreating(false)} style={{padding: '9px 16px', background: 'white', color: 'var(--tw-slate)', border: '1px solid var(--tw-border)', borderRadius: '8px', cursor: 'pointer', fontSize: '13px'}}>Annuler</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={startCreate} style={{width: '100%', padding: '14px', background: 'var(--tw-teal)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '14px', fontWeight: 700, marginBottom: '18px'}}>+ Créer une campagne</button>
+          )}
+
+          {/* Liste des campagnes à lancer */}
+          <div style={{fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.4px', color: 'var(--tw-muted)', marginBottom: '10px'}}>Lancer une campagne</div>
+          {defs.length === 0 ? (
+            <div style={{fontSize: '13px', color: 'var(--tw-muted)', fontStyle: 'italic', padding: '16px', background: '#fff', border: '1px dashed var(--tw-border)', borderRadius: '12px'}}>Aucune campagne. Crée-en une ci-dessus.</div>
+          ) : defs.map(def => (
+            <div key={def.id} style={{background: '#fff', border: '1px solid var(--tw-border)', borderRadius: '12px', padding: '14px 16px', marginBottom: '10px'}}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px'}}>
+                <div style={{minWidth: 0}}>
+                  <div style={{fontSize: '14px', fontWeight: 700, color: 'var(--tw-ink)'}}>{def.nom}</div>
+                  <div style={{fontSize: '12px', color: 'var(--tw-muted)', marginTop: '2px'}}>{(def.etapes_json || []).length} mail{(def.etapes_json || []).length > 1 ? 's' : ''} · {Math.max(0, (def.etapes_json || []).length - 1)} relance{Math.max(0, (def.etapes_json || []).length - 1) > 1 ? 's' : ''}</div>
+                </div>
+                <div style={{display: 'flex', gap: '6px', flexShrink: 0}}>
+                  <button onClick={() => startEdit(def)} title="Modifier" style={{background: 'transparent', border: '1px solid var(--tw-border)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px', color: 'var(--tw-slate)'}}>✏️</button>
+                  <button onClick={() => deleteCampaign(def)} title="Supprimer" style={{background: 'transparent', border: '1px solid var(--tw-border)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px', color: '#a52d2d'}}>🗑</button>
+                  <button onClick={() => launch(def)} disabled={launchingId === def.id} style={{padding: '6px 14px', background: 'var(--tw-teal)', color: 'white', border: 'none', borderRadius: '8px', cursor: launchingId === def.id ? 'wait' : 'pointer', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap'}}>{launchingId === def.id ? '⏳' : '🚀 Lancer'}</button>
+                </div>
+              </div>
+              <div style={{fontSize: '11px', color: 'var(--tw-slate)', marginTop: '8px'}}>{(def.etapes_json || []).map((e, i) => `${i === 0 ? 'M1' : 'M' + (i + 1)}: ${brevoNom(e.brevo_id)}`).join('  →  ')}</div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     function CampagnesPage({ user, API_URL, onClose }) {
-      const [activeView, setActiveView] = React.useState('envoyer');
+      const [activeView, setActiveView] = React.useState('optin');
+      const [refreshKey, setRefreshKey] = React.useState(0);
       const [typeCible, setTypeCible] = React.useState('prospect'); // client|prospect|suspect|prospect_suspect|all
       const [decideursOnly, setDecideursOnly] = React.useState(false);
       const [audience, setAudience] = React.useState([]);
@@ -1654,31 +1793,35 @@
             <button onClick={onClose} style={{padding:'8px 16px', background:'transparent', border:'0.5px solid var(--tw-border)', borderRadius:'8px', cursor:'pointer', fontSize:'13px', color:'var(--tw-slate)'}}>Fermer</button>
           </div>
 
-          {/* ONGLETS : cycle de vie d'une campagne */}
+          {/* ONGLETS : 2 modes clairs */}
           <div style={{display:'flex', gap:'4px', marginBottom:'20px', borderBottom:'1px solid var(--tw-border)', flexWrap:'wrap'}}>
             {[
-              {v:'envoyer',    label:'➕ Créer une campagne'},
-              {v:'encours',    label:'🚀 En cours'},
-              {v:'terminees',  label:'✅ Terminées'},
-              {v:'historique', label:'📊 Historique détaillé'}
+              {v:'optin',   label:'🎯 Campagnes opt-in'},
+              {v:'envoyer', label:'✉️ Envoi direct (newsletter)'}
             ].map(t => (
               <button key={t.v} onClick={() => setActiveView(t.v)} style={{padding:'10px 18px', background:'transparent', border:'none', borderBottom: activeView===t.v ? '2px solid var(--tw-teal)' : '2px solid transparent', cursor:'pointer', fontSize:'14px', fontWeight: activeView===t.v ? 600 : 400, color: activeView===t.v ? 'var(--tw-teal)' : 'var(--tw-slate)', marginBottom:'-1px'}}>{t.label}</button>
             ))}
           </div>
 
-          {activeView === 'encours' ? (
-            <React.Fragment>
-              <CampagnesVue user={user} API_URL={API_URL} statut="en_cours" />
-              <CampagnesRelances user={user} API_URL={API_URL} mode="actions" />
-            </React.Fragment>
-          ) : activeView === 'terminees' ? (
-            <CampagnesVue user={user} API_URL={API_URL} statut="terminee" />
-          ) : activeView === 'historique' ? (
-            <CampagnesHistorique user={user} API_URL={API_URL} />
+          {activeView === 'optin' ? (
+            <div style={{display:'flex', gap:'22px', alignItems:'flex-start', flexWrap:'wrap'}}>
+              {/* Colonne gauche : créer / lancer */}
+              <div style={{flex:'1 1 340px', minWidth:'310px', maxWidth:'440px'}}>
+                <div style={{fontSize:'13px', fontWeight:700, color:'var(--tw-ink)', marginBottom:'12px'}}>Créer / lancer une campagne</div>
+                <CampagnesLancement user={user} API_URL={API_URL} onLaunched={() => setRefreshKey(k => k + 1)} />
+              </div>
+              {/* Colonne droite : en cours + actions + historique */}
+              <div style={{flex:'2 1 460px', minWidth:'360px'}}>
+                <div style={{fontSize:'13px', fontWeight:700, color:'var(--tw-ink)', marginBottom:'12px'}}>🚀 Campagnes en cours</div>
+                <CampagnesVue key={'vue'+refreshKey} user={user} API_URL={API_URL} statut="en_cours" />
+                <CampagnesRelances key={'act'+refreshKey} user={user} API_URL={API_URL} mode="actions" />
+                <div style={{marginTop:'26px'}}>
+                  <CampagnesHistorique key={'hist'+refreshKey} user={user} API_URL={API_URL} />
+                </div>
+              </div>
+            </div>
           ) : (
           <React.Fragment>
-          {/* Constructeur de séquence (relances Mail 2, 3…) — défini dès la création */}
-          <CampagnesRelances user={user} API_URL={API_URL} mode="builder" />
           {/* FILTRES */}
           <div style={{background:'white', border:'0.5px solid var(--tw-border)', borderRadius:'12px', padding:'20px', marginBottom:'20px'}}>
             <div style={{display:'flex', gap:'40px', flexWrap:'wrap'}}>
