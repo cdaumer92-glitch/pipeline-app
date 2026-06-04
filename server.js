@@ -591,6 +591,22 @@ async function initDB() {
       }
     }
 
+    // Campagnes d'opt-in NOMMÉES (définitions) : nom + liste ordonnée des mails.
+    // etapes_json = [{ brevo_id, brevo_nom, delai_jours_ouvres }] où index 0 = Mail 1
+    // (initial, délai ignoré), index 1+ = relances avec leur délai en jours ouvrés.
+    // On lance une campagne -> on copie ses relances dans optin_config (séquence active)
+    // et on envoie le Mail 1 à l'audience non-sollicitée.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS optin_campagnes (
+        id           SERIAL PRIMARY KEY,
+        nom          TEXT NOT NULL,
+        etapes_json  JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_at   TIMESTAMP DEFAULT NOW(),
+        created_by   TEXT,
+        archived_at  TIMESTAMP
+      )
+    `);
+
     // ========== COLONNES PHYSIQUES "OPT-OUT" ==========
     // Promotion de emailing_unsubscribed_at en colonne physique (au lieu du
     // sous-SELECT calculé dans /api/prospects/:id/interlocuteurs) pour deux
@@ -4228,6 +4244,65 @@ app.get('/api/optin/campaigns', auth, async (req, res) => {
     console.error('[optin/campaigns] erreur:', err);
     res.status(500).json({ error: 'Erreur BDD: ' + err.message });
   }
+});
+
+// -------- GET /api/optin/campaign-defs --------
+// Liste les campagnes d'opt-in NOMMÉES (définitions, non archivées).
+app.get('/api/optin/campaign-defs', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT id, nom, etapes_json, created_at, created_by FROM optin_campagnes WHERE archived_at IS NULL ORDER BY created_at DESC`);
+    res.json({ campagnes: r.rows });
+  } catch (err) { console.error('[optin/campaign-defs GET]', err); res.status(500).json({ error: 'Erreur BDD: ' + err.message }); }
+});
+
+// -------- POST /api/optin/campaign-defs --------
+// Crée (ou met à jour si id fourni) une définition de campagne.
+// Body : { id?, nom, etapes: [{brevo_id, brevo_nom, delai_jours_ouvres}, ...] } (index 0 = Mail 1)
+app.post('/api/optin/campaign-defs', auth, async (req, res) => {
+  const b = req.body || {};
+  const nom = (b.nom || '').toString().trim();
+  if (!nom) return res.status(400).json({ error: 'Le nom de la campagne est obligatoire' });
+  const etapes = (Array.isArray(b.etapes) ? b.etapes : [])
+    .map(e => ({
+      brevo_id: e && e.brevo_id ? parseInt(e.brevo_id) : null,
+      brevo_nom: (e && e.brevo_nom) ? String(e.brevo_nom) : null,
+      delai_jours_ouvres: (e && parseInt(e.delai_jours_ouvres) > 0) ? parseInt(e.delai_jours_ouvres) : 5
+    }))
+    .filter(e => e.brevo_id);
+  if (etapes.length === 0) return res.status(400).json({ error: 'Choisissez au moins le Mail 1' });
+  try {
+    if (b.id) {
+      const r = await pool.query(`UPDATE optin_campagnes SET nom = $1, etapes_json = $2 WHERE id = $3 AND archived_at IS NULL RETURNING *`, [nom, JSON.stringify(etapes), parseInt(b.id)]);
+      return res.json({ ok: true, campagne: r.rows[0] });
+    }
+    const r = await pool.query(`INSERT INTO optin_campagnes (nom, etapes_json, created_by) VALUES ($1, $2, $3) RETURNING *`, [nom, JSON.stringify(etapes), req.userName || null]);
+    res.json({ ok: true, campagne: r.rows[0] });
+  } catch (err) { console.error('[optin/campaign-defs POST]', err); res.status(500).json({ error: 'Erreur BDD: ' + err.message }); }
+});
+
+// -------- DELETE /api/optin/campaign-defs/:id --------  (archive)
+app.delete('/api/optin/campaign-defs/:id', auth, async (req, res) => {
+  try {
+    await pool.query(`UPDATE optin_campagnes SET archived_at = NOW() WHERE id = $1`, [parseInt(req.params.id)]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Erreur BDD: ' + err.message }); }
+});
+
+// -------- POST /api/optin/campaign-defs/:id/activate --------
+// Prépare le lancement : copie les RELANCES de la définition dans optin_config
+// (séquence active) et renvoie le brevo_id du Mail 1 à envoyer. Le front enchaîne
+// avec send-campaign (Mail 1 → audience non-sollicitée), ce qui démarre la séquence.
+app.post('/api/optin/campaign-defs/:id/activate', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT nom, etapes_json FROM optin_campagnes WHERE id = $1 AND archived_at IS NULL`, [parseInt(req.params.id)]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Campagne introuvable' });
+    const etapes = Array.isArray(r.rows[0].etapes_json) ? r.rows[0].etapes_json : [];
+    if (etapes.length === 0) return res.status(400).json({ error: 'Cette campagne n\'a aucun mail' });
+    const mail1 = etapes[0];
+    const relances = etapes.slice(1);
+    await pool.query(`UPDATE optin_config SET etapes_json = $1, updated_at = NOW() WHERE id = 1`, [JSON.stringify(relances)]);
+    res.json({ ok: true, nom: r.rows[0].nom, mail1_brevo_id: mail1.brevo_id, mail1_nom: mail1.brevo_nom, nb_relances: relances.length });
+  } catch (err) { console.error('[optin/campaign-defs activate]', err); res.status(500).json({ error: 'Erreur BDD: ' + err.message }); }
 });
 
 // -------- POST /api/optin/backfill-sequences --------
