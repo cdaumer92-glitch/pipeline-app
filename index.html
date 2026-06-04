@@ -1496,6 +1496,9 @@
       const [etapes, setEtapes] = React.useState([{ brevo_id: null, brevo_nom: null, delai_jours_ouvres: 0 }]);
       const [launchingId, setLaunchingId] = React.useState(null);
       const [saving, setSaving] = React.useState(false);
+      const [launchModal, setLaunchModal] = React.useState(null); // { def, mail1_brevo_id, mail1_nom, contacts }
+      const [launchSel, setLaunchSel] = React.useState(new Set());
+      const [launchSending, setLaunchSending] = React.useState(false);
       const token = () => (user && user.token) ? user.token : '';
       const authH = () => ({ 'Authorization': 'Bearer ' + token(), 'Content-Type': 'application/json' });
 
@@ -1538,7 +1541,6 @@
       };
 
       const launch = async (def) => {
-        if (!window.confirm(`Lancer « ${def.nom} » ?\n\nLe Mail 1 sera envoyé à tous les contacts Suspect/Prospect non-sollicités, et les relances s'enchaîneront selon la séquence.`)) return;
         setLaunchingId(def.id); setFeedback(null);
         try {
           const aR = await fetch(`${API_URL}/optin/campaign-defs/${def.id}/activate`, { method: 'POST', headers: authH() });
@@ -1547,14 +1549,28 @@
           if (!aD.mail1_brevo_id) throw new Error('Le Mail 1 n\'est pas défini dans cette campagne.');
           const audR = await fetch(`${API_URL}/brevo/audience?type=demande_optin`, { headers: authH() });
           const audD = await audR.json();
-          const ids = (audD.contacts || []).map(c => c.id);
-          if (ids.length === 0) throw new Error('Aucun contact non-sollicité à cibler.');
-          const sR = await fetch(`${API_URL}/brevo/send-campaign`, { method: 'POST', headers: authH(), body: JSON.stringify({ campaignId: aD.mail1_brevo_id, contactIds: ids, mode: 'opt_in_request', filtres: { type: 'demande_optin', campagne: def.nom } }) });
+          const contacts = audD.contacts || [];
+          if (contacts.length === 0) throw new Error('Aucun contact non-sollicité à cibler.');
+          // Étape de sélection : on ouvre la modale, l'envoi se fait après validation
+          setLaunchModal({ def, mail1_brevo_id: aD.mail1_brevo_id, mail1_nom: aD.mail1_nom, contacts });
+          setLaunchSel(new Set(contacts.map(c => c.id)));
+        } catch (e) { setFeedback({ type: 'error', msg: e.message }); } finally { setLaunchingId(null); }
+      };
+
+      const toggleSel = (id) => setLaunchSel(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+      const confirmLaunch = async () => {
+        const ids = [...launchSel];
+        if (ids.length === 0) { setFeedback({ type: 'error', msg: 'Sélectionne au moins un contact.' }); return; }
+        setLaunchSending(true);
+        try {
+          const sR = await fetch(`${API_URL}/brevo/send-campaign`, { method: 'POST', headers: authH(), body: JSON.stringify({ campaignId: launchModal.mail1_brevo_id, contactIds: ids, mode: 'opt_in_request', filtres: { type: 'demande_optin', campagne: launchModal.def.nom } }) });
           const sD = await sR.json();
           if (!sR.ok) throw new Error(sD.error || 'Envoi du Mail 1 échoué');
-          setFeedback({ type: 'success', msg: `« ${def.nom} » lancée : Mail 1 envoyé à ${ids.length} contact(s) non-sollicité(s).` });
+          const nom = launchModal.def.nom;
+          setLaunchModal(null);
+          setFeedback({ type: 'success', msg: `« ${nom} » lancée : Mail 1 envoyé à ${ids.length} contact(s).` });
           if (onLaunched) onLaunched();
-        } catch (e) { setFeedback({ type: 'error', msg: e.message }); } finally { setLaunchingId(null); }
+        } catch (e) { setFeedback({ type: 'error', msg: e.message }); } finally { setLaunchSending(false); }
       };
 
       const inputS = { width: '100%', padding: '8px 10px', border: '1px solid var(--tw-border)', borderRadius: '8px', fontSize: '13px', fontFamily: 'inherit' };
@@ -1617,6 +1633,39 @@
               <div style={{fontSize: '11px', color: 'var(--tw-slate)', marginTop: '8px'}}>{(def.etapes_json || []).map((e, i) => `${i === 0 ? 'M1' : 'M' + (i + 1)}: ${brevoNom(e.brevo_id)}`).join('  →  ')}</div>
             </div>
           ))}
+
+          {/* MODALE de sélection des destinataires avant lancement du Mail 1 */}
+          {launchModal && (
+            <div onClick={(e) => { if (e.target === e.currentTarget) setLaunchModal(null); }} style={{position: 'fixed', inset: 0, background: 'rgba(20,30,30,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px'}}>
+              <div style={{background: '#fff', borderRadius: '14px', width: '600px', maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
+                <div style={{padding: '18px 22px', borderBottom: '1px solid var(--tw-border)'}}>
+                  <div style={{fontSize: '16px', fontWeight: 700}}>🚀 Lancer « {launchModal.def.nom} »</div>
+                  <div style={{fontSize: '12px', color: 'var(--tw-muted)', marginTop: '3px'}}>Coche les contacts qui recevront le <b>Mail 1</b>. Les relances suivront automatiquement la séquence pour ceux qui ne réagissent pas.</div>
+                </div>
+                <div style={{padding: '10px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--tw-border)'}}>
+                  <div style={{fontSize: '13px', fontWeight: 600, color: 'var(--tw-teal)'}}>{launchSel.size} / {launchModal.contacts.length} sélectionné{launchSel.size > 1 ? 's' : ''}</div>
+                  <div style={{display: 'flex', gap: '8px'}}>
+                    <button onClick={() => setLaunchSel(new Set(launchModal.contacts.map(c => c.id)))} style={{fontSize: '12px', padding: '4px 10px', border: '1px solid var(--tw-border)', borderRadius: '6px', background: '#fff', cursor: 'pointer', color: 'var(--tw-slate)'}}>Tout cocher</button>
+                    <button onClick={() => setLaunchSel(new Set())} style={{fontSize: '12px', padding: '4px 10px', border: '1px solid var(--tw-border)', borderRadius: '6px', background: '#fff', cursor: 'pointer', color: 'var(--tw-slate)'}}>Tout décocher</button>
+                  </div>
+                </div>
+                <div style={{overflowY: 'auto', padding: '6px 16px', flex: 1}}>
+                  {launchModal.contacts.map(c => (
+                    <label key={c.id} style={{display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 4px', borderBottom: '0.5px solid var(--tw-border)', cursor: 'pointer', fontSize: '13px'}}>
+                      <input type="checkbox" checked={launchSel.has(c.id)} onChange={() => toggleSel(c.id)} />
+                      <span style={{flex: '0 0 150px', fontWeight: 600, color: 'var(--tw-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{c.societe || '—'}</span>
+                      <span style={{flex: '0 0 140px', color: 'var(--tw-slate)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{[c.prenom, c.nom].filter(Boolean).join(' ')}</span>
+                      <span style={{flex: 1, color: 'var(--tw-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{c.email}</span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{padding: '14px 22px', borderTop: '1px solid var(--tw-border)', display: 'flex', justifyContent: 'flex-end', gap: '10px'}}>
+                  <button onClick={() => setLaunchModal(null)} style={{padding: '9px 16px', background: '#fff', color: 'var(--tw-slate)', border: '1px solid var(--tw-border)', borderRadius: '8px', cursor: 'pointer', fontSize: '13px'}}>Annuler</button>
+                  <button onClick={confirmLaunch} disabled={launchSending || launchSel.size === 0} style={{padding: '9px 18px', background: (launchSending || launchSel.size === 0) ? '#ccc' : 'var(--tw-teal)', color: '#fff', border: 'none', borderRadius: '8px', cursor: (launchSending || launchSel.size === 0) ? 'default' : 'pointer', fontSize: '13px', fontWeight: 700}}>{launchSending ? 'Envoi…' : `🚀 Envoyer le Mail 1 à ${launchSel.size} contact(s)`}</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
