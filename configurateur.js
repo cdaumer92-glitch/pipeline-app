@@ -183,7 +183,7 @@ const sectionsData = {
     {nom:"Module Jet (Inventaire)", prix:40, unite:"€/mois", dependModule:'jet', moduleColor:'#FBC02D'},
   ]},
   section2: { items: [
-    {nom:"Licence Comptabilité Sage 100", prix:1247, unite:"€/an", dependModule:'comptaSage'},
+    {nom:"Licence Comptabilité Sage 100", prix:1247, unite:"€/an", dependModule:'comptaSage', tarifGrille:{1:1247, 2:1451}},
     {nom:"Intégration Moyens de Paiement", prix:285, unite:"€/an", dependModule:'comptaSage', hasCheckbox:true},
     {nom:"Licence My Report Manager", prix:720, unite:"€/an", dependKub:true, moduleColor:'#64B340', mandatory:true},
     {nom:"Licence My Report User", prix:240, unite:"€/an", dependKub:true, moduleColor:'#64B340'},
@@ -1384,6 +1384,26 @@ function validateKubLicences() {
   return null;
 }
 
+// Validation Licence Comptabilité Sage 100 : au-delà de 2 utilisateurs, il n'y a pas
+// de tarif catalogue (grille 1→1247, 2→1451). Le commercial DOIT alors saisir le total
+// négocié à la main avant d'enregistrer dans l'affaire ou de générer la propale.
+// Retourne un message d'erreur si bloquant, sinon null.
+function validateSageLicence() {
+  if (!moduleState.comptaSage) return null; // module Sage non activé
+  const idx = sectionsData.section2.items.findIndex(it => it.tarifGrille);
+  if (idx === -1) return null;
+  const item = sectionsData.section2.items[idx];
+  const sv = sectionValues['section2_' + idx];
+  if (!sv || sv.qty <= 0) {
+    return `Indiquez le nombre d'utilisateurs de la « ${item.nom} ».`;
+  }
+  const total = lineTotalS2(item, sv, idx);
+  if (total === null || total === undefined) {
+    return `« ${item.nom} » : au-delà de 2 utilisateurs (ici ${sv.qty}), aucun tarif automatique. Saisissez le montant négocié dans la colonne Total avant de continuer.`;
+  }
+  return null;
+}
+
 
 // Total d'une ligne section2 : si un override de total a été saisi à la main
 // (moduleState.s2Overrides[i], ex. tarif Sage négocié 1451 pour 2 licences), on le prend tel quel.
@@ -1457,6 +1477,25 @@ function setInfraOverride(key, raw) {
   calculate();
 }
 
+// Total AUTOMATIQUE d'une ligne section2 (hors override manuel).
+// Gère les tarifs par grille NON LINÉAIRE (ex. Licence Comptabilité Sage 100 :
+// 1 user = 1247 €, 2 users = 1451 € — et pas 1247 × 2).
+// Retourne null si la grille ne couvre pas la quantité (ex. 3+ users) :
+// dans ce cas le total doit être saisi à la main (tarif négocié au cas par cas).
+function lineAutoTotalS2(item, sv) {
+  if (!sv) return 0;
+  const remiseMult = 1 - (sv.remise || 0) / 100;
+  if (item.tarifGrille) {
+    const g = item.tarifGrille[sv.qty];
+    if (g === undefined || g === null) return null; // hors grille → saisie manuelle requise
+    return g * remiseMult;
+  }
+  return item.prix * sv.qty * remiseMult;
+}
+
+// Total EFFECTIF d'une ligne section2 : override manuel s'il existe, sinon total auto.
+// ⚠️ Peut renvoyer null (grille non couverte sans override, ex. Sage 3+ users) :
+// les appelants doivent gérer ce cas (affichage vide + blocage avant save/propale).
 function lineTotalS2(item, sv, i) {
   if (!sv) return 0;
   const ov = getS2Override(i);
@@ -1464,7 +1503,7 @@ function lineTotalS2(item, sv, i) {
     const v = parseFloat(ov);
     if (!isNaN(v)) return v;
   }
-  return item.prix * sv.qty * (1 - (sv.remise || 0) / 100);
+  return lineAutoTotalS2(item, sv);
 }
 
 // Stocke (ou efface) l'override de total saisi à la main sur une ligne section2
@@ -1500,6 +1539,9 @@ function renderSection2() {
     const sv = sectionValues['section2_'+i];
     const total = lineTotalS2(item, sv, i);
     const hasOverride = getS2Override(i) !== undefined;
+    // total === null : tarif par grille non couvert (ex. Licence Sage 3+ users) →
+    // champ vide + surligné, l'utilisateur doit saisir le montant négocié à la main.
+    const aSaisir = (total === null || total === undefined);
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${item.nom}</td>
@@ -1511,9 +1553,10 @@ function renderSection2() {
         <span style="display:inline-flex;align-items:center;gap:4px;justify-content:flex-end;">
           <input type="number" step="0.01" min="0"
             class="inline-total total-s2-input-${i}"
-            value="${total.toFixed(2)}"
-            title="Total de la ligne — modifiable pour un tarif négocié (ex. Sage 2 licences). Laisser vide pour le calcul automatique."
-            style="width:92px;text-align:right;font-weight:700;${hasOverride ? 'color:#9b2d4e;' : ''}"
+            value="${aSaisir ? '' : total.toFixed(2)}"
+            placeholder="${aSaisir ? 'à saisir' : ''}"
+            title="${aSaisir ? 'Tarif au-delà de 2 utilisateurs : saisissez le montant négocié (obligatoire avant d\'enregistrer ou de générer la propale).' : 'Total de la ligne — modifiable pour un tarif négocié. Laisser vide pour le calcul automatique.'}"
+            style="width:92px;text-align:right;font-weight:700;${hasOverride ? 'color:#9b2d4e;' : ''}${aSaisir ? 'background:#fff3cd;border:1px solid #e0a800;' : ''}"
             onchange="setS2TotalOverride(${i}, this.value)">
           <span class="s2-reset-${i}" onclick="setS2TotalOverride(${i}, '')"
             title="Revenir au calcul automatique"
@@ -2188,10 +2231,12 @@ function calculate() {
     const sv = sectionValues['section2_'+i];
     if (!sv) return;
     const ligneTotal = lineTotalS2(item, sv, i);
-    s2total += ligneTotal;
+    // null = tarif par grille non couvert (Sage 3+ users) : non chiffré tant que pas saisi → compte pour 0 dans le total
+    const ligneTotalNum = (ligneTotal === null || ligneTotal === undefined) ? 0 : ligneTotal;
+    s2total += ligneTotalNum;
     // MAJ du total affiché sur la ligne (input éditable) — sans écraser si l'utilisateur est en train de saisir
     const inp = document.querySelector('.total-s2-input-' + i);
-    if (inp && document.activeElement !== inp) inp.value = ligneTotal.toFixed(2);
+    if (inp && document.activeElement !== inp) inp.value = (ligneTotal === null || ligneTotal === undefined) ? '' : ligneTotal.toFixed(2);
   });
   totalAnnuel += s2total;
   if (s2total > 0) document.getElementById('total_section2').textContent = fmtNum(s2total) + ' €/an';
@@ -2404,11 +2449,16 @@ function buildConfigJson() {
       const showKub = item.dependKub && (ms.kub||0) > 0;
       if (!showSage && !showKub) return;
       const hasOverride = getS2Override(i) !== undefined;
-      const prixBrut = item.prix * sv.qty;
-      // net = total override saisi à la main (tarif négocié) sinon calcul auto
-      const net = hasOverride ? lineTotalS2(item, sv, i) : prixBrut * (1 - sv.remise/100);
-      // PU affiché : si override, on recalcule un PU cohérent (total / qté) pour la propale
-      const puAffiche = (hasOverride && sv.qty > 0) ? (net / sv.qty) : item.prix;
+      const usesGrille = !!item.tarifGrille;
+      // net = total effectif (override manuel sinon total auto, grille-aware)
+      const net = lineTotalS2(item, sv, i);
+      // null = tarif par grille non couvert (Sage 3+ users) sans saisie manuelle :
+      // ligne incomplète → on ne l'embarque pas (la validation bloque normalement avant d'arriver ici).
+      if (net === null || net === undefined) return;
+      // prix_brut (prix × qty) n'a pas de sens pour un tarif par grille : on prend le net.
+      const prixBrut = usesGrille ? net : item.prix * sv.qty;
+      // PU affiché : grille ou override → PU cohérent (total / qté) ; sinon PU catalogue.
+      const puAffiche = (usesGrille || hasOverride) && sv.qty > 0 ? (net / sv.qty) : item.prix;
       const ligne = {
         nom: item.nom,
         qty: sv.qty,
@@ -2416,8 +2466,8 @@ function buildConfigJson() {
         montant: net,
         unite: item.unite || '€/an'
       };
-      // Remise affichée uniquement si pas d'override manuel (sinon le total prime)
-      if (!hasOverride && sv.remise > 0) { ligne.prix_brut = prixBrut; ligne.remise_pct = sv.remise; }
+      // Remise affichée uniquement si pas d'override manuel ni grille (sinon le total prime)
+      if (!hasOverride && !usesGrille && sv.remise > 0) { ligne.prix_brut = prixBrut; ligne.remise_pct = sv.remise; }
       lignesLicences.push(ligne);
     });
   }
@@ -2629,6 +2679,13 @@ async function generateProposition() {
   const kubError = validateKubLicences();
   if (kubError) {
     window.showToast({title:'⚠️ Validation licences Kub :\n\n' + kubError, type:'warning'});
+    return;
+  }
+
+  // Validation Licence Sage 100 : total obligatoire au-delà de 2 utilisateurs
+  const sageError = validateSageLicence();
+  if (sageError) {
+    window.showToast({title:'⚠️ ' + sageError, type:'warning'});
     return;
   }
 
@@ -2982,6 +3039,13 @@ async function confirmSaveDevis() {
   const kubError = validateKubLicences();
   if (kubError) {
     window.showToast({title:'⚠️ Validation licences Kub :\n\n' + kubError, type:'warning'});
+    return;
+  }
+
+  // Validation Licence Sage 100 : total obligatoire au-delà de 2 utilisateurs
+  const sageError = validateSageLicence();
+  if (sageError) {
+    window.showToast({title:'⚠️ ' + sageError, type:'warning'});
     return;
   }
 
