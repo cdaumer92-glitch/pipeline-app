@@ -670,9 +670,64 @@ async function initDB() {
     await client.query(`ALTER TABLE campagnes_envois ADD COLUMN IF NOT EXISTS mode TEXT`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_camp_envois_sequence ON campagnes_envois(sequence_id)`);
 
-    // NB : le backfill des séquences pour les envois déjà existants n'est PAS fait ici
-    // (au démarrage, silencieux et indébogable à distance). Il est exposé en endpoint
-    // debuggable : POST /api/optin/backfill-sequences (renvoie un rapport détaillé).
+    // ── Backfill séquences opt-in pour les envois DÉJÀ existants (auto, idempotent) ──
+    // Relie chaque relance (source ∈ {relance1, relance2}) à son Mail 1 = l'envoi
+    // non-relance antérieur dont l'ensemble de contacts ENGLOBE celui de la relance.
+    // Comparaison faite en JS (pas d'opérateur SQL @>). 100% additif (sequence_id/
+    // etape/mode), idempotent (ne touche que les lignes sequence_id IS NULL).
+    // Le même backfill est aussi exposé en endpoint debuggable POST /api/optin/backfill-sequences.
+    try {
+      const cfgRow = (await client.query(
+        `SELECT campagne_relance1_id, campagne_relance2_id FROM optin_config WHERE id = 1`
+      )).rows[0] || {};
+      const relanceIds = [cfgRow.campagne_relance1_id, cfgRow.campagne_relance2_id].filter(Boolean);
+      if (relanceIds.length > 0) {
+        const relances = (await client.query(
+          `SELECT id, brevo_campaign_id_source, contacts_ids, created_at
+             FROM campagnes_envois
+            WHERE sequence_id IS NULL AND statut = 'sent'
+              AND brevo_campaign_id_source = ANY($1::int[])
+            ORDER BY created_at ASC`,
+          [relanceIds]
+        )).rows;
+        let done = 0;
+        for (const rel of relances) {
+          const etape = (rel.brevo_campaign_id_source === cfgRow.campagne_relance1_id) ? 1 : 2;
+          const relContacts = (rel.contacts_ids || []).map(Number);
+          const candidates = (await client.query(
+            `SELECT id, sequence_id, contacts_ids FROM campagnes_envois
+              WHERE statut = 'sent' AND created_at <= $1
+                AND NOT (brevo_campaign_id_source = ANY($2::int[]))
+              ORDER BY created_at DESC`,
+            [rel.created_at, relanceIds]
+          )).rows;
+          let initial = null;
+          if (relContacts.length > 0) {
+            initial = candidates.find(c => {
+              const cs = new Set((c.contacts_ids || []).map(Number));
+              return relContacts.every(x => cs.has(x));
+            }) || null;
+          }
+          if (!initial && candidates.length > 0) initial = candidates[0];
+          const seqId = (initial && initial.sequence_id) ? initial.sequence_id : crypto.randomBytes(16).toString('hex');
+          if (initial && !initial.sequence_id) {
+            await client.query(
+              `UPDATE campagnes_envois SET sequence_id = $1, sequence_etape = 0, mode = 'opt_in_request' WHERE id = $2`,
+              [seqId, initial.id]
+            );
+          }
+          await client.query(
+            `UPDATE campagnes_envois SET sequence_id = $1, sequence_etape = $2, mode = 'opt_in_request' WHERE id = $3`,
+            [seqId, etape, rel.id]
+          );
+          await client.query(`UPDATE optin_config SET sequence_courante_id = $1 WHERE id = 1`, [seqId]);
+          done++;
+        }
+        if (done > 0) console.log(`[migration] Backfill séquences opt-in : ${done} relance(s) rattachée(s).`);
+      }
+    } catch (e) {
+      console.error('[migration] Backfill séquences opt-in (non bloquant):', e.message);
+    }
 
     // ========== TRACKING ÉVÉNEMENTS CAMPAGNES (webhook Brevo) ==========
     // Stocke chaque événement reçu du webhook Brevo, par email et par campagne.
