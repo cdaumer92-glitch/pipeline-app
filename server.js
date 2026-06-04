@@ -564,6 +564,29 @@ async function initDB() {
     // réutilisé par les relances suivantes pour les rattacher à la même campagne.
     await client.query(`ALTER TABLE optin_config ADD COLUMN IF NOT EXISTS sequence_courante_id TEXT`);
 
+    // Séquence d'opt-in FLEXIBLE : liste ordonnée des RELANCES (au-delà du Mail 1 initial).
+    // Chaque élément : { brevo_id, brevo_nom, delai_jours_ouvres } où delai = jours ouvrés
+    // après l'envoi PRÉCÉDENT avant de déclencher cette relance.
+    //   index 0 = relance 1 (après Mail 1), index 1 = relance 2, etc. (N illimité)
+    // Remplace la config rigide relance1/relance2 + délai global (qu'on garde synchronisée
+    // pour rétro-compat). Délais réglables par vague.
+    await client.query(`ALTER TABLE optin_config ADD COLUMN IF NOT EXISTS etapes_json JSONB`);
+    // Backfill : construit etapes_json depuis l'ancienne config si pas encore défini.
+    {
+      const oc = (await client.query(
+        `SELECT campagne_relance1_id, campagne_relance1_nom, campagne_relance2_id,
+                campagne_relance2_nom, delai_jours_ouvres, etapes_json
+           FROM optin_config WHERE id = 1`
+      )).rows[0];
+      if (oc && oc.etapes_json == null) {
+        const delai = oc.delai_jours_ouvres || 5;
+        const etapes = [];
+        if (oc.campagne_relance1_id) etapes.push({ brevo_id: oc.campagne_relance1_id, brevo_nom: oc.campagne_relance1_nom || null, delai_jours_ouvres: delai });
+        if (oc.campagne_relance2_id) etapes.push({ brevo_id: oc.campagne_relance2_id, brevo_nom: oc.campagne_relance2_nom || null, delai_jours_ouvres: delai });
+        await client.query(`UPDATE optin_config SET etapes_json = $1 WHERE id = 1`, [JSON.stringify(etapes)]);
+      }
+    }
+
     // ========== COLONNES PHYSIQUES "OPT-OUT" ==========
     // Promotion de emailing_unsubscribed_at en colonne physique (au lieu du
     // sous-SELECT calculé dans /api/prospects/:id/interlocuteurs) pour deux
@@ -3037,12 +3060,15 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
   if (sendMode === 'opt_in_request') {
     try {
       const cfg = (await pool.query(
-        `SELECT campagne_relance1_id, campagne_relance2_id, sequence_courante_id FROM optin_config WHERE id = 1`
+        `SELECT etapes_json, sequence_courante_id FROM optin_config WHERE id = 1`
       )).rows[0] || {};
-      if (srcCampaignId === cfg.campagne_relance1_id) {
-        sequenceEtape = 1; sequenceId = cfg.sequence_courante_id || crypto.randomBytes(16).toString('hex');
-      } else if (srcCampaignId === cfg.campagne_relance2_id) {
-        sequenceEtape = 2; sequenceId = cfg.sequence_courante_id || crypto.randomBytes(16).toString('hex');
+      // etapes_json = liste ordonnée des relances. Si la campagne envoyée correspond à
+      // la relance d'index i → étape i+1 (réutilise la séquence en cours). Sinon → Mail 1.
+      const etapes = Array.isArray(cfg.etapes_json) ? cfg.etapes_json : [];
+      const idx = etapes.findIndex(e => e && parseInt(e.brevo_id) === srcCampaignId);
+      if (idx >= 0) {
+        sequenceEtape = idx + 1;
+        sequenceId = cfg.sequence_courante_id || crypto.randomBytes(16).toString('hex');
       } else {
         // Mail 1 initial : on démarre une nouvelle séquence et on la mémorise
         sequenceEtape = 0; sequenceId = crypto.randomBytes(16).toString('hex');
@@ -3922,6 +3948,47 @@ app.get('/api/optin/config', auth, async (req, res) => {
 app.post('/api/optin/config', auth, async (req, res) => {
   const b = req.body || {};
   try {
+    // Nouveau format : b.etapes = [{ brevo_id, brevo_nom, delai_jours_ouvres }, ...]
+    // (liste ordonnée des relances, N illimité). Si fourni, il fait autorité.
+    let etapes = null;
+    if (Array.isArray(b.etapes)) {
+      etapes = b.etapes
+        .map(e => ({
+          brevo_id: e && e.brevo_id ? parseInt(e.brevo_id) : null,
+          brevo_nom: (e && e.brevo_nom) ? String(e.brevo_nom) : null,
+          delai_jours_ouvres: (e && parseInt(e.delai_jours_ouvres) > 0) ? parseInt(e.delai_jours_ouvres) : 5
+        }))
+        .filter(e => e.brevo_id); // on ignore les lignes sans campagne choisie
+    }
+
+    if (etapes) {
+      // Rétro-compat : on synchronise relance1/relance2 + delai global depuis les 2 premières étapes,
+      // pour que tout code legacy lisant ces colonnes continue de fonctionner.
+      const e0 = etapes[0] || null, e1 = etapes[1] || null;
+      const r = await pool.query(
+        `UPDATE optin_config
+            SET etapes_json           = $1,
+                campagne_relance1_id  = $2,
+                campagne_relance1_nom = $3,
+                campagne_relance2_id  = $4,
+                campagne_relance2_nom = $5,
+                delai_jours_ouvres    = COALESCE($6, delai_jours_ouvres),
+                updated_at            = NOW()
+          WHERE id = 1
+          RETURNING *`,
+        [
+          JSON.stringify(etapes),
+          e0 ? e0.brevo_id : null,
+          e0 ? e0.brevo_nom : null,
+          e1 ? e1.brevo_id : null,
+          e1 ? e1.brevo_nom : null,
+          e0 ? e0.delai_jours_ouvres : null
+        ]
+      );
+      return res.json({ ok: true, config: r.rows[0] });
+    }
+
+    // Ancien format (rétro-compat) : relance1/relance2 + delai global
     const r = await pool.query(
       `UPDATE optin_config
           SET campagne_relance1_id  = $1,
@@ -3957,9 +4024,17 @@ app.post('/api/optin/config', auth, async (req, res) => {
 // les sort, ou accept_emailing=true). On filtre donc sur demande_optin=true.
 app.get('/api/optin/sequence', auth, async (req, res) => {
   try {
-    // Récupère le délai configuré
-    const cfg = await pool.query(`SELECT delai_jours_ouvres FROM optin_config WHERE id = 1`);
-    const delai = cfg.rows[0]?.delai_jours_ouvres || 5;
+    // Config : liste des relances (etapes_json) + délai global de repli.
+    const ocfg = (await pool.query(`SELECT etapes_json, delai_jours_ouvres FROM optin_config WHERE id = 1`)).rows[0] || {};
+    const etapesCfg = Array.isArray(ocfg.etapes_json) ? ocfg.etapes_json : [];
+    const globalDelai = ocfg.delai_jours_ouvres || 5;
+    const nbRelances = etapesCfg.length; // nombre de relances configurées (au-delà du Mail 1)
+    // Délai (jours ouvrés) avant la PROCHAINE vague pour un contact à l'étape `etape`.
+    const delaiPourEtape = (etape) => {
+      const e = etapesCfg[etape];
+      const d = e ? parseInt(e.delai_jours_ouvres) : NaN;
+      return (Number.isFinite(d) && d > 0) ? d : globalDelai;
+    };
 
     // Tous les contacts en attente dans la séquence (demande_optin=true, pas encore opt-in)
     const r = await pool.query(
@@ -3974,33 +4049,42 @@ app.get('/api/optin/sequence', auth, async (req, res) => {
         ORDER BY i.optin_dernier_envoi_at ASC NULLS LAST`
     );
 
-    const relance1 = [], relance2 = [], cloture = [], enAttente = [];
+    // Buckets : relance1/relance2 (rétro-compat UI), relanceSuivantes (vagues 3+), cloture.
+    const relance1 = [], relance2 = [], relanceSuivantes = [], cloture = [], enAttente = [];
     for (const c of r.rows) {
-      // Point de départ du chrono : dernier envoi (ou envoi initial du token si pas encore set)
       const ref = c.optin_dernier_envoi_at || c.optin_token_envoye_at;
-      const due = echeanceAtteinte(ref, delai);
       const etape = c.optin_etape || 0;
+      const delaiNext = delaiPourEtape(etape);
+      const due = echeanceAtteinte(ref, delaiNext);
       const item = {
         id: c.id, prenom: c.prenom, nom: c.nom, email: c.email,
         societe: c.societe, statut_societe: c.statut_societe,
-        etape, dernier_envoi_at: ref,
-        echeance: ref ? ajouterJoursOuvres(new Date(ref), delai).toISOString() : null
+        etape, prochaine_vague: etape + 1, delai_prochaine: delaiNext,
+        dernier_envoi_at: ref,
+        echeance: ref ? ajouterJoursOuvres(new Date(ref), delaiNext).toISOString() : null
       };
-      if (etape === 0) {
+      if (etape >= nbRelances) {
+        // Plus de relance configurée → clôture (invalidation emailing à décider).
+        due ? cloture.push(item) : enAttente.push({ ...item, prochaine: 'cloture' });
+      } else if (etape === 0) {
         due ? relance1.push(item) : enAttente.push({ ...item, prochaine: 'relance1' });
       } else if (etape === 1) {
         due ? relance2.push(item) : enAttente.push({ ...item, prochaine: 'relance2' });
-      } else if (etape >= 2) {
-        due ? cloture.push(item) : enAttente.push({ ...item, prochaine: 'cloture' });
+      } else {
+        // Vagues 3+ (relance ≥ 3) : bucket générique (exploité par la future UI).
+        due ? relanceSuivantes.push(item) : enAttente.push({ ...item, prochaine: 'relance' + (etape + 1) });
       }
     }
 
     res.json({
-      delai_jours_ouvres: delai,
-      relance1, relance2, cloture, enAttente,
+      delai_jours_ouvres: globalDelai,
+      nb_relances: nbRelances,
+      etapes: etapesCfg,
+      relance1, relance2, relanceSuivantes, cloture, enAttente,
       counts: {
         relance1: relance1.length,
         relance2: relance2.length,
+        relanceSuivantes: relanceSuivantes.length,
         cloture: cloture.length,
         enAttente: enAttente.length
       }
