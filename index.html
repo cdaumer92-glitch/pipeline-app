@@ -1077,6 +1077,11 @@
       const [campagnesBrevo, setCampagnesBrevo] = React.useState([]);
       const [processing, setProcessing] = React.useState(false);
       const [feedback, setFeedback] = React.useState(null);
+      // Constructeur de séquence : liste éditable des vagues de relance
+      // [{ brevo_id, brevo_nom, delai_jours_ouvres }]. Index 0 = relance 1.
+      const [etapes, setEtapes] = React.useState([]);
+      const [etapesDirty, setEtapesDirty] = React.useState(false);
+      const [savingEtapes, setSavingEtapes] = React.useState(false);
 
       const token = () => (user && user.token) ? user.token : null;
       const authH = () => ({ 'Authorization': 'Bearer ' + token(), 'Content-Type': 'application/json' });
@@ -1102,32 +1107,65 @@
 
       React.useEffect(() => { loadAll(); }, [loadAll]);
 
-      // Sauvegarde de la config (campagnes de relance)
-      const saveConfig = (field, campaignId, campaignNom) => {
-        const newCfg = { ...config };
-        if (field === 'relance1') { newCfg.campagne_relance1_id = campaignId; newCfg.campagne_relance1_nom = campaignNom; }
-        if (field === 'relance2') { newCfg.campagne_relance2_id = campaignId; newCfg.campagne_relance2_nom = campaignNom; }
-        setConfig(newCfg);
-        fetch(`${API_URL}/optin/config`, {
-          method: 'POST', headers: authH(),
-          body: JSON.stringify({
-            campagne_relance1_id: newCfg.campagne_relance1_id,
-            campagne_relance1_nom: newCfg.campagne_relance1_nom,
-            campagne_relance2_id: newCfg.campagne_relance2_id,
-            campagne_relance2_nom: newCfg.campagne_relance2_nom
-          })
-        }).catch(err => alert('Erreur sauvegarde config: ' + err.message));
+      // Initialise le constructeur de vagues quand la config arrive.
+      // Source : config.etapes_json (nouveau format) ; repli sur relance1/relance2 (ancien).
+      React.useEffect(() => {
+        if (!config) return;
+        let init = [];
+        if (Array.isArray(config.etapes_json) && config.etapes_json.length) {
+          init = config.etapes_json.map(e => ({
+            brevo_id: e.brevo_id || null,
+            brevo_nom: e.brevo_nom || null,
+            delai_jours_ouvres: parseInt(e.delai_jours_ouvres) || 5
+          }));
+        } else {
+          const d = config.delai_jours_ouvres || 5;
+          if (config.campagne_relance1_id) init.push({ brevo_id: config.campagne_relance1_id, brevo_nom: config.campagne_relance1_nom, delai_jours_ouvres: d });
+          if (config.campagne_relance2_id) init.push({ brevo_id: config.campagne_relance2_id, brevo_nom: config.campagne_relance2_nom, delai_jours_ouvres: d });
+        }
+        setEtapes(init);
+        setEtapesDirty(false);
+      }, [config]);
+
+      // ── Handlers du constructeur de séquence ──
+      const addWave = () => { setEtapes(prev => [...prev, { brevo_id: null, brevo_nom: null, delai_jours_ouvres: 5 }]); setEtapesDirty(true); };
+      const removeWave = (i) => { setEtapes(prev => prev.filter((_, j) => j !== i)); setEtapesDirty(true); };
+      const updateWave = (i, patch) => { setEtapes(prev => prev.map((e, j) => j === i ? { ...e, ...patch } : e)); setEtapesDirty(true); };
+      const saveEtapes = async () => {
+        const clean = etapes.filter(e => e.brevo_id);
+        setSavingEtapes(true);
+        setFeedback(null);
+        try {
+          const r = await fetch(`${API_URL}/optin/config`, {
+            method: 'POST', headers: authH(),
+            body: JSON.stringify({ etapes: clean })
+          });
+          const data = await r.json();
+          if (!r.ok) { setFeedback({ type: 'error', msg: data.error || 'Erreur enregistrement séquence' }); }
+          else {
+            setFeedback({ type: 'success', msg: `Séquence enregistrée (${clean.length} vague${clean.length > 1 ? 's' : ''} de relance).` });
+            setEtapesDirty(false);
+            if (data.config) setConfig(data.config);
+            loadAll();
+          }
+        } catch (err) {
+          setFeedback({ type: 'error', msg: 'Erreur : ' + err.message });
+        } finally {
+          setSavingEtapes(false);
+        }
       };
 
       // Exécute une relance : envoie via send-campaign PUIS avance l'étape.
-      // numEtape = 1 (relance 1) ou 2 (relance 2)
-      const lancerRelance = async (numEtape, contacts) => {
-        const campId = numEtape === 1 ? config?.campagne_relance1_id : config?.campagne_relance2_id;
+      // numVague = 1 (relance 1), 2 (relance 2), … N (séquence flexible)
+      const lancerRelance = async (numVague, contacts) => {
+        const et = (config?.etapes_json || [])[numVague - 1];
+        const campId = et ? et.brevo_id
+          : (numVague === 1 ? config?.campagne_relance1_id : numVague === 2 ? config?.campagne_relance2_id : null);
         if (!campId) {
-          alert(`Aucune campagne configurée pour la relance ${numEtape}. Configure-la d'abord ci-dessus.`);
+          alert(`Aucune campagne configurée pour la relance ${numVague}. Configure-la dans la séquence ci-dessus.`);
           return;
         }
-        if (!window.confirm(`Envoyer la relance ${numEtape} à ${contacts.length} contact(s) ?`)) return;
+        if (!window.confirm(`Envoyer la relance ${numVague} à ${contacts.length} contact(s) ?`)) return;
         setProcessing(true);
         setFeedback(null);
         try {
@@ -1146,9 +1184,9 @@
           // 2. Avancer l'étape (seulement si envoi OK)
           await fetch(`${API_URL}/optin/avancer-etape`, {
             method: 'POST', headers: authH(),
-            body: JSON.stringify({ contactIds: ids, etape_cible: numEtape })
+            body: JSON.stringify({ contactIds: ids, etape_cible: numVague })
           });
-          setFeedback({ type: 'success', msg: `Relance ${numEtape} envoyée à ${ids.length} contact(s). Statut Brevo : ${sendData.statut_brevo || 'envoyé'}.` });
+          setFeedback({ type: 'success', msg: `Relance ${numVague} envoyée à ${ids.length} contact(s). Statut Brevo : ${sendData.statut_brevo || 'envoyé'}.` });
           loadAll(); // recharge la séquence
         } catch (err) {
           setFeedback({ type: 'error', msg: 'Erreur : ' + err.message });
@@ -1234,29 +1272,38 @@
             <div style={{padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', background: feedback.type === 'success' ? '#e6f7ec' : '#fde8e8', color: feedback.type === 'success' ? '#0d7d39' : '#a52d2d'}}>{feedback.msg}</div>
           )}
 
-          {/* CONFIG des campagnes de relance */}
+          {/* CONFIG : constructeur de séquence (N vagues) */}
           <div style={{background: 'var(--tw-bg)', border: '0.5px solid var(--tw-border)', borderRadius: '12px', padding: '20px', marginBottom: '20px'}}>
-            <div style={{fontSize: '14px', fontWeight: 600, color: 'var(--tw-ink)', marginBottom: '4px'}}>Configuration des relances</div>
-            <div style={{fontSize: '12px', color: 'var(--tw-muted)', marginBottom: '14px'}}>Associe une campagne Brevo (brouillon, avec {'{{ contact.OPTIN_LINK }}'}) à chaque étape de relance. Délai entre étapes : {seq?.delai_jours_ouvres || 5} jours ouvrés.</div>
-            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px'}}>
-              {[
-                { key: 'relance1', label: '1ère relance', cur: config?.campagne_relance1_id },
-                { key: 'relance2', label: '2ème relance (dernière tentative)', cur: config?.campagne_relance2_id }
-              ].map(({ key, label, cur }) => (
-                <div key={key}>
-                  <label style={{fontSize: '12px', fontWeight: 600, color: 'var(--tw-slate)', display: 'block', marginBottom: '6px'}}>{label}</label>
-                  <select
-                    value={cur || ''}
-                    onChange={(e) => {
-                      const opt = campOptions.find(o => String(o.id) === e.target.value);
-                      saveConfig(key, opt ? opt.id : null, opt ? opt.nom : null);
-                    }}
-                    style={{width: '100%', padding: '8px 10px', border: '0.5px solid var(--tw-border)', borderRadius: '8px', fontSize: '13px'}}>
-                    <option value="">— Choisir une campagne —</option>
-                    {campOptions.map(o => <option key={o.id} value={o.id}>#{o.id} · {o.nom}</option>)}
-                  </select>
-                </div>
-              ))}
+            <div style={{fontSize: '14px', fontWeight: 600, color: 'var(--tw-ink)', marginBottom: '4px'}}>Séquence de relances</div>
+            <div style={{fontSize: '12px', color: 'var(--tw-muted)', marginBottom: '14px'}}>
+              Le <strong>Mail 1</strong> est ta campagne initiale (envoyée depuis « Demandes d'opt-in »). Ajoute ensuite autant de relances que tu veux : chacune = un email Brevo (brouillon, avec {'{{ contact.OPTIN_LINK }}'}) + un délai en jours ouvrés après l'envoi précédent.
+            </div>
+            {etapes.length === 0 && (
+              <div style={{fontSize: '12px', color: 'var(--tw-muted)', fontStyle: 'italic', marginBottom: '10px'}}>Aucune relance configurée. Clique « + Ajouter une vague ».</div>
+            )}
+            {etapes.map((et, i) => (
+              <div key={i} style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap'}}>
+                <span style={{fontSize: '12px', fontWeight: 700, color: 'var(--tw-ink)', minWidth: '120px'}}>Relance {i + 1} <span style={{color: 'var(--tw-muted)', fontWeight: 400}}>(Mail {i + 2})</span></span>
+                <select value={et.brevo_id || ''}
+                  onChange={(e) => { const o = campOptions.find(o => String(o.id) === e.target.value); updateWave(i, { brevo_id: o ? o.id : null, brevo_nom: o ? o.nom : null }); }}
+                  style={{flex: 1, minWidth: '200px', padding: '8px 10px', border: '0.5px solid var(--tw-border)', borderRadius: '8px', fontSize: '13px'}}>
+                  <option value="">— Choisir l'email Brevo —</option>
+                  {campOptions.map(o => <option key={o.id} value={o.id}>#{o.id} · {o.nom}</option>)}
+                </select>
+                <span style={{fontSize: '12px', color: 'var(--tw-slate)', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                  Délai <input type="number" min="1" value={et.delai_jours_ouvres}
+                    onChange={(e) => updateWave(i, { delai_jours_ouvres: parseInt(e.target.value) || 1 })}
+                    style={{width: '56px', padding: '6px 8px', border: '0.5px solid var(--tw-border)', borderRadius: '6px', fontSize: '13px', textAlign: 'center'}} /> j ouvrés
+                </span>
+                <button onClick={() => removeWave(i)} title="Supprimer cette vague" style={{background: 'transparent', border: 'none', color: '#a52d2d', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0 4px'}}>×</button>
+              </div>
+            ))}
+            <div style={{display: 'flex', gap: '10px', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap'}}>
+              <button onClick={addWave} style={{padding: '7px 14px', background: 'white', color: 'var(--tw-teal)', border: '1px solid var(--tw-teal)', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600}}>+ Ajouter une vague</button>
+              <button onClick={saveEtapes} disabled={!etapesDirty || savingEtapes} style={{padding: '7px 16px', background: (!etapesDirty || savingEtapes) ? '#ccc' : 'var(--tw-teal)', color: 'white', border: 'none', borderRadius: '8px', cursor: (!etapesDirty || savingEtapes) ? 'default' : 'pointer', fontSize: '13px', fontWeight: 600}}>
+                {savingEtapes ? 'Enregistrement…' : 'Enregistrer la séquence'}
+              </button>
+              {etapesDirty && <span style={{fontSize: '12px', color: '#b97800'}}>Modifications non enregistrées</span>}
             </div>
           </div>
 
@@ -1268,14 +1315,26 @@
             (contacts) => lancerRelance(1, contacts)
           )}
           {renderGroupe(
-            'Relances à faire — dernière tentative',
-            'Contacts relancés une fois, sans réponse depuis ' + (seq?.delai_jours_ouvres || 5) + ' jours ouvrés.',
-            seq?.relance2 || [], '#b97800', 'Envoyer la dernière relance',
+            'Relances à faire — Relance 2',
+            'Contacts relancés une fois, sans réponse depuis le délai configuré.',
+            seq?.relance2 || [], '#b97800', 'Envoyer la relance 2',
             (contacts) => lancerRelance(2, contacts)
           )}
+          {/* Vagues 3+ (séquence flexible) : un groupe par vague, regroupé par prochaine relance */}
+          {(() => {
+            const rs = seq?.relanceSuivantes || [];
+            const byVague = {};
+            rs.forEach(c => { const v = c.prochaine_vague || (c.etape + 1); (byVague[v] = byVague[v] || []).push(c); });
+            return Object.keys(byVague).sort((a, b) => a - b).map(v => renderGroupe(
+              `Relances à faire — Relance ${v}`,
+              `Contacts sans réaction depuis la relance ${parseInt(v) - 1}.`,
+              byVague[v], '#b06e2a', `Envoyer la relance ${v}`,
+              (contacts) => lancerRelance(parseInt(v), contacts)
+            ));
+          })()}
           {renderGroupe(
             'À clôturer',
-            'Contacts sans réponse après les 2 relances. Les clôturer les retire de la séquence (retour "non sollicité").',
+            'Contacts sans réponse après toutes les relances. Les clôturer les retire de la séquence (retour "non sollicité").',
             seq?.cloture || [], '#a52d2d', 'Clôturer (décocher)',
             (contacts) => cloturer(contacts)
           )}

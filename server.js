@@ -4185,16 +4185,17 @@ app.post('/api/optin/backfill-sequences', auth, async (req, res) => {
 // Incrémente optin_etape et met à jour optin_dernier_envoi_at pour les contacts
 // qui viennent d'être relancés. Découplé de l'envoi pour ne pas avancer l'étape
 // si l'envoi a échoué.
-// Body : { contactIds: [...], etape_cible: 1|2 }
-//   etape_cible = la NOUVELLE étape à appliquer (1 après relance 1, 2 après relance 2)
+// Body : { contactIds: [...], etape_cible: N }
+//   etape_cible = la NOUVELLE étape à appliquer (1 après relance 1, 2 après relance 2, …N)
+//   Séquence flexible : N illimité (autant que de relances configurées dans etapes_json).
 app.post('/api/optin/avancer-etape', auth, async (req, res) => {
   const { contactIds, etape_cible } = req.body || {};
   if (!Array.isArray(contactIds) || contactIds.length === 0) {
     return res.status(400).json({ error: 'contactIds requis (tableau non vide)' });
   }
   const etape = parseInt(etape_cible);
-  if (![1, 2].includes(etape)) {
-    return res.status(400).json({ error: 'etape_cible doit être 1 ou 2' });
+  if (!Number.isFinite(etape) || etape < 1) {
+    return res.status(400).json({ error: 'etape_cible doit être un entier ≥ 1' });
   }
   const ids = contactIds.map(x => parseInt(x)).filter(x => Number.isFinite(x) && x > 0);
   if (ids.length === 0) return res.status(400).json({ error: 'aucun contactId valide' });
