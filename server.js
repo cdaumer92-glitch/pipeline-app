@@ -2985,12 +2985,12 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
         `SELECT campagne_relance1_id, campagne_relance2_id, sequence_courante_id FROM optin_config WHERE id = 1`
       )).rows[0] || {};
       if (srcCampaignId === cfg.campagne_relance1_id) {
-        sequenceEtape = 1; sequenceId = cfg.sequence_courante_id || require('crypto').randomBytes(16).toString('hex');
+        sequenceEtape = 1; sequenceId = cfg.sequence_courante_id || crypto.randomBytes(16).toString('hex');
       } else if (srcCampaignId === cfg.campagne_relance2_id) {
-        sequenceEtape = 2; sequenceId = cfg.sequence_courante_id || require('crypto').randomBytes(16).toString('hex');
+        sequenceEtape = 2; sequenceId = cfg.sequence_courante_id || crypto.randomBytes(16).toString('hex');
       } else {
         // Mail 1 initial : on démarre une nouvelle séquence et on la mémorise
-        sequenceEtape = 0; sequenceId = require('crypto').randomBytes(16).toString('hex');
+        sequenceEtape = 0; sequenceId = crypto.randomBytes(16).toString('hex');
         await pool.query(`UPDATE optin_config SET sequence_courante_id = $1 WHERE id = 1`, [sequenceId]);
       }
     } catch (e) {
@@ -3962,7 +3962,7 @@ app.post('/api/optin/backfill-sequences', auth, async (req, res) => {
     if (relanceIds.length === 0) {
       return res.json({ ok: true, message: 'Aucune campagne de relance configurée — rien à regrouper.', count: 0, grouped: [] });
     }
-    const gen = () => require('crypto').randomBytes(16).toString('hex');
+    const gen = () => crypto.randomBytes(16).toString('hex');
 
     // Relances envoyées, pas encore rattachées à une séquence
     const relances = (await pool.query(
