@@ -1541,7 +1541,7 @@
               <div style={{color:'#b97800', fontSize:'18px', lineHeight:1}}>⚠️</div>
               <div style={{fontSize:'13px', color:'#704a00', lineHeight:1.5}}>
                 <div style={{fontWeight:600, marginBottom:'4px'}}>Mode demande d'opt-in</div>
-                <div>Cette liste contient les contacts <strong>Suspect/Prospect</strong> marqués via la case <em>"Demande d'opt-in"</em> sur leur fiche. La campagne sélectionnée doit contenir un lien <code style={{background:'#fff8eb', padding:'1px 6px', borderRadius:'3px', fontSize:'12px'}}>{'{{contact.OPTIN_LINK}}'}</code> pour générer le lien de confirmation unique par contact. À la confirmation, ils basculeront en opt-in automatiquement.</div>
+                <div>Cette liste contient tous les contacts <strong>Suspect/Prospect non-sollicités</strong> (jamais opt-in, jamais opt-out, et jamais encore sollicités). En envoyant, ils sont automatiquement marqués <em>« Demande d'opt-in »</em> et entrent dans la séquence — pas besoin de cocher les fiches une par une. Les contacts déjà dans une séquence opt-in en cours sont exclus. La campagne doit contenir un lien <code style={{background:'#fff8eb', padding:'1px 6px', borderRadius:'3px', fontSize:'12px'}}>{'{{contact.OPTIN_LINK}}'}</code> pour générer le lien de confirmation unique par contact. À la confirmation, ils basculeront en opt-in automatiquement.</div>
               </div>
             </div>
           )}

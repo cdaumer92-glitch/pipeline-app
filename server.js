@@ -3090,6 +3090,7 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
       `SELECT i.id, i.email, i.prenom, i.nom,
               COALESCE(i.accept_emailing, false) AS accept_emailing,
               COALESCE(i.demande_optin, false)   AS demande_optin,
+              i.emailing_unsubscribed_at,
               p.name AS societe,
               p.statut_societe
          FROM interlocuteurs i
@@ -3109,27 +3110,29 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
 
   let optOut, badStatusForOptin, eligibles;
   if (sendMode === 'opt_in_request') {
-    // Mode demande d'opt-in : on EXIGE demande_optin=true ET statut Suspect/Prospect.
-    // Les opt-out sont autorisés (c'est tout l'intérêt). Les déjà opt-in sont
-    // refusés (pas la peine de leur redemander leur consentement).
+    // Mode demande d'opt-in : on cible les Suspect/Prospect NON-SOLLICITÉS.
+    // Plus besoin du flag demande_optin pré-coché : il est posé automatiquement à
+    // l'envoi (cf. UPDATE plus bas). Éligible = statut Suspect/Prospect, pas déjà
+    // opt-in (inutile de redemander), et PAS opt-out explicite (RGPD : on ne
+    // re-sollicite pas quelqu'un qui a refusé). Les relances passent aussi par ici :
+    // leurs contacts sont déjà Suspect/Prospect, non opt-in, non opt-out → OK.
     badStatusForOptin = interlocs.filter(r =>
       r.email && r.email.trim() && !['Suspect', 'Prospect'].includes(r.statut_societe)
     );
-    optOut = []; // pas pertinent en mode opt_in_request
+    optOut = []; // on ne bloque pas l'envoi global : les opt-out sont filtrés silencieusement
     const alreadyOptIn = interlocs.filter(r => r.accept_emailing === true);
-    const notMarked = interlocs.filter(r => r.email && r.email.trim() && r.demande_optin !== true);
+    const optedOut = interlocs.filter(r => r.email && r.email.trim() && r.emailing_unsubscribed_at);
     eligibles = interlocs.filter(r =>
       r.email && r.email.trim() &&
-      r.demande_optin === true &&
+      r.accept_emailing !== true &&        // pas déjà opt-in
+      !r.emailing_unsubscribed_at &&       // pas opt-out explicite
       ['Suspect', 'Prospect'].includes(r.statut_societe)
     );
-    // En mode opt_in_request on ne renvoie pas les "déjà opt-in" comme un blocage
-    // partiel : on les filtre silencieusement + log côté serveur (cas légitime).
     if (alreadyOptIn.length > 0) {
       console.log(`[brevo-send mode=opt_in_request] ${alreadyOptIn.length} contact(s) déjà opt-in, filtrés:`, alreadyOptIn.map(r => r.email));
     }
-    if (notMarked.length > 0) {
-      console.warn(`[brevo-send mode=opt_in_request] ${notMarked.length} contact(s) sans demande_optin=true, filtrés:`, notMarked.map(r => r.email));
+    if (optedOut.length > 0) {
+      console.warn(`[brevo-send mode=opt_in_request] ${optedOut.length} contact(s) opt-out explicite, filtrés (non re-sollicités):`, optedOut.map(r => r.email));
     }
   } else {
     // Mode normal : filtre RGPD strict
@@ -3247,7 +3250,8 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
             SET optin_token = $2,
                 optin_token_envoye_at = NOW(),
                 optin_dernier_envoi_at = NOW(),
-                optin_confirme_at = NULL
+                optin_confirme_at = NULL,
+                demande_optin = true
           WHERE id = $1`,
         [c.id, tok]
       );
@@ -3524,9 +3528,15 @@ app.get('/api/brevo/audience', auth, async (req, res) => {
     conditions.push(`COALESCE(i.decideur, false) = true`);
   }
   if (demandeOptinOnly) {
-    // Type 'demande_optin' : on ne montre que les contacts marqués + pas encore opt-in
-    conditions.push(`COALESCE(i.demande_optin, false) = true`);
+    // Type 'demande_optin' : tous les Suspect/Prospect NON-SOLLICITÉS, pour leur
+    // demander leur consentement. "Non-sollicité" = jamais opt-in (accept_emailing=false),
+    // jamais opt-out explicite (emailing_unsubscribed_at IS NULL), et JAMAIS déjà reçu
+    // de demande d'opt-in (optin_token_envoye_at IS NULL → exclut ceux déjà en séquence,
+    // en cours ou clôturée, pour ne pas les re-solliciter). Le flag demande_optin est
+    // posé automatiquement à l'envoi (plus besoin de cocher la fiche manuellement).
     conditions.push(`COALESCE(i.accept_emailing, false) = false`);
+    conditions.push(`i.emailing_unsubscribed_at IS NULL`);
+    conditions.push(`i.optin_token_envoye_at IS NULL`);
   }
 
   const sql = `
