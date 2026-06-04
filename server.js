@@ -560,6 +560,9 @@ async function initDB() {
     `);
     // Garantir qu'une ligne existe (insert si absente)
     await client.query(`INSERT INTO optin_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
+    // Séquence d'opt-in "en cours" : sequence_id généré au dernier envoi de Mail 1,
+    // réutilisé par les relances suivantes pour les rattacher à la même campagne.
+    await client.query(`ALTER TABLE optin_config ADD COLUMN IF NOT EXISTS sequence_courante_id TEXT`);
 
     // ========== COLONNES PHYSIQUES "OPT-OUT" ==========
     // Promotion de emailing_unsubscribed_at en colonne physique (au lieu du
@@ -654,6 +657,76 @@ async function initDB() {
     // Archivage (soft delete) : masque l'envoi de la vue historique sans le supprimer
     // de la BDD (conserve la traçabilité RGPD : qui a reçu quoi et quand).
     await client.query(`ALTER TABLE campagnes_envois ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP`);
+
+    // ── Séquence opt-in : regroupe Mail 1 + ses relances en UNE campagne ──
+    // Les 3 mails (initial + relance1 + relance2) étaient des lignes indépendantes.
+    // sequence_id : identifiant partagé par tous les envois d'une même séquence
+    //   (posé au Mail 1, réutilisé pour les relances).
+    // sequence_etape : 0 = mail initial, 1 = relance 1, 2 = relance 2.
+    // mode : mode d'envoi persisté ('normal' | 'opt_in_request') — permet d'identifier
+    //   après coup les envois faisant partie d'une séquence d'opt-in.
+    await client.query(`ALTER TABLE campagnes_envois ADD COLUMN IF NOT EXISTS sequence_id TEXT`);
+    await client.query(`ALTER TABLE campagnes_envois ADD COLUMN IF NOT EXISTS sequence_etape INTEGER`);
+    await client.query(`ALTER TABLE campagnes_envois ADD COLUMN IF NOT EXISTS mode TEXT`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_camp_envois_sequence ON campagnes_envois(sequence_id)`);
+
+    // ── Backfill séquences opt-in pour les envois DÉJÀ existants (one-time, idempotent) ──
+    // Les anciens envois (ex. campagne du 22/05) n'ont pas de sequence_id. On reconstruit :
+    //   • relances = envois dont le brevo_campaign_id_source == relance1/relance2 (config)
+    //   • initial  = l'envoi NON-relance, antérieur, dont l'ensemble de contacts ENGLOBE
+    //                celui de la relance (les relances ciblent un sous-ensemble = non-réactifs)
+    // 100% additif (ne pose que sequence_id/etape/mode) et idempotent (sequence_id IS NULL).
+    // En cas d'ambiguïté on laisse l'envoi non rattaché → il s'affichera en carte simple.
+    try {
+      const cfgRow = (await client.query(
+        `SELECT campagne_relance1_id, campagne_relance2_id FROM optin_config WHERE id = 1`
+      )).rows[0];
+      const relanceIds = [cfgRow?.campagne_relance1_id, cfgRow?.campagne_relance2_id].filter(Boolean);
+      if (relanceIds.length > 0) {
+        const genSeqId = () => require('crypto').randomBytes(16).toString('hex');
+        const relances = (await client.query(
+          `SELECT id, brevo_campaign_id_source, contacts_ids, created_at
+             FROM campagnes_envois
+            WHERE sequence_id IS NULL
+              AND statut = 'sent'
+              AND brevo_campaign_id_source = ANY($1::int[])
+            ORDER BY created_at ASC`,
+          [relanceIds]
+        )).rows;
+        for (const rel of relances) {
+          const etape = (rel.brevo_campaign_id_source === cfgRow.campagne_relance1_id) ? 1 : 2;
+          const relContacts = rel.contacts_ids || [];
+          let initial = null;
+          if (relContacts.length > 0) {
+            initial = (await client.query(
+              `SELECT id, sequence_id
+                 FROM campagnes_envois
+                WHERE created_at <= $1
+                  AND statut = 'sent'
+                  AND NOT (brevo_campaign_id_source = ANY($2::int[]))
+                  AND contacts_ids @> $3::int[]
+                ORDER BY created_at DESC
+                LIMIT 1`,
+              [rel.created_at, relanceIds, relContacts]
+            )).rows[0] || null;
+          }
+          const seqId = (initial && initial.sequence_id) ? initial.sequence_id : genSeqId();
+          if (initial && !initial.sequence_id) {
+            await client.query(
+              `UPDATE campagnes_envois SET sequence_id = $1, sequence_etape = 0, mode = 'opt_in_request' WHERE id = $2`,
+              [seqId, initial.id]
+            );
+          }
+          await client.query(
+            `UPDATE campagnes_envois SET sequence_id = $1, sequence_etape = $2, mode = 'opt_in_request' WHERE id = $3`,
+            [seqId, etape, rel.id]
+          );
+        }
+        if (relances.length > 0) console.log(`[migration] Backfill séquences opt-in : ${relances.length} relance(s) rattachée(s).`);
+      }
+    } catch (e) {
+      console.error('[migration] Backfill séquences opt-in échoué (non bloquant):', e.message);
+    }
 
     // ========== TRACKING ÉVÉNEMENTS CAMPAGNES (webhook Brevo) ==========
     // Stocke chaque événement reçu du webhook Brevo, par email et par campagne.
@@ -2953,17 +3026,43 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
   //    n'est pas un obstacle (c'est tout l'intérêt).
   const sendMode = (mode === 'opt_in_request') ? 'opt_in_request' : 'normal';
 
+  // ----- 0) Séquence opt-in : relier cet envoi à une campagne (Mail 1 + relances) -----
+  // Seuls les envois opt-in font partie d'une séquence. On déduit l'étape en comparant
+  // la campagne Brevo source aux campagnes de relance configurées :
+  //   - == relance1 → étape 1 (réutilise la séquence en cours)
+  //   - == relance2 → étape 2 (réutilise la séquence en cours)
+  //   - sinon       → étape 0 = Mail 1 initial → NOUVELLE séquence (mémorisée dans optin_config)
+  let sequenceId = null, sequenceEtape = null;
+  if (sendMode === 'opt_in_request') {
+    try {
+      const cfg = (await pool.query(
+        `SELECT campagne_relance1_id, campagne_relance2_id, sequence_courante_id FROM optin_config WHERE id = 1`
+      )).rows[0] || {};
+      if (srcCampaignId === cfg.campagne_relance1_id) {
+        sequenceEtape = 1; sequenceId = cfg.sequence_courante_id || require('crypto').randomBytes(16).toString('hex');
+      } else if (srcCampaignId === cfg.campagne_relance2_id) {
+        sequenceEtape = 2; sequenceId = cfg.sequence_courante_id || require('crypto').randomBytes(16).toString('hex');
+      } else {
+        // Mail 1 initial : on démarre une nouvelle séquence et on la mémorise
+        sequenceEtape = 0; sequenceId = require('crypto').randomBytes(16).toString('hex');
+        await pool.query(`UPDATE optin_config SET sequence_courante_id = $1 WHERE id = 1`, [sequenceId]);
+      }
+    } catch (e) {
+      console.error('[brevo-send] calcul séquence opt-in échoué (non bloquant):', e.message);
+    }
+  }
+
   // ----- 1) Insert audit pending -----
   let auditId;
   try {
     const ins = await pool.query(
       `INSERT INTO campagnes_envois
          (brevo_campaign_id_source, nb_contacts_demandes, contacts_ids,
-          filtres_json, statut, envoye_par, envoye_par_nom)
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6)
+          filtres_json, statut, envoye_par, envoye_par_nom, mode, sequence_id, sequence_etape)
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9)
        RETURNING id`,
       [srcCampaignId, ids.length, ids, filtres ? JSON.stringify(filtres) : null,
-       req.userId || null, req.userName || null]
+       req.userId || null, req.userName || null, sendMode, sequenceId, sequenceEtape]
     );
     auditId = ins.rows[0].id;
   } catch (err) {
@@ -3508,7 +3607,8 @@ app.get('/api/brevo/envois', auth, async (req, res) => {
               campagne_nom, campagne_objet, sender_email, sender_name,
               nb_contacts_demandes, nb_contacts_envoyes, nb_contacts_rgpd_ko,
               statut, erreur_message, envoye_par_nom,
-              created_at, sent_at, filtres_json, archived_at
+              created_at, sent_at, filtres_json, archived_at,
+              sequence_id, sequence_etape, mode
          FROM campagnes_envois
         ${includeArchived ? '' : 'WHERE archived_at IS NULL'}
         ORDER BY created_at DESC
