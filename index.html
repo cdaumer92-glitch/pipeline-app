@@ -802,18 +802,24 @@
       // Contacts en attente regroupés par séquence (pour la liste dépliable par campagne)
       const [seqContacts, setSeqContacts] = React.useState({});
       const [openCards, setOpenCards] = React.useState(() => new Set());
+      const [config, setConfig] = React.useState(null);   // config séquence (brevo_id par vague)
+      const [processing, setProcessing] = React.useState(false);
+      const [feedback, setFeedback] = React.useState(null);
       const token = () => (user && user.token) ? user.token : null;
+      const authH = () => ({ 'Authorization': 'Bearer ' + token(), 'Content-Type': 'application/json' });
 
-      React.useEffect(() => {
+      const load = React.useCallback(() => {
         setLoading(true); setError(null);
         const H = { 'Authorization': 'Bearer ' + token() };
         Promise.all([
           fetch(`${API_URL}/optin/campaigns`, { headers: H }).then(r => r.json().then(d => ({ ok: r.ok, d }))),
-          fetch(`${API_URL}/optin/sequence`, { headers: H }).then(r => r.json()).catch(() => ({}))
+          fetch(`${API_URL}/optin/sequence`, { headers: H }).then(r => r.json()).catch(() => ({})),
+          fetch(`${API_URL}/optin/config`, { headers: H }).then(r => r.json()).catch(() => ({}))
         ])
-          .then(([camp, seq]) => {
+          .then(([camp, seq, cfg]) => {
             if (!camp.ok) { setError(camp.d.error || 'Erreur'); }
             else setData(camp.d);
+            setConfig(cfg || {});
             // Regroupe tous les contacts encore dans la séquence par sequence_id,
             // avec un libellé d'état lisible (à relancer / en attente / à clôturer).
             const buckets = [
@@ -831,7 +837,62 @@
           .finally(() => setLoading(false));
       }, [API_URL]);
 
+      React.useEffect(() => { load(); }, [load]);
+
       const toggleCard = (sid) => setOpenCards(s => { const n = new Set(s); n.has(sid) ? n.delete(sid) : n.add(sid); return n; });
+
+      // brevo_id de la campagne de relance pour la vague N (1 = relance 1…)
+      const brevoIdPourVague = (vague) => {
+        const et = (config?.etapes_json || [])[vague - 1];
+        if (et && et.brevo_id) return et.brevo_id;
+        if (vague === 1) return config?.campagne_relance1_id || null;
+        if (vague === 2) return config?.campagne_relance2_id || null;
+        return null;
+      };
+
+      // Envoie les relances DUES d'UNE campagne. Les contacts dus peuvent être à des
+      // vagues différentes → on regroupe par vague et on envoie chaque groupe avec
+      // sa propre campagne Brevo, puis on avance l'étape.
+      const envoyerRelancesCampagne = async (campNom, contacts) => {
+        const due = contacts.filter(c => c._etat === 'due');
+        if (due.length === 0) return;
+        const parVague = {};
+        due.forEach(c => { const v = c.prochaine_vague || (c.etape + 1); (parVague[v] = parVague[v] || []).push(c); });
+        const vagues = Object.keys(parVague).map(Number).sort((a, b) => a - b);
+        const manquantes = vagues.filter(v => !brevoIdPourVague(v));
+        if (manquantes.length) { alert(`Aucune campagne Brevo configurée pour la relance ${manquantes.join(', ')}. Configure la séquence dans « Actions de relance groupées ».`); return; }
+        if (!window.confirm(`Envoyer ${due.length} relance(s) dues pour « ${campNom} » ?`)) return;
+        setProcessing(true); setFeedback(null);
+        try {
+          let total = 0;
+          for (const v of vagues) {
+            const ids = parVague[v].map(c => c.id);
+            const sR = await fetch(`${API_URL}/brevo/send-campaign`, { method: 'POST', headers: authH(), body: JSON.stringify({ campaignId: parseInt(brevoIdPourVague(v)), contactIds: ids, mode: 'opt_in_request', filtres: { type: 'demande_optin' } }) });
+            const sD = await sR.json();
+            if (!sR.ok) throw new Error(`Relance ${v} : ${sD.error || 'envoi échoué'}`);
+            await fetch(`${API_URL}/optin/avancer-etape`, { method: 'POST', headers: authH(), body: JSON.stringify({ contactIds: ids, etape_cible: v }) });
+            total += ids.length;
+          }
+          setFeedback({ type: 'success', msg: `« ${campNom} » : ${total} relance(s) envoyée(s).` });
+          load();
+        } catch (e) { setFeedback({ type: 'error', msg: e.message }); } finally { setProcessing(false); }
+      };
+
+      // Clôture les contacts d'UNE campagne arrivés en bout de séquence.
+      const cloturerCampagne = async (campNom, contacts) => {
+        const aClore = contacts.filter(c => c._etat === 'cloture');
+        if (aClore.length === 0) return;
+        if (!window.confirm(`Clôturer ${aClore.length} contact(s) pour « ${campNom} » ? Ils retournent en « non sollicité » et ne seront plus relancés.`)) return;
+        setProcessing(true); setFeedback(null);
+        try {
+          const ids = aClore.map(c => c.id);
+          const r = await fetch(`${API_URL}/optin/cloturer`, { method: 'POST', headers: authH(), body: JSON.stringify({ contactIds: ids }) });
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.error || 'Erreur clôture');
+          setFeedback({ type: 'success', msg: `« ${campNom} » : ${d.cloture || ids.length} contact(s) clôturé(s).` });
+          load();
+        } catch (e) { setFeedback({ type: 'error', msg: e.message }); } finally { setProcessing(false); }
+      };
 
       const fmtD = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
       const fmtDM = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '—';
@@ -883,6 +944,9 @@
 
       return (
         <div>
+          {feedback && (
+            <div style={{padding: '11px 14px', borderRadius: '8px', marginBottom: '14px', fontSize: '13px', background: feedback.type === 'success' ? '#e6f7ec' : '#fde8e8', color: feedback.type === 'success' ? '#0d7d39' : '#a52d2d'}}>{feedback.msg}</div>
+          )}
           {list.map(camp => (
             <div key={camp.sequence_id} style={{background: '#fff', border: '1px solid var(--tw-border)', borderRadius: '14px', padding: '22px', marginBottom: '18px', boxShadow: '0 1px 2px rgba(20,40,40,.03)'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '14px'}}>
@@ -908,7 +972,7 @@
               {statut !== 'terminee' && (
                 <div style={{display: 'flex', alignItems: 'center', gap: '14px', background: '#eef9f6', border: '1px solid #cfe9e2', borderRadius: '11px', padding: '13px 16px', marginTop: '18px'}}>
                   {camp.nb_due > 0 ? (
-                    <div style={{fontSize: '13px', fontWeight: 600, color: '#0a5c4f'}}>📨 <b>{camp.nb_due} contact{camp.nb_due > 1 ? 's' : ''}</b> sans réaction → relance {camp.prochaine_vague} à envoyer. <span style={{fontWeight: 400, color: 'var(--tw-slate)'}}>(via « Actions de relance groupées » ci-dessous)</span></div>
+                    <div style={{fontSize: '13px', fontWeight: 600, color: '#0a5c4f'}}>📨 <b>{camp.nb_due} contact{camp.nb_due > 1 ? 's' : ''}</b> sans réaction → relance {camp.prochaine_vague} à envoyer. <span style={{fontWeight: 400, color: 'var(--tw-slate)'}}>(bouton « Envoyer les relances dues » ci-dessous)</span></div>
                   ) : camp.echeance_prochaine ? (
                     <div style={{fontSize: '13px', fontWeight: 600, color: '#0a5c4f'}}>⏳ Prochaine relance (Relance {camp.prochaine_vague}) à prévoir vers le <b>{fmtD(camp.echeance_prochaine)}</b>.</div>
                   ) : (
@@ -921,9 +985,22 @@
               {(() => {
                 const contacts = seqContacts[camp.sequence_id] || [];
                 const open = openCards.has(camp.sequence_id);
+                const nbDue = contacts.filter(c => c._etat === 'due').length;
+                const nbClore = contacts.filter(c => c._etat === 'cloture').length;
                 const etatStyle = (e) => e === 'due' ? { c: '#007d89', bg: '#e6f6f7' } : e === 'cloture' ? { c: '#a52d2d', bg: '#fdecec' } : { c: '#8a6d3b', bg: '#fdf4e3' };
                 return (
                   <div style={{marginTop: '14px'}}>
+                    {/* Barre d'actions PROPRES à cette campagne */}
+                    {statut !== 'terminee' && (nbDue > 0 || nbClore > 0) && (
+                      <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px'}}>
+                        {nbDue > 0 && (
+                          <button onClick={() => envoyerRelancesCampagne(camp.nom, contacts)} disabled={processing} style={{padding: '8px 14px', background: '#007d89', color: 'white', border: 'none', borderRadius: '8px', cursor: processing ? 'wait' : 'pointer', fontSize: '13px', fontWeight: 600}}>📨 Envoyer les relances dues ({nbDue})</button>
+                        )}
+                        {nbClore > 0 && (
+                          <button onClick={() => cloturerCampagne(camp.nom, contacts)} disabled={processing} style={{padding: '8px 14px', background: 'white', color: '#a52d2d', border: '1px solid #a52d2d', borderRadius: '8px', cursor: processing ? 'wait' : 'pointer', fontSize: '13px', fontWeight: 600}}>Clôturer ({nbClore})</button>
+                        )}
+                      </div>
+                    )}
                     <button onClick={() => toggleCard(camp.sequence_id)} disabled={contacts.length === 0} style={{display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'space-between', padding: '11px 14px', background: '#f7f9fa', border: '1px solid var(--tw-border)', borderRadius: '10px', cursor: contacts.length === 0 ? 'default' : 'pointer', fontSize: '13px', fontWeight: 600, color: contacts.length === 0 ? 'var(--tw-muted)' : 'var(--tw-ink)'}}>
                       <span>👥 Contacts en cours dans cette campagne ({contacts.length})</span>
                       {contacts.length > 0 && <span style={{fontSize: '12px', color: 'var(--tw-muted)'}}>{open ? '▲ masquer' : '▼ voir'}</span>}
