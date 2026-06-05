@@ -616,11 +616,14 @@ async function initDB() {
     // (suffixe "Mail N" retiré) correspond au nom de la définition. Idempotent
     // (ne touche que les défs encore non marquées) et sans risque (n'affecte que
     // les défs dont un envoi existe réellement).
+    // Normalisation : retire "Mail N" (où qu'il soit, ex. "Opt-in Mail 1 - 5 juin 26"),
+    // puis réduit les espaces multiples. Côté envoi le nom est celui du mail Brevo
+    // ("… Mail 1 …"), côté définition c'est le nom de campagne ("Opt-in - 5 juin 26").
     await client.query(`
       UPDATE optin_campagnes oc
          SET launched_at = sub.first_sent
         FROM (
-          SELECT trim(regexp_replace(campagne_nom, '\\s*-?\\s*[Mm]ail\\s*[0-9]+\\s*$', '')) AS nom_norm,
+          SELECT trim(regexp_replace(regexp_replace(campagne_nom, '\\s*[Mm]ail\\s*[0-9]+', '', 'g'), '\\s+', ' ', 'g')) AS nom_norm,
                  MIN(COALESCE(sent_at, created_at)) AS first_sent
             FROM campagnes_envois
            WHERE archived_at IS NULL AND campagne_nom IS NOT NULL
@@ -628,7 +631,7 @@ async function initDB() {
         ) sub
        WHERE oc.launched_at IS NULL
          AND oc.archived_at IS NULL
-         AND trim(oc.nom) = sub.nom_norm
+         AND trim(regexp_replace(oc.nom, '\\s+', ' ', 'g')) = sub.nom_norm
     `);
 
     // ========== COLONNES PHYSIQUES "OPT-OUT" ==========
@@ -4106,7 +4109,7 @@ app.get('/api/optin/sequence', auth, async (req, res) => {
 
     // Tous les contacts en attente dans la séquence (demande_optin=true, pas encore opt-in)
     const r = await pool.query(
-      `SELECT i.id, i.prenom, i.nom, i.email,
+      `SELECT i.id, i.prenom, i.nom, i.email, i.optin_sequence_id,
               i.optin_etape, i.optin_dernier_envoi_at, i.optin_token_envoye_at,
               p.name AS societe, p.statut_societe
          FROM interlocuteurs i
@@ -4126,6 +4129,7 @@ app.get('/api/optin/sequence', auth, async (req, res) => {
       const due = echeanceAtteinte(ref, delaiNext);
       const item = {
         id: c.id, prenom: c.prenom, nom: c.nom, email: c.email,
+        sequence_id: c.optin_sequence_id,
         societe: c.societe, statut_societe: c.statut_societe,
         etape, prochaine_vague: etape + 1, delai_prochaine: delaiNext,
         dernier_envoi_at: ref,
@@ -4213,7 +4217,7 @@ app.get('/api/optin/campaigns', auth, async (req, res) => {
     const campaigns = Object.keys(seqMap).map(sid => {
       const waves = seqMap[sid].slice().sort((a, b) => (a.sequence_etape || 0) - (b.sequence_etape || 0));
       const first = waves[0], last = waves[waves.length - 1];
-      const nom = (first.campagne_nom || 'Campagne opt-in').replace(/\s*-?\s*Mail\s*\d+\s*$/i, '').trim() || 'Campagne opt-in';
+      const nom = (first.campagne_nom || 'Campagne opt-in').replace(/\s*Mail\s*\d+/ig, '').replace(/\s+/g, ' ').trim() || 'Campagne opt-in';
       const agg = aggBySid[sid] || { nb_contacts: 0, nb_optin: 0, nb_en_attente: 0 };
 
       // Prochaine vague due : on parcourt les contacts en attente de cette séquence.
