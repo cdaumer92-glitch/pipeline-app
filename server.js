@@ -606,6 +606,30 @@ async function initDB() {
         archived_at  TIMESTAMP
       )
     `);
+    // launched_at : date de lancement effectif (Mail 1 envoyé). Une fois lancée,
+    // la campagne disparaît de la liste "Lancer une campagne" (elle vit alors
+    // dans "Campagnes en cours" / "Terminées", calculées depuis campagnes_envois).
+    await client.query(`ALTER TABLE optin_campagnes ADD COLUMN IF NOT EXISTS launched_at TIMESTAMP`);
+    // Backfill one-time : les campagnes déjà lancées AVANT l'ajout de launched_at
+    // doivent aussi quitter la liste "Lancer une campagne". On les retrouve par
+    // nom : le nom d'envoi côté campagnes_envois ("… Mail N") une fois normalisé
+    // (suffixe "Mail N" retiré) correspond au nom de la définition. Idempotent
+    // (ne touche que les défs encore non marquées) et sans risque (n'affecte que
+    // les défs dont un envoi existe réellement).
+    await client.query(`
+      UPDATE optin_campagnes oc
+         SET launched_at = sub.first_sent
+        FROM (
+          SELECT trim(regexp_replace(campagne_nom, '\\s*-?\\s*[Mm]ail\\s*[0-9]+\\s*$', '')) AS nom_norm,
+                 MIN(COALESCE(sent_at, created_at)) AS first_sent
+            FROM campagnes_envois
+           WHERE archived_at IS NULL AND campagne_nom IS NOT NULL
+           GROUP BY 1
+        ) sub
+       WHERE oc.launched_at IS NULL
+         AND oc.archived_at IS NULL
+         AND trim(oc.nom) = sub.nom_norm
+    `);
 
     // ========== COLONNES PHYSIQUES "OPT-OUT" ==========
     // Promotion de emailing_unsubscribed_at en colonne physique (au lieu du
@@ -4250,7 +4274,7 @@ app.get('/api/optin/campaigns', auth, async (req, res) => {
 // Liste les campagnes d'opt-in NOMMÉES (définitions, non archivées).
 app.get('/api/optin/campaign-defs', auth, async (req, res) => {
   try {
-    const r = await pool.query(`SELECT id, nom, etapes_json, created_at, created_by FROM optin_campagnes WHERE archived_at IS NULL ORDER BY created_at DESC`);
+    const r = await pool.query(`SELECT id, nom, etapes_json, created_at, created_by FROM optin_campagnes WHERE archived_at IS NULL AND launched_at IS NULL ORDER BY created_at DESC`);
     res.json({ campagnes: r.rows });
   } catch (err) { console.error('[optin/campaign-defs GET]', err); res.status(500).json({ error: 'Erreur BDD: ' + err.message }); }
 });
@@ -4303,6 +4327,17 @@ app.post('/api/optin/campaign-defs/:id/activate', auth, async (req, res) => {
     await pool.query(`UPDATE optin_config SET etapes_json = $1, updated_at = NOW() WHERE id = 1`, [JSON.stringify(relances)]);
     res.json({ ok: true, nom: r.rows[0].nom, mail1_brevo_id: mail1.brevo_id, mail1_nom: mail1.brevo_nom, nb_relances: relances.length });
   } catch (err) { console.error('[optin/campaign-defs activate]', err); res.status(500).json({ error: 'Erreur BDD: ' + err.message }); }
+});
+
+// -------- POST /api/optin/campaign-defs/:id/mark-launched --------
+// Marque la définition comme lancée (Mail 1 effectivement envoyé). Appelé par le
+// front après l'envoi réussi du Mail 1. La campagne quitte alors la liste
+// "Lancer une campagne" et n'est plus relançable (elle vit dans "En cours").
+app.post('/api/optin/campaign-defs/:id/mark-launched', auth, async (req, res) => {
+  try {
+    await pool.query(`UPDATE optin_campagnes SET launched_at = NOW() WHERE id = $1 AND launched_at IS NULL`, [parseInt(req.params.id)]);
+    res.json({ ok: true });
+  } catch (err) { console.error('[optin/campaign-defs mark-launched]', err); res.status(500).json({ error: 'Erreur BDD: ' + err.message }); }
 });
 
 // -------- POST /api/optin/backfill-sequences --------

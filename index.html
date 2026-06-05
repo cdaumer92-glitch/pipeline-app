@@ -1567,8 +1567,11 @@
           const sD = await sR.json();
           if (!sR.ok) throw new Error(sD.error || 'Envoi du Mail 1 échoué');
           const nom = launchModal.def.nom;
+          // Marque la définition comme lancée : elle quitte la liste "Lancer une campagne".
+          await fetch(`${API_URL}/optin/campaign-defs/${launchModal.def.id}/mark-launched`, { method: 'POST', headers: authH() }).catch(() => {});
           setLaunchModal(null);
           setFeedback({ type: 'success', msg: `« ${nom} » lancée : Mail 1 envoyé à ${ids.length} contact(s).` });
+          load();
           if (onLaunched) onLaunched();
         } catch (e) { setFeedback({ type: 'error', msg: e.message }); } finally { setLaunchSending(false); }
       };
