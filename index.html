@@ -799,16 +799,39 @@
       const [data, setData] = React.useState(null);
       const [loading, setLoading] = React.useState(false);
       const [error, setError] = React.useState(null);
+      // Contacts en attente regroupés par séquence (pour la liste dépliable par campagne)
+      const [seqContacts, setSeqContacts] = React.useState({});
+      const [openCards, setOpenCards] = React.useState(() => new Set());
       const token = () => (user && user.token) ? user.token : null;
 
       React.useEffect(() => {
         setLoading(true); setError(null);
-        fetch(`${API_URL}/optin/campaigns`, { headers: { 'Authorization': 'Bearer ' + token() } })
-          .then(r => r.json().then(d => ({ ok: r.ok, d })))
-          .then(({ ok, d }) => { if (!ok) setError(d.error || 'Erreur'); else setData(d); })
+        const H = { 'Authorization': 'Bearer ' + token() };
+        Promise.all([
+          fetch(`${API_URL}/optin/campaigns`, { headers: H }).then(r => r.json().then(d => ({ ok: r.ok, d }))),
+          fetch(`${API_URL}/optin/sequence`, { headers: H }).then(r => r.json()).catch(() => ({}))
+        ])
+          .then(([camp, seq]) => {
+            if (!camp.ok) { setError(camp.d.error || 'Erreur'); }
+            else setData(camp.d);
+            // Regroupe tous les contacts encore dans la séquence par sequence_id,
+            // avec un libellé d'état lisible (à relancer / en attente / à clôturer).
+            const buckets = [
+              ...(seq.relance1 || []).map(c => ({ ...c, _etat: 'due', _lbl: 'Relance 1 à faire' })),
+              ...(seq.relance2 || []).map(c => ({ ...c, _etat: 'due', _lbl: 'Relance 2 à faire' })),
+              ...(seq.relanceSuivantes || []).map(c => ({ ...c, _etat: 'due', _lbl: 'Relance ' + (c.prochaine_vague || (c.etape + 1)) + ' à faire' })),
+              ...(seq.cloture || []).map(c => ({ ...c, _etat: 'cloture', _lbl: 'À clôturer' })),
+              ...(seq.enAttente || []).map(c => ({ ...c, _etat: 'attente', _lbl: 'En attente' }))
+            ];
+            const map = {};
+            buckets.forEach(c => { const k = c.sequence_id || '_'; (map[k] = map[k] || []).push(c); });
+            setSeqContacts(map);
+          })
           .catch(e => setError('Erreur réseau: ' + e.message))
           .finally(() => setLoading(false));
       }, [API_URL]);
+
+      const toggleCard = (sid) => setOpenCards(s => { const n = new Set(s); n.has(sid) ? n.delete(sid) : n.add(sid); return n; });
 
       const fmtD = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
       const fmtDM = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '—';
@@ -885,7 +908,7 @@
               {statut !== 'terminee' && (
                 <div style={{display: 'flex', alignItems: 'center', gap: '14px', background: '#eef9f6', border: '1px solid #cfe9e2', borderRadius: '11px', padding: '13px 16px', marginTop: '18px'}}>
                   {camp.nb_due > 0 ? (
-                    <div style={{fontSize: '13px', fontWeight: 600, color: '#0a5c4f'}}>📨 <b>{camp.nb_due} contact{camp.nb_due > 1 ? 's' : ''}</b> sans réaction → relance {camp.prochaine_vague} à envoyer. <span style={{fontWeight: 400, color: 'var(--tw-slate)'}}>(groupes « Relances à faire » ci-dessous)</span></div>
+                    <div style={{fontSize: '13px', fontWeight: 600, color: '#0a5c4f'}}>📨 <b>{camp.nb_due} contact{camp.nb_due > 1 ? 's' : ''}</b> sans réaction → relance {camp.prochaine_vague} à envoyer. <span style={{fontWeight: 400, color: 'var(--tw-slate)'}}>(via « Actions de relance groupées » ci-dessous)</span></div>
                   ) : camp.echeance_prochaine ? (
                     <div style={{fontSize: '13px', fontWeight: 600, color: '#0a5c4f'}}>⏳ Prochaine relance (Relance {camp.prochaine_vague}) à prévoir vers le <b>{fmtD(camp.echeance_prochaine)}</b>.</div>
                   ) : (
@@ -893,6 +916,47 @@
                   )}
                 </div>
               )}
+
+              {/* Liste dépliable des contacts de CETTE campagne */}
+              {(() => {
+                const contacts = seqContacts[camp.sequence_id] || [];
+                const open = openCards.has(camp.sequence_id);
+                const etatStyle = (e) => e === 'due' ? { c: '#007d89', bg: '#e6f6f7' } : e === 'cloture' ? { c: '#a52d2d', bg: '#fdecec' } : { c: '#8a6d3b', bg: '#fdf4e3' };
+                return (
+                  <div style={{marginTop: '14px'}}>
+                    <button onClick={() => toggleCard(camp.sequence_id)} disabled={contacts.length === 0} style={{display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'space-between', padding: '11px 14px', background: '#f7f9fa', border: '1px solid var(--tw-border)', borderRadius: '10px', cursor: contacts.length === 0 ? 'default' : 'pointer', fontSize: '13px', fontWeight: 600, color: contacts.length === 0 ? 'var(--tw-muted)' : 'var(--tw-ink)'}}>
+                      <span>👥 Contacts en cours dans cette campagne ({contacts.length})</span>
+                      {contacts.length > 0 && <span style={{fontSize: '12px', color: 'var(--tw-muted)'}}>{open ? '▲ masquer' : '▼ voir'}</span>}
+                    </button>
+                    {open && contacts.length > 0 && (
+                      <div style={{border: '1px solid var(--tw-border)', borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '6px 0', marginTop: '-4px', overflowX: 'auto'}}>
+                        <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '12px'}}>
+                          <thead>
+                            <tr style={{borderBottom: '1px solid var(--tw-border)', textAlign: 'left'}}>
+                              <th style={{padding: '7px 12px', fontWeight: 600, color: 'var(--tw-slate)'}}>Société</th>
+                              <th style={{padding: '7px 12px', fontWeight: 600, color: 'var(--tw-slate)'}}>Contact</th>
+                              <th style={{padding: '7px 12px', fontWeight: 600, color: 'var(--tw-slate)'}}>Email</th>
+                              <th style={{padding: '7px 12px', fontWeight: 600, color: 'var(--tw-slate)'}}>État</th>
+                              <th style={{padding: '7px 12px', fontWeight: 600, color: 'var(--tw-slate)'}}>Échéance</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {contacts.map(c => { const s = etatStyle(c._etat); return (
+                              <tr key={c.id} style={{borderBottom: '0.5px solid var(--tw-border)'}}>
+                                <td style={{padding: '7px 12px', color: 'var(--tw-ink)', fontWeight: 500}}>{c.societe}</td>
+                                <td style={{padding: '7px 12px', color: 'var(--tw-slate)'}}>{[c.prenom, c.nom].filter(Boolean).join(' ') || '—'}</td>
+                                <td style={{padding: '7px 12px', color: 'var(--tw-slate)'}}>{c.email}</td>
+                                <td style={{padding: '7px 12px'}}><span style={{fontSize: '11px', fontWeight: 600, padding: '2px 9px', borderRadius: '20px', background: s.bg, color: s.c, whiteSpace: 'nowrap'}}>{c._lbl}</span></td>
+                                <td style={{padding: '7px 12px', color: 'var(--tw-muted)', whiteSpace: 'nowrap'}}>{fmtD(c.echeance)}</td>
+                              </tr>
+                            ); })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           ))}
         </div>
@@ -1676,6 +1740,7 @@
     function CampagnesPage({ user, API_URL, onClose }) {
       const [activeView, setActiveView] = React.useState('optin');
       const [refreshKey, setRefreshKey] = React.useState(0);
+      const [showActions, setShowActions] = React.useState(false); // accordéon des actions globales de relance
       const [typeCible, setTypeCible] = React.useState('prospect'); // client|prospect|suspect|prospect_suspect|all
       const [decideursOnly, setDecideursOnly] = React.useState(false);
       const [audience, setAudience] = React.useState([]);
@@ -1866,7 +1931,20 @@
               <div style={{flex:'2 1 460px', minWidth:'360px'}}>
                 <div style={{fontSize:'13px', fontWeight:700, color:'var(--tw-ink)', marginBottom:'12px'}}>🚀 Campagnes en cours</div>
                 <CampagnesVue key={'vue'+refreshKey} user={user} API_URL={API_URL} statut="en_cours" />
-                <CampagnesRelances key={'act'+refreshKey} user={user} API_URL={API_URL} mode="actions" />
+
+                {/* Accordéon : actions globales de relance (toutes campagnes confondues) */}
+                <div style={{marginTop:'20px', border:'1px solid var(--tw-border)', borderRadius:'12px', overflow:'hidden'}}>
+                  <button onClick={() => setShowActions(v => !v)} style={{display:'flex', justifyContent:'space-between', alignItems:'center', width:'100%', padding:'14px 16px', background:'#f7f9fa', border:'none', cursor:'pointer', fontSize:'13px', fontWeight:700, color:'var(--tw-ink)', textAlign:'left'}}>
+                    <span>🔧 Actions de relance groupées <span style={{fontWeight:400, color:'var(--tw-muted)'}}>— envoyer les relances dues / clôturer (toutes campagnes)</span></span>
+                    <span style={{fontSize:'12px', color:'var(--tw-muted)', whiteSpace:'nowrap'}}>{showActions ? '▲ masquer' : '▼ ouvrir'}</span>
+                  </button>
+                  {showActions && (
+                    <div style={{padding:'16px', borderTop:'1px solid var(--tw-border)'}}>
+                      <CampagnesRelances key={'act'+refreshKey} user={user} API_URL={API_URL} mode="actions" />
+                    </div>
+                  )}
+                </div>
+
                 <div style={{marginTop:'26px'}}>
                   <CampagnesHistorique key={'hist'+refreshKey} user={user} API_URL={API_URL} />
                 </div>
