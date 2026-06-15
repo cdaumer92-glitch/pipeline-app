@@ -10094,16 +10094,6 @@
                                     <span style={{fontSize:'13px',fontWeight:'600',color:a.completed?'var(--tw-muted)':'var(--tw-ink)',textDecoration:a.completed?'line-through':'none'}}>
                                       {a.action_type}
                                     </span>
-                                    {a.nom_affaire && (
-                                      <span style={{fontSize:'11px',padding:'1px 8px',borderRadius:'10px',background:'var(--tw-teal-light)',color:'var(--tw-teal)',fontWeight:'600',whiteSpace:'nowrap'}}>
-                                        {a.nom_affaire}
-                                      </span>
-                                    )}
-                                    {!a.nom_affaire && a.contexte === 'Marketing' && (
-                                      <span style={{fontSize:'11px',padding:'1px 8px',borderRadius:'10px',background:'#fff3e0',color:'#e65100',fontWeight:'600',whiteSpace:'nowrap'}}>
-                                        Marketing
-                                      </span>
-                                    )}
                                   </div>
                                   <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'3px',display:'flex',gap:'10px',flexWrap:'wrap'}}>
                                     <span style={{color:isLate?'var(--tw-red)':a.completed?'var(--tw-green)':'var(--tw-slate)',fontWeight:isLate?'600':'400'}}>
