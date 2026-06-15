@@ -10047,44 +10047,79 @@
 
                     {allActions.length === 0 ? (
                       <div style={{textAlign:'center',padding:'20px',color:'var(--tw-muted)',fontStyle:'italic',fontSize:'13px'}}>Aucune action enregistrée</div>
-                    ) : allActions.map(a => {
-                      const today = new Date(); today.setHours(0,0,0,0);
-                      const d = a.planned_date ? new Date(a.planned_date) : null;
-                      const isLate = d && d < today && !a.completed;
-                      return (
-                        <div key={a.id} style={{display:'flex',alignItems:'flex-start',gap:'12px',padding:'10px 14px',borderRadius:'6px',background:a.completed?'var(--tw-bg)':'white',border:'1px solid var(--tw-border)',marginBottom:'6px',opacity:a.completed?.7:1}}>
-                          <input type="checkbox" checked={!!a.completed} onChange={() => onToggleNextAction(a.id)}
-                            style={{width:'16px',height:'16px',cursor:'pointer',accentColor:'var(--tw-teal)',flexShrink:0,marginTop:'2px'}} />
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
-                              <span style={{fontSize:'13px',fontWeight:'600',color:a.completed?'var(--tw-muted)':'var(--tw-ink)',textDecoration:a.completed?'line-through':'none'}}>
-                                {a.action_type}
-                              </span>
-                              {a.nom_affaire && (
-                                <span style={{fontSize:'11px',padding:'1px 8px',borderRadius:'10px',background:'var(--tw-teal-light)',color:'var(--tw-teal)',fontWeight:'600',whiteSpace:'nowrap'}}>
-                                  {a.nom_affaire}
-                                </span>
-                              )}
-                              {!a.nom_affaire && a.contexte === 'Marketing' && (
-                                <span style={{fontSize:'11px',padding:'1px 8px',borderRadius:'10px',background:'#fff3e0',color:'#e65100',fontWeight:'600',whiteSpace:'nowrap'}}>
-                                  Marketing
-                                </span>
-                              )}
-                            </div>
-                            <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'3px',display:'flex',gap:'10px',flexWrap:'wrap'}}>
-                              <span style={{color:isLate?'var(--tw-red)':a.completed?'var(--tw-green)':'var(--tw-slate)',fontWeight:isLate?'600':'400'}}>
-                                {d?d.toLocaleDateString('fr-FR'):'—'}{isLate?' ⚠️':''}
-                              </span>
-                              {a.actor && <span>{a.actor}</span>}
-                              {a.contact && <span>→ {a.contact}</span>}
-                            </div>
-                            {a.completed_note && <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'3px',fontStyle:'italic'}}>{a.completed_note}</div>}
+                    ) : (() => {
+                      // Regrouper les actions par affaire (ou Marketing / Sans affaire)
+                      const groupsMap = {};
+                      allActions.forEach(a => {
+                        const key = a.affaire_id ? `affaire_${a.affaire_id}` : (a.contexte === 'Marketing' ? 'marketing' : 'autres');
+                        if (!groupsMap[key]) {
+                          groupsMap[key] = {
+                            key,
+                            title: a.nom_affaire || (a.contexte === 'Marketing' ? 'Marketing' : 'Sans affaire'),
+                            actions: [],
+                            lastDate: 0
+                          };
+                        }
+                        const t = a.planned_date ? new Date(a.planned_date).getTime() : 0;
+                        groupsMap[key].actions.push(a);
+                        if (t > groupsMap[key].lastDate) groupsMap[key].lastDate = t;
+                      });
+                      const groups = Object.values(groupsMap);
+                      // Plus récentes en haut dans chaque groupe
+                      groups.forEach(g => g.actions.sort((x, y) => {
+                        const tx = x.planned_date ? new Date(x.planned_date).getTime() : 0;
+                        const ty = y.planned_date ? new Date(y.planned_date).getTime() : 0;
+                        return ty - tx;
+                      }));
+                      // Le groupe avec l'action la plus récente en premier
+                      groups.sort((g1, g2) => g2.lastDate - g1.lastDate);
+
+                      return groups.map(g => (
+                        <div key={g.key} style={{marginBottom:'18px'}}>
+                          <div style={{fontSize:'11px',fontWeight:'700',color:'var(--tw-teal)',textTransform:'uppercase',letterSpacing:'.5px',padding:'0 0 5px',marginBottom:'8px',borderBottom:'2px solid var(--tw-teal-light)'}}>
+                            {g.title}
                           </div>
-                          <button onClick={() => onDeleteNextAction(a.id)}
-                            style={{padding:'3px 7px',border:'none',borderRadius:'4px',background:'#f79d8d',color:'white',cursor:'pointer',fontSize:'11px',flexShrink:0}}>🗑️</button>
+                          {g.actions.map(a => {
+                            const today = new Date(); today.setHours(0,0,0,0);
+                            const d = a.planned_date ? new Date(a.planned_date) : null;
+                            const isLate = d && d < today && !a.completed;
+                            return (
+                              <div key={a.id} style={{display:'flex',alignItems:'flex-start',gap:'12px',padding:'10px 14px',borderRadius:'6px',background:a.completed?'var(--tw-bg)':'white',border:'1px solid var(--tw-border)',marginBottom:'6px',opacity:a.completed?.7:1}}>
+                                <input type="checkbox" checked={!!a.completed} onChange={() => onToggleNextAction(a.id)}
+                                  style={{width:'16px',height:'16px',cursor:'pointer',accentColor:'var(--tw-teal)',flexShrink:0,marginTop:'2px'}} />
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+                                    <span style={{fontSize:'13px',fontWeight:'600',color:a.completed?'var(--tw-muted)':'var(--tw-ink)',textDecoration:a.completed?'line-through':'none'}}>
+                                      {a.action_type}
+                                    </span>
+                                    {a.nom_affaire && (
+                                      <span style={{fontSize:'11px',padding:'1px 8px',borderRadius:'10px',background:'var(--tw-teal-light)',color:'var(--tw-teal)',fontWeight:'600',whiteSpace:'nowrap'}}>
+                                        {a.nom_affaire}
+                                      </span>
+                                    )}
+                                    {!a.nom_affaire && a.contexte === 'Marketing' && (
+                                      <span style={{fontSize:'11px',padding:'1px 8px',borderRadius:'10px',background:'#fff3e0',color:'#e65100',fontWeight:'600',whiteSpace:'nowrap'}}>
+                                        Marketing
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'3px',display:'flex',gap:'10px',flexWrap:'wrap'}}>
+                                    <span style={{color:isLate?'var(--tw-red)':a.completed?'var(--tw-green)':'var(--tw-slate)',fontWeight:isLate?'600':'400'}}>
+                                      {d?d.toLocaleDateString('fr-FR'):'—'}{isLate?' ⚠️':''}
+                                    </span>
+                                    {a.actor && <span>{a.actor}</span>}
+                                    {a.contact && <span>→ {a.contact}</span>}
+                                  </div>
+                                  {a.completed_note && <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'3px',fontStyle:'italic'}}>{a.completed_note}</div>}
+                                </div>
+                                <button onClick={() => onDeleteNextAction(a.id)}
+                                  style={{padding:'3px 7px',border:'none',borderRadius:'4px',background:'#f79d8d',color:'white',cursor:'pointer',fontSize:'11px',flexShrink:0}}>🗑️</button>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
+                      ));
+                    })()}
                   </div>
                 )}
 
