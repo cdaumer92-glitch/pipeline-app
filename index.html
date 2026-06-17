@@ -353,9 +353,10 @@
 <body>
   <div id="root"></div>
 
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- React / Babel heberges localement (versions figees) pour ne plus dependre du CDN unpkg (lenteur/pannes) -->
+  <script src="lib/vendor/react.production.min.js"></script>
+  <script src="lib/vendor/react-dom.production.min.js"></script>
+  <script src="lib/vendor/babel.min.js"></script>
 
   <!-- Module SocieteInfo : appelle le proxy backend /api/societeinfo/* avec le token JWT -->
   <script src="societeinfo.js?v=2026-06-03"></script>
