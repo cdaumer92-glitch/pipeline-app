@@ -2993,6 +2993,9 @@ function buildConfigObject() {
     margeSetup: document.getElementById('margeSetup')?.value || '30',
     flux_noms: fluxNoms,
     moduleState: { ...moduleState },
+    // Quantités/remises éditables hors moduleState : prestations TJM (section 4)
+    // et licences (section 2_*). Sans ça, les qtés saisies ne sont pas persistées.
+    sectionValues: { ...sectionValues },
     saved_at: new Date().toISOString(),
   };
 }
@@ -3222,6 +3225,17 @@ async function loadDevisForEdit() {
     }
     // Synchroniser net_siege (legacy 0/1) avec net_siege_active
     syncNetSiege();
+
+    // Restaurer les quantités/remises éditables stockées hors moduleState
+    // (prestations TJM de la section 4 + licences section 2_*). À faire AVANT
+    // renderAllSections()/calculate() : ces fonctions n'initialisent les entrées
+    // qu'au défaut si elles sont absentes — on remet donc les valeurs saisies d'abord.
+    if (modulesObj.sectionValues && typeof modulesObj.sectionValues === 'object') {
+      Object.keys(sectionValues).forEach(k => delete sectionValues[k]);
+      Object.assign(sectionValues, modulesObj.sectionValues);
+      if (!sectionValues.section3) sectionValues.section3 = {};
+      if (!sectionValues.section4) sectionValues.section4 = {};
+    }
 
     // Stocker le nom actuel du devis pour qu'updateDevis() le préserve
     CTX.devis_name = devis.devis_name || '';
