@@ -213,7 +213,7 @@ const sectionsData = {
     {nom:"Net : Accompagnement Standard", prix:1150, unite:"€", dependNet:true, tjm:true, defaultQty:0.5, moduleColor:'#1a9fdb'},
     {nom:"Mise en oeuvre Connecteur Kub → MyReport", prix:2500, unite:"€", dependKub:true, forfait:true, moduleColor:'#64B340'},
     {nom:"Mag : Installation Back office Siège", prix:1150, unite:"€", dependModule:'mag', dependMagSiege:true, tjm:true, defaultQty:1, moduleColor:'#E72E7B'},
-    {nom:"Mag : Installation Magasin", prix:525, unite:"€", dependModule:'mag', dependMagMagasin:true, tjm:true, defaultQtyFromMagCaisses:true, multiplier:0.5, moduleColor:'#E72E7B'},
+    {nom:"Mag : Installation Magasin", prix:1150, unite:"€", dependModule:'mag', dependMagMagasin:true, tjm:true, defaultQtyFromMagCaisses:true, multiplier:0.5, moduleColor:'#E72E7B'},
     {nom:"VRP : Installation et paramétrage", prix:1150, unite:"€", dependVrp:true, tjm:true, defaultQty:1, moduleColor:'#E72E7B'},
     {nom:"Col : Installation et paramétrage", prix:1150, unite:"€", dependCol:true, tjm:true, defaultQty:1, moduleColor:'#E72E7B'},
     {nom:"Log : Installation et paramétrage", prix:1150, unite:"€", dependLog:true, tjm:true, defaultQty:1, moduleColor:'#FBC02D'},
@@ -1117,7 +1117,7 @@ function renderSection4() {
   if (biz)  items.push({ key:'recup', kind:'tjm', defaultLabel:'Récupération des données', prix:1150, defaultQty:0 });
   // -- c. Installations modules --
   if (mag)  items.push({ key:'mag_siege', kind:'tjm', defaultLabel:'Mag : Installation Back office Siège', prix:1150, defaultQty:1 });
-  if (mag)  items.push({ key:'mag_mag', kind:'tjm', defaultLabel:'Mag : Installation Magasin', prix:525, defaultQty: moduleState.mag_caisses * 0.5 });
+  if (mag)  items.push({ key:'mag_mag', kind:'tjm', defaultLabel:'Mag : Installation Magasin', prix:1150, defaultQty: moduleState.mag_caisses * 0.5 });
   if (net)  items.push({ key:'net_install', kind:'tjm', defaultLabel:'Net : Installation et paramétrage', prix:1150, defaultQty:1 });
   if (net)  items.push({ key:'net_accom', kind:'tjm', defaultLabel:'Net : Accompagnement Standard', prix:1150, defaultQty:0.5 });
   if (vrp)  items.push({ key:'vrp_install', kind:'tjm', defaultLabel:'VRP : Installation et paramétrage', prix:1150, defaultQty:1 });
@@ -2476,7 +2476,8 @@ function buildConfigJson() {
   // Lignes prestations (avec renommage et ordre personnalisé)
   // Chaque ligne porte : {nom, duree, montant, qty, prix_unitaire, unite}
   // - Forfaits : qty=1, prix_unitaire=montant, unite='€/forfait'
-  // - TJM     : qty=nb jours, prix_unitaire=TJM (1150 ou 525), unite='€/jour'
+  // - TJM     : qty=nb jours, prix_unitaire=TJM 1150, unite='€/jour'
+  //   (sauf mag_mag : facturé en demi-journées, qty=nb demi-journées, prix_unitaire=575, unite='€/demi-journée')
   // - Custom  : qty et pu issus du formulaire
   const lignesPrest = [];
   const addP = (nom, duree, montant, qty, prix_unitaire, unite) => {
@@ -2518,10 +2519,17 @@ function buildConfigJson() {
   Object.keys(nomMapTjm).forEach(k => {
     const sv = sectionValues.section4[k];
     if (!sv || sv.qty === 0) return;
-    // Utiliser 525€/j pour mag_mag (prix spécifique), 1150€/j pour le reste
-    const puJour = (k === 'mag_mag') ? 525 : 1150;
-    const montant = puJour * sv.qty * (1 - sv.remise/100);
-    prestDef[k] = { defaultLabel: nomMapTjm[k], duree: sv.qty + ' j', montant, qty: sv.qty, prix_unitaire: puJour, unite: '€/jour' };
+    if (k === 'mag_mag') {
+      // Installation magasin : facturée en demi-journées (1 caisse = 1 demi-journée = 1150 / 2 = 575 €).
+      // sv.qty est exprimé en jours dans le configurateur → on convertit en demi-journées (×2).
+      const puDemi = 575;
+      const nbDemi = sv.qty * 2;
+      const montant = puDemi * nbDemi * (1 - sv.remise/100);
+      prestDef[k] = { defaultLabel: nomMapTjm[k], duree: nbDemi + ' demi-journée' + (nbDemi > 1 ? 's' : ''), montant, qty: nbDemi, prix_unitaire: puDemi, unite: '€/demi-journée' };
+      return;
+    }
+    const montant = 1150 * sv.qty * (1 - sv.remise/100);
+    prestDef[k] = { defaultLabel: nomMapTjm[k], duree: sv.qty + ' j', montant, qty: sv.qty, prix_unitaire: 1150, unite: '€/jour' };
   });
   // Flux
   for (let i = 1; i <= (ms.fluxTiers||0); i++) {
