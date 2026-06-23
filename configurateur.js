@@ -213,7 +213,7 @@ const sectionsData = {
     {nom:"Net : Accompagnement Standard", prix:1150, unite:"€", dependNet:true, tjm:true, defaultQty:0.5, moduleColor:'#1a9fdb'},
     {nom:"Mise en oeuvre Connecteur Kub → MyReport", prix:2500, unite:"€", dependKub:true, forfait:true, moduleColor:'#64B340'},
     {nom:"Mag : Installation Back office Siège", prix:1150, unite:"€", dependModule:'mag', dependMagSiege:true, tjm:true, defaultQty:1, moduleColor:'#E72E7B'},
-    {nom:"Mag : Installation Magasin (demie journée)", prix:525, unite:"€", dependModule:'mag', dependMagMagasin:true, tjm:true, defaultQtyFromMagCaisses:true, multiplier:0.5, moduleColor:'#E72E7B'},
+    {nom:"Mag : Installation Magasin (demie journée)", prix:575, unite:"€", dependModule:'mag', dependMagMagasin:true, tjm:true, defaultQtyFromMagCaisses:true, multiplier:0.5, moduleColor:'#E72E7B'},
     {nom:"VRP : Installation et paramétrage", prix:1150, unite:"€", dependVrp:true, tjm:true, defaultQty:1, moduleColor:'#E72E7B'},
     {nom:"Col : Installation et paramétrage", prix:1150, unite:"€", dependCol:true, tjm:true, defaultQty:1, moduleColor:'#E72E7B'},
     {nom:"Log : Installation et paramétrage", prix:1150, unite:"€", dependLog:true, tjm:true, defaultQty:1, moduleColor:'#FBC02D'},
@@ -1117,7 +1117,7 @@ function renderSection4() {
   if (biz)  items.push({ key:'recup', kind:'tjm', defaultLabel:'Récupération des données', prix:1150, defaultQty:0 });
   // -- c. Installations modules --
   if (mag)  items.push({ key:'mag_siege', kind:'tjm', defaultLabel:'Mag : Installation Back office Siège', prix:1150, defaultQty:1 });
-  if (mag)  items.push({ key:'mag_mag', kind:'tjm', defaultLabel:'Mag : Installation Magasin (demie journée)', prix:525, defaultQty: moduleState.mag_caisses * 0.5 });
+  if (mag)  items.push({ key:'mag_mag', kind:'tjm', defaultLabel:'Mag : Installation Magasin (demie journée)', prix:575, defaultQty: moduleState.mag_caisses * 0.5 });
   if (net)  items.push({ key:'net_install', kind:'tjm', defaultLabel:'Net : Installation et paramétrage', prix:1150, defaultQty:1 });
   if (net)  items.push({ key:'net_accom', kind:'tjm', defaultLabel:'Net : Accompagnement Standard', prix:1150, defaultQty:0.5 });
   if (vrp)  items.push({ key:'vrp_install', kind:'tjm', defaultLabel:'VRP : Installation et paramétrage', prix:1150, defaultQty:1 });
@@ -2274,8 +2274,8 @@ function calculate() {
       }
       return;
     }
-    // mag_mag est facturé en demies journées (525 €) ; toutes les autres lignes TJM sont à 1150 €/jour
-    const tjmRate = (k === 'mag_mag') ? 525 : 1150;
+    // mag_mag est facturé en demies journées (575 €) ; toutes les autres lignes TJM sont à 1150 €/jour
+    const tjmRate = (k === 'mag_mag') ? 575 : 1150;
     const ligne = tjmRate * sv.qty * (1 - sv.remise/100);
     s4total += ligne;
     // Bug 1 : MAJ du total affiché sur la ligne TJM
@@ -2479,7 +2479,7 @@ function buildConfigJson() {
   // Chaque ligne porte : {nom, duree, montant, qty, prix_unitaire, unite}
   // - Forfaits : qty=1, prix_unitaire=montant, unite='€/forfait'
   // - TJM     : qty=nb jours, prix_unitaire=TJM 1150, unite='€/jour'
-  //   (sauf mag_mag : facturé en demies journées, prix_unitaire=525, unite='€/demie journée')
+  //   (sauf mag_mag : facturé en demies journées, prix_unitaire=575, unite='€/demie journée')
   // - Custom  : qty et pu issus du formulaire
   const lignesPrest = [];
   const addP = (nom, duree, montant, qty, prix_unitaire, unite) => {
@@ -2522,8 +2522,8 @@ function buildConfigJson() {
     const sv = sectionValues.section4[k];
     if (!sv || sv.qty === 0) return;
     if (k === 'mag_mag') {
-      // Installation magasin : facturée en demies journées à 525 € (tarif magasin spécifique).
-      const puDemi = 525;
+      // Installation magasin : facturée en demies journées à 575 € (tarif magasin spécifique).
+      const puDemi = 575;
       const montant = puDemi * sv.qty * (1 - sv.remise/100);
       prestDef[k] = { defaultLabel: nomMapTjm[k], duree: sv.qty + ' demie journée' + (sv.qty > 1 ? 's' : ''), montant, qty: sv.qty, prix_unitaire: puDemi, unite: '€/demie journée' };
       return;
