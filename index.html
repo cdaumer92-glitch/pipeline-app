@@ -2815,7 +2815,32 @@
           if (res.ok) {
             const savedDevis = await res.json();
             window.showToast({title: editingDevisId ? 'Devis modifié' : 'Devis créé', type:'success'});
-            
+
+            // Si le devis est "Gagné", proposer de passer l'affaire parente en "Gagné"
+            // (même logique que la bascule rapide handleQuickDevisStatus).
+            if (devisFormData.devis_status === 'Gagné') {
+              const affaireId = savedDevis.affaire_id || affaireIdToUse || selectedAffaireId;
+              const aff = affaireId ? affairesList.find(a => a.id === affaireId) : null;
+              if (aff && aff.statut_global !== 'Gagné') {
+                const autresActifs = devisList.filter(d =>
+                  d.affaire_id === affaireId && d.id !== savedDevis.id &&
+                  !['Perdu','Annulé','Gagné'].includes(d.devis_status)
+                );
+                let msg = 'Voulez-vous passer l\'affaire entière en "Gagné" ?';
+                if (autresActifs.length > 0) {
+                  msg = `Cette affaire a encore ${autresActifs.length} devis actif(s).\n\n` + msg;
+                }
+                if (window.confirm(msg)) {
+                  await fetch(`${API_URL}/affaires/${affaireId}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ statut_global: 'Gagné' })
+                  });
+                  window.showToast({title:'Affaire passée en "Gagné"', type:'success'});
+                }
+              }
+            }
+
             // Upload PDF si présent
             if (devisPdfFile) {
               await handleUploadDevisPdf(savedDevis.id);
@@ -2876,6 +2901,35 @@
                       body: JSON.stringify({ statut_global: 'En cours' })
                     });
                     window.showToast({title:'Affaire rétablie en "En cours"', type:'success'});
+                  }
+                }
+              }
+            }
+
+            // Si on passe un devis en "Gagné", on PROPOSE de passer l'affaire parente
+            // en "Gagné" (symétrique du flux "Perdu" géré dans handleSaveMotifPerte).
+            if (newStatus === 'Gagné') {
+              const devis = devisList.find(d => d.id === devisId);
+              const affaireId = devis?.affaire_id;
+              if (affaireId) {
+                const aff = affairesList.find(a => a.id === affaireId);
+                // Ne proposer que si l'affaire n'est pas déjà Gagnée
+                if (aff && aff.statut_global !== 'Gagné') {
+                  const autresActifs = devisList.filter(d =>
+                    d.affaire_id === affaireId && d.id !== devisId &&
+                    !['Perdu','Annulé','Gagné'].includes(d.devis_status)
+                  );
+                  let msg = 'Voulez-vous passer l\'affaire entière en "Gagné" ?';
+                  if (autresActifs.length > 0) {
+                    msg = `Cette affaire a encore ${autresActifs.length} devis actif(s).\n\n` + msg;
+                  }
+                  if (window.confirm(msg)) {
+                    await fetch(`${API_URL}/affaires/${affaireId}`, {
+                      method: 'PUT',
+                      headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ statut_global: 'Gagné' })
+                    });
+                    window.showToast({title:'Affaire passée en "Gagné"', type:'success'});
                   }
                 }
               }
