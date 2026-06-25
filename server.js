@@ -5431,11 +5431,44 @@ async function buildRecapData(commercialName) {
     ORDER BY na.planned_date ASC
   `, [commercialName, today, in7days.toISOString().split('T')[0]]);
 
+  // Suspects sans action planifiée à venir
+  // (statut_societe = 'Suspect', aucune action non terminée)
+  const suspectsSansAction = await pool.query(`
+    SELECT p.id, p.name, p.contact_name, p.created_at
+    FROM prospects p
+    WHERE p.assigned_to = $1
+      AND p.statut_societe = 'Suspect'
+      AND NOT EXISTS (
+        SELECT 1 FROM next_actions na
+        WHERE na.prospect_id = p.id AND na.completed = 0
+      )
+    ORDER BY p.name
+  `, [commercialName]);
+
+  // Suspects dont la dernière action TERMINÉE remonte à plus de 15 jours
+  // (ou qui n'ont jamais eu d'action terminée). Une action future ne les exempte pas.
+  const d15 = new Date();
+  d15.setDate(d15.getDate() - 15);
+  const since15 = d15.toISOString().split('T')[0];
+  const suspectsInactifs = await pool.query(`
+    SELECT p.id, p.name, p.contact_name,
+           MAX(na.completed_date) AS last_action_date
+    FROM prospects p
+    LEFT JOIN next_actions na ON na.prospect_id = p.id AND na.completed = 1
+    WHERE p.assigned_to = $1
+      AND p.statut_societe = 'Suspect'
+    GROUP BY p.id, p.name, p.contact_name
+    HAVING MAX(na.completed_date) IS NULL OR MAX(na.completed_date) < $2
+    ORDER BY MAX(na.completed_date) ASC NULLS FIRST, p.name
+  `, [commercialName, since15]);
+
   return {
     commercial: commercialName,
     sansActions: sansActions.rows,
     enRetard: enRetard.rows,
-    aVenir: aVenir.rows
+    aVenir: aVenir.rows,
+    suspectsSansAction: suspectsSansAction.rows,
+    suspectsInactifs: suspectsInactifs.rows
   };
 }
 
@@ -5525,6 +5558,32 @@ function buildEmailHTML(data, isGlobal = false) {
       body += `<table><tr><th>Société</th><th>Contact</th><th>Statut</th><th>%</th><th>Date devis</th></tr>`;
       for (const p of d.sansActions) {
         body += `<tr><td>${p.name}</td><td>${p.contact_name||'—'}</td><td>${p.devis_status||'—'}</td><td>${p.chance_percent||0}%</td><td>${fmtDate(p.quote_date)}</td></tr>`;
+      }
+      body += `</table>`;
+    }
+
+    // Suspects sans action planifiée
+    const suspSansAction = d.suspectsSansAction || [];
+    body += `<div class="section-title" style="color:#f0932b;margin-top:20px">🌱 Suspects sans action planifiée <span class="badge badge-orange">${suspSansAction.length}</span></div>`;
+    if (suspSansAction.length === 0) {
+      body += `<p class="empty">✓ Tous les suspects ont une action planifiée</p>`;
+    } else {
+      body += `<table><tr><th>Société</th><th>Contact</th><th>Créé le</th></tr>`;
+      for (const p of suspSansAction) {
+        body += `<tr><td>${p.name}</td><td>${p.contact_name||'—'}</td><td>${fmtDate(p.created_at)}</td></tr>`;
+      }
+      body += `</table>`;
+    }
+
+    // Suspects sans action depuis 15 jours (dernière action terminée > 15 jours, ou jamais)
+    const suspInactifs = d.suspectsInactifs || [];
+    body += `<div class="section-title" style="color:#f0932b;margin-top:20px">⏳ Suspects sans action depuis 15 jours <span class="badge badge-orange">${suspInactifs.length}</span></div>`;
+    if (suspInactifs.length === 0) {
+      body += `<p class="empty">✓ Aucun suspect négligé depuis 15 jours</p>`;
+    } else {
+      body += `<table><tr><th>Société</th><th>Contact</th><th>Dernière action</th></tr>`;
+      for (const p of suspInactifs) {
+        body += `<tr><td>${p.name}</td><td>${p.contact_name||'—'}</td><td style="color:#f0932b;font-weight:600">${p.last_action_date ? fmtDate(p.last_action_date) : 'Jamais'}</td></tr>`;
       }
       body += `</table>`;
     }
