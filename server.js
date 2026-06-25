@@ -5405,7 +5405,7 @@ async function buildRecapData(commercialName) {
   // Actions en retard
   const enRetard = await pool.query(`
     SELECT na.id, na.action_type, na.planned_date, na.actor, na.contact,
-           p.name as prospect_name
+           p.name as prospect_name, p.assigned_to AS commercial
     FROM next_actions na
     INNER JOIN prospects p ON p.id = COALESCE(na.prospect_id,
       (SELECT prospect_id FROM affaires WHERE id = na.affaire_id))
@@ -5420,7 +5420,7 @@ async function buildRecapData(commercialName) {
   in7days.setDate(in7days.getDate() + 7);
   const aVenir = await pool.query(`
     SELECT na.id, na.action_type, na.planned_date, na.actor, na.contact,
-           p.name as prospect_name
+           p.name as prospect_name, p.assigned_to AS commercial
     FROM next_actions na
     INNER JOIN prospects p ON p.id = COALESCE(na.prospect_id,
       (SELECT prospect_id FROM affaires WHERE id = na.affaire_id))
@@ -5538,9 +5538,9 @@ function buildEmailHTML(data, isGlobal = false) {
     if (d.enRetard.length === 0) {
       body += `<p class="empty">✓ Aucune action en retard</p>`;
     } else {
-      body += `<table><tr><th>Société</th><th>Type</th><th>Date prévue</th><th>De</th><th>Vers</th></tr>`;
+      body += `<table><tr><th>Société</th><th>Commercial</th><th>Type</th><th>Date prévue</th><th>De</th><th>Vers</th></tr>`;
       for (const a of d.enRetard) {
-        body += `<tr><td>${a.prospect_name}</td><td>${a.action_type||'—'}</td><td style="color:#e74c3c;font-weight:600">${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
+        body += `<tr><td>${a.prospect_name}</td><td>${a.commercial||'—'}</td><td>${a.action_type||'—'}</td><td style="color:#e74c3c;font-weight:600">${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
       }
       body += `</table>`;
     }
@@ -5550,9 +5550,9 @@ function buildEmailHTML(data, isGlobal = false) {
     if (d.aVenir.length === 0) {
       body += `<p class="empty">Aucune action planifiée cette semaine</p>`;
     } else {
-      body += `<table><tr><th>Société</th><th>Type</th><th>Date</th><th>De</th><th>Vers</th></tr>`;
+      body += `<table><tr><th>Société</th><th>Commercial</th><th>Type</th><th>Date</th><th>De</th><th>Vers</th></tr>`;
       for (const a of d.aVenir) {
-        body += `<tr><td>${a.prospect_name}</td><td>${a.action_type||'—'}</td><td style="color:#2ec27e;font-weight:600">${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
+        body += `<tr><td>${a.prospect_name}</td><td>${a.commercial||'—'}</td><td>${a.action_type||'—'}</td><td style="color:#2ec27e;font-weight:600">${fmtDate(a.planned_date)}</td><td>${a.actor||'—'}</td><td>${a.contact||'—'}</td></tr>`;
       }
       body += `</table>`;
     }
