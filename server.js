@@ -5447,6 +5447,9 @@ async function buildRecapData(commercialName) {
 
   // Suspects dont la dernière action TERMINÉE remonte à plus de 15 jours
   // (ou qui n'ont jamais eu d'action terminée). Une action future ne les exempte pas.
+  // On EXCLUT ceux déjà listés dans "Suspects sans action planifiée" (bloc 4) :
+  // ce bloc ne montre donc que les Suspects qui ONT une action à venir (completed=0)
+  // mais qui n'ont rien terminé depuis 15 jours.
   const d15 = new Date();
   d15.setDate(d15.getDate() - 15);
   const since15 = d15.toISOString().split('T')[0];
@@ -5457,6 +5460,10 @@ async function buildRecapData(commercialName) {
     LEFT JOIN next_actions na ON na.prospect_id = p.id AND na.completed = 1
     WHERE p.assigned_to = $1
       AND p.statut_societe = 'Suspect'
+      AND EXISTS (
+        SELECT 1 FROM next_actions na2
+        WHERE na2.prospect_id = p.id AND na2.completed = 0
+      )
     GROUP BY p.id, p.name, p.contact_name
     HAVING MAX(na.completed_date) IS NULL OR MAX(na.completed_date) < $2
     ORDER BY MAX(na.completed_date) ASC NULLS FIRST, p.name
