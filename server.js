@@ -5409,7 +5409,7 @@ async function buildRecapData(commercialName) {
     FROM next_actions na
     INNER JOIN prospects p ON p.id = COALESCE(na.prospect_id,
       (SELECT prospect_id FROM affaires WHERE id = na.affaire_id))
-    WHERE p.assigned_to = $1
+    WHERE (p.assigned_to = $1 OR na.actor = $1)
       AND na.completed = 0
       AND na.planned_date < $2
     ORDER BY na.planned_date ASC
@@ -5424,7 +5424,7 @@ async function buildRecapData(commercialName) {
     FROM next_actions na
     INNER JOIN prospects p ON p.id = COALESCE(na.prospect_id,
       (SELECT prospect_id FROM affaires WHERE id = na.affaire_id))
-    WHERE p.assigned_to = $1
+    WHERE (p.assigned_to = $1 OR na.actor = $1)
       AND na.completed = 0
       AND na.planned_date >= $2
       AND na.planned_date <= $3
