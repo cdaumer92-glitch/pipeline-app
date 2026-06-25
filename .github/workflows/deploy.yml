@@ -14,6 +14,12 @@ on:
 env:
   SCW_REGION: fr-par
   REGISTRY_NAMESPACE: pipeline-app
+  # Identifiants Docker Hub (optionnels). S'ils sont définis en secrets, les jobs
+  # s'authentifient au Docker Hub avant le build → évite le rate-limit des pulls
+  # anonymes qui fait échouer le boot du builder BuildKit ("registry-1.docker.io timeout").
+  # S'ils sont absents, le login est sauté et le comportement reste inchangé.
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
 jobs:
   # ──────────────────────────────────────────────────────────────
@@ -58,6 +64,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Authentification Docker Hub (si secrets présents) AVANT le boot du builder :
+      # le pull de l'image moby/buildkit devient authentifié → plus de rate-limit/timeout.
+      - name: Login to Docker Hub
+        if: ${{ env.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -99,6 +114,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      # Authentification Docker Hub (si secrets présents) AVANT le boot du builder :
+      # le pull de l'image moby/buildkit devient authentifié → plus de rate-limit/timeout.
+      - name: Login to Docker Hub
+        if: ${{ env.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
