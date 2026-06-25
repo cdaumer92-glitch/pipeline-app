@@ -4556,6 +4556,7 @@
               onDeleteNextAction={handleDeleteNextAction}
               fetchAllActions={fetchAllActions}
               fetchNextActions={fetchNextActions}
+              fetchAffaires={fetchAffaires}
               showForm={showForm}
               formData={formData}
               onFormChange={setFormData}
@@ -8607,7 +8608,7 @@
       );
     }
 
-    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, fetchAllActions, fetchNextActions, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, fetchInterlocuteurs, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, draggedContactId, setDraggedContactId, dragOverContactId, setDragOverContactId, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
+    function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, fetchAllActions, fetchNextActions, fetchAffaires, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, fetchInterlocuteurs, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, draggedContactId, setDraggedContactId, dragOverContactId, setDragOverContactId, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
@@ -9970,6 +9971,7 @@
                     API_URL={API_URL}
                     interlocuteurs={interlocuteurs}
                     affairesList={affairesList}
+                    fetchAffaires={fetchAffaires}
                     selectedAffaireId={selectedAffaireId}
                     setSelectedAffaireId={setSelectedAffaireId}
                     expandedActionId={expandedActionId}
@@ -10699,10 +10701,54 @@
       );
     }
 
-    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect }) {
+    function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, fetchAffaires, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect }) {
       const [actionNotes, setActionNotes] = React.useState({});
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
+
+      // ─── Drag & drop des affaires ───────────────────────────────
+      // Le tri par statut (En cours → Gagné → Perdu) reste prioritaire côté serveur ;
+      // le drag réordonne à l'intérieur d'un même groupe de statut.
+      const [draggedAffaireId, setDraggedAffaireId] = React.useState(null);
+      const [dragOverAffaireId, setDragOverAffaireId] = React.useState(null);
+      const handleAffaireDragStart = (e, affaireId) => {
+        setDraggedAffaireId(affaireId);
+        e.dataTransfer.effectAllowed = 'move';
+      };
+      const handleAffaireDragOver = (e, affaireId) => {
+        e.preventDefault();
+        if (dragOverAffaireId !== affaireId) setDragOverAffaireId(affaireId);
+      };
+      const handleAffaireDragEnd = () => {
+        setDraggedAffaireId(null);
+        setDragOverAffaireId(null);
+      };
+      const handleAffaireDrop = async (e, targetAffaireId) => {
+        e.preventDefault();
+        const sourceId = draggedAffaireId;
+        setDraggedAffaireId(null);
+        setDragOverAffaireId(null);
+        if (!sourceId || sourceId === targetAffaireId) return;
+        const currentList = [...(affairesList || [])];
+        const fromIdx = currentList.findIndex(a => a.id === sourceId);
+        const toIdx = currentList.findIndex(a => a.id === targetAffaireId);
+        if (fromIdx < 0 || toIdx < 0) return;
+        const [moved] = currentList.splice(fromIdx, 1);
+        currentList.splice(toIdx, 0, moved);
+        const orderedIds = currentList.map(a => a.id);
+        try {
+          const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/affaires/reorder`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
+            body: JSON.stringify({ orderedIds })
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          if (typeof fetchAffaires === 'function') await fetchAffaires(selectedProspect.id);
+        } catch (err) {
+          console.error('Erreur reorder affaires:', err);
+          window.showToast({ title: 'Erreur réorganisation : ' + err.message, type: 'error' });
+        }
+      };
       // Initialiser les notes avec les completed_note existantes
       React.useEffect(() => {
         const initialNotes = {};
@@ -10752,13 +10798,24 @@
                     const PALETTE_AFFAIRES = ['#007d89','#b06e2a','#7048a8','#0a7a4a','#a8385f','#2a6cb0','#9a6212','#46807a'];
                     const couleurAffaire = PALETTE_AFFAIRES[(affaire.id || 0) % PALETTE_AFFAIRES.length];
                     return (
-                      <div key={affaire.id} style={{background:'white',borderRadius:'10px',border:'0.5px solid var(--tw-border)',overflow:'hidden',transition:'border-color .15s'}}>
+                      <div key={affaire.id}
+                        onDragOver={(e) => handleAffaireDragOver(e, affaire.id)}
+                        onDrop={(e) => handleAffaireDrop(e, affaire.id)}
+                        onDragLeave={() => { if (dragOverAffaireId === affaire.id) setDragOverAffaireId(null); }}
+                        style={{background:'white',borderRadius:'10px',border: (dragOverAffaireId === affaire.id && draggedAffaireId !== affaire.id) ? '2px dashed var(--tw-teal)' : '0.5px solid var(--tw-border)',overflow:'hidden',transition:'border-color .15s',opacity: draggedAffaireId === affaire.id ? 0.4 : 1}}>
                         {/* Bandeau accordéon */}
                         <div onClick={() => setSelectedAffaireId(isOpen ? null : affaire.id)}
                           style={{padding:'12px 14px',cursor:'pointer',background: isOpen ? '#fafaf9' : 'white',borderBottom: isOpen ? '0.5px solid var(--tw-border)' : 'none',borderLeft:`4px solid ${couleurAffaire}`}}>
                           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:'10px'}}>
                             <div style={{flex:1,minWidth:0}}>
                               <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+                                <span
+                                  draggable={true}
+                                  onDragStart={(e) => { e.stopPropagation(); handleAffaireDragStart(e, affaire.id); }}
+                                  onDragEnd={handleAffaireDragEnd}
+                                  onClick={(e) => e.stopPropagation()}
+                                  title="Glisser pour réorganiser"
+                                  style={{cursor:'grab',color:'var(--tw-muted)',fontSize:'14px',lineHeight:1,userSelect:'none',display:'inline-flex',letterSpacing:'-3px',paddingRight:'2px'}}>⋮⋮</span>
                                 <span style={{color:'var(--tw-muted)',display:'inline-flex'}}>
                                   {I(isOpen ? ICONS.chevron : ICONS.chevronR, 12)}
                                 </span>

@@ -168,6 +168,10 @@ async function initDB() {
     )`);
     // Motif de perte de l'affaire (remonté depuis le devis perdu, affiché en synthèse).
     await client.query(`ALTER TABLE affaires ADD COLUMN IF NOT EXISTS motif_perte TEXT`);
+    // display_order : ordre custom personnalisé via drag & drop. NULL = pas d'ordre custom.
+    // Le tri reste toujours groupé par statut (En cours → Gagné → Perdu) ; display_order
+    // n'agit qu'à l'intérieur d'un même groupe de statut.
+    await client.query(`ALTER TABLE affaires ADD COLUMN IF NOT EXISTS display_order INTEGER`);
 
     // Table devis
     await client.query(`CREATE TABLE IF NOT EXISTS devis (
@@ -1591,13 +1595,69 @@ app.get('/api/prospects/:id/affaires', auth, async (req, res) => {
        LEFT JOIN devis d ON d.affaire_id = a.id
        WHERE a.prospect_id = $1
        GROUP BY a.id
-       ORDER BY a.created_at DESC`,
+       ORDER BY
+         CASE a.statut_global WHEN 'Gagné' THEN 1 WHEN 'Perdu' THEN 2 ELSE 0 END,
+         a.display_order ASC NULLS LAST,
+         a.created_at DESC`,
       [id]
     );
     
     res.json(result.rows);
   } catch (err) {
     console.error('Erreur GET /api/prospects/:id/affaires:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/prospects/:id/affaires/reorder
+// Réordonne les affaires d'un prospect après un drag & drop côté front.
+// Body : { orderedIds: [int, ...] } - IDs dans l'ordre d'affichage souhaité.
+// Pose display_order = position (1-indexed). Le tri par statut reste prioritaire :
+// display_order n'agit qu'à l'intérieur d'un même groupe de statut.
+app.put('/api/prospects/:id/affaires/reorder', auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const orderedIds = Array.isArray(req.body.orderedIds) ? req.body.orderedIds : null;
+    if (!orderedIds || orderedIds.length === 0) {
+      return res.status(400).json({ error: 'orderedIds manquant ou vide' });
+    }
+    await client.query('BEGIN');
+    let updated = 0;
+    for (let i = 0; i < orderedIds.length; i++) {
+      const affId = parseInt(orderedIds[i], 10);
+      if (!Number.isFinite(affId)) continue;
+      const r = await client.query(
+        `UPDATE affaires SET display_order = $1, updated_at = NOW()
+           WHERE id = $2 AND prospect_id = $3`,
+        [i + 1, affId, id]
+      );
+      updated += r.rowCount;
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true, updated });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Erreur reorder affaires:', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/prospects/:id/affaires/reset-order
+// Réinitialise l'ordre custom : toutes les affaires du prospect repassent à display_order=NULL.
+app.post('/api/prospects/:id/affaires/reset-order', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const r = await pool.query(
+      `UPDATE affaires SET display_order = NULL, updated_at = NOW()
+         WHERE prospect_id = $1 AND display_order IS NOT NULL`,
+      [id]
+    );
+    res.json({ ok: true, reset: r.rowCount });
+  } catch (err) {
+    console.error('Erreur reset-order affaires:', err);
     res.status(500).json({ error: err.message });
   }
 });
