@@ -21,6 +21,16 @@
 
   var API_BASE = '/api';
 
+  // IMPORTANT : on capture le fetch NATIF au chargement (ce script tourne dans le
+  // <head>, AVANT que l'app ne remplace window.fetch par son intercepteur 401).
+  // L'app force une déconnexion + redirection sur tout 401 /api/* ; or un 401 de la
+  // couche de nav (ex. palette ouverte avant connexion) ne doit JAMAIS déconnecter
+  // l'utilisateur. En passant par le fetch natif, la nav est totalement isolée de
+  // cet intercepteur.
+  var nativeFetch = (typeof window !== 'undefined' && window.fetch)
+    ? window.fetch.bind(window)
+    : fetch;
+
   // Récupère le token JWT exactement comme l'app existante : localStorage 'user'.
   function getToken() {
     try {
@@ -36,7 +46,7 @@
   function request(path, opts) {
     opts = opts || {};
     var headers = Object.assign({ 'Authorization': 'Bearer ' + getToken() }, opts.headers || {});
-    return fetch(API_BASE + path, { headers: headers, signal: opts.signal })
+    return nativeFetch(API_BASE + path, { headers: headers, signal: opts.signal })
       .then(function (r) {
         if (!r.ok) {
           // On renvoie un tableau/objet vide plutôt que de faire planter l'UI de nav.
@@ -54,6 +64,9 @@
   window.NavApi = {
     // Référentiel de navigation (écrans épinglés + actions rapides).
     getNav: function () {
+      // Pas de token (ex. écran de connexion) → on n'appelle pas l'API : évite un
+      // 401 inutile (et toute interférence avec l'authentification de l'app).
+      if (!getToken()) return Promise.resolve({ ecrans: [], actions: [] });
       return request('/nav').catch(function () {
         return { ecrans: [], actions: [] };
       });
@@ -63,7 +76,7 @@
     // une requête périmée — complète le token de version géré côté composant.
     searchRecords: function (q, signal) {
       var query = (q || '').trim();
-      if (query.length < 2) return Promise.resolve([]);
+      if (query.length < 2 || !getToken()) return Promise.resolve([]);
       return request('/search?q=' + encodeURIComponent(query), { signal: signal })
         .catch(function (err) {
           // Une annulation (AbortError) n'est pas une vraie erreur : on l'avale.
@@ -75,7 +88,7 @@
 
     // Aperçu léger d'une entité (type ∈ prospect|affaire|devis|interlocuteur).
     getPeek: function (type, id) {
-      if (!type || id == null) return Promise.resolve(null);
+      if (!type || id == null || !getToken()) return Promise.resolve(null);
       return request('/peek/' + encodeURIComponent(type) + '/' + encodeURIComponent(id))
         .catch(function (err) {
           console.warn('[NavApi.getPeek]', err.message);
