@@ -2283,6 +2283,10 @@
       const seqRef = React.useRef(1);
       const dragFrom = React.useRef(null);
       const suppress = React.useRef(false); // n'empile PAS l'historique lors d'une nav programmatique (switch/back/restore)
+      // Emplacement (sous le Header) où l'on rend le fil d'Ariane via portail, pour qu'il
+      // soit collé au contenu et bien visible — sans déplacer la logique hors de ce composant.
+      const [bcSlot, setBcSlot] = React.useState(null);
+      React.useEffect(() => { setBcSlot(document.getElementById('tw-breadcrumb-slot')); }, []);
 
       const head = (t) => t.history[t.history.length - 1];
       const sameView = (a, b) => !!a && !!b && a.view === b.view && String(a.prospectId || '') === String(b.prospectId || '');
@@ -2370,8 +2374,9 @@
       const canBack = !!activeTab && activeTab.history.length > 1;
 
       return (
+        <React.Fragment>
         <div style={{ flexShrink: 0, background: 'var(--tw-bg)', borderBottom: '0.5px solid var(--tw-border)', fontFamily: "'DM Sans', sans-serif" }}>
-          {/* Rangée 1 : onglets */}
+          {/* Onglets (rangée du haut) */}
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', padding: '6px 10px 0', overflowX: 'auto' }}>
             {tabs.map((t, i) => {
               const active = t.uid === activeUid; const hv = head(t);
@@ -2398,8 +2403,12 @@
               onMouseEnter={(e) => { e.currentTarget.style.background = '#eaf0f4'; e.currentTarget.style.color = '#12a0dc'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--tw-slate)'; }}>+</button>
           </div>
-          {/* Rangée 2 : retour (Alt+←) + fil d'Ariane cliquable */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 12px', background: 'white', borderTop: '0.5px solid var(--tw-border)' }}>
+        </div>
+        {/* Fil d'Ariane + Retour : rendu via PORTAIL dans l'emplacement situé SOUS le
+            Header (collé au contenu) pour être bien visible, alors que toute la logique
+            (historique, canBack…) reste dans ce composant. */}
+        {bcSlot && ReactDOM.createPortal(
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 24px', background: 'white', borderBottom: '0.5px solid var(--tw-border)', flexShrink: 0, fontFamily: "'DM Sans', sans-serif" }}>
             <button onClick={goBack} disabled={!canBack} title="Retour (Alt+←)"
               style={{ width: '26px', height: '26px', borderRadius: '7px', border: '0.5px solid var(--tw-border)', background: 'white', cursor: canBack ? 'pointer' : 'default', color: canBack ? 'var(--tw-slate)' : '#d4dbe0', display: 'grid', placeItems: 'center', flexShrink: 0 }}
               onMouseEnter={(e) => { if (canBack) { e.currentTarget.style.borderColor = '#12a0dc'; e.currentTarget.style.color = '#12a0dc'; } }}
@@ -2415,14 +2424,16 @@
                       ? <a onClick={() => onRestore(c.go)} style={{ cursor: 'pointer', padding: '2px 6px', borderRadius: '5px', color: 'var(--tw-slate)', whiteSpace: 'nowrap' }}
                           onMouseEnter={(e) => { e.currentTarget.style.background = '#e8f6fc'; e.currentTarget.style.color = '#12a0dc'; }}
                           onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--tw-slate)'; }}>{c.label}</a>
-                      : <span style={{ color: last ? 'var(--tw-ink)' : 'var(--tw-slate)', fontWeight: last ? 600 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '320px' }}>{c.label}</span>}
+                      : <span style={{ color: last ? 'var(--tw-ink)' : 'var(--tw-slate)', fontWeight: last ? 600 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '420px' }}>{c.label}</span>}
                     {!last && <span style={{ opacity: .4, fontSize: '11px' }}>›</span>}
                   </React.Fragment>
                 );
               })}
             </nav>
-          </div>
-        </div>
+          </div>,
+          bcSlot
+        )}
+        </React.Fragment>
       );
     }
 
@@ -4624,7 +4635,10 @@
             onSelectProspect={handleSelectProspect}
             onNewProspect={handleNewProspect}
           />
-          
+
+          {/* Emplacement du fil d'Ariane (rempli par NavTabBar via portail) : sous le menu, au-dessus du contenu. */}
+          <div id="tw-breadcrumb-slot"></div>
+
           {showSettings && <Settings onClose={() => setShowSettings(false)} user={user} />}
 
           {showAttribution && (
