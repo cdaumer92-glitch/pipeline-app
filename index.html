@@ -4506,13 +4506,16 @@
       }
 
       // ── Vue courante (descripteur) pour la NavTabBar : dérivée de l'état de l'app ──
-      const currentView = React.useMemo(() => (
+      // NB : simple const (pas useMemo) car ce bloc est APRÈS le early-return `if (!user)`
+      // ci-dessus ; un hook ici violerait l'ordre des hooks (React #310). Le calcul est
+      // trivial et la NavTabBar ne dépend que des champs primitifs du descripteur.
+      const currentView = (
         showCampagnes   ? { view: 'campagnes',   label: 'Campagnes' }
         : showAttribution ? { view: 'attribution', label: 'Attribution' }
         : selectedProspect ? { view: 'prospect', prospectId: selectedProspect.id, label: selectedProspect.name }
         : isDashboard   ? { view: 'dashboard',   label: 'Dashboard' }
         :                 { view: 'suivi',       label: 'Suivi activités' }
-      ), [showCampagnes, showAttribution, selectedProspect, isDashboard]);
+      );
 
       // ── Restaure une vue depuis un onglet (action inverse de currentView) ──
       const restoreView = (d) => {
