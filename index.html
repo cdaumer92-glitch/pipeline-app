@@ -2457,37 +2457,6 @@
         }
       }, [prospects.length, user]);
 
-      // ── Pont de navigation rapide (palette Ctrl+K / peek) ──────────────────
-      // La couche de navigation est montée dans un SECOND root React (overlay) qui
-      // ne connaît pas l'état de cette app. Elle demande l'ouverture d'une fiche via
-      // un CustomEvent 'tw:navigate'. On l'écoute ici pour piloter l'app existante
-      // SANS rien remplacer : c'est l'unique point de couplage entre les deux mondes.
-      React.useEffect(() => {
-        const onNavigate = async (e) => {
-          const d = (e && e.detail) || {};
-          // Écrans : retour liste ou récap commercial
-          if (d.screen === 'prospects') { setShowRecap(false); setSelectedProspect(null); return; }
-          if (d.screen === 'recap') { setShowRecap(true); return; }
-          // Enregistrement : on ouvre la fiche du prospect parent (affaire/devis/
-          // interlocuteur vivent sous un prospect → prospectId fourni par l'API).
-          if (d.prospectId != null) {
-            const id = Number(d.prospectId);
-            let target = prospects.find(p => p.id === id);
-            if (!target) {
-              // Filet de sécurité si le prospect n'est pas dans la liste déjà chargée.
-              try {
-                const r = await fetch(`${API_URL}/prospects`, { headers: { 'Authorization': `Bearer ${user.token}` } });
-                const all = await r.json();
-                target = Array.isArray(all) ? all.find(p => p.id === id) : null;
-              } catch (err) { /* on ignore : pas de navigation plutôt qu'un crash */ }
-            }
-            if (target) { setShowRecap(false); setSelectedProspect(target); }
-          }
-        };
-        window.addEventListener('tw:navigate', onNavigate);
-        return () => window.removeEventListener('tw:navigate', onNavigate);
-      }, [prospects, user]);
-
       const fetchProspects = async () => {
         try {
           // UNE SEULE requête optimisée côté backend (devis + actions inclus)
@@ -4325,6 +4294,40 @@
         setSelectedAffaireId(null);
         setNewActionDate(new Date().toISOString().split('T')[0]);
       };
+
+      // ── Pont de navigation rapide (palette Ctrl+K / peek) ──────────────────
+      // La couche de navigation est montée dans un SECOND root React (overlay) qui
+      // ne connaît pas l'état de cette app. Elle demande l'ouverture d'une fiche via
+      // un CustomEvent 'tw:navigate'. On l'écoute ici pour piloter l'app existante
+      // SANS rien remplacer. On réutilise handleSelectProspect (= comportement exact
+      // d'un clic sur une ligne : ferme le formulaire + charge les relations), sinon
+      // un simple setSelectedProspect laisse parfois le formulaire ouvert (showForm).
+      React.useEffect(() => {
+        const onNavigate = async (e) => {
+          const d = (e && e.detail) || {};
+          // Écrans : retour liste ou récap commercial
+          if (d.screen === 'prospects') { setShowRecap(false); setSelectedProspect(null); return; }
+          if (d.screen === 'recap') { setShowRecap(true); return; }
+          // Enregistrement : on ouvre la fiche du prospect parent (affaire/devis/
+          // interlocuteur vivent sous un prospect → prospectId fourni par l'API).
+          if (d.prospectId != null) {
+            const id = Number(d.prospectId);
+            let target = prospects.find(p => String(p.id) === String(id));
+            if (!target) {
+              // Filet de sécurité si le prospect n'est pas dans la liste déjà chargée.
+              try {
+                const r = await fetch(`${API_URL}/prospects`, { headers: { 'Authorization': `Bearer ${user.token}` } });
+                const all = await r.json();
+                target = Array.isArray(all) ? all.find(p => String(p.id) === String(id)) : null;
+              } catch (err) { /* on ignore : pas de navigation plutôt qu'un crash */ }
+            }
+            if (target) { setShowRecap(false); handleSelectProspect(target); }
+            else { console.warn('[tw:navigate] prospect introuvable id=', id); }
+          }
+        };
+        window.addEventListener('tw:navigate', onNavigate);
+        return () => window.removeEventListener('tw:navigate', onNavigate);
+      }, [prospects, user]);
 
       // Si non-admin, restreindre aux prospects du user connecté
       let visibleProspects = isUserAdmin(user) ? prospects : prospects.filter(p => p.assigned_to === user.name);
