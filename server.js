@@ -1249,7 +1249,7 @@ app.get('/api/search', auth, async (req, res) => {
       ),
       // Devis : nom de devis OU n° (id) exact
       pool.query(
-        `SELECT d.id, COALESCE(NULLIF(d.devis_name,''), 'Devis #' || d.id) AS label,
+        `SELECT d.id, d.affaire_id, COALESCE(NULLIF(d.devis_name,''), 'Devis #' || d.id) AS label,
                 p.name AS sub, p.id AS prospect_id
            FROM devis d JOIN prospects p ON p.id = d.prospect_id
           WHERE (d.devis_name ILIKE $1 OR CAST(d.id AS TEXT) = $3)
@@ -1274,8 +1274,8 @@ app.get('/api/search', auth, async (req, res) => {
     // entités s'ouvrent via la fiche du prospect parent) ; `entityId`+`type` servent au peek.
     const out = [];
     pros.rows.forEach(r => out.push({ id: `prospect-${r.id}`, type: 'prospect', entityId: r.id, icon: 'users', label: r.label, sub: r.sub || '', prospectId: r.id }));
-    aff.rows.forEach(r => out.push({ id: `affaire-${r.id}`, type: 'affaire', entityId: r.id, icon: 'cart', label: r.label, sub: r.sub || '', prospectId: r.prospect_id }));
-    dev.rows.forEach(r => out.push({ id: `devis-${r.id}`, type: 'devis', entityId: r.id, icon: 'doc', label: r.label, sub: r.sub || '', prospectId: r.prospect_id }));
+    aff.rows.forEach(r => out.push({ id: `affaire-${r.id}`, type: 'affaire', entityId: r.id, icon: 'cart', label: r.label, sub: r.sub || '', prospectId: r.prospect_id, affaireId: r.id }));
+    dev.rows.forEach(r => out.push({ id: `devis-${r.id}`, type: 'devis', entityId: r.id, icon: 'doc', label: r.label, sub: r.sub || '', prospectId: r.prospect_id, affaireId: r.affaire_id || null }));
     inter.rows.forEach(r => out.push({ id: `interlocuteur-${r.id}`, type: 'interlocuteur', entityId: r.id, icon: 'users', label: r.label, sub: r.sub || '', prospectId: r.prospect_id }));
 
     res.json(out);
@@ -1331,12 +1331,13 @@ app.get('/api/peek/:type/:id', auth, async (req, res) => {
           ['Description', a.description || '—'],
         ],
         prospectId: a.prospect_id,
+        affaireId: a.id,
       });
     }
 
     if (type === 'devis') {
       const r = await pool.query(
-        `SELECT d.id, d.devis_name, d.devis_status, d.setup_amount, d.monthly_amount, d.quote_date,
+        `SELECT d.id, d.affaire_id, d.devis_name, d.devis_status, d.setup_amount, d.monthly_amount, d.quote_date,
                 p.id AS prospect_id, p.name AS prospect_name
            FROM devis d JOIN prospects p ON p.id = d.prospect_id
           WHERE d.id = $1 AND ($2::text IS NULL OR p.assigned_to = $2)`,
@@ -1353,6 +1354,7 @@ app.get('/api/peek/:type/:id', auth, async (req, res) => {
           ['Abonnement / mois', fmtEur(d.monthly_amount)],
         ],
         prospectId: d.prospect_id,
+        affaireId: d.affaire_id || null,
       });
     }
 

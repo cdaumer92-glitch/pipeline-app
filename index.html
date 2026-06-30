@@ -4321,7 +4321,15 @@
                 target = Array.isArray(all) ? all.find(p => String(p.id) === String(id)) : null;
               } catch (err) { /* on ignore : pas de navigation plutôt qu'un crash */ }
             }
-            if (target) { setShowRecap(false); handleSelectProspect(target); }
+            if (target) {
+              setShowRecap(false);
+              handleSelectProspect(target);
+              // Focus sur l'entité ciblée : on déroule l'affaire concernée (affaire
+              // directe, ou affaire parente d'un devis). handleSelectProspect remet
+              // selectedAffaireId à null, donc on le repositionne juste après (dernier
+              // setState gagnant) ; l'affaire s'ouvrira dès que la liste est chargée.
+              if (d.affaireId != null) setSelectedAffaireId(Number(d.affaireId));
+            }
             else { console.warn('[tw:navigate] prospect introuvable id=', id); }
           }
         };
@@ -6163,6 +6171,20 @@
               </div>
             )}
           </div>
+
+          {/* RECHERCHE GLOBALE (palette Ctrl+K) — multi-entités : sociétés, devis, affaires, contacts.
+              Distincte de la recherche "société" ci-dessus. Émet tw:palette (l'overlay écoute). */}
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('tw:palette'))}
+            title="Rechercher partout (Ctrl+K) — sociétés, devis, affaires, contacts"
+            style={{display:'flex',alignItems:'center',gap:'7px',background:'var(--tw-bg)',border:'0.5px solid var(--tw-border)',borderRadius:'8px',padding:'6px 10px',fontSize:'12.5px',fontFamily:'DM Sans,sans-serif',color:'var(--tw-slate)',cursor:'pointer',whiteSpace:'nowrap',transition:'all .15s'}}
+            onMouseEnter={(e)=>{e.currentTarget.style.borderColor='#12a0dc';e.currentTarget.style.color='#12a0dc';}}
+            onMouseLeave={(e)=>{e.currentTarget.style.borderColor='var(--tw-border)';e.currentTarget.style.color='var(--tw-slate)';}}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+            Rechercher partout
+            <kbd style={{fontFamily:'DM Sans,sans-serif',fontSize:'10px',fontWeight:600,background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'4px',padding:'1px 5px',color:'var(--tw-slate)'}}>Ctrl K</kbd>
+          </button>
 
           {/* CTA NOUVELLE SOCIÉTÉ — bouton primaire noir style Vercel/Stripe */}
           <button
@@ -12513,7 +12535,7 @@
                 ))}
               </div>
               <div className="twnav-peek-foot">
-                <button className="twnav-btn primary" onClick={() => { navigateTo({ prospectId: data.prospectId }); onClose(); }}>
+                <button className="twnav-btn primary" onClick={() => { navigateTo({ prospectId: data.prospectId, affaireId: data.affaireId }); onClose(); }}>
                   Ouvrir la fiche
                 </button>
               </div>
@@ -12616,8 +12638,8 @@
         if (it.kind === 'ecran') { navigateTo({ screen: it.ecranId }); closePalette(); return; }
         if (it.kind === 'action') { showToast('Action : ' + it.label); window.dispatchEvent(new CustomEvent('tw:action', { detail: { id: it.actionId } })); closePalette(); return; }
         // record
-        setRecents(saveRecent({ id: it.id, type: it.type, entityId: it.entityId, icon: it.icon, label: it.label, sub: it.sub, prospectId: it.prospectId }));
-        navigateTo({ prospectId: it.prospectId, type: it.type, entityId: it.entityId });
+        setRecents(saveRecent({ id: it.id, type: it.type, entityId: it.entityId, icon: it.icon, label: it.label, sub: it.sub, prospectId: it.prospectId, affaireId: it.affaireId }));
+        navigateTo({ prospectId: it.prospectId, type: it.type, entityId: it.entityId, affaireId: it.affaireId });
         closePalette();
       }, [closePalette, showToast]);
 
