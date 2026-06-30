@@ -4417,6 +4417,11 @@
             }
             if (target) {
               setShowRecap(false);
+              // sortir du Dashboard : la fiche ne s'affiche que dans la vue Suivi
+              // (le Dashboard la masque). C'est ce que fait déjà RecapModal.onNavigate.
+              setIsDashboard(false);
+              setShowCampagnes(false);
+              setShowAttribution(false);
               handleSelectProspect(target);
               // Focus sur l'entité ciblée : on déroule l'affaire concernée (affaire
               // directe, ou affaire parente d'un devis). handleSelectProspect remet
@@ -4509,11 +4514,13 @@
       // NB : simple const (pas useMemo) car ce bloc est APRÈS le early-return `if (!user)`
       // ci-dessus ; un hook ici violerait l'ordre des hooks (React #310). Le calcul est
       // trivial et la NavTabBar ne dépend que des champs primitifs du descripteur.
+      // Ordre = celui du rendu réel (cf. `isDashboard ? <Dashboard/> : <master-détail>`) :
+      // le Dashboard masque la fiche, donc isDashboard est prioritaire sur selectedProspect.
       const currentView = (
         showCampagnes   ? { view: 'campagnes',   label: 'Campagnes' }
         : showAttribution ? { view: 'attribution', label: 'Attribution' }
-        : selectedProspect ? { view: 'prospect', prospectId: selectedProspect.id, label: selectedProspect.name }
         : isDashboard   ? { view: 'dashboard',   label: 'Dashboard' }
+        : selectedProspect ? { view: 'prospect', prospectId: selectedProspect.id, label: selectedProspect.name }
         :                 { view: 'suivi',       label: 'Suivi activités' }
       );
 
@@ -4525,7 +4532,9 @@
         setShowCampagnes(false); setShowAttribution(false);
         if (d.view === 'prospect') {
           const p = prospects.find(x => String(x.id) === String(d.prospectId));
-          if (p) handleSelectProspect(p); else { setSelectedProspect(null); setIsDashboard(true); }
+          // setIsDashboard(false) : la fiche ne s'affiche que dans la vue Suivi (le
+          // Dashboard la masque). Sans ça, ouvrir un client depuis le Dashboard ne montre rien.
+          if (p) { setIsDashboard(false); handleSelectProspect(p); } else { setSelectedProspect(null); setIsDashboard(true); }
           return;
         }
         setSelectedProspect(null);
