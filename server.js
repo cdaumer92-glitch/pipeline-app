@@ -1208,7 +1208,6 @@ app.get('/api/nav', auth, async (req, res) => {
       { id: 'liste-societes', label: 'Sociétés (suspects / prospects / clients)', sub: 'Liste filtrable' },
       { id: 'liste-devis',    label: 'Devis en cours',                 sub: 'Tous les devis actifs' },
       { id: 'liste-actions',  label: 'Actions en cours / en retard',   sub: 'À traiter' },
-      { id: 'prospects',      label: 'Suivi activités',                sub: 'Pipeline' },
       { id: 'recap',          label: 'Récap actions & devis',          sub: 'Suivi commercial' },
     ],
     actions: [

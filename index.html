@@ -2362,11 +2362,12 @@
       // Fil d'Ariane dérivé de la vue courante (le dernier crumb = vue active, non cliquable).
       const crumbsFor = (v) => {
         const home = { label: 'Accueil', go: { view: 'dashboard' } };
-        if (v.view === 'prospect')   return [home, { label: 'Suivi activités', go: { view: 'suivi' } }, { label: v.label }];
-        if (v.view === 'dashboard')  return [{ label: 'Accueil' }];
-        if (v.view === 'suivi')      return [home, { label: 'Suivi activités' }];
-        if (v.view === 'campagnes')  return [home, { label: 'Campagnes' }];
-        if (v.view === 'attribution')return [home, { label: 'Attribution' }];
+        const listeLabels = { 'liste-societes': 'Sociétés', 'liste-devis': 'Devis en cours', 'liste-actions': 'Actions' };
+        if (v.view === 'prospect')    return [home, { label: 'Sociétés', go: { view: 'liste-societes' } }, { label: v.label }];
+        if (v.view === 'dashboard')   return [{ label: 'Accueil' }];
+        if (v.view && v.view.indexOf('liste-') === 0) return [home, { label: listeLabels[v.view] || 'Liste' }];
+        if (v.view === 'campagnes')   return [home, { label: 'Campagnes' }];
+        if (v.view === 'attribution') return [home, { label: 'Attribution' }];
         return [home];
       };
       const crumbs = crumbsFor(currentView);
@@ -4763,9 +4764,8 @@
         listeView       ? { view: 'liste-' + listeView, label: ({ devis: 'Devis en cours', societes: 'Sociétés', actions: 'Actions' })[listeView] || 'Listes' }
         : showCampagnes   ? { view: 'campagnes',   label: 'Campagnes' }
         : showAttribution ? { view: 'attribution', label: 'Attribution' }
-        : isDashboard   ? { view: 'dashboard',   label: 'Dashboard' }
         : selectedProspect ? { view: 'prospect', prospectId: selectedProspect.id, label: selectedProspect.name }
-        :                 { view: 'suivi',       label: 'Suivi activités' }
+        :                 { view: 'dashboard',   label: 'Dashboard' }
       );
 
       // ── Restaure une vue depuis un onglet (action inverse de currentView) ──
@@ -4784,7 +4784,7 @@
           return;
         }
         setSelectedProspect(null);
-        setIsDashboard(d.view === 'dashboard'); // 'suivi' → false
+        setIsDashboard(true); // fallback = Dashboard (la vue Suivi a été retirée)
       };
 
       return (
@@ -4797,8 +4797,7 @@
           <Header
             user={user} 
             onLogout={() => { localStorage.removeItem('user'); setUser(null); }} 
-            onDashboard={() => { setListeView(null); setShowAttribution(false); setShowCampagnes(false); setIsDashboard(true); }}
-            onSuivi={() => { setListeView(null); setShowAttribution(false); setShowCampagnes(false); setIsDashboard(false); }}
+            onDashboard={() => { setListeView(null); setShowAttribution(false); setShowCampagnes(false); setSelectedProspect(null); setIsDashboard(true); }}
             isDashboard={isDashboard}
             onSettings={() => setShowSettings(true)}
             onAttribution={() => { setListeView(null); setShowAttribution(true); setShowCampagnes(false); }}
@@ -4866,13 +4865,15 @@
             <ListesView type={listeView} prospects={prospects} user={user} API_URL={API_URL} />
           )}
 
-          {!showCampagnes && !listeView && (isDashboard ? (
+          {/* Sans société sélectionnée → Dashboard ; sinon → fiche plein écran (le panneau-liste
+              "Suivi activités" a été retiré ; on choisit une société via le menu/listes/palette). */}
+          {!showCampagnes && !listeView && (!selectedProspect ? (
             isUserAdmin(user) ? <Dashboard 
               prospects={prospects} 
               selectedCommercial={selectedCommercial} 
               onSelectCommercial={setSelectedCommercial} 
               onSelectProspect={handleSelectProspect} 
-              onOpenDashboard={() => setIsDashboard(false)} 
+              onOpenDashboard={() => { setSelectedProspect(null); setListeView('societes'); }}
               user={user} 
               API_URL={API_URL} 
               prospectActionsInfo={prospectActionsInfo}
@@ -4893,85 +4894,11 @@
               user={user}
               prospectActionsInfo={prospectActionsInfo}
               onSelectProspect={handleSelectProspect}
-              onOpenDashboard={() => setIsDashboard(false)}
+              onOpenDashboard={() => { setSelectedProspect(null); setListeView('societes'); }}
               API_URL={API_URL}
             />
           ) : (
           <div style={styles.content}>
-            {/* Wrapper : permet de replier le panneau de gauche en glissant sa largeur à 0,
-                tout en gardant un bouton flottant à droite pour le rouvrir. Transition douce. */}
-            <div style={{
-              width: leftPanelCollapsed ? '0px' : '350px',
-              flexShrink: 0,
-              overflow: 'hidden',
-              transition: 'width 0.25s ease',
-              position: 'relative',
-              display: 'flex'
-            }}>
-            <LeftPanel
-              prospects={filteredProspects}
-              allProspects={visibleProspects}
-              selectedProspect={selectedProspect}
-              onSelect={handleSelectProspect}
-              filterSocietyType={filterSocietyType}
-              onFilterSocietyTypeChange={setFilterSocietyType}
-              filterStatus={filterStatus}
-              onFilterChange={setFilterStatus}
-              filterCommercial={filterCommercial}
-              onFilterCommercialChange={setFilterCommercial}
-              isAdmin={isUserAdmin(user)}
-              filterAttribution={filterAttribution}
-              onFilterAttributionChange={setFilterAttribution}
-              currentUser={user}
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-              sortBy={sortBy}
-              onSortChange={setSortBy}
-              prospectActionsInfo={prospectActionsInfo}
-              onNewProspect={() => {
-                setNewCompanyData({
-                  name: '', statut_societe: '', assigned_to: user?.name || '',
-                  siren: '', tel_standard: '', website: '',
-                  adresse: '', code_naf: '', marques: [], notes: ''
-                });
-                setNewCompanyErrors({});
-                setShowNewCompanyModal(true);
-              }}
-            />
-            </div>
-
-            {/* Bouton flottant pour replier/déplier le panneau de gauche.
-                Couleurs adaptatives :
-                - Panneau ouvert : clair (white), reste discret en bordure du panneau
-                - Panneau fermé : anthracite (var(--tw-ink)), bien visible sur fond gris du contenu */}
-            <button
-              onClick={() => setLeftPanelCollapsed(c => !c)}
-              title={leftPanelCollapsed ? 'Afficher la liste des prospects' : 'Masquer la liste des prospects'}
-              style={{
-                position: 'absolute',
-                left: leftPanelCollapsed ? '0px' : '343px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 50,
-                width: '14px', height: '56px',
-                background: leftPanelCollapsed ? 'var(--tw-ink)' : 'white',
-                color: leftPanelCollapsed ? 'white' : 'var(--tw-slate)',
-                border: '0.5px solid ' + (leftPanelCollapsed ? 'var(--tw-ink)' : 'var(--tw-border)'),
-                borderLeft: leftPanelCollapsed ? '0.5px solid var(--tw-ink)' : 'none',
-                borderRadius: leftPanelCollapsed ? '0 6px 6px 0' : '6px 0 0 6px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '11px',
-                fontWeight: 600,
-                boxShadow: '1px 1px 3px rgba(0,0,0,0.06)',
-                transition: 'left 0.25s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease',
-                fontFamily: "'DM Sans', sans-serif"
-              }}>
-              {leftPanelCollapsed ? '›' : '‹'}
-            </button>
-
             <RightPanel
               key={selectedProspect?.id}
               selectedProspect={selectedProspect}
@@ -6501,7 +6428,6 @@
             {(() => {
               const none = !showAttribution && !showCampagnes && !activeListe;
               const dashOn = isDashboard && none;
-              const suiviOn = !isDashboard && none;
               const navBtn = (label, on, onClick) => (
                 <button key={label} onClick={onClick}
                   style={{padding:'6px 12px',borderRadius:'6px',background: on ? 'var(--tw-teal-light)' : 'transparent',color: on ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: on ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',transition:'all .15s',whiteSpace:'nowrap'}}>{label}</button>
@@ -6509,7 +6435,6 @@
               return (
                 <React.Fragment>
                   {navBtn('Dashboard', dashOn, () => { if (!dashOn) onDashboard(); })}
-                  {navBtn('Suivi activités', suiviOn, () => { if (!suiviOn) onSuivi(); })}
                   {navBtn('Sociétés', activeListe === 'societes', () => onListe('societes'))}
                   {navBtn('Devis en cours', activeListe === 'devis', () => onListe('devis'))}
                   {navBtn('Actions', activeListe === 'actions', () => onListe('actions'))}
