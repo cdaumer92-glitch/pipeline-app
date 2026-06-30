@@ -2270,6 +2270,100 @@
       );
     }
 
+    // ══════════════════════════════════════════════════
+    // NAVTABBAR — onglets façon navigateur (phase 2 nav rapide)
+    // Composant autonome piloté UNIQUEMENT par props : il gère sa liste d'onglets ;
+    // l'onglet actif reflète la vue courante de l'app (prop currentView) ; changer
+    // d'onglet restaure une vue via onRestore(descriptor). Aucun couplage externe.
+    // ══════════════════════════════════════════════════
+    function NavTabBar({ currentView, onRestore, onOpenPalette }) {
+      const [tabs, setTabs] = React.useState(() => [{ uid: 1, ...currentView }]);
+      const [activeUid, setActiveUid] = React.useState(1);
+      const seqRef = React.useRef(1);
+      const dragFrom = React.useRef(null);
+
+      // L'onglet actif est un miroir de la vue courante de l'app : dès que la vue
+      // change (header, sélection de fiche, palette…), on met à jour son descripteur.
+      React.useEffect(() => {
+        setTabs(prev => prev.map(t => t.uid === activeUid ? { uid: t.uid, ...currentView } : t));
+      }, [currentView.view, currentView.prospectId, currentView.label]);
+
+      const selectTab = (t) => { if (t.uid === activeUid) return; setActiveUid(t.uid); onRestore(t); };
+      const newTab = () => {
+        const uid = ++seqRef.current;
+        setTabs(prev => [...prev, { uid, view: 'dashboard', label: 'Nouvel onglet' }]);
+        setActiveUid(uid);
+        onRestore({ view: 'dashboard' }); // vue neutre sous le nouvel onglet
+        if (onOpenPalette) onOpenPalette();  // on propose tout de suite la recherche
+      };
+      const closeTab = (t, e) => {
+        if (e) e.stopPropagation();
+        setTabs(prev => {
+          if (prev.length === 1) return prev; // garder au moins un onglet
+          const idx = prev.findIndex(x => x.uid === t.uid);
+          const next = prev.filter(x => x.uid !== t.uid);
+          if (t.uid === activeUid) { const fb = next[Math.min(idx, next.length - 1)]; setActiveUid(fb.uid); onRestore(fb); }
+          return next;
+        });
+      };
+      const onDrop = (i) => (e) => {
+        e.preventDefault();
+        const from = dragFrom.current; dragFrom.current = null;
+        if (from == null || from === i) return;
+        setTabs(prev => { const arr = [...prev]; const [m] = arr.splice(from, 1); arr.splice(i, 0, m); return arr; });
+      };
+
+      // Ctrl+T (nouvel onglet) / Ctrl+W (fermer) — Ctrl+W seulement s'il reste >1 onglet
+      // (sinon on laisse le navigateur fermer son onglet normalement).
+      React.useEffect(() => {
+        const onKey = (e) => {
+          const k = (e.key || '').toLowerCase();
+          if ((e.ctrlKey || e.metaKey) && k === 't') { e.preventDefault(); newTab(); }
+          else if ((e.ctrlKey || e.metaKey) && k === 'w' && tabs.length > 1) { e.preventDefault(); const t = tabs.find(x => x.uid === activeUid); if (t) closeTab(t); }
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+      }, [tabs, activeUid, onRestore]);
+
+      const iconPath = {
+        dashboard: 'M3 13h8V3H3zM13 21h8V11h-8zM13 3v6h8V3zM3 21h8v-6H3z',
+        suivi: 'M3 3v18h18 M18 9l-5 5-3-3-4 4',
+        campagnes: 'M3 11l19-9-9 19-2-8-8-2z',
+        attribution: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
+        prospect: 'M20 21v-2a4 4 0 0 0-3-3.87 M4 21v-2a4 4 0 0 1 3-3.87 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
+      };
+      const TabIcon = (v) => React.createElement('svg', { width: 13, height: 13, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', style: { flexShrink: 0 }, dangerouslySetInnerHTML: { __html: `<path d="${iconPath[v] || iconPath.dashboard}"/>` } });
+
+      return (
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', background: 'var(--tw-bg)', borderBottom: '0.5px solid var(--tw-border)', padding: '6px 10px 0', flexShrink: 0, overflowX: 'auto', fontFamily: "'DM Sans', sans-serif" }}>
+          {tabs.map((t, i) => {
+            const active = t.uid === activeUid;
+            return (
+              <div key={t.uid} draggable
+                onDragStart={(e) => { dragFrom.current = i; e.dataTransfer.effectAllowed = 'move'; }}
+                onDragOver={(e) => e.preventDefault()} onDrop={onDrop(i)}
+                onClick={() => selectTab(t)} onAuxClick={(e) => { if (e.button === 1) closeTab(t, e); }}
+                title={t.label}
+                style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '7px 11px', maxWidth: '200px', fontSize: '12.5px', cursor: 'pointer', whiteSpace: 'nowrap', borderRadius: '8px 8px 0 0', border: '0.5px solid ' + (active ? 'var(--tw-border)' : 'transparent'), borderBottom: 'none', background: active ? 'white' : 'transparent', color: active ? '#12a0dc' : 'var(--tw-slate)', fontWeight: active ? 600 : 500, marginBottom: active ? '-1px' : 0, userSelect: 'none' }}>
+                {TabIcon(t.view)}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.label || 'Onglet'}</span>
+                {tabs.length > 1 && (
+                  <span onClick={(e) => closeTab(t, e)} title="Fermer (Ctrl+W)"
+                    style={{ width: '16px', height: '16px', borderRadius: '4px', display: 'grid', placeItems: 'center', fontSize: '14px', lineHeight: 1, opacity: .55 }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,.08)'; e.currentTarget.style.opacity = 1; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.opacity = .55; }}>×</span>
+                )}
+              </div>
+            );
+          })}
+          <button onClick={newTab} title="Nouvel onglet (Ctrl+T)"
+            style={{ width: '28px', height: '28px', border: 'none', background: 'transparent', color: 'var(--tw-slate)', fontSize: '18px', borderRadius: '7px', cursor: 'pointer', flexShrink: 0, marginBottom: '2px' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#eaf0f4'; e.currentTarget.style.color = '#12a0dc'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--tw-slate)'; }}>+</button>
+        </div>
+      );
+    }
+
     function App() {
       const [user, setUser] = React.useState(null);
       const [isDashboard, setIsDashboard] = React.useState(true);
@@ -4411,9 +4505,38 @@
         return <LoginForm onLogin={handleLogin} />;
       }
 
+      // ── Vue courante (descripteur) pour la NavTabBar : dérivée de l'état de l'app ──
+      const currentView = React.useMemo(() => (
+        showCampagnes   ? { view: 'campagnes',   label: 'Campagnes' }
+        : showAttribution ? { view: 'attribution', label: 'Attribution' }
+        : selectedProspect ? { view: 'prospect', prospectId: selectedProspect.id, label: selectedProspect.name }
+        : isDashboard   ? { view: 'dashboard',   label: 'Dashboard' }
+        :                 { view: 'suivi',       label: 'Suivi activités' }
+      ), [showCampagnes, showAttribution, selectedProspect, isDashboard]);
+
+      // ── Restaure une vue depuis un onglet (action inverse de currentView) ──
+      const restoreView = (d) => {
+        setShowSettings(false);
+        if (d.view === 'campagnes')   { setShowAttribution(false); setSelectedProspect(null); setShowCampagnes(true); return; }
+        if (d.view === 'attribution') { setShowCampagnes(false); setSelectedProspect(null); setShowAttribution(true); return; }
+        setShowCampagnes(false); setShowAttribution(false);
+        if (d.view === 'prospect') {
+          const p = prospects.find(x => String(x.id) === String(d.prospectId));
+          if (p) handleSelectProspect(p); else { setSelectedProspect(null); setIsDashboard(true); }
+          return;
+        }
+        setSelectedProspect(null);
+        setIsDashboard(d.view === 'dashboard'); // 'suivi' → false
+      };
+
       return (
         <div style={styles.container}>
-          <Header 
+          <NavTabBar
+            currentView={currentView}
+            onRestore={restoreView}
+            onOpenPalette={() => window.dispatchEvent(new CustomEvent('tw:palette'))}
+          />
+          <Header
             user={user} 
             onLogout={() => { localStorage.removeItem('user'); setUser(null); }} 
             onDashboard={() => { setIsDashboard(!isDashboard); setShowAttribution(false); setShowCampagnes(false); }} 
