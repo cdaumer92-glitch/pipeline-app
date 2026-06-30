@@ -2437,9 +2437,177 @@
       );
     }
 
+    // ══════════════════════════════════════════════════
+    // LISTESVIEW — 3 listes transverses (devis en cours / sociétés / actions)
+    // Filtrées par droits (non-admin = ses données) + filtre commercial (admin).
+    // Clic sur une ligne = ouvre la fiche (event tw:navigate, réutilise la nav).
+    // ══════════════════════════════════════════════════
+    function ListesView({ type, prospects, user, API_URL }) {
+      const admin = (typeof isUserAdmin === 'function') ? isUserAdmin(user) : !!(user && (user.role === 'admin' || user.name === 'Christian'));
+      const [commercial, setCommercial] = React.useState('__all__');
+      const [statut, setStatut] = React.useState('Tous');
+      const [devis, setDevis] = React.useState(null);
+      const [actions, setActions] = React.useState(null);
+      const [loading, setLoading] = React.useState(false);
+
+      // Chargement à la demande des données non déjà présentes côté front.
+      React.useEffect(() => {
+        let abort = false;
+        const opts = { headers: { 'Authorization': 'Bearer ' + (user && user.token) } };
+        if (type === 'devis' && devis === null) {
+          setLoading(true);
+          fetch(`${API_URL}/devis/all`, opts).then(r => r.json())
+            .then(d => { if (!abort) setDevis(Array.isArray(d) ? d : []); })
+            .catch(() => { if (!abort) setDevis([]); })
+            .then(() => { if (!abort) setLoading(false); });
+        } else if (type === 'actions' && actions === null) {
+          setLoading(true);
+          fetch(`${API_URL}/lists/actions`, opts).then(r => r.json())
+            .then(d => { if (!abort) setActions(Array.isArray(d) ? d : []); })
+            .catch(() => { if (!abort) setActions([]); })
+            .then(() => { if (!abort) setLoading(false); });
+        }
+        return () => { abort = true; };
+      }, [type]);
+
+      // Filtre de visibilité : non-admin = ses données ; admin = tout (ou un commercial choisi).
+      const inScope = (c) => admin ? (commercial === '__all__' || c === commercial) : (c === (user && user.name));
+      const openFiche = (prospectId, affaireId, t, id) => window.dispatchEvent(new CustomEvent('tw:navigate', { detail: { prospectId, affaireId, type: t, entityId: id } }));
+
+      const commerciaux = (() => {
+        const src = type === 'devis' ? (devis || []).map(d => d.commercial)
+          : type === 'actions' ? (actions || []).map(a => a.commercial)
+          : prospects.map(p => p.assigned_to);
+        return Array.from(new Set(src.filter(Boolean))).sort();
+      })();
+
+      const fmtDate = (d) => d ? String(d).slice(0, 10).split('-').reverse().join('/') : '—';
+      const fmtEur = (v) => { const n = Number(v); return (!v || isNaN(n)) ? '—' : n.toLocaleString('fr-FR') + ' €'; };
+      const th = { textAlign: 'left', fontSize: '10.5px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px', color: 'var(--tw-muted)', padding: '10px 12px', borderBottom: '1px solid var(--tw-border)', whiteSpace: 'nowrap' };
+      const td = { padding: '10px 12px', borderBottom: '0.5px solid var(--tw-border)', fontSize: '13px', color: 'var(--tw-ink)' };
+      const lk = { color: '#12a0dc', fontWeight: 600 };
+      const tableStyle = { width: '100%', borderCollapse: 'collapse', background: 'white', borderRadius: '12px', overflow: 'hidden', border: '0.5px solid var(--tw-border)' };
+      const badge = (s) => { const m = ({ Suspect: ['#7a7a7a', '#f0f0f0'], Prospect: ['#c47d10', '#fdf3e3'], Client: ['#1a8f4c', '#e7f7ed'] })[s] || ['#5b6b78', '#eef2f5']; return { display: 'inline-block', fontSize: '11px', fontWeight: 600, padding: '2px 9px', borderRadius: '20px', color: m[0], background: m[1] }; };
+      const rowHover = { onMouseOver: e => e.currentTarget.style.background = '#f7fbfd', onMouseOut: e => e.currentTarget.style.background = 'white' };
+      const Empty = (msg) => <div style={{ padding: '36px', textAlign: 'center', color: 'var(--tw-muted)', fontSize: '14px' }}>{msg}</div>;
+
+      const Wrap = (title, sub, filters, children) => (
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '22px 28px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '18px', gap: '16px', flexWrap: 'wrap' }}>
+            <div><h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tw-ink)' }}>{title}</h1><p style={{ fontSize: '13px', color: 'var(--tw-muted)', marginTop: '3px' }}>{sub}</p></div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>{filters}</div>
+          </div>
+          {children}
+        </div>
+      );
+      const commercialFilter = admin ? (
+        <select value={commercial} onChange={e => setCommercial(e.target.value)} style={{ padding: '6px 10px', borderRadius: '8px', border: '0.5px solid var(--tw-border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--tw-ink)', background: 'white' }}>
+          <option value="__all__">Tous les commerciaux</option>
+          {commerciaux.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      ) : null;
+
+      // ---- SOCIÉTÉS ----
+      if (type === 'societes') {
+        const base = prospects.filter(p => inScope(p.assigned_to));
+        const counts = { Suspect: 0, Prospect: 0, Client: 0 };
+        base.forEach(p => { const s = p.statut_societe || 'Prospect'; if (counts[s] != null) counts[s]++; });
+        let rows = (statut === 'Tous' ? base : base.filter(p => (p.statut_societe || 'Prospect') === statut)).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        const statutFilter = (
+          <div style={{ display: 'flex', gap: '4px' }}>
+            {['Tous', 'Suspect', 'Prospect', 'Client'].map(s => (
+              <button key={s} onClick={() => setStatut(s)} style={{ padding: '6px 11px', borderRadius: '8px', border: '0.5px solid ' + (statut === s ? '#12a0dc' : 'var(--tw-border)'), background: statut === s ? '#e8f6fc' : 'white', color: statut === s ? '#0d7fb0' : 'var(--tw-slate)', fontSize: '12.5px', fontWeight: statut === s ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>{s}</button>
+            ))}
+          </div>
+        );
+        return Wrap('Sociétés', `${counts.Suspect} suspect(s) · ${counts.Prospect} prospect(s) · ${counts.Client} client(s)`, <React.Fragment>{statutFilter}{commercialFilter}</React.Fragment>,
+          rows.length === 0 ? Empty('Aucune société.') : (
+            <table style={tableStyle}>
+              <thead><tr><th style={th}>Société</th><th style={th}>Type</th><th style={th}>Commercial</th><th style={th}>Contact</th><th style={th}>Téléphone</th></tr></thead>
+              <tbody>
+                {rows.map(p => (
+                  <tr key={p.id} style={{ cursor: 'pointer' }} {...rowHover} onClick={() => openFiche(p.id, null, 'prospect', p.id)}>
+                    <td style={{ ...td, ...lk }}>{p.name}</td>
+                    <td style={td}><span style={badge(p.statut_societe || 'Prospect')}>{p.statut_societe || 'Prospect'}</span></td>
+                    <td style={td}>{p.assigned_to || '—'}</td>
+                    <td style={td}>{p.contact_name || '—'}</td>
+                    <td style={td}>{p.tel_standard || p.phone || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        );
+      }
+
+      // ---- DEVIS EN COURS ----
+      if (type === 'devis') {
+        if (loading || devis === null) return Wrap('Devis en cours', '', commercialFilter, Empty('Chargement…'));
+        const EN_COURS = ['En cours', 'Envoyé', 'Discussion', 'Négociation'];
+        const rows = (devis || []).filter(d => EN_COURS.includes(d.devis_status) && inScope(d.commercial))
+          .sort((a, b) => String(b.quote_date || '').localeCompare(String(a.quote_date || '')));
+        return Wrap('Devis en cours', `${rows.length} devis actif(s) — statuts hors Gagné / Perdu / Annulé`, commercialFilter,
+          rows.length === 0 ? Empty('Aucun devis en cours.') : (
+            <table style={tableStyle}>
+              <thead><tr><th style={th}>Devis</th><th style={th}>Société</th><th style={th}>Statut</th><th style={th}>Mise en place</th><th style={th}>Abo / mois</th><th style={th}>Date</th><th style={th}>Commercial</th></tr></thead>
+              <tbody>
+                {rows.map(d => (
+                  <tr key={d.id} style={{ cursor: 'pointer' }} {...rowHover} onClick={() => openFiche(d.prospect_id, d.affaire_id, 'devis', d.id)}>
+                    <td style={{ ...td, ...lk }}>{d.devis_name || ('Devis #' + d.id)}</td>
+                    <td style={td}>{d.prospect_name || '—'}</td>
+                    <td style={td}>{d.devis_status || '—'}</td>
+                    <td style={td}>{fmtEur(d.setup_amount)}</td>
+                    <td style={td}>{fmtEur(d.monthly_amount)}</td>
+                    <td style={td}>{fmtDate(d.quote_date)}</td>
+                    <td style={td}>{d.commercial || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        );
+      }
+
+      // ---- ACTIONS (2 sections : en retard / à venir) ----
+      if (type === 'actions') {
+        if (loading || actions === null) return Wrap('Actions', '', commercialFilter, Empty('Chargement…'));
+        const today = new Date().toISOString().slice(0, 10);
+        const scoped = (actions || []).filter(a => inScope(a.commercial));
+        const late = scoped.filter(a => a.planned_date && String(a.planned_date).slice(0, 10) < today).sort((a, b) => String(a.planned_date).localeCompare(String(b.planned_date)));
+        const upcoming = scoped.filter(a => !a.planned_date || String(a.planned_date).slice(0, 10) >= today).sort((a, b) => String(a.planned_date || '').localeCompare(String(b.planned_date || '')));
+        const tableFor = (list, lateFlag) => (
+          <table style={{ ...tableStyle, marginBottom: '24px' }}>
+            <thead><tr><th style={th}>Date</th><th style={th}>Société</th><th style={th}>Action</th><th style={th}>Acteur</th><th style={th}>Contact</th></tr></thead>
+            <tbody>
+              {list.map(a => (
+                <tr key={a.id} style={{ cursor: 'pointer' }} {...rowHover} onClick={() => openFiche(a.prospect_id, a.affaire_id, 'prospect', a.prospect_id)}>
+                  <td style={{ ...td, color: lateFlag ? '#dc2626' : 'var(--tw-ink)', fontWeight: lateFlag ? 600 : 400, whiteSpace: 'nowrap' }}>{fmtDate(a.planned_date)}</td>
+                  <td style={{ ...td, ...lk }}>{a.prospect_name || '—'}</td>
+                  <td style={td}>{a.action_type || '—'}</td>
+                  <td style={td}>{a.actor || '—'}</td>
+                  <td style={td}>{a.contact || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+        return Wrap('Actions', `${late.length} en retard · ${upcoming.length} à venir`, commercialFilter,
+          <React.Fragment>
+            <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#dc2626', margin: '4px 0 10px' }}>⚠ En retard ({late.length})</h2>
+            {late.length === 0 ? Empty('Aucune action en retard 🎉') : tableFor(late, true)}
+            <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--tw-ink)', margin: '8px 0 10px' }}>À venir / en cours ({upcoming.length})</h2>
+            {upcoming.length === 0 ? Empty('Aucune action à venir.') : tableFor(upcoming, false)}
+          </React.Fragment>
+        );
+      }
+
+      return null;
+    }
+
     function App() {
       const [user, setUser] = React.useState(null);
       const [isDashboard, setIsDashboard] = React.useState(true);
+      const [listeView, setListeView] = React.useState(null); // null | 'devis' | 'societes' | 'actions' (listes transverses)
       const [showAttribution, setShowAttribution] = React.useState(false);
       const [showCampagnes, setShowCampagnes] = React.useState(false);
       const isUserAdmin = (u) => u && ['Christian', 'Frédéric', 'Frederic'].includes(u.name);
@@ -4444,6 +4612,7 @@
       const handleSelectProspect = (prospect) => {
         console.log('Clicking on prospect:', prospect.id, prospect.name);
         setSelectedProspect(prospect);
+        setListeView(null);  // quitter une éventuelle vue "liste" pour afficher la fiche
         setShowForm(false);  // Fermer le formulaire pour afficher les activités
         if (!activities[prospect.id]) {
           fetchActivities(prospect.id);
@@ -4472,9 +4641,10 @@
       React.useEffect(() => {
         const onNavigate = async (e) => {
           const d = (e && e.detail) || {};
-          // Écrans : retour liste ou récap commercial
-          if (d.screen === 'prospects') { setShowRecap(false); setSelectedProspect(null); return; }
-          if (d.screen === 'recap') { setShowRecap(true); return; }
+          // Écrans : listes transverses, suivi, ou récap commercial
+          if (d.screen && d.screen.indexOf('liste-') === 0) { setShowRecap(false); setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeView(d.screen.slice(6)); return; }
+          if (d.screen === 'prospects') { setListeView(null); setShowRecap(false); setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setIsDashboard(false); return; }
+          if (d.screen === 'recap') { setListeView(null); setShowRecap(true); return; }
           // Enregistrement : on ouvre la fiche du prospect parent (affaire/devis/
           // interlocuteur vivent sous un prospect → prospectId fourni par l'API).
           if (d.prospectId != null) {
@@ -4590,7 +4760,8 @@
       // Ordre = celui du rendu réel (cf. `isDashboard ? <Dashboard/> : <master-détail>`) :
       // le Dashboard masque la fiche, donc isDashboard est prioritaire sur selectedProspect.
       const currentView = (
-        showCampagnes   ? { view: 'campagnes',   label: 'Campagnes' }
+        listeView       ? { view: 'liste-' + listeView, label: ({ devis: 'Devis en cours', societes: 'Sociétés', actions: 'Actions' })[listeView] || 'Listes' }
+        : showCampagnes   ? { view: 'campagnes',   label: 'Campagnes' }
         : showAttribution ? { view: 'attribution', label: 'Attribution' }
         : isDashboard   ? { view: 'dashboard',   label: 'Dashboard' }
         : selectedProspect ? { view: 'prospect', prospectId: selectedProspect.id, label: selectedProspect.name }
@@ -4600,6 +4771,8 @@
       // ── Restaure une vue depuis un onglet (action inverse de currentView) ──
       const restoreView = (d) => {
         setShowSettings(false);
+        if (d.view && d.view.indexOf('liste-') === 0) { setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeView(d.view.slice(6)); return; }
+        setListeView(null);
         if (d.view === 'campagnes')   { setShowAttribution(false); setSelectedProspect(null); setShowCampagnes(true); return; }
         if (d.view === 'attribution') { setShowCampagnes(false); setSelectedProspect(null); setShowAttribution(true); return; }
         setShowCampagnes(false); setShowAttribution(false);
@@ -4624,13 +4797,16 @@
           <Header
             user={user} 
             onLogout={() => { localStorage.removeItem('user'); setUser(null); }} 
-            onDashboard={() => { setIsDashboard(!isDashboard); setShowAttribution(false); setShowCampagnes(false); }} 
-            isDashboard={isDashboard} 
+            onDashboard={() => { setListeView(null); setShowAttribution(false); setShowCampagnes(false); setIsDashboard(true); }}
+            onSuivi={() => { setListeView(null); setShowAttribution(false); setShowCampagnes(false); setIsDashboard(false); }}
+            isDashboard={isDashboard}
             onSettings={() => setShowSettings(true)}
-            onAttribution={() => { setShowAttribution(true); setShowCampagnes(false); }}
+            onAttribution={() => { setListeView(null); setShowAttribution(true); setShowCampagnes(false); }}
             showAttribution={showAttribution}
-            onCampagnes={() => { setShowCampagnes(true); setShowAttribution(false); }}
+            onCampagnes={() => { setListeView(null); setShowCampagnes(true); setShowAttribution(false); }}
             showCampagnes={showCampagnes}
+            onListe={(t) => { setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeView(t); }}
+            activeListe={listeView}
             prospects={isUserAdmin(user) ? prospects : prospects.filter(p => p.assigned_to === user.name)}
             onSelectProspect={handleSelectProspect}
             onNewProspect={handleNewProspect}
@@ -4684,8 +4860,13 @@
               API_URL={API_URL}
             />
           )}
-          
-          {!showCampagnes && (isDashboard ? (
+
+          {/* Listes transverses (devis en cours / sociétés / actions) — plein écran quand actives */}
+          {listeView && !showCampagnes && !showAttribution && (
+            <ListesView type={listeView} prospects={prospects} user={user} API_URL={API_URL} />
+          )}
+
+          {!showCampagnes && !listeView && (isDashboard ? (
             isUserAdmin(user) ? <Dashboard 
               prospects={prospects} 
               selectedCommercial={selectedCommercial} 
@@ -6272,7 +6453,7 @@
       );
     }
 
-    function Header({ user, onLogout, onDashboard, isDashboard, onSettings, onAttribution, showAttribution, onCampagnes, showCampagnes, prospects, onSelectProspect, onNewProspect }) {
+    function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSettings, onAttribution, showAttribution, onCampagnes, showCampagnes, onListe, activeListe, prospects, onSelectProspect, onNewProspect }) {
       const [globalSearch, setGlobalSearch] = React.useState('');
       const [showResults, setShowResults] = React.useState(false);
       const [searchIndex, setSearchIndex] = React.useState(-1);
@@ -6316,25 +6497,27 @@
           </div>
 
           {/* NAV PRINCIPALE (gauche) */}
-          <nav style={{display:'flex',gap:'2px'}}>
-            <button
-              onClick={() => { if (!isDashboard || showAttribution || showCampagnes) onDashboard(); }}
-              style={{padding:'6px 12px',borderRadius:'6px',background: isDashboard && !showAttribution && !showCampagnes ? 'var(--tw-teal-light)' : 'transparent',color: isDashboard && !showAttribution && !showCampagnes ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: isDashboard && !showAttribution && !showCampagnes ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',transition:'all .15s'}}
-            >Dashboard</button>
-            <button
-              onClick={() => { if (isDashboard || showAttribution || showCampagnes) onDashboard(); }}
-              style={{padding:'6px 12px',borderRadius:'6px',background: !isDashboard && !showAttribution && !showCampagnes ? 'var(--tw-teal-light)' : 'transparent',color: !isDashboard && !showAttribution && !showCampagnes ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: !isDashboard && !showAttribution && !showCampagnes ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',transition:'all .15s'}}
-            >Suivi activités</button>
-            <button
-              onClick={onCampagnes}
-              style={{padding:'6px 12px',borderRadius:'6px',background: showCampagnes ? 'var(--tw-teal-light)' : 'transparent',color: showCampagnes ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: showCampagnes ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',transition:'all .15s'}}
-            >Campagnes</button>
-            {user.name === 'Christian' && (
-              <button
-                onClick={onAttribution}
-                style={{padding:'6px 12px',borderRadius:'6px',background: showAttribution ? 'var(--tw-teal-light)' : 'transparent',color: showAttribution ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: showAttribution ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer'}}
-              >Attribution</button>
-            )}
+          <nav style={{display:'flex',gap:'2px',flexWrap:'wrap'}}>
+            {(() => {
+              const none = !showAttribution && !showCampagnes && !activeListe;
+              const dashOn = isDashboard && none;
+              const suiviOn = !isDashboard && none;
+              const navBtn = (label, on, onClick) => (
+                <button key={label} onClick={onClick}
+                  style={{padding:'6px 12px',borderRadius:'6px',background: on ? 'var(--tw-teal-light)' : 'transparent',color: on ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: on ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',transition:'all .15s',whiteSpace:'nowrap'}}>{label}</button>
+              );
+              return (
+                <React.Fragment>
+                  {navBtn('Dashboard', dashOn, () => { if (!dashOn) onDashboard(); })}
+                  {navBtn('Suivi activités', suiviOn, () => { if (!suiviOn) onSuivi(); })}
+                  {navBtn('Sociétés', activeListe === 'societes', () => onListe('societes'))}
+                  {navBtn('Devis en cours', activeListe === 'devis', () => onListe('devis'))}
+                  {navBtn('Actions', activeListe === 'actions', () => onListe('actions'))}
+                  {navBtn('Campagnes', showCampagnes, onCampagnes)}
+                  {user.name === 'Christian' && navBtn('Attribution', showAttribution, onAttribution)}
+                </React.Fragment>
+              );
+            })()}
           </nav>
 
           {/* SEARCH (centre, étirée) */}

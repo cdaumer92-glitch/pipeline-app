@@ -1205,8 +1205,11 @@ function fmtEur(v) {
 app.get('/api/nav', auth, async (req, res) => {
   res.json({
     ecrans: [
-      { id: 'prospects', label: 'Prospects & clients', sub: 'Liste du pipeline' },
-      { id: 'recap',     label: 'Récap actions & devis', sub: 'Suivi commercial' },
+      { id: 'liste-societes', label: 'Sociétés (suspects / prospects / clients)', sub: 'Liste filtrable' },
+      { id: 'liste-devis',    label: 'Devis en cours',                 sub: 'Tous les devis actifs' },
+      { id: 'liste-actions',  label: 'Actions en cours / en retard',   sub: 'À traiter' },
+      { id: 'prospects',      label: 'Suivi activités',                sub: 'Pipeline' },
+      { id: 'recap',          label: 'Récap actions & devis',          sub: 'Suivi commercial' },
     ],
     actions: [
       { id: 'act-prospect', icon: 'plus', label: 'Nouveau prospect', sub: 'Créer une fiche société', kbd: ['G', 'P'] },
@@ -2088,6 +2091,28 @@ app.get('/api/devis/all', auth, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Erreur GET /api/devis/all:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/lists/actions — toutes les actions non complétées (pour la liste "Actions
+// en cours / en retard"). Jointes au prospect pour le nom + le commercial. Le filtrage
+// par droits/commercial et le tri en retard/à venir se font côté front (modèle existant
+// "charge tout, filtre en UI", cohérent avec /api/devis/all et /api/prospects).
+app.get('/api/lists/actions', auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT na.id, na.prospect_id, na.affaire_id, na.action_type, na.planned_date,
+              na.actor, na.contact,
+              p.name AS prospect_name, p.assigned_to AS commercial
+         FROM next_actions na
+         JOIN prospects p ON p.id = na.prospect_id
+        WHERE na.completed = 0
+        ORDER BY na.planned_date ASC NULLS LAST`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur GET /api/lists/actions:', err);
     res.status(500).json({ error: err.message });
   }
 });
