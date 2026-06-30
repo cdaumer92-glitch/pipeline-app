@@ -914,6 +914,26 @@ async function initDB() {
     }
     // ========== FIN MIGRATION ==========
 
+    // ========== INDEX RECHERCHE RAPIDE (navigation / palette Ctrl+K) ==========
+    // Objectif : recherche multi-entités < 200 ms sur n° SIREN, raison sociale,
+    // nom d'affaire, nom de devis et nom d'interlocuteur.
+    // pg_trgm permet des index GIN qui accélèrent les ILIKE '%terme%' (recherche
+    // « contient », insensible à la position). Si l'extension est refusée par la
+    // base managée (droits), on dégrade proprement : les ILIKE restent fonctionnels,
+    // simplement sans index trigram (scan séquentiel sur des volumes modestes).
+    try {
+      await client.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_trgm_prospects_name ON prospects USING gin (name gin_trgm_ops)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_trgm_affaires_nom ON affaires USING gin (nom_affaire gin_trgm_ops)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_trgm_devis_name ON devis USING gin (devis_name gin_trgm_ops)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_trgm_interloc_nom ON interlocuteurs USING gin (nom gin_trgm_ops)`);
+      // SIREN : recherche par préfixe → un index B-tree suffit (et sert aussi aux lookups exacts).
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_prospects_siren ON prospects (siren)`);
+      console.log('✅ Index de recherche rapide (pg_trgm) en place');
+    } catch (idxErr) {
+      console.warn('⚠️  Index pg_trgm non créés (extension indisponible ?), recherche en mode dégradé ILIKE :', idxErr.message);
+    }
+
     client.release();
     console.log('✅ Tables créées + Système admin initialisé');
   } catch (err) {
@@ -1147,6 +1167,219 @@ app.get('/api/public/companies/search', async (req, res) => {
     res.json(rows);
   } catch (err) {
     console.error('Erreur /api/public/companies/search:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== NAVIGATION RAPIDE (palette Ctrl+K) =====================
+// Couche d'API dédiée à la navigation transverse, consommée UNIQUEMENT via
+// services/navApi.js côté front (les composants n'appellent jamais ces routes
+// directement). Trois points d'entrée :
+//   GET /api/nav                  → écrans épinglés + actions rapides
+//   GET /api/search?q=...         → recherche multi-entités (prospects/affaires/devis/interlocuteurs)
+//   GET /api/peek/:type/:id       → aperçu léger d'une entité (sans ouvrir la fiche)
+// Toutes les requêtes sont paramétrées (jamais de concaténation SQL) et filtrées
+// par droits : un non-admin ne voit que les sociétés dont il est le commercial
+// (prospects.assigned_to = son nom) ; un admin voit tout.
+
+// Rôle de l'utilisateur courant (PK lookup, ~0 ms). Sert au filtrage de visibilité.
+async function getUserRole(userId) {
+  try {
+    const r = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
+    return r.rows[0]?.role || 'user';
+  } catch {
+    return 'user';
+  }
+}
+
+// Petit formateur € pour les aperçus (peek). Tolère null/undefined.
+function fmtEur(v) {
+  const n = Number(v);
+  if (!v || Number.isNaN(n)) return '—';
+  return n.toLocaleString('fr-FR') + ' €';
+}
+
+// GET /api/nav — référentiel de navigation. Statique aujourd'hui, mais centralisé
+// côté serveur pour pouvoir le rendre dépendant des droits/préférences plus tard
+// sans toucher au front (logique Strangler Fig).
+app.get('/api/nav', auth, async (req, res) => {
+  res.json({
+    ecrans: [
+      { id: 'prospects', label: 'Prospects & clients', sub: 'Liste du pipeline' },
+      { id: 'recap',     label: 'Récap actions & devis', sub: 'Suivi commercial' },
+    ],
+    actions: [
+      { id: 'act-prospect', icon: 'plus', label: 'Nouveau prospect', sub: 'Créer une fiche société', kbd: ['G', 'P'] },
+    ],
+  });
+});
+
+// GET /api/search?q=... — recherche multi-entités, limitée par type, filtrée par droits.
+// 4 requêtes indexées en parallèle (≤ 5 résultats chacune) → bien sous la cible 200 ms.
+app.get('/api/search', auth, async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.json([]); // garde-fou : 2 caractères minimum
+  try {
+    const role = await getUserRole(req.userId);
+    const owner = role === 'admin' ? null : req.userName; // null = pas de filtre (admin voit tout)
+    const contains = `%${q}%`; // recherche "contient" (raison sociale, nom d'affaire/devis/contact)
+    const prefix = `${q}%`;    // recherche par préfixe (n° SIREN)
+    const PER_TYPE = 5;        // plafond de résultats par type
+
+    const [pros, aff, dev, inter] = await Promise.all([
+      // Prospects / clients : raison sociale, SIREN ou contact
+      pool.query(
+        `SELECT id, name AS label, COALESCE(NULLIF(siren,''), contact_name) AS sub
+           FROM prospects
+          WHERE (name ILIKE $1 OR siren ILIKE $2 OR contact_name ILIKE $1)
+            AND ($3::text IS NULL OR assigned_to = $3)
+          ORDER BY name
+          LIMIT ${PER_TYPE}`,
+        [contains, prefix, owner]
+      ),
+      // Affaires : nom d'affaire (rattaché à un prospect pour le filtre de droits + la cible nav)
+      pool.query(
+        `SELECT a.id, a.nom_affaire AS label, p.name AS sub, p.id AS prospect_id
+           FROM affaires a JOIN prospects p ON p.id = a.prospect_id
+          WHERE a.nom_affaire ILIKE $1
+            AND ($2::text IS NULL OR p.assigned_to = $2)
+          ORDER BY a.updated_at DESC NULLS LAST
+          LIMIT ${PER_TYPE}`,
+        [contains, owner]
+      ),
+      // Devis : nom de devis OU n° (id) exact
+      pool.query(
+        `SELECT d.id, COALESCE(NULLIF(d.devis_name,''), 'Devis #' || d.id) AS label,
+                p.name AS sub, p.id AS prospect_id
+           FROM devis d JOIN prospects p ON p.id = d.prospect_id
+          WHERE (d.devis_name ILIKE $1 OR CAST(d.id AS TEXT) = $3)
+            AND ($2::text IS NULL OR p.assigned_to = $2)
+          ORDER BY d.created_at DESC NULLS LAST
+          LIMIT ${PER_TYPE}`,
+        [contains, owner, q]
+      ),
+      // Interlocuteurs : nom ou email
+      pool.query(
+        `SELECT i.id, i.nom AS label, COALESCE(NULLIF(i.fonction,''), p.name) AS sub, p.id AS prospect_id
+           FROM interlocuteurs i JOIN prospects p ON p.id = i.prospect_id
+          WHERE (i.nom ILIKE $1 OR i.email ILIKE $1)
+            AND ($2::text IS NULL OR p.assigned_to = $2)
+          ORDER BY i.nom
+          LIMIT ${PER_TYPE}`,
+        [contains, owner]
+      ),
+    ]);
+
+    // Format unifié pour la palette. `prospectId` = cible de navigation (toutes les
+    // entités s'ouvrent via la fiche du prospect parent) ; `entityId`+`type` servent au peek.
+    const out = [];
+    pros.rows.forEach(r => out.push({ id: `prospect-${r.id}`, type: 'prospect', entityId: r.id, icon: 'users', label: r.label, sub: r.sub || '', prospectId: r.id }));
+    aff.rows.forEach(r => out.push({ id: `affaire-${r.id}`, type: 'affaire', entityId: r.id, icon: 'cart', label: r.label, sub: r.sub || '', prospectId: r.prospect_id }));
+    dev.rows.forEach(r => out.push({ id: `devis-${r.id}`, type: 'devis', entityId: r.id, icon: 'doc', label: r.label, sub: r.sub || '', prospectId: r.prospect_id }));
+    inter.rows.forEach(r => out.push({ id: `interlocuteur-${r.id}`, type: 'interlocuteur', entityId: r.id, icon: 'users', label: r.label, sub: r.sub || '', prospectId: r.prospect_id }));
+
+    res.json(out);
+  } catch (err) {
+    console.error('[/api/search]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/peek/:type/:id — aperçu léger d'une entité (panneau latéral), filtré par droits.
+app.get('/api/peek/:type/:id', auth, async (req, res) => {
+  const { type } = req.params;
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
+  try {
+    const role = await getUserRole(req.userId);
+    const owner = role === 'admin' ? null : req.userName;
+
+    if (type === 'prospect') {
+      const r = await pool.query(
+        `SELECT id, name, siren, contact_name, status, assigned_to, monthly_amount, annual_amount
+           FROM prospects WHERE id = $1 AND ($2::text IS NULL OR assigned_to = $2)`,
+        [id, owner]
+      );
+      if (!r.rows.length) return res.status(404).json({ error: 'introuvable' });
+      const p = r.rows[0];
+      return res.json({
+        icon: 'users', title: p.name, sub: 'Client' + (p.siren ? ' · ' + p.siren : ''),
+        fields: [
+          ['Contact', p.contact_name || '—'],
+          ['Statut', p.status || '—'],
+          ['Commercial', p.assigned_to || '—'],
+          ['Abonnement / mois', fmtEur(p.monthly_amount)],
+        ],
+        prospectId: p.id,
+      });
+    }
+
+    if (type === 'affaire') {
+      const r = await pool.query(
+        `SELECT a.id, a.nom_affaire, a.statut_global, a.description, p.id AS prospect_id, p.name AS prospect_name
+           FROM affaires a JOIN prospects p ON p.id = a.prospect_id
+          WHERE a.id = $1 AND ($2::text IS NULL OR p.assigned_to = $2)`,
+        [id, owner]
+      );
+      if (!r.rows.length) return res.status(404).json({ error: 'introuvable' });
+      const a = r.rows[0];
+      return res.json({
+        icon: 'cart', title: a.nom_affaire, sub: 'Affaire · ' + a.prospect_name,
+        fields: [
+          ['Client', a.prospect_name],
+          ['Statut', a.statut_global || '—'],
+          ['Description', a.description || '—'],
+        ],
+        prospectId: a.prospect_id,
+      });
+    }
+
+    if (type === 'devis') {
+      const r = await pool.query(
+        `SELECT d.id, d.devis_name, d.devis_status, d.setup_amount, d.monthly_amount, d.quote_date,
+                p.id AS prospect_id, p.name AS prospect_name
+           FROM devis d JOIN prospects p ON p.id = d.prospect_id
+          WHERE d.id = $1 AND ($2::text IS NULL OR p.assigned_to = $2)`,
+        [id, owner]
+      );
+      if (!r.rows.length) return res.status(404).json({ error: 'introuvable' });
+      const d = r.rows[0];
+      return res.json({
+        icon: 'doc', title: d.devis_name || ('Devis #' + d.id), sub: 'Devis · ' + d.prospect_name,
+        fields: [
+          ['Client', d.prospect_name],
+          ['Statut', d.devis_status || '—'],
+          ['Mise en place', fmtEur(d.setup_amount)],
+          ['Abonnement / mois', fmtEur(d.monthly_amount)],
+        ],
+        prospectId: d.prospect_id,
+      });
+    }
+
+    if (type === 'interlocuteur') {
+      const r = await pool.query(
+        `SELECT i.id, i.nom, i.fonction, i.email, i.telephone, p.id AS prospect_id, p.name AS prospect_name
+           FROM interlocuteurs i JOIN prospects p ON p.id = i.prospect_id
+          WHERE i.id = $1 AND ($2::text IS NULL OR p.assigned_to = $2)`,
+        [id, owner]
+      );
+      if (!r.rows.length) return res.status(404).json({ error: 'introuvable' });
+      const i = r.rows[0];
+      return res.json({
+        icon: 'users', title: i.nom, sub: 'Contact · ' + i.prospect_name,
+        fields: [
+          ['Fonction', i.fonction || '—'],
+          ['Email', i.email || '—'],
+          ['Téléphone', i.telephone || '—'],
+          ['Société', i.prospect_name],
+        ],
+        prospectId: i.prospect_id,
+      });
+    }
+
+    return res.status(400).json({ error: 'type inconnu' });
+  } catch (err) {
+    console.error('[/api/peek]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
