@@ -4872,10 +4872,11 @@
               prospects={prospects} 
               selectedCommercial={selectedCommercial} 
               onSelectCommercial={setSelectedCommercial} 
-              onSelectProspect={handleSelectProspect} 
+              onSelectProspect={handleSelectProspect}
               onOpenDashboard={() => { setSelectedProspect(null); setListeView('societes'); }}
-              user={user} 
-              API_URL={API_URL} 
+              onOpenListe={(t) => { setSelectedProspect(null); setShowCampagnes(false); setShowAttribution(false); setListeView(t); }}
+              user={user}
+              API_URL={API_URL}
               prospectActionsInfo={prospectActionsInfo}
               setShowCompteurModal={setShowCompteurModal}
               setCompteurModalData={setCompteurModalData}
@@ -7710,7 +7711,7 @@
       );
     }
 
-    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, user, API_URL, prospectActionsInfo, onShowRecap, setShowCompteurModal, setCompteurModalData, codesNaf = [], onRefreshProspects, setFilterCommercial, setFilterStatus, setFilterAttribution }) {
+    function Dashboard({ prospects, selectedCommercial, onSelectCommercial, onSelectProspect, onOpenDashboard, onOpenListe, user, API_URL, prospectActionsInfo, onShowRecap, setShowCompteurModal, setCompteurModalData, codesNaf = [], onRefreshProspects, setFilterCommercial, setFilterStatus, setFilterAttribution }) {
       const [activeTab, setActiveTab] = React.useState(null);
       const [showSocietes, setShowSocietes] = React.useState(false);
       const [societesSortCol, setSocietesSortCol] = React.useState('name');
@@ -8210,15 +8211,15 @@
           <div className="tw-section-title">Vue globale pipeline</div>
           <div className="tw-kpi-strip">
 
-            {/* Carte 1 : Sociétés */}
-            <div className="tw-kpi-card">
+            {/* Carte 1 : Sociétés — clic = ouvre la liste Sociétés */}
+            <div className="tw-kpi-card" onClick={() => onOpenListe && onOpenListe('societes')} style={{cursor: onOpenListe ? 'pointer' : 'default'}} title="Voir la liste des sociétés">
               <div className="tw-kpi-label">Sociétés en base</div>
               <div className="tw-kpi-value" style={{color:'var(--tw-teal)'}}>{prospects.length}</div>
               <div className="tw-kpi-sub"><b>{nbSuspects}</b> suspects · <b>{nbProspects}</b> prospects · <b>{nbClients}</b> clients</div>
             </div>
 
-            {/* Carte 2 : Devis */}
-            <div className="tw-kpi-card">
+            {/* Carte 2 : Devis — clic = ouvre la liste Devis en cours */}
+            <div className="tw-kpi-card" onClick={() => onOpenListe && onOpenListe('devis')} style={{cursor: onOpenListe ? 'pointer' : 'default'}} title="Voir la liste des devis en cours">
               <div className="tw-kpi-label">Devis en cours {thisYear}</div>
               <div className="tw-kpi-value">{devisEnCours}</div>
               <div className="tw-kpi-sub"><b>{devisGagnes}</b> gagné{devisGagnes>1?'s':''} · <b style={{color:'var(--tw-red)'}}>{devisPerdus}</b> perdu{devisPerdus>1?'s':''}</div>
