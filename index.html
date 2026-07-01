@@ -2497,11 +2497,15 @@
           return sort.dir === 'asc' ? r : -r;
         });
       };
-      const SortTh = (label, key) => (
-        <th style={{ ...th, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort(key)} title="Trier">
-          {label}{sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
-        </th>
-      );
+      const SortTh = (label, key) => {
+        const active = sort.key === key;
+        // Indicateur permanent (↕ discret) sur toute colonne triable ; ▲/▼ en plein sur la colonne active.
+        return (
+          <th style={{ ...th, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort(key)} title="Cliquer pour trier">
+            {label} <span style={{ fontSize: '9px', opacity: active ? 1 : 0.4, color: active ? '#12a0dc' : 'inherit' }}>{active ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+          </th>
+        );
+      };
       const td = { padding: '10px 12px', borderBottom: '0.5px solid var(--tw-border)', fontSize: '13px', color: 'var(--tw-ink)' };
       const lk = { color: '#12a0dc', fontWeight: 600 };
       const tableStyle = { width: '100%', borderCollapse: 'collapse', background: 'white', borderRadius: '12px', overflow: 'hidden', border: '0.5px solid var(--tw-border)' };
