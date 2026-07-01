@@ -2450,6 +2450,8 @@
       const [devis, setDevis] = React.useState(null);
       const [actions, setActions] = React.useState(null);
       const [loading, setLoading] = React.useState(false);
+      const [sort, setSort] = React.useState({ key: '', dir: 'asc' }); // tri par colonne
+      React.useEffect(() => { setSort({ key: '', dir: 'asc' }); }, [type]); // réinit à chaque changement de liste
 
       // Chargement à la demande des données non déjà présentes côté front.
       React.useEffect(() => {
@@ -2485,6 +2487,21 @@
       const fmtDate = (d) => d ? String(d).slice(0, 10).split('-').reverse().join('/') : '—';
       const fmtEur = (v) => { const n = Number(v); return (!v || isNaN(n)) ? '—' : n.toLocaleString('fr-FR') + ' €'; };
       const th = { textAlign: 'left', fontSize: '10.5px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px', color: 'var(--tw-muted)', padding: '10px 12px', borderBottom: '1px solid var(--tw-border)', whiteSpace: 'nowrap' };
+      // Tri par colonne : clic sur l'en-tête → bascule asc/desc.
+      const toggleSort = (key) => setSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' });
+      const applySort = (rows, accessors) => {
+        if (!sort.key || !accessors[sort.key]) return rows;
+        const acc = accessors[sort.key];
+        return rows.slice().sort((a, b) => {
+          const r = String(acc(a) == null ? '' : acc(a)).localeCompare(String(acc(b) == null ? '' : acc(b)), 'fr', { numeric: true, sensitivity: 'base' });
+          return sort.dir === 'asc' ? r : -r;
+        });
+      };
+      const SortTh = (label, key) => (
+        <th style={{ ...th, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort(key)} title="Trier">
+          {label}{sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+        </th>
+      );
       const td = { padding: '10px 12px', borderBottom: '0.5px solid var(--tw-border)', fontSize: '13px', color: 'var(--tw-ink)' };
       const lk = { color: '#12a0dc', fontWeight: 600 };
       const tableStyle = { width: '100%', borderCollapse: 'collapse', background: 'white', borderRadius: '12px', overflow: 'hidden', border: '0.5px solid var(--tw-border)' };
@@ -2514,6 +2531,7 @@
         const counts = { Suspect: 0, Prospect: 0, Client: 0 };
         base.forEach(p => { const s = p.statut_societe || 'Prospect'; if (counts[s] != null) counts[s]++; });
         let rows = (statut === 'Tous' ? base : base.filter(p => (p.statut_societe || 'Prospect') === statut)).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        rows = applySort(rows, { societe: p => p.name, type: p => p.statut_societe || 'Prospect', commercial: p => p.assigned_to });
         const statutFilter = (
           <div style={{ display: 'flex', gap: '4px' }}>
             {['Tous', 'Suspect', 'Prospect', 'Client'].map(s => (
@@ -2524,7 +2542,7 @@
         return Wrap('Sociétés', `${counts.Suspect} suspect(s) · ${counts.Prospect} prospect(s) · ${counts.Client} client(s)`, <React.Fragment>{statutFilter}{commercialFilter}</React.Fragment>,
           rows.length === 0 ? Empty('Aucune société.') : (
             <table style={tableStyle}>
-              <thead><tr><th style={th}>Société</th><th style={th}>Type</th><th style={th}>Commercial</th><th style={th}>Contact</th><th style={th}>Téléphone</th></tr></thead>
+              <thead><tr>{SortTh('Société', 'societe')}{SortTh('Type', 'type')}{SortTh('Commercial', 'commercial')}<th style={th}>Contact</th><th style={th}>Téléphone</th></tr></thead>
               <tbody>
                 {rows.map(p => (
                   <tr key={p.id} style={{ cursor: 'pointer' }} {...rowHover} onClick={() => openFiche(p.id, null, 'prospect', p.id)}>
@@ -2545,12 +2563,13 @@
       if (type === 'devis') {
         if (loading || devis === null) return Wrap('Devis en cours', '', commercialFilter, Empty('Chargement…'));
         const EN_COURS = ['En cours', 'Envoyé', 'Discussion', 'Négociation'];
-        const rows = (devis || []).filter(d => EN_COURS.includes(d.devis_status) && inScope(d.commercial))
+        let rows = (devis || []).filter(d => EN_COURS.includes(d.devis_status) && inScope(d.commercial))
           .sort((a, b) => String(b.quote_date || '').localeCompare(String(a.quote_date || '')));
+        rows = applySort(rows, { societe: d => d.prospect_name, statut: d => d.devis_status, date: d => d.quote_date || '', commercial: d => d.commercial });
         return Wrap('Devis en cours', `${rows.length} devis actif(s) — statuts hors Gagné / Perdu / Annulé`, commercialFilter,
           rows.length === 0 ? Empty('Aucun devis en cours.') : (
             <table style={tableStyle}>
-              <thead><tr><th style={th}>Devis</th><th style={th}>Société</th><th style={th}>Statut</th><th style={th}>Mise en place</th><th style={th}>Abo / mois</th><th style={th}>Date</th><th style={th}>Commercial</th></tr></thead>
+              <thead><tr><th style={th}>Devis</th>{SortTh('Société', 'societe')}{SortTh('Statut', 'statut')}<th style={th}>Mise en place</th><th style={th}>Abo / mois</th>{SortTh('Date', 'date')}{SortTh('Commercial', 'commercial')}</tr></thead>
               <tbody>
                 {rows.map(d => (
                   <tr key={d.id} style={{ cursor: 'pointer' }} {...rowHover} onClick={() => openFiche(d.prospect_id, d.affaire_id, 'devis', d.id)}>
@@ -2576,11 +2595,13 @@
         const scoped = (actions || []).filter(a => inScope(a.commercial));
         const late = scoped.filter(a => a.planned_date && String(a.planned_date).slice(0, 10) < today).sort((a, b) => String(a.planned_date).localeCompare(String(b.planned_date)));
         const upcoming = scoped.filter(a => !a.planned_date || String(a.planned_date).slice(0, 10) >= today).sort((a, b) => String(a.planned_date || '').localeCompare(String(b.planned_date || '')));
-        const tableFor = (list, lateFlag) => (
+        const tableFor = (list, lateFlag) => {
+          const sorted = applySort(list, { date: a => a.planned_date || '', societe: a => a.prospect_name, action: a => a.action_type });
+          return (
           <table style={{ ...tableStyle, marginBottom: '24px' }}>
-            <thead><tr><th style={th}>Date</th><th style={th}>Société</th><th style={th}>Action</th><th style={th}>Acteur</th><th style={th}>Contact</th></tr></thead>
+            <thead><tr>{SortTh('Date', 'date')}{SortTh('Société', 'societe')}{SortTh('Action', 'action')}<th style={th}>Acteur</th><th style={th}>Contact</th></tr></thead>
             <tbody>
-              {list.map(a => (
+              {sorted.map(a => (
                 <tr key={a.id} style={{ cursor: 'pointer' }} {...rowHover} onClick={() => openFiche(a.prospect_id, a.affaire_id, 'prospect', a.prospect_id)}>
                   <td style={{ ...td, color: lateFlag ? '#dc2626' : 'var(--tw-ink)', fontWeight: lateFlag ? 600 : 400, whiteSpace: 'nowrap' }}>{fmtDate(a.planned_date)}</td>
                   <td style={{ ...td, ...lk }}>{a.prospect_name || '—'}</td>
@@ -2591,7 +2612,8 @@
               ))}
             </tbody>
           </table>
-        );
+          );
+        };
         return Wrap('Actions', `${late.length} en retard · ${upcoming.length} à venir`, commercialFilter,
           <React.Fragment>
             <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#dc2626', margin: '4px 0 10px' }}>⚠ En retard ({late.length})</h2>
