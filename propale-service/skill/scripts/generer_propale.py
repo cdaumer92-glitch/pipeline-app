@@ -1089,6 +1089,12 @@ def _titre2(text):
     return (f'<w:p><w:pPr><w:pStyle w:val="Titre2"/><w:keepNext/><w:keepLines/></w:pPr>'
             f'<w:r><w:t xml:space="preserve">{_xml_escape(text)}</w:t></w:r></w:p>')
 
+def _sous_titre(text):
+    """Sous-titre bleu gras NON numéroté (ex. 'Informations complémentaires'), aligné sur les tableaux."""
+    return ('<w:p><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="240" w:after="80"/><w:ind w:left="720"/></w:pPr>'
+            f'<w:r><w:rPr><w:b/><w:color w:val="003366"/><w:sz w:val="22"/></w:rPr>'
+            f'<w:t xml:space="preserve">{_xml_escape(text)}</w:t></w:r></w:p>')
+
 def _para_synthese(label, montant_str):
     """Ligne de synthèse avec tabulations : 'Label ........ X € H.T' (indentée sur titre 3.x)"""
     # Ordre OOXML strict dans w:pPr : tabs, spacing, ind, ...
@@ -1111,9 +1117,18 @@ def _xml_escape(s):
                   .replace('"', '&quot;'))
 
 def _row_reglement(label, texte):
-    """Ligne du tableau Règlement : libellé bleu gras à gauche, texte noir à droite"""
+    """Ligne du tableau Règlement : libellé bleu gras à gauche, texte noir à droite.
+    Le texte peut contenir des retours à la ligne (séparateur saut de ligne) → rendus
+    en plusieurs lignes dans la cellule (permet puces et paragraphes multiples)."""
     label_esc = _xml_escape(label)
-    texte_esc = _xml_escape(texte)
+    # Support multi-lignes : chaque segment séparé par un <w:br/>.
+    lignes = str(texte).split("\n")
+    runs = ''
+    for i, ligne in enumerate(lignes):
+        if i > 0:
+            runs += '<w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:br/></w:r>'
+        runs += (f'<w:r><w:rPr><w:sz w:val="20"/></w:rPr>'
+                 f'<w:t xml:space="preserve">{_xml_escape(ligne)}</w:t></w:r>')
     cell_label = (f'<w:tc><w:tcPr><w:tcW w:w="2800" w:type="dxa"/>'
                   f'<w:tcMar><w:top w:w="80" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tcMar>'
                   f'</w:tcPr>'
@@ -1123,9 +1138,7 @@ def _row_reglement(label, texte):
     cell_text = (f'<w:tc><w:tcPr><w:tcW w:w="6200" w:type="dxa"/>'
                  f'<w:tcMar><w:top w:w="80" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tcMar>'
                  f'</w:tcPr>'
-                 f'<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>'
-                 f'<w:r><w:rPr><w:sz w:val="20"/></w:rPr>'
-                 f'<w:t xml:space="preserve">{texte_esc}</w:t></w:r></w:p></w:tc>')
+                 f'<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>{runs}</w:p></w:tc>')
     return f'<w:tr><w:trPr><w:cantSplit/></w:trPr>{cell_label}{cell_text}</w:tr>'
 
 def _tbl_reglement(rows_xml):
@@ -1221,19 +1234,32 @@ def _replace_synthese_reglement(content, abo, prest, form, materiel,
 
     # ── Construire §5 Règlement (tableau 2 colonnes) ──
     reglement_data = [
-        ("Acompte :",             "30 % du montant TTC des prestations initiales et matériel à la commande."),
-        ("Matériel :",            "30 jours nets, date de facture, émise dès la réception du matériel. Nous pouvons également vous proposer une location financière de ces matériels sous réserve d'accord de notre partenaire GRENKE."),
-        ("Solde prestations :",   "À la mise en service (TexasWin réputé en production)."),
-        ("Délai de paiement :",   "30 jours nets, date de facture — virement bancaire ou prélèvement SEPA."),
-        ("Hébergement :",         "L'hébergement sera facturé dès le déploiement des premières VM."),
-        ("Abonnement :",          "Sans engagement de durée. Prélèvement le 6 du mois (mensuel) ou à date anniversaire (annuel)."),
-        ("Révision tarifaire",    "Indexation annuelle possible au 1er janvier selon indice SYNTEC : P = P₀ × (S/S₀) × 1,005."),
-        ("Hébergement & SLA",     "Hébergement France, datacenter Tier 3, sauvegardes quotidiennes. Disponibilité garantie 99,5 % mensuel."),
-        ("Données & RGPD",        "Le client reste propriétaire de ses données. Hébergement en France. Export CSV possible à la résiliation."),
-        ("CGV",                   "Les présentes conditions sont régies par les CGV TexasWin en vigueur (2026), disponibles sur pièce jointe."),
+        ("Matériel",           "Acompte de 30 % du montant TTC.\n"
+                               "Le solde facturé à 30 jours nets, date de facture, émise dès la réception du matériel.\n"
+                               "Nous pouvons également vous proposer une location financière de ces matériels sous réserve d'accord de notre partenaire GRENKE."),
+        ("Prestations",        "Prestations facturées à l'avancement selon jalons :\n"
+                               "•  40 % au démarrage du paramétrage\n"
+                               "•  40 % à la recette\n"
+                               "•  20 % à la mise en production."),
+        ("Délai de paiement",  "30 jours nets, date de facture par virement bancaire ou prélèvement SEPA."),
+        ("Hébergement",        "L'hébergement sera facturé dès le déploiement des premières VM."),
+        ("Abonnement",         "Sans engagement de durée.\n"
+                               "Services mensuels : premier terme facturé à l'ouverture du service, puis prélèvement le 6 de chaque mois.\n"
+                               "Services annuels : facturation en une fois en début d'année, à échoir."),
+        ("Révision tarifaire", "Indexation annuelle possible au 1er janvier selon indice SYNTEC : P = P₀ × (S/S₀) × 1,005."),
+    ]
+    info_data = [
+        ("Hébergement & SLA",  "Hébergement en France dans des datacenter Tier III.\n"
+                               "Sauvegardes quotidiennes.\n"
+                               "Disponibilité garantie 99,5 % mensuel."),
+        ("Données & RGPD",     "Le client reste propriétaire de ses données. Hébergement en France.\n"
+                               "Export CSV possible à la résiliation."),
+        ("CGV",                "Les présentes conditions sont régies par les CGV TexasWin en vigueur (2026), disponibles sur pièce jointe."),
     ]
     rows = ''.join(_row_reglement(label, texte) for label, texte in reglement_data)
-    reglement_xml = _titre2("Règlement") + _tbl_reglement(rows)
+    info_rows = ''.join(_row_reglement(label, texte) for label, texte in info_data)
+    reglement_xml = (_titre2("Règlement") + _tbl_reglement(rows)
+                     + _sous_titre("Informations complémentaires") + _tbl_reglement(info_rows))
 
     # Saut de page après le tableau Règlement
     # Le spacing de 30pt AVANT "Les 10 avantages" sera appliqué directement sur ce titre
