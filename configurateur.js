@@ -933,11 +933,30 @@ function updateFluxNoms() {
   while (fluxNoms.length < qty) fluxNoms.push('');
   fluxNoms.length = qty;
 
-  // Si le drawer Flux est ouvert, le re-render pour afficher/cacher les inputs noms
+  // Si le drawer Flux est ouvert : on ne re-render QUE si le nombre d'inputs de noms
+  // doit changer (ajout/retrait de flux). Sinon un re-render à chaque frappe recréerait
+  // tous les champs et ferait perdre le focus (bug signalé sur les lignes supplémentaires
+  // et les autres zones de saisie du module Flux).
   const drawer = document.getElementById('moduleDrawer');
   if (drawer && drawer.classList.contains('open')
       && drawer.querySelector('.d-icon')?.textContent === 'Flux') {
-    renderModuleDrawer('flu');
+    const currentNameInputs = drawer.querySelectorAll('[id^="flux_nom_"]').length;
+    if (currentNameInputs !== qty) {
+      // La structure change → re-render nécessaire. On sauvegarde le focus + le curseur
+      // (ex. champ « Nombre de flux tiers ») pour les restaurer juste après.
+      const active = document.activeElement;
+      const activeId = active && active.id ? active.id : null;
+      let selStart = null, selEnd = null;
+      try { selStart = active.selectionStart; selEnd = active.selectionEnd; } catch (e) {}
+      renderModuleDrawer('flu');
+      if (activeId) {
+        const restored = document.getElementById(activeId);
+        if (restored) {
+          restored.focus();
+          try { if (selStart != null) restored.setSelectionRange(selStart, selEnd); } catch (e) {}
+        }
+      }
+    }
   }
 
   refreshFluxNames();
