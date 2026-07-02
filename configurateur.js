@@ -2632,8 +2632,8 @@ function buildConfigJson() {
 // Doivent être identiques aux phrases du template Master_Propale.docx
 // ─────────────────────────────────────────────────────────────
 const CONTEXTE_PHRASES = {
-  '1': "Notre proposition commerciale qui reprend le périmètre technique et fonctionnel, le périmètre technique et fonctionnel, la prestation de mise en œuvre ainsi que la formation pour vos utilisateurs.",
-  '2': "Cette nouvelle proposition commerciale qui reprend le périmètre technique et fonctionnel de notre dernière proposition.",
+  '1': "Notre proposition commerciale reprend le périmètre technique et fonctionnel vu ensemble. Vous trouverez également la prestation de mise en œuvre ainsi que la formation pour vos utilisateurs.",
+  '2': "Cette nouvelle proposition commerciale reprend le périmètre technique et fonctionnel de notre dernière proposition et les ajustements vu ensemble.",
   'A': "Comme nous vous l'avons indiqué, nous avons transformé notre modèle tarifaire en formule d'abonnement, éliminant ainsi la nécessité d'un investissement initial conséquent. Les avantages de ce mode de licences sont nombreux.",
   'B': "Notre modèle tarifaire en formule d'abonnement, élimine la nécessité d'un investissement initial conséquent. Les avantages de ce mode de licences sont nombreux."
 };

@@ -406,6 +406,10 @@ def generer_propale(data: dict, output_path: str, work_dir: Path):
                     if r_start < 0 or r_end < len("</w:r>"):
                         break
                     new_block = new_block[:r_start] + new_block[r_end:]
+                # Après le § de présentation tarifaire (choix2 = A ou B), qui se termine par
+                # « Les avantages de ce mode de licences sont nombreux. », on insère les 4 avantages.
+                if label == choix2:
+                    new_block = new_block + _bloc_avantages()
                 content = content.replace(old_block, new_block)
             else:
                 # Supprimer entièrement le paragraphe non choisi
@@ -1094,6 +1098,30 @@ def _sous_titre(text):
     return ('<w:p><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="240" w:after="80"/><w:ind w:left="720"/></w:pPr>'
             f'<w:r><w:rPr><w:b/><w:color w:val="003366"/><w:sz w:val="22"/></w:rPr>'
             f'<w:t xml:space="preserve">{_xml_escape(text)}</w:t></w:r></w:p>')
+
+# ── Bloc "avantages du mode abonnement" inséré après le § de présentation tarifaire ──
+_AVANTAGES = [
+    ("Vous lissez votre budget dans le temps :",
+     "Plutôt qu'une dépense unique et importante, vous réglez une mensualité prévisible, plus facile à intégrer dans votre trésorerie et à justifier auprès de votre direction financière. Cette charge est par ailleurs immédiatement déductible en tant que charge d'exploitation, sans passer par les mécanismes d'amortissement d'une immobilisation."),
+    ("Vous bénéficiez systématiquement de la dernière version.",
+     "Les mises à jour, correctifs et évolutions fonctionnelles sont inclus : vous ne risquez plus de travailler sur une version obsolète ni de supporter le coût d'une migration lourde. Votre solution progresse en continu, au même rythme que votre activité."),
+    ("Vous ajustez votre engagement à vos besoins réels.",
+     "Le nombre d'utilisateurs et les modules souscrits peuvent évoluer à la hausse comme à la baisse selon la croissance de votre entreprise ou la saisonnalité de votre activité — un atout particulièrement pertinent dans le secteur de la mode."),
+    ("Enfin, vous sécurisez votre relation avec un partenaire engagé.",
+     "Le support, la maintenance et l'accompagnement sont intégrés à l'abonnement : notre réussite est directement liée à la vôtre, ce qui garantit un suivi dans la durée."),
+]
+
+def _avantage(num, titre, texte):
+    """Un avantage = ligne numérotée (titre) + paragraphe justifié (explication), en retrait."""
+    p_titre = ('<w:p><w:pPr><w:keepNext/><w:spacing w:before="140" w:after="40"/><w:ind w:left="720" w:hanging="360"/></w:pPr>'
+               f'<w:r><w:t xml:space="preserve">{num}.\t{_xml_escape(titre)}</w:t></w:r></w:p>')
+    p_texte = ('<w:p><w:pPr><w:spacing w:after="0"/><w:ind w:left="720"/><w:jc w:val="both"/></w:pPr>'
+               f'<w:r><w:t xml:space="preserve">{_xml_escape(texte)}</w:t></w:r></w:p>')
+    return p_titre + p_texte
+
+def _bloc_avantages():
+    """Les 4 avantages du mode abonnement, formatés en liste numérotée."""
+    return ''.join(_avantage(i + 1, titre, texte) for i, (titre, texte) in enumerate(_AVANTAGES))
 
 def _para_synthese(label, montant_str):
     """Ligne de synthèse avec tabulations : 'Label ........ X € H.T' (indentée sur titre 3.x)"""
