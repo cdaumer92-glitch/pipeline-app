@@ -156,6 +156,12 @@ async function initDB() {
       ADD COLUMN IF NOT EXISTS contexte VARCHAR(50)
     `);
 
+    // Migration: Ajouter priority dans next_actions (1 = Normale, 2 = Haute)
+    await client.query(`
+      ALTER TABLE next_actions
+      ADD COLUMN IF NOT EXISTS priority SMALLINT DEFAULT 1
+    `);
+
     // Table affaires (doit exister avant next_actions pour la FK)
     await client.query(`CREATE TABLE IF NOT EXISTS affaires (
       id SERIAL PRIMARY KEY,
@@ -1537,11 +1543,11 @@ app.get('/api/affaires/:id/next_actions', auth, async (req, res) => {
 });
 
 app.post('/api/prospects/:id/next_actions', auth, async (req, res) => {
-  const { action_type, planned_date, actor, contact, completed_note, affaire_id, contexte } = req.body;
+  const { action_type, planned_date, actor, contact, completed_note, affaire_id, contexte, priority } = req.body;
   try {
     const result = await pool.query(
-      'INSERT INTO next_actions (prospect_id, affaire_id, action_type, planned_date, actor, contact, completed_note, contexte, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
-      [req.params.id, affaire_id || null, action_type, planned_date || null, actor, contact || null, completed_note || null, contexte || null, req.userId]
+      'INSERT INTO next_actions (prospect_id, affaire_id, action_type, planned_date, actor, contact, completed_note, contexte, priority, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id',
+      [req.params.id, affaire_id || null, action_type, planned_date || null, actor, contact || null, completed_note || null, contexte || null, priority || 1, req.userId]
     );
     res.json({ id: result.rows[0].id });
   } catch (err) {
@@ -1552,8 +1558,8 @@ app.post('/api/prospects/:id/next_actions', auth, async (req, res) => {
 // POST /api/affaires/:id/next_actions - Créer une action pour une affaire
 app.post('/api/affaires/:id/next_actions', auth, async (req, res) => {
   const affaireId = req.params.id;
-  const { action_type, planned_date, actor, contact, completed_note } = req.body;
-  
+  const { action_type, planned_date, actor, contact, completed_note, priority } = req.body;
+
   try {
     // Récupérer le prospect_id depuis l'affaire
     const affaireResult = await pool.query(
@@ -1568,8 +1574,8 @@ app.post('/api/affaires/:id/next_actions', auth, async (req, res) => {
     const prospectId = affaireResult.rows[0].prospect_id;
 
     const result = await pool.query(
-      'INSERT INTO next_actions (prospect_id, affaire_id, action_type, planned_date, actor, contact, completed_note, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
-      [prospectId, affaireId, action_type, planned_date || null, actor, contact || null, completed_note || null, req.userId]
+      'INSERT INTO next_actions (prospect_id, affaire_id, action_type, planned_date, actor, contact, completed_note, priority, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
+      [prospectId, affaireId, action_type, planned_date || null, actor, contact || null, completed_note || null, priority || 1, req.userId]
     );
     res.json({ id: result.rows[0].id });
   } catch (err) {
@@ -1578,9 +1584,15 @@ app.post('/api/affaires/:id/next_actions', auth, async (req, res) => {
 });
 
 app.put('/api/next_actions/:id', auth, async (req, res) => {
-  const { completed, completed_notes, saveNotesOnly, reschedule, planned_date } = req.body;
+  const { completed, completed_notes, saveNotesOnly, reschedule, planned_date, setPriority, priority } = req.body;
   try {
-    if (reschedule) {
+    if (setPriority) {
+      // Changement de priorité seul (bascule Normale/Haute depuis la liste Actions).
+      await pool.query(
+        `UPDATE next_actions SET priority=$1 WHERE id=$2`,
+        [priority || 1, req.params.id]
+      );
+    } else if (reschedule) {
       // Reprogrammation seule (snooze / report depuis la liste Actions).
       await pool.query(
         `UPDATE next_actions SET planned_date=$1 WHERE id=$2`,
@@ -2108,16 +2120,43 @@ app.get('/api/lists/actions', auth, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT na.id, na.prospect_id, na.affaire_id, na.action_type, na.planned_date,
-              na.actor, na.contact,
+              na.actor, na.contact, COALESCE(na.priority, 1) AS priority,
               p.name AS prospect_name, p.assigned_to AS commercial
          FROM next_actions na
          JOIN prospects p ON p.id = na.prospect_id
         WHERE na.completed = 0
-        ORDER BY na.planned_date ASC NULLS LAST`
+        ORDER BY COALESCE(na.priority, 1) DESC, na.planned_date ASC NULLS LAST`
     );
     res.json(result.rows);
   } catch (err) {
     console.error('Erreur GET /api/lists/actions:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/lists/actions-stats — agrégats de pilotage des actions, groupés par
+// commercial (le front somme les lignes en scope, cohérent avec le filtre commercial).
+//   done_week      : actions complétées depuis le début de la semaine
+//   due30_total    : actions arrivées à échéance sur les 30 derniers jours
+//   due30_done     : ...dont complétées → taux de complétion = done/total
+//   overdue_count  : actions non complétées dont la date est passée
+//   overdue_days_sum : somme des jours de retard → retard moyen = sum/count
+app.get('/api/lists/actions-stats', auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.assigned_to AS commercial,
+              COUNT(*) FILTER (WHERE na.completed = 1 AND na.completed_date >= date_trunc('week', CURRENT_DATE)) AS done_week,
+              COUNT(*) FILTER (WHERE na.planned_date BETWEEN CURRENT_DATE - INTERVAL '30 days' AND CURRENT_DATE) AS due30_total,
+              COUNT(*) FILTER (WHERE na.planned_date BETWEEN CURRENT_DATE - INTERVAL '30 days' AND CURRENT_DATE AND na.completed = 1) AS due30_done,
+              COUNT(*) FILTER (WHERE na.completed = 0 AND na.planned_date < CURRENT_DATE) AS overdue_count,
+              COALESCE(SUM(CURRENT_DATE - na.planned_date) FILTER (WHERE na.completed = 0 AND na.planned_date < CURRENT_DATE), 0) AS overdue_days_sum
+         FROM next_actions na
+         JOIN prospects p ON p.id = na.prospect_id
+        GROUP BY p.assigned_to`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur GET /api/lists/actions-stats:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -2492,7 +2492,8 @@
       const [loading, setLoading] = React.useState(false);
       const [sort, setSort] = React.useState({ key: '', dir: 'asc' }); // tri par colonne
       const [actionTypeFilter, setActionTypeFilter] = React.useState('__all__'); // filtre par type (liste Actions)
-      const [followUp, setFollowUp] = React.useState(null); // modale "prochaine action" après complétion
+      const [completion, setCompletion] = React.useState(null); // modale de complétion (résultat + prochaine action)
+      const [stats, setStats] = React.useState(null); // métriques de pilotage (par commercial)
       React.useEffect(() => { setSort({ key: '', dir: 'asc' }); }, [type]); // réinit à chaque changement de liste
 
       // Chargement à la demande des données non déjà présentes côté front.
@@ -2511,6 +2512,9 @@
             .then(d => { if (!abort) setActions(Array.isArray(d) ? d : []); })
             .catch(() => { if (!abort) setActions([]); })
             .then(() => { if (!abort) setLoading(false); });
+          fetch(`${API_URL}/lists/actions-stats`, opts).then(r => r.json())
+            .then(d => { if (!abort) setStats(Array.isArray(d) ? d : []); })
+            .catch(() => { if (!abort) setStats([]); });
         }
         return () => { abort = true; };
       }, [type]);
@@ -2523,14 +2527,27 @@
       const actHeaders = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (user && user.token) };
       const plusDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
       const toast = (t, type) => { if (window.showToast) window.showToast({ title: t, type: type || 'success' }); };
-      // Compléter une action : la retire de la liste (non complétées) puis propose la suivante.
-      const completeAction = async (a) => {
+      // Cliquer "Fait ?" : ouvre la modale de complétion (on saisit le résultat + la suite AVANT de valider).
+      const openCompletion = (a) => setCompletion({ action: a, resultNote: '', createNext: true, nextType: a.action_type || 'Appel', nextDate: plusDays(7), nextPriority: 1 });
+      // Valider : enregistre la complétion (+ résultat), retire la ligne, crée éventuellement la prochaine action.
+      const validateCompletion = async () => {
+        if (!completion) return;
+        const a = completion.action;
         try {
-          const r = await fetch(`${API_URL}/next_actions/${a.id}`, { method: 'PUT', headers: actHeaders, body: JSON.stringify({ completed: true }) });
+          const r = await fetch(`${API_URL}/next_actions/${a.id}`, { method: 'PUT', headers: actHeaders, body: JSON.stringify({ completed: true, completed_notes: completion.resultNote || '' }) });
           if (!r.ok) throw new Error('HTTP ' + r.status);
           setActions(prev => (prev || []).filter(x => x.id !== a.id));
-          setFollowUp({ prospect_id: a.prospect_id, affaire_id: a.affaire_id || null, prospect_name: a.prospect_name, commercial: a.commercial, action_type: a.action_type || 'Appel', planned_date: plusDays(7), actor: a.actor || '', contact: a.contact || '' });
+          if (completion.createNext && completion.nextDate) {
+            const url = a.affaire_id ? `${API_URL}/affaires/${a.affaire_id}/next_actions` : `${API_URL}/prospects/${a.prospect_id}/next_actions`;
+            const rc = await fetch(url, { method: 'POST', headers: actHeaders, body: JSON.stringify({ action_type: completion.nextType, planned_date: completion.nextDate, priority: completion.nextPriority, actor: a.actor || '', contact: a.contact || '' }) });
+            const created = await rc.json().catch(() => ({}));
+            if (rc.ok && created && created.id) {
+              setActions(prev => ([...(prev || []), { id: created.id, prospect_id: a.prospect_id, affaire_id: a.affaire_id, action_type: completion.nextType, planned_date: completion.nextDate, priority: completion.nextPriority, actor: a.actor, contact: a.contact, prospect_name: a.prospect_name, commercial: a.commercial || (user && user.name) }]));
+            }
+          }
+          toast('Action terminée' + (completion.createNext && completion.nextDate ? ' · prochaine action créée' : ''));
         } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+        setCompletion(null);
       };
       // Reprogrammer (snooze / report) : met à jour la date sans compléter.
       const rescheduleAction = async (a, dateStr) => {
@@ -2542,20 +2559,14 @@
           toast('Action reprogrammée au ' + dateStr.split('-').reverse().join('/'));
         } catch (e) { toast('Erreur : ' + e.message, 'error'); }
       };
-      // Créer la prochaine action (depuis la modale de cadence).
-      const createFollowUp = async () => {
-        if (!followUp) return;
-        const url = followUp.affaire_id ? `${API_URL}/affaires/${followUp.affaire_id}/next_actions` : `${API_URL}/prospects/${followUp.prospect_id}/next_actions`;
+      // Basculer la priorité Normale <-> Haute directement depuis la liste.
+      const togglePriority = async (a) => {
+        const next = (Number(a.priority) === 2) ? 1 : 2;
         try {
-          const r = await fetch(url, { method: 'POST', headers: actHeaders, body: JSON.stringify({ action_type: followUp.action_type, planned_date: followUp.planned_date, actor: followUp.actor, contact: followUp.contact }) });
+          const r = await fetch(`${API_URL}/next_actions/${a.id}`, { method: 'PUT', headers: actHeaders, body: JSON.stringify({ setPriority: true, priority: next }) });
           if (!r.ok) throw new Error('HTTP ' + r.status);
-          const created = await r.json().catch(() => ({}));
-          if (created && created.id) {
-            setActions(prev => ([...(prev || []), { id: created.id, prospect_id: followUp.prospect_id, affaire_id: followUp.affaire_id, action_type: followUp.action_type, planned_date: followUp.planned_date, actor: followUp.actor, contact: followUp.contact, prospect_name: followUp.prospect_name, commercial: followUp.commercial || (user && user.name) }]));
-          }
-          toast('Prochaine action créée');
+          setActions(prev => (prev || []).map(x => x.id === a.id ? { ...x, priority: next } : x));
         } catch (e) { toast('Erreur : ' + e.message, 'error'); }
-        setFollowUp(null);
       };
 
       const commerciaux = (() => {
@@ -2678,8 +2689,10 @@
         if (loading || actions === null) return Wrap('Actions', '', commercialFilter, Empty('Chargement…'));
         const today = new Date().toISOString().slice(0, 10);
         const scoped = (actions || []).filter(a => inScope(a.commercial) && (actionTypeFilter === '__all__' || a.action_type === actionTypeFilter));
-        const late = scoped.filter(a => a.planned_date && String(a.planned_date).slice(0, 10) < today).sort((a, b) => String(a.planned_date).localeCompare(String(b.planned_date)));
-        const upcoming = scoped.filter(a => !a.planned_date || String(a.planned_date).slice(0, 10) >= today).sort((a, b) => String(a.planned_date || '').localeCompare(String(b.planned_date || '')));
+        // Tri par défaut : priorité (Haute d'abord) puis date.
+        const byPrioThenDate = (a, b) => (Number(b.priority || 1) - Number(a.priority || 1)) || String(a.planned_date || '').localeCompare(String(b.planned_date || ''));
+        const late = scoped.filter(a => a.planned_date && String(a.planned_date).slice(0, 10) < today).sort(byPrioThenDate);
+        const upcoming = scoped.filter(a => !a.planned_date || String(a.planned_date).slice(0, 10) >= today).sort(byPrioThenDate);
 
         // Filtre par type, alimenté par les types réellement présents (robuste au drift historique).
         const presentTypes = Array.from(new Set((actions || []).map(a => a.action_type).filter(Boolean))).sort();
@@ -2689,6 +2702,37 @@
             {presentTypes.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         );
+
+        // Métriques de pilotage (agrégats backend par commercial, sommés selon le scope courant).
+        const agg = (stats || []).filter(s => inScope(s.commercial)).reduce((o, s) => ({
+          done_week: o.done_week + Number(s.done_week || 0),
+          due30_total: o.due30_total + Number(s.due30_total || 0),
+          due30_done: o.due30_done + Number(s.due30_done || 0),
+          overdue_count: o.overdue_count + Number(s.overdue_count || 0),
+          overdue_days_sum: o.overdue_days_sum + Number(s.overdue_days_sum || 0)
+        }), { done_week: 0, due30_total: 0, due30_done: 0, overdue_count: 0, overdue_days_sum: 0 });
+        const compRate = agg.due30_total > 0 ? Math.round(100 * agg.due30_done / agg.due30_total) : null;
+        const avgOverdue = agg.overdue_count > 0 ? Math.round(agg.overdue_days_sum / agg.overdue_count) : 0;
+        const kpi = (label, value) => (
+          <div style={{ flex: 1, minWidth: '130px', background: 'white', border: '0.5px solid var(--tw-border)', borderRadius: '12px', padding: '12px 16px' }}>
+            <div style={{ fontSize: '10.5px', color: 'var(--tw-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.4px' }}>{label}</div>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--tw-ink)', marginTop: '4px' }}>{value}</div>
+          </div>
+        );
+        const metricsStrip = (
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+            {kpi('Faites cette semaine', agg.done_week)}
+            {kpi('Taux de complétion (30j)', compRate === null ? '—' : compRate + ' %')}
+            {kpi('Retard moyen', agg.overdue_count ? avgOverdue + ' j' : '—')}
+            {kpi('En retard', late.length)}
+          </div>
+        );
+
+        // Pastille de priorité cliquable (bascule Normale/Haute).
+        const prioFlag = (a) => {
+          const high = Number(a.priority) === 2;
+          return <span onClick={e => { e.stopPropagation(); togglePriority(a); }} title={high ? 'Priorité haute — cliquer pour repasser en normale' : 'Priorité normale — cliquer pour passer en haute'} style={{ cursor: 'pointer', marginRight: '6px', color: high ? 'var(--danger)' : 'var(--meta)', fontSize: '13px' }}>{high ? '⚑' : '⚐'}</span>;
+        };
 
         // Boutons d'action rapide (P1.1). stopPropagation pour ne pas déclencher l'ouverture de la fiche.
         const qBtn = { padding: '3px 8px', fontSize: '11.5px', fontWeight: 600, borderRadius: '6px', border: '0.5px solid var(--tw-border)', background: 'white', cursor: 'pointer', marginRight: '4px', whiteSpace: 'nowrap', fontFamily: 'inherit' };
@@ -2703,11 +2747,11 @@
                 <tr key={a.id} style={{ cursor: 'pointer' }} {...rowHover} onClick={() => openFiche(a.prospect_id, a.affaire_id, 'prospect', a.prospect_id)}>
                   <td style={{ ...td, color: lateFlag ? 'var(--danger)' : 'var(--tw-ink)', fontWeight: lateFlag ? 600 : 400, whiteSpace: 'nowrap' }}>{fmtDate(a.planned_date)}</td>
                   <td style={{ ...td, ...lk }}>{a.prospect_name || '—'}</td>
-                  <td style={td}>{a.action_type || '—'}</td>
+                  <td style={td}>{prioFlag(a)}{a.action_type || '—'}</td>
                   <td style={td}>{a.actor || '—'}</td>
                   <td style={td}>{a.contact || '—'}</td>
                   <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
-                    <button style={doneBtn} title="Marquer cette action comme réalisée" onClick={() => completeAction(a)}>Fait ?</button>
+                    <button style={doneBtn} title="Marquer cette action comme réalisée" onClick={() => openCompletion(a)}>Fait ?</button>
                     <button style={qBtn} title="Reporter à demain" onClick={() => rescheduleAction(a, plusDays(1))}>+1j</button>
                     <button style={qBtn} title="Reporter d'une semaine" onClick={() => rescheduleAction(a, plusDays(7))}>+7j</button>
                     <input type="date" title="Reprogrammer à une date précise" defaultValue={a.planned_date ? String(a.planned_date).slice(0, 10) : ''} onChange={e => rescheduleAction(a, e.target.value)} style={{ padding: '2px 6px', fontSize: '11.5px', borderRadius: '6px', border: '0.5px solid var(--tw-border)', fontFamily: 'inherit', color: 'var(--tw-ink)' }} />
@@ -2718,30 +2762,54 @@
           </table>
           );
         };
+        const lblStyle = { fontSize: '11px', color: 'var(--tw-muted)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '4px' };
+        const fldStyle = { width: '100%', padding: '8px 10px', border: '1px solid var(--tw-border)', borderRadius: '8px', fontSize: '13px', fontFamily: 'inherit', background: 'white', color: 'var(--tw-ink)', boxSizing: 'border-box' };
         return (
           <React.Fragment>
             {Wrap('Actions', `${late.length} en retard · ${upcoming.length} à venir`, <React.Fragment>{typeFilter}{commercialFilter}</React.Fragment>,
               <React.Fragment>
+                {metricsStrip}
                 <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--danger)', margin: '4px 0 10px' }}>⚠ En retard ({late.length})</h2>
                 {late.length === 0 ? Empty('Aucune action en retard 🎉') : tableFor(late, true)}
                 <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--tw-ink)', margin: '8px 0 10px' }}>À venir / en cours ({upcoming.length})</h2>
                 {upcoming.length === 0 ? Empty('Aucune action à venir.') : tableFor(upcoming, false)}
               </React.Fragment>
             )}
-            {followUp && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(11,31,78,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setFollowUp(null)}>
-                <div style={{ background: 'white', borderRadius: 'var(--r-md)', padding: '22px 24px', width: '400px', maxWidth: '90vw', boxShadow: 'var(--sh-md)' }} onClick={e => e.stopPropagation()}>
-                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--tw-ink)', marginBottom: '4px' }}>Prochaine action</h3>
-                  <p style={{ fontSize: '13px', color: 'var(--tw-muted)', marginBottom: '16px' }}>{followUp.prospect_name} — ne jamais laisser une société sans prochaine étape.</p>
-                  <label style={{ fontSize: '11px', color: 'var(--tw-muted)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Type</label>
-                  <select value={followUp.action_type} onChange={e => setFollowUp({ ...followUp, action_type: e.target.value })} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--tw-border)', borderRadius: '8px', fontSize: '13px', fontFamily: 'inherit', marginBottom: '12px', background: 'white', color: 'var(--tw-ink)' }}>
-                    {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                  <label style={{ fontSize: '11px', color: 'var(--tw-muted)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Date prévue</label>
-                  <input type="date" value={followUp.planned_date} onChange={e => setFollowUp({ ...followUp, planned_date: e.target.value })} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--tw-border)', borderRadius: '8px', fontSize: '13px', fontFamily: 'inherit', marginBottom: '20px', color: 'var(--tw-ink)' }} />
+            {completion && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(11,31,78,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setCompletion(null)}>
+                <div style={{ background: 'white', borderRadius: 'var(--r-md)', padding: '22px 24px', width: '420px', maxWidth: '92vw', boxShadow: 'var(--sh-md)' }} onClick={e => e.stopPropagation()}>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--tw-ink)', marginBottom: '4px' }}>Action terminée</h3>
+                  <p style={{ fontSize: '13px', color: 'var(--tw-muted)', marginBottom: '16px' }}>{completion.action.prospect_name} — {completion.action.action_type}</p>
+                  <label style={lblStyle}>Résultat de l'action (optionnel)</label>
+                  <textarea value={completion.resultNote} onChange={e => setCompletion({ ...completion, resultNote: e.target.value })} rows={3} placeholder="Ex. : joint, rappeler mardi ; devis à envoyer ; pas intéressé…" style={{ ...fldStyle, marginBottom: '16px', resize: 'vertical' }} />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--tw-ink)', fontWeight: 600, marginBottom: '12px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={completion.createNext} onChange={e => setCompletion({ ...completion, createNext: e.target.checked })} />
+                    Programmer une prochaine action
+                  </label>
+                  {completion.createNext && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+                      <div>
+                        <label style={lblStyle}>Type</label>
+                        <select value={completion.nextType} onChange={e => setCompletion({ ...completion, nextType: e.target.value })} style={fldStyle}>
+                          {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={lblStyle}>Date prévue</label>
+                        <input type="date" value={completion.nextDate} onChange={e => setCompletion({ ...completion, nextDate: e.target.value })} style={fldStyle} />
+                      </div>
+                      <div style={{ gridColumn: '1 / span 2' }}>
+                        <label style={lblStyle}>Priorité</label>
+                        <select value={completion.nextPriority} onChange={e => setCompletion({ ...completion, nextPriority: Number(e.target.value) })} style={fldStyle}>
+                          <option value={1}>Normale</option>
+                          <option value={2}>Haute</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                    <button onClick={() => setFollowUp(null)} style={{ padding: '8px 16px', borderRadius: '999px', border: '1px solid var(--tw-border)', background: 'white', color: 'var(--tw-slate)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Aucune</button>
-                    <button onClick={createFollowUp} style={{ padding: '8px 16px', borderRadius: '999px', border: 'none', background: 'var(--primary)', color: 'white', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Créer</button>
+                    <button onClick={() => setCompletion(null)} style={{ padding: '8px 16px', borderRadius: '999px', border: '1px solid var(--tw-border)', background: 'white', color: 'var(--tw-slate)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Annuler</button>
+                    <button onClick={validateCompletion} style={{ padding: '8px 16px', borderRadius: '999px', border: 'none', background: 'var(--primary)', color: 'white', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Valider</button>
                   </div>
                 </div>
               </div>
@@ -9145,7 +9213,7 @@
       const [showAllDevis, setShowAllDevis] = React.useState(false);
       const [infoEdit, setInfoEdit] = React.useState(false);
       const [showCommForm, setShowCommForm] = React.useState(false);
-      const [commForm, setCommForm] = React.useState({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:'',contexte_val:''});
+      const [commForm, setCommForm] = React.useState({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:'',contexte_val:'',priority:1});
       const [infoForm, setInfoForm] = React.useState({
         name: selectedProspect?.name||'',
         adresse: selectedProspect?.adresse||'',
@@ -10602,6 +10670,14 @@
                               {interlocuteurs.map(i=><option key={i.id} value={i.nom}>{i.nom}{i.fonction?' ('+i.fonction+')':''}</option>)}
                             </select>
                           </div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Priorité</label>
+                            <select value={commForm.priority} onChange={e=>setCommForm({...commForm,priority:Number(e.target.value)})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
+                              <option value={1}>Normale</option>
+                              <option value={2}>Haute</option>
+                            </select>
+                          </div>
                         </div>
                         <div style={{marginBottom:'10px'}}>
                           <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Commentaire</label>
@@ -10619,11 +10695,11 @@
                             await fetch(`${API_URL}/prospects/${selectedProspect.id}/next_actions`, {
                               method:'POST',
                               headers:{'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
-                              body: JSON.stringify({action_type:commForm.action_type, planned_date:commForm.planned_date, actor:commForm.actor, contact:commForm.contact, completed_note:commForm.comment, affaire_id, contexte})
+                              body: JSON.stringify({action_type:commForm.action_type, planned_date:commForm.planned_date, actor:commForm.actor, contact:commForm.contact, completed_note:commForm.comment, affaire_id, contexte, priority:commForm.priority})
                             });
                             fetchAllActions(selectedProspect.id);
                             fetchNextActions(selectedProspect.id);
-                            setCommForm({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:'',contexte_val:''});
+                            setCommForm({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:'',contexte_val:'',priority:1});
                             setShowCommForm(false);
                           }} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'Inter',sans-serif"}}>Enregistrer</button>
                         </div>
