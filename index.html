@@ -655,11 +655,11 @@
     // Couleurs cohérentes avec celles utilisées ailleurs dans l'app (voir ligne ~4310).
     const typeChip = (type) => {
       const map = {
-        'Suspect':  {cls:'#7a7a7a', bg:'#f0f0f0'},
-        'Prospect': {cls:'#c47100', bg:'#fff3e0'},
-        'Client':   {cls:'#0c7ba8', bg:'#e3f2fd'},
+        'Suspect':  {cls:'var(--meta)', bg:'var(--surface-hover)'},
+        'Prospect': {cls:'var(--warning)', bg:'var(--warning-soft)'},
+        'Client':   {cls:'var(--primary)', bg:'var(--primary-soft)'},
       };
-      const s = map[type] || {cls:'var(--tw-muted)', bg:'#f5f5f5'};
+      const s = map[type] || {cls:'var(--tw-muted)', bg:'var(--surface-hover)'};
       return <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'10px',color:s.cls,background:s.bg}}>{type||'—'}</span>;
     };
 
@@ -1027,7 +1027,7 @@
                 const open = openCards.has(camp.sequence_id);
                 const nbDue = contacts.filter(c => c._etat === 'due').length;
                 const nbClore = contacts.filter(c => c._etat === 'cloture').length;
-                const etatStyle = (e) => e === 'due' ? { c: 'var(--primary)', bg: '#e6f6f7' } : e === 'cloture' ? { c: '#a52d2d', bg: '#fdecec' } : { c: '#8a6d3b', bg: '#fdf4e3' };
+                const etatStyle = (e) => e === 'due' ? { c: 'var(--primary)', bg: 'var(--primary-soft)' } : e === 'cloture' ? { c: 'var(--danger)', bg: 'var(--danger-soft)' } : { c: 'var(--warning)', bg: 'var(--warning-soft)' };
                 return (
                   <div style={{marginTop: '14px'}}>
                     {/* Barre d'actions PROPRES à cette campagne */}
@@ -1141,13 +1141,13 @@
 
       const statutBadge = (statut) => {
         const map = {
-          'sent': { label: 'Envoyé', bg: '#e6f7ec', col: '#0d7d39' },
-          'sent_unverified': { label: 'Envoyé (non vérifié)', bg: '#fef5e7', col: '#b97800' },
-          'failed': { label: 'Échec', bg: '#fde8e8', col: '#a52d2d' },
-          'failed_after_send': { label: 'Suspendu', bg: '#fde8e8', col: '#a52d2d' },
-          'pending': { label: 'En attente', bg: '#f1f4f7', col: '#5a6573' }
+          'sent': { label: 'Envoyé', bg: 'var(--success-soft)', col: 'var(--success)' },
+          'sent_unverified': { label: 'Envoyé (non vérifié)', bg: 'var(--warning-soft)', col: 'var(--warning)' },
+          'failed': { label: 'Échec', bg: 'var(--danger-soft)', col: 'var(--danger)' },
+          'failed_after_send': { label: 'Suspendu', bg: 'var(--danger-soft)', col: 'var(--danger)' },
+          'pending': { label: 'En attente', bg: 'var(--surface-hover)', col: 'var(--text-2)' }
         };
-        const s = map[statut] || { label: statut, bg: '#f1f4f7', col: '#5a6573' };
+        const s = map[statut] || { label: statut, bg: 'var(--surface-hover)', col: 'var(--text-2)' };
         return <span style={{fontSize:'11px', color:s.col, background:s.bg, padding:'2px 8px', borderRadius:'4px', fontWeight:500}}>{s.label}</span>;
       };
 
@@ -6210,8 +6210,8 @@
                             <strong>{p.name}</strong> - 
                             <span style={{
                               marginLeft: '8px',
-                              color: p.statut_societe === 'Suspect' ? '#999' : 
-                                     p.statut_societe === 'Prospect' ? '#ff9800' : '#12a0dc',
+                              color: p.statut_societe === 'Suspect' ? 'var(--meta)' :
+                                     p.statut_societe === 'Prospect' ? 'var(--warning)' : 'var(--primary)',
                               fontWeight: 'bold'
                             }}>
                               {p.statut_societe}
@@ -6714,8 +6714,8 @@
                         </td>
                         <td style={{padding:'10px 8px'}}>
                           <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 8px',borderRadius:'10px',
-                            background:p.statut_societe==='Client'?'var(--tw-teal-light)':p.statut_societe==='Prospect'?'#fff8e1':'#f5f5f5',
-                            color:p.statut_societe==='Client'?'var(--tw-teal)':p.statut_societe==='Prospect'?'#f57c00':'#999'}}>
+                            background:p.statut_societe==='Client'?'var(--tw-teal-light)':p.statut_societe==='Prospect'?'var(--warning-soft)':'var(--surface-hover)',
+                            color:p.statut_societe==='Client'?'var(--tw-teal)':p.statut_societe==='Prospect'?'var(--warning)':'var(--meta)'}}>
                             {p.statut_societe||'Prospect'}
                           </span>
                         </td>
@@ -7583,13 +7583,13 @@
       const statusChip = (status) => {
         const map = {
           'En cours':   {cls:'var(--tw-teal)',   bg:'var(--tw-teal-light)'},
-          'Envoyé':     {cls:'var(--warning)',          bg:'#fff8e1'},
-          'Discussion': {cls:'var(--tw-blue)',   bg:'#e8f4fd'},
+          'Envoyé':     {cls:'var(--warning)',   bg:'var(--warning-soft)'},
+          'Discussion': {cls:'var(--tw-blue)',   bg:'var(--primary-soft)'},
           'Négociation':{cls:'#9b59b6',          bg:'#f5eef8'},
-          'Gagné':      {cls:'var(--tw-green)',  bg:'#e8f8f0'},
-          'Perdu':      {cls:'var(--tw-red)',    bg:'#fdecea'},
+          'Gagné':      {cls:'var(--tw-green)',  bg:'var(--success-soft)'},
+          'Perdu':      {cls:'var(--tw-red)',    bg:'var(--danger-soft)'},
         };
-        const s = map[status] || {cls:'var(--tw-muted)', bg:'#f5f5f5'};
+        const s = map[status] || {cls:'var(--tw-muted)', bg:'var(--surface-hover)'};
         return <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'10px',color:s.cls,background:s.bg}}>{status||'Prospection'}</span>;
       };
 
@@ -11229,9 +11229,9 @@
                   {affairesList.map(affaire => {
                     const isOpen = selectedAffaireId === affaire.id;
                     const affaireDevis = devisList.filter(d => d.affaire_id === affaire.id).sort((a, b) => new Date(b.quote_date || b.created_at || 0) - new Date(a.quote_date || a.created_at || 0));
-                    const statutColor = affaire.statut_global === 'Gagné' ? {bg:'#d8f0e3',fg:'#0f6e56'}
-                                       : affaire.statut_global === 'Perdu' ? {bg:'#fde8e8',fg:'#a52d2d'}
-                                       : {bg:'#d3edff',fg:'#0a5085'};
+                    const statutColor = affaire.statut_global === 'Gagné' ? {bg:'var(--success-soft)',fg:'var(--success)'}
+                                       : affaire.statut_global === 'Perdu' ? {bg:'var(--danger-soft)',fg:'var(--danger)'}
+                                       : {bg:'var(--primary-soft)',fg:'var(--primary)'};
                     // Couleur identitaire de l'affaire : stable, dérivée de l'ID.
                     // Permet de distinguer visuellement chaque affaire (barre latérale).
                     const PALETTE_AFFAIRES = ['var(--primary)','#b06e2a','#7048a8','#0a7a4a','#a8385f','#2a6cb0','#9a6212','#46807a'];
