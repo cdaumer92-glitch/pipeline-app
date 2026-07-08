@@ -6489,7 +6489,6 @@
                   else if (e.key === 'Enter' && searchIndex >= 0) {
                     const p = filteredProspects[searchIndex];
                     onSelectProspect(p); setGlobalSearch(''); setShowResults(false); setSearchIndex(-1);
-                    if (isDashboard) onDashboard();
                   } else if (e.key === 'Escape') { setShowResults(false); setSearchIndex(-1); }
                 }}
                 style={{flex:1,border:'none',outline:'none',background:'transparent',fontSize:'13px',fontFamily:'DM Sans,sans-serif',color:'var(--tw-ink)',minWidth:0}}
@@ -6502,7 +6501,6 @@
                     style={{background: idx === searchIndex ? 'var(--tw-teal-light)' : 'white'}}
                     onClick={() => {
                     onSelectProspect(p); setGlobalSearch(''); setShowResults(false); setSearchIndex(-1);
-                    if (isDashboard) onDashboard();
                   }}>
                     <div style={{fontWeight: '600', fontSize: '13px', color: 'var(--tw-ink)'}}>{prospectDisplayName(p)}</div>
                     <div style={{fontSize: '11px', color: 'var(--tw-muted)', marginTop: '2px'}}>
@@ -7702,7 +7700,7 @@
                 <div key={p.id} style={{display:'grid',gridTemplateColumns:'1.8fr 0.9fr 1.1fr 0.7fr 1.5fr 0.8fr',padding:'11px 16px',borderBottom:'1px solid #f5f5f5',alignItems:'center',cursor:'pointer',transition:'background .12s'}}
                   onMouseEnter={e=>e.currentTarget.style.background='var(--tw-teal-light)'}
                   onMouseLeave={e=>e.currentTarget.style.background='white'}
-                  onClick={() => { onSelectProspect(p); onOpenDashboard(); }}
+                  onClick={() => { onSelectProspect(p); }}
                 >
                   <div>
                     <div style={{fontWeight:'600',fontSize:'13px',color:'var(--tw-ink)'}}>{prospectDisplayName(p)}</div>
@@ -8510,7 +8508,7 @@
                                 style={{display:'grid',gridTemplateColumns:'1.8fr 0.9fr 1.1fr 0.7fr 1.5fr 0.8fr',padding:'9px 10px',borderBottom:'1px solid #f5f5f5',alignItems:'center',fontSize:'13px',cursor:'pointer',transition:'background .12s',background:'white'}}
                                 onMouseEnter={e=>e.currentTarget.style.background='var(--tw-teal-light)'}
                                 onMouseLeave={e=>e.currentTarget.style.background='white'}
-                                onClick={() => { onSelectProspect(p); onOpenDashboard(); }}
+                                onClick={() => { onSelectProspect(p); }}
                               >
                                 <div>
                                   <div style={{fontWeight:'600',fontSize:'13px',color:'var(--tw-ink)'}}>{prospectDisplayName(p)}</div>
@@ -8530,7 +8528,7 @@
                                 </div>
                                 <div>
                                   <button style={{padding:'3px 10px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'11px',fontWeight:'500',cursor:'pointer'}}
-                                    onClick={e=>{e.stopPropagation();onSelectProspect(p);onOpenDashboard();}}>
+                                    onClick={e=>{e.stopPropagation();onSelectProspect(p);}}>
                                     Ouvrir →
                                   </button>
                                 </div>
