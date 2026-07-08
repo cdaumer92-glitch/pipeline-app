@@ -7,46 +7,68 @@
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f4f7f7;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
+    button, input, select, textarea { font-family: inherit; }
     :root {
-      --tw-teal:       #007d89;
-      --tw-teal-light: #e6f4f5;
-      --tw-ink:        #1a3535;
-      --tw-slate:      #607a7a;
-      --tw-muted:      #7a9090;
-      --tw-border:     #e0ecec;
-      --tw-bg:         #f4f7f7;
-      --tw-green:      #2ec27e;
-      --tw-orange:     #f0932b;
-      --tw-red:        #e74c3c;
-      --tw-blue:       #3498db;
+      /* ── Tokens officiels charte TexasWin v1.0 ── */
+      --primary: #1A56DB; --primary-dark: #123EA3; --primary-soft: #E8F0FF;
+      --accent-orange: #FF6A00; --accent-amber: #FF971D;
+      --hero-deep: #0B1F4E; --hero-mid: #0E2A6D; --hero-bright: #1A56DB;
+      --success: #059669; --success-soft: rgba(5,150,105,.10);
+      --warning: #D97706; --warning-soft: rgba(217,119,6,.10);
+      --danger: #DC2626; --danger-soft: rgba(220,38,38,.10);
+      --bg: #F7F8FA; --surface: #FFFFFF; --surface-hover: #F1F3F7;
+      --text: #111827; --text-2: #4B5563; --meta: #9CA3AF;
+      --border: rgba(17,24,39,.08);
+      --r-xs: 8px; --r-sm: 14px; --r-md: 20px; --r-lg: 28px; --r-pill: 999px;
+      --sh-sm: 0 8px 24px rgba(17,24,39,.06); --sh-md: 0 20px 50px rgba(17,24,39,.10);
+      --ease: 220ms cubic-bezier(.16,1,.3,1);
+      --mono: 'SF Mono', ui-monospace, 'Cascadia Mono', monospace;
+
+      /* ── Alias Pipeline → tokens charte (diff minimal) ── */
+      --tw-teal:       var(--primary);
+      --tw-teal-light: var(--primary-soft);
+      --tw-ink:        var(--text);
+      --tw-slate:      var(--text-2);
+      --tw-muted:      var(--meta);
+      --tw-border:     var(--border);
+      --tw-bg:         var(--bg);
+      --tw-green:      var(--success);
+      --tw-orange:     var(--warning);
+      --tw-red:        var(--danger);
+      --tw-blue:       var(--primary);
     }
     /* ── TOPBAR PROTOTYPE ── */
     .tw-topbar {
-      height: 52px;
-      background: white;
-      border-bottom: 1px solid var(--tw-border);
+      height: 62px;
+      background: rgba(10,22,55,.88);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: var(--r-pill);
       display: flex;
       align-items: center;
       padding: 0 20px;
       gap: 16px;
       position: sticky;
-      top: 0;
+      top: 14px;
+      margin: 14px 16px 6px;
       z-index: 200;
-      box-shadow: 0 1px 3px rgba(0,125,137,.06);
+      box-shadow: var(--sh-md);
+      color: #fff;
     }
     .tw-logo {
       font-size: 16px;
       font-weight: 700;
-      color: var(--tw-ink);
+      color: #fff;
       letter-spacing: -.4px;
       display: flex;
       align-items: center;
@@ -56,55 +78,56 @@
     .tw-logo img { height: 28px; }
     .tw-nav { display: flex; gap: 2px; }
     .tw-nav-btn {
-      padding: 5px 12px;
-      border-radius: 6px;
+      padding: 6px 14px;
+      border-radius: var(--r-pill);
       font-size: 13px;
-      font-weight: 500;
-      color: var(--tw-slate);
+      font-weight: 600;
+      color: rgba(255,255,255,.85);
       cursor: pointer;
-      border: none;
+      border: 1px solid transparent;
       background: transparent;
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'Inter', system-ui, sans-serif;
       transition: all .15s;
       white-space: nowrap;
     }
-    .tw-nav-btn:hover { background: var(--tw-teal-light); color: var(--tw-teal); }
-    .tw-nav-btn.tw-active { background: var(--tw-teal-light); color: var(--tw-teal); font-weight: 600; }
+    .tw-nav-btn:hover { background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.14); color: #fff; }
+    .tw-nav-btn.tw-active { background: var(--primary); color: #fff; font-weight: 600; }
     .tw-search-box {
       display: flex;
       align-items: center;
       gap: 8px;
-      background: var(--tw-bg);
-      border: 1px solid var(--tw-border);
-      border-radius: 7px;
-      padding: 5px 10px;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: var(--r-pill);
+      padding: 5px 12px;
       min-width: 220px;
       flex: 1;
       max-width: 320px;
       transition: border-color .15s;
       position: relative;
     }
-    .tw-search-box:focus-within { border-color: var(--tw-teal); background: white; }
+    .tw-search-box:focus-within { border-color: rgba(255,255,255,.35); background: rgba(255,255,255,.16); }
     .tw-search-box input {
       border: none;
       background: transparent;
       outline: none;
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'Inter', system-ui, sans-serif;
       font-size: 13px;
-      color: var(--tw-ink);
+      color: #fff;
       width: 100%;
     }
-    .tw-search-box input::placeholder { color: var(--tw-muted); }
+    .tw-search-box input::placeholder { color: rgba(255,255,255,.55); }
+    .tw-search-box svg { stroke: rgba(255,255,255,.7); }
     .tw-btn-new {
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 14px;
-      background: var(--tw-teal);
-      color: white;
+      padding: 7px 16px;
+      background: linear-gradient(180deg, #2B6BF0, var(--primary));
+      color: #fff;
       border: none;
-      border-radius: 7px;
-      font-family: 'DM Sans', sans-serif;
+      border-radius: var(--r-pill);
+      font-family: 'Inter', system-ui, sans-serif;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
@@ -113,29 +136,30 @@
     }
     .tw-btn-new:hover { opacity: .88; }
     .tw-btn-icon {
-      padding: 5px 10px;
-      border-radius: 6px;
+      padding: 5px 12px;
+      border-radius: var(--r-pill);
       font-size: 12px;
       font-weight: 500;
-      color: var(--tw-slate);
+      color: rgba(255,255,255,.85);
       cursor: pointer;
-      border: 1px solid var(--tw-border);
-      background: white;
-      font-family: 'DM Sans', sans-serif;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.10);
+      font-family: 'Inter', system-ui, sans-serif;
       transition: all .15s;
       white-space: nowrap;
     }
-    .tw-btn-icon:hover { background: var(--tw-teal-light); color: var(--tw-teal); border-color: var(--tw-teal); }
+    .tw-btn-icon:hover { background: rgba(255,255,255,.18); color: #fff; border-color: rgba(255,255,255,.28); }
     .tw-user-chip {
       display: flex;
       align-items: center;
       gap: 7px;
       padding: 3px 10px 3px 3px;
-      background: var(--tw-teal-light);
-      border-radius: 20px;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: var(--r-pill);
       font-size: 12px;
       font-weight: 500;
-      color: var(--tw-teal);
+      color: #fff;
       white-space: nowrap;
     }
     .tw-avatar {
@@ -157,7 +181,7 @@
       background: white;
       border: 1px solid var(--tw-border);
       border-radius: 8px;
-      box-shadow: 0 8px 24px rgba(0,125,137,.12);
+      box-shadow: var(--sh-sm);
       z-index: 9999;
       max-height: 380px;
       overflow-y: auto;
@@ -180,22 +204,22 @@
     .tw-kpi-card {
       background: white; border: 1px solid var(--tw-border);
       border-radius: 10px; padding: 16px 20px;
-      box-shadow: 0 1px 3px rgba(0,125,137,.06);
+      box-shadow: var(--sh-sm);
     }
     .tw-kpi-label { font-size: 11px; color: var(--tw-muted); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
-    .tw-kpi-value { font-size: 26px; font-weight: 600; font-family: 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; color: var(--tw-ink); line-height: 1; }
+    .tw-kpi-value { font-size: 26px; font-weight: 600; font-family: 'Inter', system-ui, sans-serif; font-variant-numeric: tabular-nums; color: var(--tw-ink); line-height: 1; }
     .tw-kpi-sub { font-size: 12px; color: var(--tw-slate); margin-top: 5px; }
     .tw-kpi-sub b { color: var(--tw-ink); }
     .tw-kpi-duo { display: flex; gap: 16px; margin-top: 10px; }
     .tw-kpi-duo-sep { width: 1px; background: var(--tw-border); align-self: stretch; flex-shrink: 0; }
     .tw-duo-lbl { font-size: 10px; color: var(--tw-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
-    .tw-duo-val { font-size: 18px; font-weight: 600; font-family: 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; }
+    .tw-duo-val { font-size: 18px; font-weight: 600; font-family: 'Inter', system-ui, sans-serif; font-variant-numeric: tabular-nums; }
     .tw-duo-sub { font-size: 11px; color: var(--tw-muted); margin-top: 2px; }
     /* Tab commerciaux */
-    .tw-tab-wrap { background: white; border: 1px solid var(--tw-border); border-radius: 10px; box-shadow: 0 1px 3px rgba(0,125,137,.06); margin-bottom: 24px; overflow: hidden; }
+    .tw-tab-wrap { background: white; border: 1px solid var(--tw-border); border-radius: 10px; box-shadow: var(--sh-sm); margin-bottom: 24px; overflow: hidden; }
     .tw-tabs { display: flex; border-bottom: 1px solid var(--tw-border); background: var(--tw-bg); overflow-x: auto; }
     .tw-tab {
-      padding: 11px 16px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+      padding: 11px 16px; font-family: 'Inter', system-ui, sans-serif; font-size: 13px; font-weight: 500;
       border: none; background: transparent; color: var(--tw-slate); cursor: pointer;
       border-bottom: 3px solid transparent; transition: all .15s; white-space: nowrap;
       display: flex; align-items: center; gap: 6px;
@@ -208,7 +232,7 @@
     .tw-cs-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-bottom: 14px; }
     .tw-cs-item { background: var(--tw-bg); border-radius: 6px; padding: 10px; text-align: center; cursor: pointer; transition: background .15s; }
     .tw-cs-item:hover { background: var(--tw-teal-light); }
-    .tw-cs-val { font-size: 20px; font-weight: 700; font-family: 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; }
+    .tw-cs-val { font-size: 20px; font-weight: 700; font-family: 'Inter', system-ui, sans-serif; font-variant-numeric: tabular-nums; }
     .tw-cs-lbl { font-size: 10px; color: var(--tw-muted); text-transform: uppercase; letter-spacing: .4px; margin-top: 3px; }
     .tw-row-line { display: flex; gap: 10px; margin-bottom: 8px; }
     .tw-row-box { flex: 1; background: var(--tw-bg); border-radius: 6px; padding: 9px 13px; display: flex; align-items: center; justify-content: space-between; }
@@ -219,7 +243,7 @@
     .tw-pill-red   { background: #fdecea; color: var(--tw-red);   font-size: 12px; padding: 2px 9px; border-radius: 10px; font-weight: 500; }
     /* 2 col stats */
     .tw-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
-    .tw-card { background: white; border: 1px solid var(--tw-border); border-radius: 10px; padding: 18px; box-shadow: 0 1px 3px rgba(0,125,137,.06); }
+    .tw-card { background: white; border: 1px solid var(--tw-border); border-radius: 10px; padding: 18px; box-shadow: var(--sh-sm); }
     .tw-card-title { font-size: 13px; font-weight: 600; color: var(--tw-ink); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--tw-border); }
     .tw-prob-row { margin-bottom: 10px; }
     .tw-prob-hdr { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; }
@@ -228,12 +252,12 @@
     .tw-age-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f5f5f5; font-size: 12px; }
     .tw-age-row:last-child { border-bottom: none; }
     .tw-age-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .tw-age-val { font-family: 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 15px; }
+    .tw-age-val { font-family: 'Inter', system-ui, sans-serif; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 15px; }
     /* Base stats card */
     .tw-stat-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f8f8f8; font-size: 13px; }
     .tw-stat-row:last-child { border-bottom: none; }
     .tw-stat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 7px; flex-shrink: 0; }
-    .tw-stat-val { font-weight: 700; font-family: 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; font-size: 15px; }
+    .tw-stat-val { font-weight: 700; font-family: 'Inter', system-ui, sans-serif; font-variant-numeric: tabular-nums; font-size: 15px; }
 
     /* ==================== SYSTÈME DE TOAST ==================== */
     .tw-toast-container {
@@ -259,7 +283,7 @@
       gap: 12px;
       pointer-events: auto;
       animation: tw-toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'Inter', system-ui, sans-serif;
     }
     .tw-toast.tw-toast-leaving {
       animation: tw-toast-out 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
@@ -347,6 +371,17 @@
     }
     .tw-dark-scroll::-webkit-scrollbar-corner {
       background: transparent;
+    }
+
+    /* ── Accessibilité & motion (exigences charte TexasWin v1.0) ── */
+    :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+      }
     }
   </style>
 </head>
@@ -992,14 +1027,14 @@
                 const open = openCards.has(camp.sequence_id);
                 const nbDue = contacts.filter(c => c._etat === 'due').length;
                 const nbClore = contacts.filter(c => c._etat === 'cloture').length;
-                const etatStyle = (e) => e === 'due' ? { c: '#007d89', bg: '#e6f6f7' } : e === 'cloture' ? { c: '#a52d2d', bg: '#fdecec' } : { c: '#8a6d3b', bg: '#fdf4e3' };
+                const etatStyle = (e) => e === 'due' ? { c: 'var(--primary)', bg: '#e6f6f7' } : e === 'cloture' ? { c: '#a52d2d', bg: '#fdecec' } : { c: '#8a6d3b', bg: '#fdf4e3' };
                 return (
                   <div style={{marginTop: '14px'}}>
                     {/* Barre d'actions PROPRES à cette campagne */}
                     {statut !== 'terminee' && (nbDue > 0 || nbClore > 0) && (
                       <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px'}}>
                         {nbDue > 0 && (
-                          <button onClick={() => envoyerRelancesCampagne(camp.nom, contacts)} disabled={processing} style={{padding: '8px 14px', background: '#007d89', color: 'white', border: 'none', borderRadius: '8px', cursor: processing ? 'wait' : 'pointer', fontSize: '13px', fontWeight: 600}}>📨 Envoyer les relances dues ({nbDue})</button>
+                          <button onClick={() => envoyerRelancesCampagne(camp.nom, contacts)} disabled={processing} style={{padding: '8px 14px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', cursor: processing ? 'wait' : 'pointer', fontSize: '13px', fontWeight: 600}}>📨 Envoyer les relances dues ({nbDue})</button>
                         )}
                         {nbClore > 0 && (
                           <button onClick={() => cloturerCampagne(camp.nom, contacts)} disabled={processing} style={{padding: '8px 14px', background: 'white', color: '#a52d2d', border: '1px solid #a52d2d', borderRadius: '8px', cursor: processing ? 'wait' : 'pointer', fontSize: '13px', fontWeight: 600}}>Clôturer ({nbClore})</button>
@@ -1136,7 +1171,7 @@
               <div style={{display:'flex', gap:'24px', flexWrap:'wrap', marginBottom:'16px'}}>
                 <div><div style={{fontSize:'22px', fontWeight:700, color:'var(--tw-ink)'}}>{stats.aggregated.delivered}</div><div style={{fontSize:'11px', color:'var(--tw-muted)'}}>Délivrés ({stats.aggregated.tauxDelivrabilite}%)</div></div>
                 <div><div style={{fontSize:'22px', fontWeight:700, color:'#0d7d39'}}>{stats.aggregated.uniqueOpens}</div><div style={{fontSize:'11px', color:'var(--tw-muted)'}}>Ouvertures ({stats.aggregated.tauxOuverture}%)</div></div>
-                <div><div style={{fontSize:'22px', fontWeight:700, color:'#007d89'}}>{stats.aggregated.uniqueClicks}</div><div style={{fontSize:'11px', color:'var(--tw-muted)'}}>Clics ({stats.aggregated.tauxClic}%)</div></div>
+                <div><div style={{fontSize:'22px', fontWeight:700, color:'var(--primary)'}}>{stats.aggregated.uniqueClicks}</div><div style={{fontSize:'11px', color:'var(--tw-muted)'}}>Clics ({stats.aggregated.tauxClic}%)</div></div>
                 <div><div style={{fontSize:'22px', fontWeight:700, color:'#a52d2d'}}>{stats.aggregated.hardBounces + stats.aggregated.softBounces}</div><div style={{fontSize:'11px', color:'var(--tw-muted)'}}>Bounces</div></div>
                 <div><div style={{fontSize:'22px', fontWeight:700, color:'#b97800'}}>{stats.aggregated.unsubscriptions}</div><div style={{fontSize:'11px', color:'var(--tw-muted)'}}>Désabos</div></div>
               </div>
@@ -1170,7 +1205,7 @@
                             <td style={{padding:'6px 8px', color:'var(--tw-slate)'}}>{r.email}</td>
                             <td style={{padding:'6px 8px', textAlign:'center'}}>{check(r.delivered, '#0d7d39')}</td>
                             <td style={{padding:'6px 8px', textAlign:'center'}}>{check(r.opened, '#0d7d39')}</td>
-                            <td style={{padding:'6px 8px', textAlign:'center'}}>{check(r.clicked, '#007d89')}</td>
+                            <td style={{padding:'6px 8px', textAlign:'center'}}>{check(r.clicked, 'var(--primary)')}</td>
                             <td style={{padding:'6px 8px', textAlign:'center'}}>{check(r.bounced, '#a52d2d')}</td>
                             <td style={{padding:'6px 8px', textAlign:'center'}}>{check(r.unsubscribed, '#b97800')}</td>
                           </tr>
@@ -1569,7 +1604,7 @@
           {renderGroupe(
             'Relances à faire — 1ère relance',
             'Contacts dont la demande initiale date de plus de ' + (seq?.delai_jours_ouvres || 5) + ' jours ouvrés, sans réponse.',
-            seq?.relance1 || [], '#007d89', 'Envoyer la 1ère relance',
+            seq?.relance1 || [], 'var(--primary)', 'Envoyer la 1ère relance',
             (contacts) => lancerRelance(1, contacts)
           )}
           {renderGroupe(
@@ -2376,7 +2411,7 @@
 
       return (
         <React.Fragment>
-        <div style={{ flexShrink: 0, background: 'var(--tw-bg)', borderBottom: '0.5px solid var(--tw-border)', fontFamily: "'DM Sans', sans-serif" }}>
+        <div style={{ flexShrink: 0, background: 'var(--tw-bg)', borderBottom: '0.5px solid var(--tw-border)', fontFamily: "'Inter', system-ui, sans-serif" }}>
           {/* Onglets (rangée du haut) */}
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', padding: '6px 10px 0', overflowX: 'auto' }}>
             {tabs.map((t, i) => {
@@ -2409,7 +2444,7 @@
             Header (collé au contenu) pour être bien visible, alors que toute la logique
             (historique, canBack…) reste dans ce composant. */}
         {bcSlot && ReactDOM.createPortal(
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 24px', background: 'white', borderBottom: '0.5px solid var(--tw-border)', flexShrink: 0, fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 24px', background: 'white', borderBottom: '0.5px solid var(--tw-border)', flexShrink: 0, fontFamily: "'Inter', system-ui, sans-serif" }}>
             <button onClick={goBack} disabled={!canBack} title="Retour (Alt+←)"
               style={{ width: '26px', height: '26px', borderRadius: '7px', border: '0.5px solid var(--tw-border)', background: 'white', cursor: canBack ? 'pointer' : 'default', color: canBack ? 'var(--tw-slate)' : '#d4dbe0', display: 'grid', placeItems: 'center', flexShrink: 0 }}
               onMouseEnter={(e) => { if (canBack) { e.currentTarget.style.borderColor = '#12a0dc'; e.currentTarget.style.color = '#12a0dc'; } }}
@@ -5074,7 +5109,7 @@
                 boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
               }}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
-                  <h3 style={{margin: 0, color: '#007d89'}}>{compteurModalData.title}</h3>
+                  <h3 style={{margin: 0, color: 'var(--primary)'}}>{compteurModalData.title}</h3>
                   <button 
                     onClick={() => setShowCompteurModal(false)}
                     style={{
@@ -5115,17 +5150,17 @@
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = '#e0f2f7';
-                          e.currentTarget.style.borderColor = '#007d89';
+                          e.currentTarget.style.borderColor = 'var(--primary)';
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.backgroundColor = '#f9f9f9';
                           e.currentTarget.style.borderColor = '#e0e0e0';
                         }}
                       >
-                        <div style={{fontWeight: 'bold', color: '#1a3535', marginBottom: '4px'}}>{prospect.name}</div>
+                        <div style={{fontWeight: 'bold', color: 'var(--text)', marginBottom: '4px'}}>{prospect.name}</div>
                         <div style={{fontSize: '12px', color: '#666'}}>
                           {prospect.contact_name && <span>{prospect.contact_name} • </span>}
-                          <span style={{color: '#007d89', fontWeight: '600'}}>{prospect.statut_societe}</span>
+                          <span style={{color: 'var(--primary)', fontWeight: '600'}}>{prospect.statut_societe}</span>
                           {prospect.real_status && (
                             <span style={{marginLeft: '8px', color: '#1a9fdb'}}>
                               {prospect.real_status} ({prospect.real_probability}%)
@@ -5164,7 +5199,7 @@
                   </h2>
                   <button onClick={() => setShowNewCompanyModal(false)} style={{
                     background: '#f0f8f8', border: 'none', width: '34px', height: '34px',
-                    borderRadius: '8px', cursor: 'pointer', fontSize: '1.1rem', color: '#607a7a'
+                    borderRadius: '8px', cursor: 'pointer', fontSize: '1.1rem', color: 'var(--text-2)'
                   }}>✕</button>
                 </div>
 
@@ -5173,18 +5208,18 @@
 
                   {/* Bouton + SocieteInfo : recherche et autofill */}
                   <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: '#f0f8f8', border: '0.5px dashed #a8d0d3', borderRadius: '8px' }}>
-                    <span style={{ fontSize: '12px', color: '#607a7a', flex: 1 }}>
+                    <span style={{ fontSize: '12px', color: 'var(--text-2)', flex: 1 }}>
                       Vous connaissez le nom ou la marque ? Lancez une recherche dans la base SocieteInfo pour préremplir.
                     </span>
                     <button
                       type="button"
                       onClick={() => openSInfoSearch(newCompanyData.name)}
                       style={{
-                        background: '#1a3535', color: 'white', border: 'none',
+                        background: 'var(--text)', color: 'white', border: 'none',
                         padding: '7px 14px', borderRadius: '7px',
                         fontSize: '12px', fontWeight: 500, cursor: 'pointer',
                         display: 'inline-flex', alignItems: 'center', gap: '6px',
-                        fontFamily: "'DM Sans', sans-serif"
+                        fontFamily: "'Inter', system-ui, sans-serif"
                       }}
                     >
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
@@ -5241,7 +5276,7 @@
                   {/* Séparateur */}
                   <div style={{
                     borderTop: '1px dashed #cde8e8', margin: '18px 0 14px', paddingTop: '14px',
-                    fontSize: '0.72rem', color: '#607a7a', fontWeight: 700,
+                    fontSize: '0.72rem', color: 'var(--text-2)', fontWeight: 700,
                     textTransform: 'uppercase', letterSpacing: '0.08em'
                   }}>Coordonnées société</div>
 
@@ -5358,11 +5393,11 @@
                 }}>
                   <button onClick={() => setShowNewCompanyModal(false)} style={{
                     padding: '10px 20px', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem',
-                    cursor: 'pointer', background: 'white', color: '#607a7a', border: '1.5px solid #cde8e8'
+                    cursor: 'pointer', background: 'white', color: 'var(--text-2)', border: '1.5px solid #cde8e8'
                   }}>Annuler</button>
                   <button onClick={handleCreateFromModal} style={{
                     padding: '10px 20px', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem',
-                    cursor: 'pointer', background: '#007d89', color: 'white', border: 'none'
+                    cursor: 'pointer', background: 'var(--primary)', color: 'white', border: 'none'
                   }}>💾 Enregistrer et ouvrir la fiche</button>
                 </div>
               </div>
@@ -5410,7 +5445,7 @@
                     cursor:'pointer',textAlign:'left',
                     transition:'background .15s, border-color .15s'
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#f4f7f7'; e.currentTarget.style.borderColor = 'var(--tw-teal)'; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg)'; e.currentTarget.style.borderColor = 'var(--tw-teal)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = 'var(--tw-border)'; }}
                 >
                   <div style={{flexShrink:0,width:'32px',height:'32px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)',display:'inline-flex',alignItems:'center',justifyContent:'center'}}>
@@ -5445,7 +5480,7 @@
                     cursor:'pointer',textAlign:'left',
                     transition:'background .15s, border-color .15s'
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#f4f7f7'; e.currentTarget.style.borderColor = 'var(--tw-teal)'; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg)'; e.currentTarget.style.borderColor = 'var(--tw-teal)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = 'var(--tw-border)'; }}
                 >
                   <div style={{flexShrink:0,width:'32px',height:'32px',borderRadius:'8px',background:'#dcfce7',color:'#166534',display:'inline-flex',alignItems:'center',justifyContent:'center'}}>
@@ -5483,24 +5518,24 @@
               }}>
               <div style={{
                 background: 'white', borderRadius: '12px', width: '100%', maxWidth: '640px',
-                boxShadow: '0 20px 40px rgba(0,0,0,0.18)', border: '0.5px solid #e0ecec'
+                boxShadow: '0 20px 40px rgba(0,0,0,0.18)', border: '0.5px solid var(--border)'
               }}>
                 {/* Header */}
                 <div style={{
-                  padding: '18px 24px', borderBottom: '0.5px solid #e0ecec',
+                  padding: '18px 24px', borderBottom: '0.5px solid var(--border)',
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                 }}>
-                  <h2 style={{ margin: 0, fontFamily: 'DM Sans, sans-serif', color: '#1a3535', fontSize: '1.05rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h2 style={{ margin: 0, fontFamily: 'Inter, sans-serif', color: 'var(--text)', fontSize: '1.05rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {sInfoStep === 1 && (sInfoMode === 'enrich' ? 'Enrichir depuis SocieteInfo' : 'Rechercher dans SocieteInfo')}
                     {sInfoStep === 2 && sInfoMode === 'create' && 'Confirmer l\'import'}
                     {sInfoStep === 2 && sInfoMode === 'enrich' && sInfoSelectedCompany && sInfoSelectedCompany._contactsOnly && 'Sélectionner les contacts'}
                     {sInfoStep === 2 && sInfoMode === 'enrich' && (!sInfoSelectedCompany || !sInfoSelectedCompany._contactsOnly) && 'Mettre à jour la fiche'}
                     {sInfoStep === 3 && 'Résoudre les conflits'}
-                    <span style={{ fontSize: '11px', color: '#7a9090', fontWeight: 400 }}>· Étape {sInfoStep}/{sInfoMode === 'enrich' ? 3 : 2}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--meta)', fontWeight: 400 }}>· Étape {sInfoStep}/{sInfoMode === 'enrich' ? 3 : 2}</span>
                   </h2>
                   <button onClick={() => setShowSInfoModal(false)} style={{
-                    background: '#f4f7f7', border: 'none', width: '30px', height: '30px',
-                    borderRadius: '7px', cursor: 'pointer', fontSize: '1rem', color: '#607a7a'
+                    background: 'var(--bg)', border: 'none', width: '30px', height: '30px',
+                    borderRadius: '7px', cursor: 'pointer', fontSize: '1rem', color: 'var(--text-2)'
                   }}>✕</button>
                 </div>
 
@@ -5519,7 +5554,7 @@
                       style={{
                         flex: 1, padding: '10px 14px', fontSize: '14px',
                         border: '0.5px solid #cde0e0', borderRadius: '8px',
-                        outline: 'none', fontFamily: "'DM Sans', sans-serif"
+                        outline: 'none', fontFamily: "'Inter', system-ui, sans-serif"
                       }}
                     />
                     <button
@@ -5528,7 +5563,7 @@
                       disabled={sInfoLoading || sInfoQuery.trim().length < 2}
                       style={{
                         padding: '10px 18px', fontSize: '13px', fontWeight: 500,
-                        background: '#1a3535', color: 'white', border: 'none',
+                        background: 'var(--text)', color: 'white', border: 'none',
                         borderRadius: '8px', cursor: 'pointer',
                         opacity: (sInfoLoading || sInfoQuery.trim().length < 2) ? 0.5 : 1
                       }}
@@ -5556,7 +5591,7 @@
                         style={{
                           flex: 2, padding: '8px 12px', fontSize: '13px',
                           border: '0.5px solid #cde0e0', borderRadius: '6px',
-                          outline: 'none', fontFamily: "'DM Sans', sans-serif"
+                          outline: 'none', fontFamily: "'Inter', system-ui, sans-serif"
                         }}
                       />
                       <input
@@ -5568,7 +5603,7 @@
                         style={{
                           flex: 1, padding: '8px 12px', fontSize: '13px',
                           border: '0.5px solid #cde0e0', borderRadius: '6px',
-                          outline: 'none', fontFamily: "'DM Sans', sans-serif"
+                          outline: 'none', fontFamily: "'Inter', system-ui, sans-serif"
                         }}
                       />
                     </div>
@@ -5588,9 +5623,9 @@
                       style={{ cursor: 'pointer', margin: 0 }}
                     />
                     <label htmlFor="sinfo-broad-search" style={{
-                      fontSize: '12px', color: '#607a7a',
+                      fontSize: '12px', color: 'var(--text-2)',
                       cursor: (sInfoCity.trim() || sInfoPostalCode.trim()) ? 'not-allowed' : 'pointer',
-                      fontFamily: "'DM Sans', sans-serif", userSelect: 'none'
+                      fontFamily: "'Inter', system-ui, sans-serif", userSelect: 'none'
                     }}>
                       🔍 Recherche élargie (sites web, code APE — utile pour enseignes/marques non déposées)
                     </label>
@@ -5609,8 +5644,8 @@
 
                   {/* Liste de résultats */}
                   {sInfoResults.length > 0 && (
-                    <div style={{ borderTop: '0.5px solid #e0ecec', paddingTop: '12px' }}>
-                      <div style={{ fontSize: '11px', color: '#7a9090', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '8px', fontWeight: 500 }}>
+                    <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: '12px' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--meta)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '8px', fontWeight: 500 }}>
                         {sInfoResults.length} résultat{sInfoResults.length > 1 ? 's' : ''}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '420px', overflowY: 'auto' }}>
@@ -5627,15 +5662,15 @@
                               disabled={sInfoLoading}
                               style={{
                                 textAlign: 'left', padding: '10px 14px',
-                                background: 'white', border: '0.5px solid #e0ecec',
+                                background: 'white', border: '0.5px solid var(--border)',
                                 borderRadius: '8px', cursor: 'pointer',
-                                fontFamily: "'DM Sans', sans-serif",
+                                fontFamily: "'Inter', system-ui, sans-serif",
                                 transition: 'background .15s, border-color .15s'
                               }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = '#f4f7f7'; e.currentTarget.style.borderColor = '#007d89'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = '#e0ecec'; }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = 'var(--border)'; }}
                             >
-                              <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a3535', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <span>{name}</span>
                                 {typeof item._match_score === 'number' && (
                                   <span style={{
@@ -5648,7 +5683,7 @@
                                   </span>
                                 )}
                               </div>
-                              <div style={{ fontSize: '11px', color: '#7a9090', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                              <div style={{ fontSize: '11px', color: 'var(--meta)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                                 {siren && <span>SIREN {siren}</span>}
                                 {ville && <span>· {ville}</span>}
                                 {naf && <span>· {naf}</span>}
@@ -5662,7 +5697,7 @@
 
                   {/* État vide initial */}
                   {!sInfoLoading && !sInfoError && sInfoResults.length === 0 && (
-                    <div style={{ padding: '24px', textAlign: 'center', color: '#7a9090', fontSize: '12px' }}>
+                    <div style={{ padding: '24px', textAlign: 'center', color: 'var(--meta)', fontSize: '12px' }}>
                       Tapez un nom de société ou une marque puis appuyez sur Entrée.
                     </div>
                   )}
@@ -5678,15 +5713,15 @@
                       sur le prospect cible (sInfoEnrichTarget). */}
                   <div style={{
                     padding: '12px 14px', marginBottom: '16px',
-                    background: '#f4f7f7', border: '0.5px solid #e0ecec', borderRadius: '8px'
+                    background: 'var(--bg)', border: '0.5px solid var(--border)', borderRadius: '8px'
                   }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a3535', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>
                       {(sInfoSelectedCompany._mapped && sInfoSelectedCompany._mapped.name)
                         || (sInfoSelectedCompany.organization && sInfoSelectedCompany.organization.name)
                         || (sInfoEnrichTarget && sInfoEnrichTarget.name)
                         || '(société)'}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#607a7a', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-2)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                       {((sInfoSelectedCompany._mapped && sInfoSelectedCompany._mapped.siren) || sInfoSelectedCompany.registration_number)
                         && <span>SIREN {(sInfoSelectedCompany._mapped && sInfoSelectedCompany._mapped.siren) || sInfoSelectedCompany.registration_number}</span>}
                       {(sInfoSelectedCompany._mapped && sInfoSelectedCompany._mapped.adresse) && <span>· {sInfoSelectedCompany._mapped.adresse}</span>}
@@ -5699,18 +5734,18 @@
                       car elle est inutile et le message "Aucun dirigeant trouvé" prête à confusion. */}
                   {(sInfoMode === 'create' || (sInfoSelectedCompany && sInfoSelectedCompany._contactsOnly)) && (
                   <React.Fragment>
-                  <div style={{ fontSize: '11px', color: '#7a9090', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '8px', fontWeight: 500 }}>
+                  <div style={{ fontSize: '11px', color: 'var(--meta)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '8px', fontWeight: 500 }}>
                     Dirigeants — sélectionnez ceux à importer
                   </div>
 
                   {sInfoLoading && (
-                    <div style={{ padding: '20px', textAlign: 'center', color: '#7a9090', fontSize: '12px' }}>
+                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--meta)', fontSize: '12px' }}>
                       Chargement…
                     </div>
                   )}
 
                   {!sInfoLoading && sInfoContacts.length === 0 && (
-                    <div style={{ padding: '16px', textAlign: 'center', color: '#7a9090', fontSize: '12px', background: '#fafafa', borderRadius: '7px' }}>
+                    <div style={{ padding: '16px', textAlign: 'center', color: 'var(--meta)', fontSize: '12px', background: '#fafafa', borderRadius: '7px' }}>
                       Aucun dirigeant trouvé pour cette société.
                     </div>
                   )}
@@ -5733,8 +5768,8 @@
                             style={{
                               display: 'flex', alignItems: 'center', gap: '10px',
                               padding: '8px 12px', borderRadius: '7px',
-                              border: '0.5px solid ' + (checked ? '#007d89' : '#e0ecec'),
-                              background: checked ? '#e6f4f5' : 'white',
+                              border: '0.5px solid ' + (checked ? 'var(--primary)' : 'var(--border)'),
+                              background: checked ? 'var(--primary-soft)' : 'white',
                               cursor: 'pointer', transition: 'all .15s',
                               // Légère opacité pour les contacts sans email (sans bloquer la sélection)
                               opacity: hasEmail ? 1 : 0.78
@@ -5744,11 +5779,11 @@
                               type="checkbox"
                               checked={checked}
                               onChange={(e) => setSInfoSelectedContacts(prev => ({ ...prev, [cid]: e.target.checked }))}
-                              style={{ accentColor: '#007d89', cursor: 'pointer' }}
+                              style={{ accentColor: 'var(--primary)', cursor: 'pointer' }}
                             />
-                            <div style={{ flex: 1, fontFamily: "'DM Sans', sans-serif", minWidth: 0 }}>
-                              <div style={{ fontSize: '13px', color: '#1a3535', fontWeight: 500 }}>{fullName || '(sans nom)'}</div>
-                              {fonction && <div style={{ fontSize: '11px', color: '#607a7a' }}>{fonction}</div>}
+                            <div style={{ flex: 1, fontFamily: "'Inter', system-ui, sans-serif", minWidth: 0 }}>
+                              <div style={{ fontSize: '13px', color: 'var(--text)', fontWeight: 500 }}>{fullName || '(sans nom)'}</div>
+                              {fonction && <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>{fonction}</div>}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                               {hasEmail
@@ -5778,16 +5813,16 @@
                         background: nbSelected > 20 ? '#fff8e1' : '#f0f7f7',
                         border: '0.5px solid ' + (nbSelected > 20 ? '#efc274' : '#cde0e0'),
                         borderRadius: '7px',
-                        fontFamily: "'DM Sans', sans-serif"
+                        fontFamily: "'Inter', system-ui, sans-serif"
                       }}>
                         <span style={{fontSize:'14px'}}>{nbSelected > 20 ? '⚠️' : '💳'}</span>
                         <div style={{flex:1}}>
-                          <div style={{ fontSize: '12px', color: '#1a3535', fontWeight: 500 }}>
+                          <div style={{ fontSize: '12px', color: 'var(--text)', fontWeight: 500 }}>
                             {nbSelected === 0
                               ? 'Aucun contact sélectionné'
                               : `${nbSelected} contact${nbSelected > 1 ? 's' : ''} sélectionné${nbSelected > 1 ? 's' : ''} · coût ~${nbSelected} crédit${nbSelected > 1 ? 's' : ''} SocieteInfo`}
                           </div>
-                          <div style={{ fontSize: '11px', color: nbSelected > 20 ? '#7a5520' : '#607a7a' }}>
+                          <div style={{ fontSize: '11px', color: nbSelected > 20 ? '#7a5520' : 'var(--text-2)' }}>
                             {nbSelected > 20
                               ? 'Sélection importante — confirmation demandée à l\'import.'
                               : 'Les noms, emails et téléphones réels seront récupérés à l\'import.'}
@@ -5800,14 +5835,14 @@
                   )}
 
                   {/* Footer : Retour + Valider */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '0.5px solid #e0ecec', paddingTop: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '0.5px solid var(--border)', paddingTop: '14px' }}>
                     <button
                       type="button"
                       onClick={() => setSInfoStep(1)}
                       disabled={sInfoLoading}
                       style={{
                         padding: '8px 14px', fontSize: '12px',
-                        background: 'white', color: '#607a7a',
+                        background: 'white', color: 'var(--text-2)',
                         border: '0.5px solid #cde0e0', borderRadius: '7px', cursor: 'pointer'
                       }}
                     >
@@ -5819,7 +5854,7 @@
                       disabled={sInfoLoading}
                       style={{
                         padding: '9px 18px', fontSize: '13px', fontWeight: 500,
-                        background: '#1a3535', color: 'white', border: 'none',
+                        background: 'var(--text)', color: 'white', border: 'none',
                         borderRadius: '8px', cursor: 'pointer',
                         opacity: sInfoLoading ? 0.5 : 1
                       }}
@@ -5835,7 +5870,7 @@
                 {/* ═══ ÉTAPE 3 : CONFLITS DE CHAMPS (mode enrich uniquement) ═══ */}
                 {sInfoStep === 3 && sInfoMode === 'enrich' && sInfoConflicts.length > 0 && (
                 <div style={{ padding: '20px 24px' }}>
-                  <div style={{ fontSize: '12px', color: '#607a7a', marginBottom: '14px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-2)', marginBottom: '14px' }}>
                     Certains champs diffèrent. Cochez à droite pour utiliser la valeur SocieteInfo, sinon la valeur actuelle est conservée.
                   </div>
 
@@ -5843,16 +5878,16 @@
                     {sInfoConflicts.map((c, idx) => (
                       <div key={c.field} style={{
                         padding: '10px 14px',
-                        border: '0.5px solid ' + (c.useNew ? '#007d89' : '#e0ecec'),
-                        background: c.useNew ? '#e6f4f5' : 'white',
+                        border: '0.5px solid ' + (c.useNew ? 'var(--primary)' : 'var(--border)'),
+                        background: c.useNew ? 'var(--primary-soft)' : 'white',
                         borderRadius: '8px',
                         transition: 'all .15s'
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '11px', color: '#7a9090', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 500 }}>
+                          <span style={{ fontSize: '11px', color: 'var(--meta)', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 500 }}>
                             {c.label}
                           </span>
-                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: c.useNew ? '#007d89' : '#607a7a', fontWeight: 500 }}>
+                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: c.useNew ? 'var(--primary)' : 'var(--text-2)', fontWeight: 500 }}>
                             <input
                               type="checkbox"
                               checked={c.useNew}
@@ -5860,31 +5895,31 @@
                                 const nv = e.target.checked;
                                 setSInfoConflicts(prev => prev.map((x, i) => i === idx ? { ...x, useNew: nv } : x));
                               }}
-                              style={{ accentColor: '#007d89', cursor: 'pointer' }}
+                              style={{ accentColor: 'var(--primary)', cursor: 'pointer' }}
                             />
                             Utiliser SocieteInfo
                           </label>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                           <div>
-                            <div style={{ fontSize: '10px', color: '#7a9090', marginBottom: '2px' }}>Actuel</div>
+                            <div style={{ fontSize: '10px', color: 'var(--meta)', marginBottom: '2px' }}>Actuel</div>
                             <div style={{
-                              fontSize: '12px', color: c.useNew ? '#7a9090' : '#1a3535',
+                              fontSize: '12px', color: c.useNew ? 'var(--meta)' : 'var(--text)',
                               padding: '6px 10px', background: '#fafafa', borderRadius: '6px',
                               textDecoration: c.useNew ? 'line-through' : 'none',
-                              fontFamily: "'DM Sans', sans-serif",
+                              fontFamily: "'Inter', system-ui, sans-serif",
                               wordBreak: 'break-word'
                             }}>
                               {c.current || '(vide)'}
                             </div>
                           </div>
                           <div>
-                            <div style={{ fontSize: '10px', color: '#007d89', marginBottom: '2px' }}>SocieteInfo</div>
+                            <div style={{ fontSize: '10px', color: 'var(--primary)', marginBottom: '2px' }}>SocieteInfo</div>
                             <div style={{
-                              fontSize: '12px', color: c.useNew ? '#1a3535' : '#7a9090',
+                              fontSize: '12px', color: c.useNew ? 'var(--text)' : 'var(--meta)',
                               padding: '6px 10px', background: c.useNew ? 'white' : '#fafafa', borderRadius: '6px',
                               border: c.useNew ? '0.5px solid #cde0e0' : 'none',
-                              fontFamily: "'DM Sans', sans-serif",
+                              fontFamily: "'Inter', system-ui, sans-serif",
                               fontWeight: c.useNew ? 500 : 400,
                               wordBreak: 'break-word'
                             }}>
@@ -5897,14 +5932,14 @@
                   </div>
 
                   {/* Footer : Retour + Valider */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '0.5px solid #e0ecec', paddingTop: '14px', marginTop: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '0.5px solid var(--border)', paddingTop: '14px', marginTop: '16px' }}>
                     <button
                       type="button"
                       onClick={() => setSInfoStep(2)}
                       disabled={sInfoLoading}
                       style={{
                         padding: '8px 14px', fontSize: '12px',
-                        background: 'white', color: '#607a7a',
+                        background: 'white', color: 'var(--text-2)',
                         border: '0.5px solid #cde0e0', borderRadius: '7px', cursor: 'pointer'
                       }}
                     >
@@ -5916,7 +5951,7 @@
                       disabled={sInfoLoading}
                       style={{
                         padding: '9px 18px', fontSize: '13px', fontWeight: 500,
-                        background: '#1a3535', color: 'white', border: 'none',
+                        background: 'var(--text)', color: 'white', border: 'none',
                         borderRadius: '8px', cursor: 'pointer',
                         opacity: sInfoLoading ? 0.5 : 1
                       }}
@@ -6457,7 +6492,7 @@
               const dashOn = isDashboard && none;
               const navBtn = (label, on, onClick) => (
                 <button key={label} onClick={onClick}
-                  style={{padding:'6px 12px',borderRadius:'6px',background: on ? 'var(--tw-teal-light)' : 'transparent',color: on ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: on ? 600 : 500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',transition:'all .15s',whiteSpace:'nowrap'}}>{label}</button>
+                  style={{padding:'6px 12px',borderRadius:'6px',background: on ? 'var(--tw-teal-light)' : 'transparent',color: on ? 'var(--tw-teal)' : 'var(--tw-slate)',border:'none',fontSize:'13px',fontWeight: on ? 600 : 500,fontFamily:'Inter,sans-serif',cursor:'pointer',transition:'all .15s',whiteSpace:'nowrap'}}>{label}</button>
               );
               return (
                 <React.Fragment>
@@ -6491,7 +6526,7 @@
                     onSelectProspect(p); setGlobalSearch(''); setShowResults(false); setSearchIndex(-1);
                   } else if (e.key === 'Escape') { setShowResults(false); setSearchIndex(-1); }
                 }}
-                style={{flex:1,border:'none',outline:'none',background:'transparent',fontSize:'13px',fontFamily:'DM Sans,sans-serif',color:'var(--tw-ink)',minWidth:0}}
+                style={{flex:1,border:'none',outline:'none',background:'transparent',fontSize:'13px',fontFamily:'Inter,sans-serif',color:'var(--tw-ink)',minWidth:0}}
               />
             </div>
             {showResults && (
@@ -6521,19 +6556,19 @@
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('tw:palette'))}
             title="Rechercher partout (Ctrl+K) — sociétés, devis, affaires, contacts"
-            style={{display:'flex',alignItems:'center',gap:'7px',background:'var(--tw-bg)',border:'0.5px solid var(--tw-border)',borderRadius:'8px',padding:'6px 10px',fontSize:'12.5px',fontFamily:'DM Sans,sans-serif',color:'var(--tw-slate)',cursor:'pointer',whiteSpace:'nowrap',transition:'all .15s'}}
+            style={{display:'flex',alignItems:'center',gap:'7px',background:'var(--tw-bg)',border:'0.5px solid var(--tw-border)',borderRadius:'8px',padding:'6px 10px',fontSize:'12.5px',fontFamily:'Inter,sans-serif',color:'var(--tw-slate)',cursor:'pointer',whiteSpace:'nowrap',transition:'all .15s'}}
             onMouseEnter={(e)=>{e.currentTarget.style.borderColor='#12a0dc';e.currentTarget.style.color='#12a0dc';}}
             onMouseLeave={(e)=>{e.currentTarget.style.borderColor='var(--tw-border)';e.currentTarget.style.color='var(--tw-slate)';}}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
             Rechercher partout
-            <kbd style={{fontFamily:'DM Sans,sans-serif',fontSize:'10px',fontWeight:600,background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'4px',padding:'1px 5px',color:'var(--tw-slate)'}}>Ctrl K</kbd>
+            <kbd style={{fontFamily:'Inter,sans-serif',fontSize:'10px',fontWeight:600,background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'4px',padding:'1px 5px',color:'var(--tw-slate)'}}>Ctrl K</kbd>
           </button>
 
           {/* CTA NOUVELLE SOCIÉTÉ — bouton primaire noir style Vercel/Stripe */}
           <button
             onClick={onNewProspect}
-            style={{background:'var(--tw-ink)',color:'white',border:'none',padding:'7px 13px',borderRadius:'8px',fontSize:'13px',fontWeight:500,fontFamily:'DM Sans,sans-serif',cursor:'pointer',display:'flex',alignItems:'center',gap:'6px',whiteSpace:'nowrap'}}
+            style={{background:'var(--tw-ink)',color:'white',border:'none',padding:'7px 13px',borderRadius:'8px',fontSize:'13px',fontWeight:500,fontFamily:'Inter,sans-serif',cursor:'pointer',display:'flex',alignItems:'center',gap:'6px',whiteSpace:'nowrap'}}
             onMouseEnter={(e) => e.currentTarget.style.background = '#0d2424'}
             onMouseLeave={(e) => e.currentTarget.style.background = 'var(--tw-ink)'}
           >
@@ -6558,7 +6593,7 @@
           {/* USER AVATAR + DÉCONNEXION */}
           <div style={{display:'flex',alignItems:'center',gap:'8px',padding:'4px 4px 4px 10px',background:'var(--tw-bg)',borderRadius:'20px'}}>
             <span style={{fontSize:'13px',color:'var(--tw-ink)',fontWeight:500,whiteSpace:'nowrap'}}>{user.name}</span>
-            <div style={{width:'28px',height:'28px',borderRadius:'50%',background:avatarColor.bg,color:avatarColor.fg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:600,fontFamily:'DM Sans,sans-serif'}}>{initials(user.name)}</div>
+            <div style={{width:'28px',height:'28px',borderRadius:'50%',background:avatarColor.bg,color:avatarColor.fg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:600,fontFamily:'Inter,sans-serif'}}>{initials(user.name)}</div>
           </div>
           <button
             onClick={onLogout}
@@ -6638,12 +6673,12 @@
                 <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px'}}>Attribuer tout à :</span>
                 {commerciaux.map(c => (
                   <button key={c.id} onClick={() => handleSelectAll(c.name)}
-                    style={{padding:'5px 14px',background:'var(--tw-teal-light)',color:'var(--tw-teal)',border:'1px solid var(--tw-border)',borderRadius:'20px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                    style={{padding:'5px 14px',background:'var(--tw-teal-light)',color:'var(--tw-teal)',border:'1px solid var(--tw-border)',borderRadius:'20px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
                     {c.name}
                   </button>
                 ))}
                 <button onClick={() => handleSelectAll('')}
-                  style={{padding:'5px 14px',background:'white',color:'var(--tw-muted)',border:'1px solid var(--tw-border)',borderRadius:'20px',fontSize:'12px',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                  style={{padding:'5px 14px',background:'white',color:'var(--tw-muted)',border:'1px solid var(--tw-border)',borderRadius:'20px',fontSize:'12px',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
                   Réinitialiser
                 </button>
               </div>
@@ -6687,7 +6722,7 @@
                         <td style={{padding:'10px 8px',fontSize:'13px',color:'var(--tw-slate)'}}>{p.ville||'—'}</td>
                         <td style={{padding:'10px 8px'}}>
                           <select value={selections[p.id]||''} onChange={e => setSelections(s => ({...s,[p.id]:e.target.value}))}
-                            style={{padding:'5px 8px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'12px',fontFamily:"'DM Sans',sans-serif",background:'white',minWidth:'130px',
+                            style={{padding:'5px 8px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'12px',fontFamily:"'Inter',sans-serif",background:'white',minWidth:'130px',
                               borderColor:selections[p.id]?'var(--tw-teal)':'var(--tw-border)',
                               color:selections[p.id]?'var(--tw-teal)':'var(--tw-muted)'}}>
                             <option value="">— Choisir —</option>
@@ -6718,11 +6753,11 @@
                       {result.errors.length>0 && ` · ⚠ ${result.errors.length} erreur(s)`}
                     </span>
                   )}
-                  <button onClick={onClose} style={{padding:'8px 18px',background:'white',color:'var(--tw-slate)',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                  <button onClick={onClose} style={{padding:'8px 18px',background:'white',color:'var(--tw-slate)',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
                     Fermer
                   </button>
                   <button onClick={handleSend} disabled={sending || nbSelectionnes === 0}
-                    style={{padding:'8px 20px',background:(sending||nbSelectionnes===0)?'#ccc':'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'13px',fontWeight:'600',cursor:(sending||nbSelectionnes===0)?'default':'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                    style={{padding:'8px 20px',background:(sending||nbSelectionnes===0)?'#ccc':'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'13px',fontWeight:'600',cursor:(sending||nbSelectionnes===0)?'default':'pointer',fontFamily:"'Inter',sans-serif"}}>
                     {sending ? '⏳ Envoi...' : `🎯 Attribuer & envoyer les mails (${nbSelectionnes})`}
                   </button>
                 </div>
@@ -7053,13 +7088,13 @@
       };
 
       return (
-        <div style={{marginBottom:'18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)',overflow:'hidden'}}>
+        <div style={{marginBottom:'18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'var(--sh-sm)',overflow:'hidden'}}>
           <div style={{padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <span style={{fontSize:'13px',fontWeight:'600',color:'#c0392b'}}>🗑️ Gestion des suspects non attribués</span>
             <button
               onClick={handleDelete}
               disabled={loading}
-              style={{padding:'7px 16px',background:loading?'#ccc':'#e74c3c',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:loading?'default':'pointer',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}
+              style={{padding:'7px 16px',background:loading?'#ccc':'var(--danger)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:loading?'default':'pointer',fontFamily:"'Inter',sans-serif",whiteSpace:'nowrap'}}
             >
               {loading ? '⏳ Vérification...' : '🗑️ Supprimer les suspects non attribués'}
             </button>
@@ -7112,7 +7147,7 @@
       };
 
       return (
-        <div style={{marginBottom:'18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)',overflow:'hidden'}}>
+        <div style={{marginBottom:'18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'var(--sh-sm)',overflow:'hidden'}}>
           <div onClick={() => setOpen(o => !o)}
             style={{padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer',userSelect:'none'}}
             onMouseEnter={e=>e.currentTarget.style.background='var(--tw-teal-light)'}
@@ -7140,7 +7175,7 @@
                     style={{fontSize:'13px',color:'var(--tw-ink)',flex:1,minWidth:'200px'}}
                   />
                   <button onClick={handleImport} disabled={!file || loading}
-                    style={{padding:'8px 18px',background:(!file||loading)?'#ccc':'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'13px',fontWeight:'600',cursor:(!file||loading)?'default':'pointer',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>
+                    style={{padding:'8px 18px',background:(!file||loading)?'#ccc':'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'13px',fontWeight:'600',cursor:(!file||loading)?'default':'pointer',fontFamily:"'Inter',sans-serif",whiteSpace:'nowrap'}}>
                     {loading ? '⏳ Import...' : '📥 Importer'}
                   </button>
                 </div>
@@ -7227,7 +7262,7 @@
       const selectStyle = {
         width:'100%', padding:'7px 10px', fontSize:'12px', border:'0.5px solid '+A.border,
         borderRadius:'7px', background:A.bgSoft, color:A.text, cursor:'pointer',
-        fontFamily:"'DM Sans',sans-serif", appearance:'none',
+        fontFamily:"'Inter',sans-serif", appearance:'none',
         backgroundImage:'url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2710%27 height=%2710%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23aab4c2%27 stroke-width=%272%27><polyline points=%276 9 12 15 18 9%27/></svg>")',
         backgroundRepeat:'no-repeat', backgroundPosition:'right 10px center', paddingRight:'28px'
       };
@@ -7286,7 +7321,7 @@
                   style={{flex:1,padding:'5px 4px',border:'none',borderRadius:'5px',fontSize:'10px',fontWeight: filterAttribution===opt.id ? 600 : 500,
                     background: filterAttribution===opt.id ? A.bgActive : 'transparent',
                     color: filterAttribution===opt.id ? A.text : A.textDim,
-                    cursor:'pointer',transition:'all .15s',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>
+                    cursor:'pointer',transition:'all .15s',fontFamily:"'Inter',sans-serif",whiteSpace:'nowrap'}}>
                   {opt.label}
                 </button>
               ))}
@@ -7347,12 +7382,12 @@
                     }}>
                       {/* Préset "Tous" : décoche tout */}
                       <button onClick={() => { onFilterChange([]); setStatusMenuOpen(false); }}
-                        style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',background: isAllSelected ? A.bgActive : 'transparent', color: A.text, border:'none', borderRadius:'5px', cursor:'pointer', fontSize:'12px', fontFamily:"'DM Sans',sans-serif",marginBottom:'2px'}}>
+                        style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',background: isAllSelected ? A.bgActive : 'transparent', color: A.text, border:'none', borderRadius:'5px', cursor:'pointer', fontSize:'12px', fontFamily:"'Inter',sans-serif",marginBottom:'2px'}}>
                         {isAllSelected ? '✓ ' : ''}Tous
                       </button>
                       {/* Préset "Devis en cours" */}
                       <button onClick={() => onFilterChange(isDevisEnCours ? [] : [...DEVIS_EN_COURS])}
-                        style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',background: isDevisEnCours ? A.bgActive : 'transparent', color: A.text, border:'none', borderRadius:'5px', cursor:'pointer', fontSize:'12px', fontFamily:"'DM Sans',sans-serif",marginBottom:'4px'}}>
+                        style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',background: isDevisEnCours ? A.bgActive : 'transparent', color: A.text, border:'none', borderRadius:'5px', cursor:'pointer', fontSize:'12px', fontFamily:"'Inter',sans-serif",marginBottom:'4px'}}>
                         {isDevisEnCours ? '✓ ' : ''}📊 Devis en cours
                       </button>
                       <div style={{height:'1px',background:A.border,margin:'4px 0'}}></div>
@@ -7360,7 +7395,7 @@
                       {ALL_STATUS.map(s => {
                         const checked = selected.includes(s);
                         return (
-                          <label key={s} style={{display:'flex',alignItems:'center',gap:'8px',padding:'5px 10px',cursor:'pointer',color:A.text,fontSize:'12px',fontFamily:"'DM Sans',sans-serif",borderRadius:'5px',background: checked ? A.bgActive : 'transparent'}}>
+                          <label key={s} style={{display:'flex',alignItems:'center',gap:'8px',padding:'5px 10px',cursor:'pointer',color:A.text,fontSize:'12px',fontFamily:"'Inter',sans-serif",borderRadius:'5px',background: checked ? A.bgActive : 'transparent'}}>
                             <input type="checkbox" checked={checked} onChange={() => toggleStatus(s)}
                               style={{accentColor:'#5DCAA5',cursor:'pointer',margin:0}} />
                             {s}
@@ -7395,7 +7430,7 @@
                   style={{flex:1,padding:'5px 4px',border:'none',borderRadius:'5px',fontSize:'10px',fontWeight: sortBy===option.value ? 600 : 500,
                     background: sortBy===option.value ? A.bgActive : 'transparent',
                     color: sortBy===option.value ? A.text : A.textDim,
-                    cursor:'pointer',transition:'all .15s',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>
+                    cursor:'pointer',transition:'all .15s',fontFamily:"'Inter',sans-serif",whiteSpace:'nowrap'}}>
                   {option.label}
                 </button>
               ))}
@@ -7548,7 +7583,7 @@
       const statusChip = (status) => {
         const map = {
           'En cours':   {cls:'var(--tw-teal)',   bg:'var(--tw-teal-light)'},
-          'Envoyé':     {cls:'#f0932b',          bg:'#fff8e1'},
+          'Envoyé':     {cls:'var(--warning)',          bg:'#fff8e1'},
           'Discussion': {cls:'var(--tw-blue)',   bg:'#e8f4fd'},
           'Négociation':{cls:'#9b59b6',          bg:'#f5eef8'},
           'Gagné':      {cls:'var(--tw-green)',  bg:'#e8f8f0'},
@@ -7564,7 +7599,7 @@
         <div className="tw-content">
 
           {/* HEADER CONSULTANT */}
-          <div style={{background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',padding:'18px 22px',marginBottom:'18px',display:'flex',alignItems:'center',gap:'18px',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
+          <div style={{background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',padding:'18px 22px',marginBottom:'18px',display:'flex',alignItems:'center',gap:'18px',boxShadow:'var(--sh-sm)'}}>
             <div className="tw-avatar" style={{width:'48px',height:'48px',fontSize:'17px',background:'linear-gradient(135deg,var(--tw-teal),#00a8b8)',flexShrink:0}}>{initials}</div>
             <div style={{flex:1}}>
               <div style={{fontSize:'17px',fontWeight:'600',color:'var(--tw-ink)'}}>{user.name}</div>
@@ -7642,7 +7677,7 @@
                     color: active ? 'white' : 'var(--tw-slate)',
                     border:'0.5px solid ' + (active ? 'var(--tw-ink)' : 'var(--tw-border)'),
                     borderRadius:'14px',fontSize:'12px',cursor:'pointer',
-                    fontFamily:"'DM Sans',sans-serif",
+                    fontFamily:"'Inter',sans-serif",
                     transition:'all .15s'
                   }}>
                   {t.label} <span style={{opacity:0.6,marginLeft:'3px'}}>({count})</span>
@@ -7650,7 +7685,7 @@
               );
             })}
           </div>
-          <div style={{background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',overflow:'hidden',boxShadow:'0 1px 3px rgba(0,125,137,.06)'}}>
+          <div style={{background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',overflow:'hidden',boxShadow:'var(--sh-sm)'}}>
             {/* Header triable */}
             <div style={{display:'grid',gridTemplateColumns:'1.8fr 0.9fr 1.1fr 0.7fr 1.5fr 0.8fr',padding:'9px 16px',background:'var(--tw-bg)',borderBottom:'1px solid var(--tw-border)',fontSize:'11px',fontWeight:'600',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px'}}>
               {[
@@ -7722,7 +7757,7 @@
                     )}
                   </div>
                   <div>
-                    <button style={{padding:'4px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'500',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                    <button style={{padding:'4px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'500',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
                       Ouvrir →
                     </button>
                   </div>
@@ -8090,19 +8125,19 @@
 
       // ── Par probabilité ──
       const probRanges = [
-        {label:'80–100%', min:80, max:100, color:'#2ec27e'},
-        {label:'60–80%',  min:60, max:79,  color:'#3498db'},
-        {label:'40–60%',  min:40, max:59,  color:'#f0932b'},
-        {label:'20–40%',  min:20, max:39,  color:'#e74c3c'},
+        {label:'80–100%', min:80, max:100, color:'var(--success)'},
+        {label:'60–80%',  min:60, max:79,  color:'var(--primary)'},
+        {label:'40–60%',  min:40, max:59,  color:'var(--warning)'},
+        {label:'20–40%',  min:20, max:39,  color:'var(--danger)'},
         {label:'0–20%',   min:0,  max:19,  color:'#bbb'},
       ];
 
       // ── Ancienneté devis ──
       const ageRanges = [
-        {label:'< 1 mois',  max:30,  color:'#2ec27e', status:'Frais'},
-        {label:'1–2 mois',  min:30,  max:60,  color:'#3498db', status:'OK'},
-        {label:'2–3 mois',  min:60,  max:90,  color:'#f0932b', status:'⚠ Vieux'},
-        {label:'> 3 mois',  min:90,  color:'#e74c3c', status:'🚨 Urgent'},
+        {label:'< 1 mois',  max:30,  color:'var(--success)', status:'Frais'},
+        {label:'1–2 mois',  min:30,  max:60,  color:'var(--primary)', status:'OK'},
+        {label:'2–3 mois',  min:60,  max:90,  color:'var(--warning)', status:'⚠ Vieux'},
+        {label:'> 3 mois',  min:90,  color:'var(--danger)', status:'🚨 Urgent'},
       ];
       const ageCount = (range) => pipeline.filter(p => {
         if (!p.real_quote_date) return false;
@@ -8144,11 +8179,11 @@
                 </div>
                 <div style={{display:'flex',gap:'10px',justifyContent:'flex-end'}}>
                   <button onClick={() => setRecapConfirm(false)}
-                    style={{padding:'8px 18px',background:'white',color:'var(--tw-slate)',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontWeight:'500',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                    style={{padding:'8px 18px',background:'white',color:'var(--tw-slate)',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontWeight:'500',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
                     Annuler
                   </button>
                   <button onClick={doSendTestRecap}
-                    style={{padding:'8px 18px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'13px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                    style={{padding:'8px 18px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'13px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
                     📤 Envoyer
                   </button>
                 </div>
@@ -8157,7 +8192,7 @@
           )}
 
           {/* ── PANNEAU PROSPECTION SocieteInfo (Dashboard est déjà admin-only) ── */}
-          <div style={{marginBottom:'18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)',padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}
+          <div style={{marginBottom:'18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'var(--sh-sm)',padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}
             onClick={openProspectionModal}
             onMouseEnter={e=>e.currentTarget.style.background='var(--tw-teal-light)'}
             onMouseLeave={e=>e.currentTarget.style.background='white'}>
@@ -8170,7 +8205,7 @@
 
           {/* ── PANNEAU RECAP TEST (Christian uniquement) ── */}
           {user.name === 'Christian' && (
-            <div style={{marginBottom:'18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 1px 3px rgba(0,125,137,.06)',overflow:'hidden'}}>
+            <div style={{marginBottom:'18px',background:'white',border:'1px solid var(--tw-border)',borderRadius:'10px',boxShadow:'var(--sh-sm)',overflow:'hidden'}}>
               <div onClick={() => setRecapOpen(o => !o)}
                 style={{padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer',userSelect:'none'}}
                 onMouseEnter={e=>e.currentTarget.style.background='var(--tw-teal-light)'}
@@ -8186,7 +8221,7 @@
                 <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
                   <label style={{fontSize:'11px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.4px',fontWeight:'600'}}>Destinataire</label>
                   <select value={recapTarget} onChange={e=>setRecapTarget(e.target.value)}
-                    style={{padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",color:'var(--tw-ink)',background:'white',cursor:'pointer'}}>
+                    style={{padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif",color:'var(--tw-ink)',background:'white',cursor:'pointer'}}>
                     {['Moi (Christian)', ...commerciaux.map(n => n)].map(n => (
                       <option key={n} value={n}>{n}</option>
                     ))}
@@ -8213,7 +8248,7 @@
                 {/* Bouton + résultat */}
                 <div style={{display:'flex',flexDirection:'column',gap:'6px',alignItems:'flex-end'}}>
                   <button onClick={sendTestRecap} disabled={recapSending}
-                    style={{padding:'8px 18px',background:recapSending?'#ccc':'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'13px',fontWeight:'600',cursor:recapSending?'default':'pointer',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>
+                    style={{padding:'8px 18px',background:recapSending?'#ccc':'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'13px',fontWeight:'600',cursor:recapSending?'default':'pointer',fontFamily:"'Inter',sans-serif",whiteSpace:'nowrap'}}>
                     {recapSending ? '⏳ Envoi...' : '📤 Envoyer le test'}
                   </button>
                   {recapResult && (
@@ -8412,7 +8447,7 @@
                           <span style={{fontSize:'12px',color:'var(--tw-muted)',whiteSpace:'nowrap'}}>{d.prosp} prosp · 🪙 {d.devisTotal} devis</span>
                           <div className="tw-chips">
                             {chip('En cours',   d.encours,    'var(--tw-teal)')}
-                            {chip('Envoyé',     d.envoye,     '#f0932b')}
+                            {chip('Envoyé',     d.envoye,     'var(--warning)')}
                             {chip('Discussion', d.discussion, 'var(--tw-blue)')}
                             {chip('Gagné',      d.gagne,      'var(--tw-green)')}
                             {chip('Perdu',      d.perdu,      'var(--tw-red)')}
@@ -8452,7 +8487,7 @@
                                     color: active ? 'white' : 'var(--tw-slate)',
                                     border:'0.5px solid ' + (active ? 'var(--tw-ink)' : 'var(--tw-border)'),
                                     borderRadius:'14px',fontSize:'12px',cursor:'pointer',
-                                    fontFamily:"'DM Sans',sans-serif",
+                                    fontFamily:"'Inter',sans-serif",
                                     transition:'all .15s'
                                   }}>
                                   {t.label} <span style={{opacity:0.6,marginLeft:'3px'}}>({count})</span>
@@ -8499,7 +8534,7 @@
                             const isLate = ai?.isLate;
                             const actionDate = ai?.nextActionDate ? new Date(ai.nextActionDate) : null;
                             const dateStr = actionDate ? actionDate.toLocaleDateString('fr-FR') : null;
-                            const statusColors = {'Gagné':'var(--tw-green)','Perdu':'var(--tw-red)','Discussion':'var(--tw-blue)','Envoyé':'#f0932b','Négociation':'#9b59b6'};
+                            const statusColors = {'Gagné':'var(--tw-green)','Perdu':'var(--tw-red)','Discussion':'var(--tw-blue)','Envoyé':'var(--warning)','Négociation':'#9b59b6'};
                             const statusBgs = {'Gagné':'#e8f8f0','Perdu':'#fdecea','Discussion':'#e8f4fd','Envoyé':'#fff8e1','Négociation':'#f5eef8'};
                             const sColor = statusColors[p.real_status] || 'var(--tw-muted)';
                             const sBg = statusBgs[p.real_status] || '#f5f5f5';
@@ -8573,12 +8608,12 @@
               <div style={{background:'white',borderRadius:'12px',width:'90%',maxWidth:'900px',maxHeight:'90vh',overflow:'hidden',display:'flex',flexDirection:'column'}}>
                 {/* Header */}
                 <div style={{padding:'16px 24px',borderBottom:'1px solid var(--tw-border)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                  <h2 style={{margin:0,fontFamily:'DM Sans, sans-serif',color:'#1a3535',fontSize:'1.05rem',fontWeight:600,display:'flex',alignItems:'center',gap:'8px'}}>
+                  <h2 style={{margin:0,fontFamily:'Inter, sans-serif',color:'var(--text)',fontSize:'1.05rem',fontWeight:600,display:'flex',alignItems:'center',gap:'8px'}}>
                     🎯 Recherche SocieteInfo
-                    <span style={{fontSize:'11px',color:'#7a9090',fontWeight:400}}>· Étape {prospStep}/4</span>
+                    <span style={{fontSize:'11px',color:'var(--meta)',fontWeight:400}}>· Étape {prospStep}/4</span>
                   </h2>
                   <button onClick={() => setShowProspectionModal(false)}
-                    style={{background:'#f4f7f7',border:'none',width:'30px',height:'30px',borderRadius:'7px',cursor:'pointer',fontSize:'1rem',color:'#607a7a'}}>✕</button>
+                    style={{background:'var(--bg)',border:'none',width:'30px',height:'30px',borderRadius:'7px',cursor:'pointer',fontSize:'1rem',color:'var(--text-2)'}}>✕</button>
                 </div>
 
                 {/* Body scrollable */}
@@ -8587,14 +8622,14 @@
                   {/* ── ÉTAPE 1 : Code NAF ── */}
                   {prospStep === 1 && (
                     <div>
-                      <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px',color:'#1a3535'}}>Secteur d'activité (code NAF)</div>
-                      <div style={{fontSize:'12px',color:'#607a7a',marginBottom:'12px'}}>
+                      <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px',color:'var(--text)'}}>Secteur d'activité (code NAF)</div>
+                      <div style={{fontSize:'12px',color:'var(--text-2)',marginBottom:'12px'}}>
                         Choisissez un code NAF (optionnel — vous pouvez aussi rechercher uniquement par zone). Tapez un mot-clé pour filtrer.
                       </div>
                       <input type="text" placeholder="Ex: habillement, restauration, conseil..."
                         value={prospNafSearch}
                         onChange={(e) => setProspNafSearch(e.target.value)}
-                        style={{width:'100%',padding:'10px 14px',fontSize:'14px',border:'0.5px solid #cde0e0',borderRadius:'8px',outline:'none',marginBottom:'12px',fontFamily:"'DM Sans',sans-serif"}} />
+                        style={{width:'100%',padding:'10px 14px',fontSize:'14px',border:'0.5px solid #cde0e0',borderRadius:'8px',outline:'none',marginBottom:'12px',fontFamily:"'Inter',sans-serif"}} />
                       <div style={{maxHeight:'320px',overflow:'auto',border:'0.5px solid #e0e8e8',borderRadius:'8px'}}>
                         {(() => {
                           const Q = prospNafSearch.trim().toLowerCase();
@@ -8608,14 +8643,14 @@
                           } else {
                             filtered = codesList.slice(0, 50);
                           }
-                          if (filtered.length === 0) return <div style={{padding:'20px',textAlign:'center',color:'#7a9090',fontSize:'13px'}}>Aucun code NAF trouvé</div>;
+                          if (filtered.length === 0) return <div style={{padding:'20px',textAlign:'center',color:'var(--meta)',fontSize:'13px'}}>Aucun code NAF trouvé</div>;
                           return filtered.map(n => (
                             <div key={n.code}
                               onClick={() => { setProspNafCode(n.code); setProspNafLibelle(n.libelle); }}
                               style={{padding:'8px 12px',borderBottom:'0.5px solid #f0f4f4',cursor:'pointer',display:'flex',gap:'10px',alignItems:'center',background:prospNafCode===n.code?'#e0f2f1':'white'}}
-                              onMouseEnter={e=>{if(prospNafCode!==n.code) e.currentTarget.style.background='#f4f7f7'}}
+                              onMouseEnter={e=>{if(prospNafCode!==n.code) e.currentTarget.style.background='var(--bg)'}}
                               onMouseLeave={e=>{if(prospNafCode!==n.code) e.currentTarget.style.background='white'}}>
-                              <span style={{fontSize:'12px',fontWeight:600,color:'#1a3535',minWidth:'50px'}}>{n.code}</span>
+                              <span style={{fontSize:'12px',fontWeight:600,color:'var(--text)',minWidth:'50px'}}>{n.code}</span>
                               <span style={{fontSize:'12px',color:'#4a6868'}}>{n.libelle}</span>
                             </div>
                           ));
@@ -8634,15 +8669,15 @@
                   {/* ── ÉTAPE 2 : Zone géographique ── */}
                   {prospStep === 2 && (
                     <div>
-                      <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px',color:'#1a3535'}}>Zone géographique</div>
-                      <div style={{fontSize:'12px',color:'#607a7a',marginBottom:'12px'}}>
+                      <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px',color:'var(--text)'}}>Zone géographique</div>
+                      <div style={{fontSize:'12px',color:'var(--text-2)',marginBottom:'12px'}}>
                         Tapez le nom d'une ville, département ou région. <em>(Cette étape ne consomme aucun crédit.)</em>
                       </div>
                       <input type="text" placeholder="Ex: Bretagne, Paris, Bordeaux..."
                         value={prospPlaceSearch}
                         onChange={(e) => setProspPlaceSearch(e.target.value)}
                         autoFocus
-                        style={{width:'100%',padding:'10px 14px',fontSize:'14px',border:'0.5px solid #cde0e0',borderRadius:'8px',outline:'none',marginBottom:'12px',fontFamily:"'DM Sans',sans-serif"}} />
+                        style={{width:'100%',padding:'10px 14px',fontSize:'14px',border:'0.5px solid #cde0e0',borderRadius:'8px',outline:'none',marginBottom:'12px',fontFamily:"'Inter',sans-serif"}} />
                       {prospPlaceSuggestions.length > 0 && (
                         <div style={{maxHeight:'280px',overflow:'auto',border:'0.5px solid #e0e8e8',borderRadius:'8px'}}>
                           {prospPlaceSuggestions.map(p => {
@@ -8662,15 +8697,15 @@
                               <div key={p.id}
                                 onClick={() => { setProspPlace(p); setProspPlaceSearch(p.name); setProspPlaceSuggestions([]); }}
                                 style={{padding:'10px 14px',borderBottom:'0.5px solid #f0f4f4',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}
-                                onMouseEnter={e=>e.currentTarget.style.background='#f4f7f7'}
+                                onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'}
                                 onMouseLeave={e=>e.currentTarget.style.background='white'}>
                                 <div>
-                                  <div style={{fontSize:'13px',color:'#1a3535',fontWeight:500}}>{p.name}</div>
+                                  <div style={{fontSize:'13px',color:'var(--text)',fontWeight:500}}>{p.name}</div>
                                   {p.formatted_name && p.formatted_name !== p.name && (
-                                    <div style={{fontSize:'11px',color:'#7a9090',marginTop:'2px'}}>{p.formatted_name}</div>
+                                    <div style={{fontSize:'11px',color:'var(--meta)',marginTop:'2px'}}>{p.formatted_name}</div>
                                   )}
                                 </div>
-                                <span style={{fontSize:'11px',color:'#7a9090',fontStyle:'italic',marginLeft:'10px'}}>{typeLabel}</span>
+                                <span style={{fontSize:'11px',color:'var(--meta)',fontStyle:'italic',marginLeft:'10px'}}>{typeLabel}</span>
                               </div>
                             );
                           })}
@@ -8689,8 +8724,8 @@
                   {/* ── ÉTAPE 3 : Filtres + estimation crédits ── */}
                   {prospStep === 3 && (
                     <div>
-                      <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px',color:'#1a3535'}}>Filtres complémentaires (optionnels)</div>
-                      <div style={{fontSize:'12px',color:'#607a7a',marginBottom:'14px'}}>Affinez votre cible. Tous ces filtres sont gratuits — c'est la recherche elle-même qui coûte 1 crédit/page.</div>
+                      <div style={{fontSize:'14px',fontWeight:600,marginBottom:'8px',color:'var(--text)'}}>Filtres complémentaires (optionnels)</div>
+                      <div style={{fontSize:'12px',color:'var(--text-2)',marginBottom:'14px'}}>Affinez votre cible. Tous ces filtres sont gratuits — c'est la recherche elle-même qui coûte 1 crédit/page.</div>
                       <div style={{display:'flex',flexDirection:'column',gap:'10px',marginBottom:'18px'}}>
                         <label style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'13px',cursor:'pointer'}}>
                           <input type="checkbox" checked={prospWithPhone} onChange={e => setProspWithPhone(e.target.checked)} />
@@ -8707,19 +8742,19 @@
                       </div>
                       <div style={{display:'flex',gap:'12px',marginBottom:'18px'}}>
                         <div style={{flex:1}}>
-                          <label style={{fontSize:'11px',color:'#607a7a',textTransform:'uppercase',fontWeight:600,letterSpacing:'.4px'}}>Effectif min</label>
+                          <label style={{fontSize:'11px',color:'var(--text-2)',textTransform:'uppercase',fontWeight:600,letterSpacing:'.4px'}}>Effectif min</label>
                           <input type="number" value={prospMinStaff} onChange={e=>setProspMinStaff(e.target.value)} placeholder="Ex: 5"
                             style={{width:'100%',padding:'8px 12px',fontSize:'13px',border:'0.5px solid #cde0e0',borderRadius:'6px',outline:'none',marginTop:'4px'}} />
                         </div>
                         <div style={{flex:1}}>
-                          <label style={{fontSize:'11px',color:'#607a7a',textTransform:'uppercase',fontWeight:600,letterSpacing:'.4px'}}>Effectif max</label>
+                          <label style={{fontSize:'11px',color:'var(--text-2)',textTransform:'uppercase',fontWeight:600,letterSpacing:'.4px'}}>Effectif max</label>
                           <input type="number" value={prospMaxStaff} onChange={e=>setProspMaxStaff(e.target.value)} placeholder="Ex: 50"
                             style={{width:'100%',padding:'8px 12px',fontSize:'13px',border:'0.5px solid #cde0e0',borderRadius:'6px',outline:'none',marginTop:'4px'}} />
                         </div>
                       </div>
                       {/* Récap critères */}
-                      <div style={{padding:'12px 14px',background:'#f4f7f7',borderRadius:'8px',fontSize:'12px',color:'#4a6868',marginBottom:'14px'}}>
-                        <div style={{fontWeight:600,marginBottom:'6px',color:'#1a3535'}}>Récapitulatif :</div>
+                      <div style={{padding:'12px 14px',background:'var(--bg)',borderRadius:'8px',fontSize:'12px',color:'#4a6868',marginBottom:'14px'}}>
+                        <div style={{fontWeight:600,marginBottom:'6px',color:'var(--text)'}}>Récapitulatif :</div>
                         <div>NAF : {prospNafCode ? `${prospNafCode} — ${prospNafLibelle}` : <em>(aucun)</em>}</div>
                         <div>Zone : {prospPlace ? (prospPlace.formatted_name || prospPlace.name) : <em>(aucune)</em>}</div>
                         {(prospWithPhone || prospWithEmail || prospWithSite) && (
@@ -8735,7 +8770,7 @@
                   {/* ── ÉTAPE 4 : Résultats ── */}
                   {prospStep === 4 && (
                     <div>
-                      {prospLoading && <div style={{textAlign:'center',padding:'40px',color:'#607a7a'}}>Recherche en cours…</div>}
+                      {prospLoading && <div style={{textAlign:'center',padding:'40px',color:'var(--text-2)'}}>Recherche en cours…</div>}
                       {prospError && <div style={{padding:'10px 14px',background:'#fecaca',color:'#991b1b',borderRadius:'7px',marginBottom:'12px',fontSize:'13px'}}>{prospError}</div>}
                       {prospImportResult && (() => {
                         const fullSuccess = prospImportResult.inserted_count > 0 && prospImportResult.error_count === 0;
@@ -8764,9 +8799,9 @@
                       {!prospLoading && prospResults.length > 0 && (
                         <div>
                           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}}>
-                            <div style={{fontSize:'12px',color:'#607a7a'}}>
+                            <div style={{fontSize:'12px',color:'var(--text-2)'}}>
                               {prospResultsTotal} résultat(s) — Page {prospResultsPage}/{prospResultsTotalPages} —
-                              <strong style={{color:'#1a3535'}}> {prospSelected.size} sélectionnée(s)</strong>
+                              <strong style={{color:'var(--text)'}}> {prospSelected.size} sélectionnée(s)</strong>
                             </div>
                             <div style={{display:'flex',gap:'8px'}}>
                               <button onClick={selectAllVisible} style={{padding:'4px 10px',fontSize:'11px',border:'0.5px solid #cde0e0',background:'white',borderRadius:'5px',cursor:'pointer'}}>Tout sélectionner</button>
@@ -8789,14 +8824,14 @@
                               const isSelected = prospSelected.has(siren);
                               const hasContacts = prospWithContactsSirens.has(siren);
                               return (
-                                <div key={siren} style={{padding:'10px 14px',borderBottom:'0.5px solid #f0f4f4',display:'flex',gap:'10px',alignItems:'flex-start',background:isExisting?'#f4f7f7':(isSelected?'#e0f2f1':'white'),opacity:isExisting?0.6:1}}>
+                                <div key={siren} style={{padding:'10px 14px',borderBottom:'0.5px solid #f0f4f4',display:'flex',gap:'10px',alignItems:'flex-start',background:isExisting?'var(--bg)':(isSelected?'#e0f2f1':'white'),opacity:isExisting?0.6:1}}>
                                   <input type="checkbox"
                                     checked={isSelected}
                                     disabled={isExisting}
                                     onChange={() => toggleProspSelected(siren)}
                                     style={{marginTop:'4px',cursor:isExisting?'not-allowed':'pointer'}} />
                                   <div style={{flex:1}}>
-                                    <div style={{fontSize:'13px',fontWeight:600,color:'#1a3535',display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+                                    <div style={{fontSize:'13px',fontWeight:600,color:'var(--text)',display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
                                       {c.name}
                                       {hasContacts && (
                                         <span title="Cette société a des contacts professionnels nominatifs (email pro)" style={{display:'inline-flex',alignItems:'center',gap:'3px',fontSize:'10px',padding:'2px 7px',borderRadius:'10px',background:'#dcfce7',color:'#166534',fontWeight:600}}>
@@ -8806,10 +8841,10 @@
                                       )}
                                       {isExisting && <span style={{fontSize:'10px',padding:'2px 7px',borderRadius:'10px',background:'#fef3c7',color:'#92400e',fontWeight:600}}>Déjà importée</span>}
                                     </div>
-                                    <div style={{fontSize:'11px',color:'#607a7a',marginTop:'2px'}}>
+                                    <div style={{fontSize:'11px',color:'var(--text-2)',marginTop:'2px'}}>
                                       SIREN {siren} · {c.formatted_address || ''}
                                     </div>
-                                    {c.activity && <div style={{fontSize:'11px',color:'#7a9090',marginTop:'2px',fontStyle:'italic'}}>{c.activity}</div>}
+                                    {c.activity && <div style={{fontSize:'11px',color:'var(--meta)',marginTop:'2px',fontStyle:'italic'}}>{c.activity}</div>}
                                   </div>
                                 </div>
                               );
@@ -8821,7 +8856,7 @@
                               {Array.from({length: Math.min(5, prospResultsTotalPages)}, (_,i) => i + 1).map(pg => (
                                 <button key={pg}
                                   onClick={() => runProspectionSearch(pg)}
-                                  style={{padding:'5px 10px',fontSize:'11px',border:'0.5px solid #cde0e0',borderRadius:'5px',cursor:'pointer',background:pg===prospResultsPage?'#1a3535':'white',color:pg===prospResultsPage?'white':'#1a3535'}}>
+                                  style={{padding:'5px 10px',fontSize:'11px',border:'0.5px solid #cde0e0',borderRadius:'5px',cursor:'pointer',background:pg===prospResultsPage?'var(--text)':'white',color:pg===prospResultsPage?'white':'var(--text)'}}>
                                   Page {pg}
                                 </button>
                               ))}
@@ -8844,14 +8879,14 @@
                     {prospStep < 3 && (
                       <button onClick={() => setProspStep(prospStep + 1)}
                         disabled={prospStep === 1 && !prospNafCode && !prospPlace}
-                        style={{padding:'8px 18px',background:'#1a3535',color:'white',border:'none',borderRadius:'7px',cursor:'pointer',fontSize:'13px',fontWeight:600,opacity:(prospStep===1&&!prospNafCode&&!prospPlace)?0.5:1}}>
+                        style={{padding:'8px 18px',background:'var(--text)',color:'white',border:'none',borderRadius:'7px',cursor:'pointer',fontSize:'13px',fontWeight:600,opacity:(prospStep===1&&!prospNafCode&&!prospPlace)?0.5:1}}>
                         Suivant →
                       </button>
                     )}
                     {prospStep === 3 && (
                       <button onClick={() => { setProspStep(4); runProspectionSearch(1); }}
                         disabled={!prospNafCode && !prospPlace}
-                        style={{padding:'8px 18px',background:'#1a3535',color:'white',border:'none',borderRadius:'7px',cursor:'pointer',fontSize:'13px',fontWeight:600,opacity:(!prospNafCode&&!prospPlace)?0.5:1}}>
+                        style={{padding:'8px 18px',background:'var(--text)',color:'white',border:'none',borderRadius:'7px',cursor:'pointer',fontSize:'13px',fontWeight:600,opacity:(!prospNafCode&&!prospPlace)?0.5:1}}>
                         🚀 Lancer la recherche (1 crédit)
                       </button>
                     )}
@@ -9231,7 +9266,7 @@
 
       // ── Helpers header ──
       const initials = selectedProspect.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-      const statutColors = {Client:'var(--tw-teal)',Prospect:'#f0932b',Suspect:'#999'};
+      const statutColors = {Client:'var(--tw-teal)',Prospect:'var(--warning)',Suspect:'#999'};
       const statutBgs = {Client:'var(--tw-teal-light)',Prospect:'#fff8e1',Suspect:'#f5f5f5'};
       const realStatus = getProspectRealStatus(affairesList, devisList);
 
@@ -9264,7 +9299,7 @@
                       style={{fontSize:'11px',fontWeight:500,cursor:'pointer',padding:'3px 10px',borderRadius:'12px',border:'none',
                         color:statutColors[selectedProspect.statut_societe]||'#999',
                         background:statutBgs[selectedProspect.statut_societe]||'#f5f5f5',
-                        fontFamily:"'DM Sans',sans-serif",appearance:'none',paddingRight:'22px',backgroundImage:'url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%278%27 height=%278%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%273%27><polyline points=%276 9 12 15 18 9%27/></svg>")',backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center'}}>
+                        fontFamily:"'Inter',sans-serif",appearance:'none',paddingRight:'22px',backgroundImage:'url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%278%27 height=%278%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%273%27><polyline points=%276 9 12 15 18 9%27/></svg>")',backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center'}}>
                       <option value="Suspect">Suspect</option>
                       <option value="Prospect">Prospect</option>
                       <option value="Client">Client</option>
@@ -9412,7 +9447,7 @@
                   return (
                     <button key={t.id}
                       onClick={() => setClientTab(t.id)}
-                      style={{padding:'10px 14px',fontFamily:"'DM Sans',sans-serif",fontSize:'13px',
+                      style={{padding:'10px 14px',fontFamily:"'Inter',sans-serif",fontSize:'13px',
                         fontWeight: 500,
                         border:'none',background:'transparent',
                         color: active ? 'var(--tw-teal)' : 'var(--tw-ink)',
@@ -9446,10 +9481,10 @@
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
                       <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)'}}>Coordonnées société</div>
                       {!infoEdit
-                        ? <button onClick={() => setInfoEdit(true)} style={{padding:'4px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',fontSize:'12px',cursor:'pointer',color:'var(--tw-slate)',fontFamily:"'DM Sans',sans-serif"}}>✏️ Modifier</button>
+                        ? <button onClick={() => setInfoEdit(true)} style={{padding:'4px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',fontSize:'12px',cursor:'pointer',color:'var(--tw-slate)',fontFamily:"'Inter',sans-serif"}}>✏️ Modifier</button>
                         : <div style={{display:'flex',gap:'8px'}}>
-                            <button onClick={() => setInfoEdit(false)} style={{padding:'4px 12px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',fontSize:'12px',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
-                            <button onClick={saveInfos} style={{padding:'4px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>✓ Enregistrer</button>
+                            <button onClick={() => setInfoEdit(false)} style={{padding:'4px 12px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',fontSize:'12px',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>Annuler</button>
+                            <button onClick={saveInfos} style={{padding:'4px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>✓ Enregistrer</button>
                           </div>
                       }
                     </div>
@@ -9465,7 +9500,7 @@
                           <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>{f.lbl}</div>
                           {infoEdit
                             ? <input type="text" value={infoForm[f.field]||''} onChange={e=>setInfoForm({...infoForm,[f.field]:e.target.value})}
-                                style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                                style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                             : f.field==='website' && infoForm[f.field]
                               ? <a href={infoForm[f.field].startsWith('http')?infoForm[f.field]:'https://'+infoForm[f.field]} target="_blank" style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-teal)'}}>{infoForm[f.field]}</a>
                               : <div style={{fontSize:'13px',fontWeight:'500',color:infoForm[f.field]?'var(--tw-ink)':'var(--tw-muted)'}}>{infoForm[f.field]||'—'}</div>
@@ -9477,7 +9512,7 @@
                         <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>Code NAF</div>
                         {infoEdit
                           ? <select value={infoForm.code_naf||''} onChange={e=>setInfoForm({...infoForm,code_naf:e.target.value})}
-                              style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
                               <option value="">— Sélectionner —</option>
                               {(codesNaf||[]).map(c=>(
                                 <option key={c.code} value={c.code}>{c.code} – {c.libelle} ({c.categorie})</option>
@@ -9499,7 +9534,7 @@
                         <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>Date entrée en relation</div>
                         {infoEdit
                           ? <input type="date" value={infoForm.created_at||''} onChange={e=>setInfoForm({...infoForm,created_at:e.target.value})}
-                              style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                              style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                           : <div style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-ink)'}}>{infoForm.created_at?new Date(infoForm.created_at).toLocaleDateString('fr-FR'):'—'}</div>
                         }
                       </div>
@@ -9520,7 +9555,7 @@
                                 ))}
                                 <input type="text"
                                   placeholder={infoForm.marques?.length?'Ajouter…':'ex: PABLO, GERARD DAREL'}
-                                  style={{border:'none',outline:'none',fontSize:'13px',minWidth:'120px',flex:1,fontFamily:"'DM Sans',sans-serif"}}
+                                  style={{border:'none',outline:'none',fontSize:'13px',minWidth:'120px',flex:1,fontFamily:"'Inter',sans-serif"}}
                                   onKeyDown={e=>{
                                     if((e.key==='Enter'||e.key===',')&&e.target.value.trim()){
                                       e.preventDefault();
@@ -9556,7 +9591,7 @@
                       <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>Notes</div>
                       {infoEdit
                         ? <textarea value={infoForm.notes||''} onChange={e=>setInfoForm({...infoForm,notes:e.target.value})}
-                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",minHeight:'80px',resize:'vertical'}} />
+                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif",minHeight:'80px',resize:'vertical'}} />
                         : <div style={{fontSize:'13px',color:infoForm.notes?'var(--tw-slate)':'var(--tw-muted)',background:'var(--tw-bg)',padding:'10px 12px',borderRadius:'6px',lineHeight:'1.6',fontStyle:infoForm.notes?'normal':'italic'}}>{infoForm.notes||'Aucune note'}</div>
                       }
                     </div>
@@ -9657,11 +9692,11 @@
                             <input type="text" placeholder="Prénom"
                               value={interlocuteurForm.prenom||''}
                               onChange={e=>setInterlocuteurForm({...interlocuteurForm,prenom:e.target.value})}
-                              style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                              style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                             <input type="text" placeholder="Nom *"
                               value={interlocuteurForm.nom||''}
                               onChange={e=>setInterlocuteurForm({...interlocuteurForm,nom:e.target.value})}
-                              style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                              style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                           </div>
                           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
                             {[
@@ -9672,7 +9707,7 @@
                               <input key={field} type={type} placeholder={ph}
                                 value={interlocuteurForm[field]||''}
                                 onChange={e=>setInterlocuteurForm({...interlocuteurForm,[field]:e.target.value})}
-                                style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                                style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                             ))}
                           </div>
                           {/* LinkedIn URL : pleine largeur, optionnel. Pré-rempli si import depuis SocieteInfo. */}
@@ -9681,7 +9716,7 @@
                             <input type="url" placeholder="URL LinkedIn (https://linkedin.com/in/...)"
                               value={interlocuteurForm.linkedin_url||''}
                               onChange={e=>setInterlocuteurForm({...interlocuteurForm,linkedin_url:e.target.value})}
-                              style={{flex:1,padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                              style={{flex:1,padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                           </div>
                           <div style={{display:'flex',gap:'16px',marginBottom:'12px',flexWrap:'wrap'}}>
                             <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',cursor:'pointer'}}>
@@ -9694,7 +9729,7 @@
                             </label>
                           </div>
                           {/* Consentements RGPD - opt-in séparés pour communications */}
-                          <div style={{display:'flex',gap:'16px',marginBottom:'12px',flexWrap:'wrap',padding:'8px 10px',background:'#f4f7f7',borderRadius:'6px',border:'0.5px dashed #cde0e0'}}>
+                          <div style={{display:'flex',gap:'16px',marginBottom:'12px',flexWrap:'wrap',padding:'8px 10px',background:'var(--bg)',borderRadius:'6px',border:'0.5px dashed #cde0e0'}}>
                             <div style={{display:'flex',flexDirection:'column',gap:'2px'}}>
                               <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',color:'#4a6868'}} title="Le contact accepte de recevoir des campagnes commerciales (offres, promos, sollicitations)">
                                 <input type="checkbox" checked={!!interlocuteurForm.accept_emailing} onChange={e=>setInterlocuteurForm({...interlocuteurForm,accept_emailing:e.target.checked})} />
@@ -9782,7 +9817,7 @@
                           {isEdit && (
                             <div style={{marginBottom:'12px'}}>
                               <button type="button" onClick={toggleHistory}
-                                style={{display:'inline-flex',alignItems:'center',gap:'6px',padding:'5px 10px',background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'6px',fontSize:'12px',color:'var(--tw-slate)',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                                style={{display:'inline-flex',alignItems:'center',gap:'6px',padding:'5px 10px',background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'6px',fontSize:'12px',color:'var(--tw-slate)',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
                                 {I(ICONS.clock, 12)}
                                 {historyExpanded ? 'Masquer l\u2019historique RGPD' : 'Afficher l\u2019historique RGPD'}
                               </button>
@@ -9817,8 +9852,8 @@
                             </div>
                           )}
                           <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
-                            <button onClick={closeContactForm} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
-                            <button onClick={async () => { await handleSaveInterlocuteur(); setHistoryExpanded(false); setHistoryData([]); }} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'DM Sans',sans-serif"}}>Enregistrer</button>
+                            <button onClick={closeContactForm} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>Annuler</button>
+                            <button onClick={async () => { await handleSaveInterlocuteur(); setHistoryExpanded(false); setHistoryData([]); }} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'Inter',sans-serif"}}>Enregistrer</button>
                           </div>
                         </div>
                       );
@@ -9905,13 +9940,13 @@
                               {hasCustomOrder && (
                                 <button onClick={handleResetOrder}
                                   title="Revenir au tri automatique (Principal/Décideur en haut)"
-                                  style={{padding:'2px 8px',background:'transparent',border:'0.5px solid var(--tw-border)',borderRadius:'10px',fontSize:'10px',fontWeight:'500',color:'var(--tw-muted)',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",textTransform:'none',letterSpacing:0}}>
+                                  style={{padding:'2px 8px',background:'transparent',border:'0.5px solid var(--tw-border)',borderRadius:'10px',fontSize:'10px',fontWeight:'500',color:'var(--tw-muted)',cursor:'pointer',fontFamily:"'Inter',sans-serif",textTransform:'none',letterSpacing:0}}>
                                   ↺ Réinitialiser l'ordre
                                 </button>
                               )}
                             </div>
                             <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({prenom:'',nom:'',fonction:'',email:'',telephone:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false,demande_optin:false}); setShowInterlocuteurForm(true); }}
-                              style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>+ Contact</button>
+                              style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>+ Contact</button>
                           </div>
 
                           {/* Formulaire CRÉATION : en haut, uniquement si pas d'id */}
@@ -9920,7 +9955,7 @@
                           {interlocuteurs.length === 0 ? (
                             <div style={{fontSize:'13px',color:'var(--tw-muted)',fontStyle:'italic',padding:'10px 0'}}>Aucun contact</div>
                           ) : interlocuteurs.map(c => {
-                            const avatarColors = ['var(--tw-teal)','#667eea','#f0932b','#2ec27e','#e74c3c','#9b59b6'];
+                            const avatarColors = ['var(--tw-teal)','#667eea','var(--warning)','var(--success)','var(--danger)','#9b59b6'];
                             const col = avatarColors[c.id % avatarColors.length];
                             const ini = displayInitials(c);
                             const isEditingThis = editingId === c.id;
@@ -9999,14 +10034,14 @@
                             });
                           } catch(err) { console.error(err); }
                         }}
-                        style={{flex:1,padding:'5px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",background:'white'}}
+                        style={{flex:1,padding:'5px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif",background:'white'}}
                       />
                     </div>
 
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
                       <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px'}}>Licences actives</span>
                       <button onClick={() => { setEditingLicence(null); setLicenceForm({licence_id:'',nb_utilisateurs:0,facturation:'saas_mensuel',hebergement:'cloud',maintenance:'aucune',date_contrat:'',notes:''}); setShowLicenceForm(true); }}
-                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
                         + Licence
                       </button>
                     </div>
@@ -10019,7 +10054,7 @@
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Module</label>
                             <div style={{position:'relative'}}>
                               <div onClick={() => setShowModuleDropdown(s=>!s)}
-                                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",background:'white',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif",background:'white',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                                 <span style={{color:licenceForm.licence_id?'var(--tw-ink)':'var(--tw-muted)'}}>
                                   {licenceForm.licence_id ? (refLicences.find(l=>String(l.id)===String(licenceForm.licence_id))?.nom||'— Choisir —') : '— Choisir —'}
                                 </span>
@@ -10058,7 +10093,7 @@
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Facturation</label>
                             <select value={licenceForm.facturation||'saas_mensuel'} onChange={e=>setLicenceForm({...licenceForm,facturation:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
                               <option value="perpetuelle">🔑 Perpétuelle</option>
                               <option value="saas_mensuel">📅 SaaS mensuel</option>
                               <option value="saas_annuel">📆 SaaS annuel</option>
@@ -10067,12 +10102,12 @@
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Nb utilisateurs</label>
                             <input type="number" value={licenceForm.nb_utilisateurs} onChange={e=>setLicenceForm({...licenceForm,nb_utilisateurs:parseInt(e.target.value)||0})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                           </div>
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Hébergement</label>
                             <select value={licenceForm.hebergement} onChange={e=>setLicenceForm({...licenceForm,hebergement:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
                               <option value="cloud">☁️ Cloud ASTI</option>
                               <option value="onpremise">🏢 On-premise</option>
                             </select>
@@ -10082,7 +10117,7 @@
                             <select value={licenceForm.maintenance}
                               disabled={(licenceForm.facturation||'saas_mensuel')!=='perpetuelle'}
                               onChange={e=>setLicenceForm({...licenceForm,maintenance:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif",
                                 background:(licenceForm.facturation||'saas_mensuel')!=='perpetuelle'?'#f5f5f5':'white',
                                 color:(licenceForm.facturation||'saas_mensuel')!=='perpetuelle'?'#ccc':'var(--tw-ink)',
                                 cursor:(licenceForm.facturation||'saas_mensuel')!=='perpetuelle'?'not-allowed':'pointer'}}>
@@ -10094,7 +10129,7 @@
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Date contrat</label>
                             <input type="date" value={licenceForm.date_contrat} onChange={e=>setLicenceForm({...licenceForm,date_contrat:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                           </div>
                         </div>
                         {/* Notes sur ligne séparée */}
@@ -10102,11 +10137,11 @@
                           <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Notes</label>
                           <textarea value={licenceForm.notes} onChange={e=>setLicenceForm({...licenceForm,notes:e.target.value})}
                             placeholder="Optionnel" rows={2}
-                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",resize:'vertical'}} />
+                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif",resize:'vertical'}} />
                         </div>
                         <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
-                          <button onClick={() => setShowLicenceForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
-                          <button onClick={handleSaveLicence} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'DM Sans',sans-serif"}}>Enregistrer</button>
+                          <button onClick={() => setShowLicenceForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>Annuler</button>
+                          <button onClick={handleSaveLicence} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'Inter',sans-serif"}}>Enregistrer</button>
                         </div>
                       </div>
                     )}
@@ -10165,7 +10200,7 @@
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
                       <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px'}}>Boutiques</span>
                       <button onClick={() => { setEditingBoutique(null); setBoutiqueForm({nom:'',adresse:'',ville:'',cp:'',telephone:'',responsable_id:'',notes:''}); setShowBoutiqueForm(true); }}
-                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
                         + Boutique
                       </button>
                     </div>
@@ -10184,13 +10219,13 @@
                               <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>{lbl}</label>
                               <input type="text" value={boutiqueForm[field]} onChange={e=>setBoutiqueForm({...boutiqueForm,[field]:e.target.value})}
                                 placeholder={placeholder}
-                                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                             </div>
                           ))}
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Responsable</label>
                             <select value={boutiqueForm.responsable_id} onChange={e=>setBoutiqueForm({...boutiqueForm,responsable_id:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
                               <option value="">— Aucun —</option>
                               {interlocuteurs.map(i => <option key={i.id} value={i.id}>{i.nom}</option>)}
                             </select>
@@ -10199,11 +10234,11 @@
                         <div style={{marginBottom:'10px'}}>
                           <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Notes</label>
                           <input type="text" value={boutiqueForm.notes} onChange={e=>setBoutiqueForm({...boutiqueForm,notes:e.target.value})}
-                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} placeholder="Optionnel" />
+                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} placeholder="Optionnel" />
                         </div>
                         <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
-                          <button onClick={() => setShowBoutiqueForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
-                          <button onClick={handleSaveBoutique} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'DM Sans',sans-serif"}}>Enregistrer</button>
+                          <button onClick={() => setShowBoutiqueForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>Annuler</button>
+                          <button onClick={handleSaveBoutique} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'Inter',sans-serif"}}>Enregistrer</button>
                         </div>
                       </div>
                     )}
@@ -10256,7 +10291,7 @@
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
                       <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px'}}>Parc matériel</span>
                       <button onClick={() => { setEditingMateriel(null); setMaterielForm({boutique_id:'',materiel_type_id:'',marque:'',modele:'',os:'',version_os:'',nb_unites:1,localisation:'',date_achat:'',notes:''}); setShowMaterielForm(true); }}
-                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
                         + Appareil
                       </button>
                     </div>
@@ -10267,7 +10302,7 @@
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Type</label>
                             <select value={materielForm.materiel_type_id} onChange={e=>setMaterielForm({...materielForm,materiel_type_id:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
                               <option value="">— Choisir —</option>
                               {refMaterielTypes.map(t => <option key={t.id} value={t.id}>{t.icone} {t.nom}</option>)}
                             </select>
@@ -10275,7 +10310,7 @@
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Boutique</label>
                             <select value={materielForm.boutique_id} onChange={e=>setMaterielForm({...materielForm,boutique_id:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
                               <option value="">Siège / Non défini</option>
                               {clientBoutiques.map(b => <option key={b.id} value={b.id}>{b.nom}</option>)}
                             </select>
@@ -10291,28 +10326,28 @@
                               <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>{lbl}</label>
                               <input type="text" value={materielForm[field]} onChange={e=>setMaterielForm({...materielForm,[field]:e.target.value})}
                                 placeholder={placeholder}
-                                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                             </div>
                           ))}
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Nb unités</label>
                             <input type="number" value={materielForm.nb_unites} onChange={e=>setMaterielForm({...materielForm,nb_unites:parseInt(e.target.value)||1})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                           </div>
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Date achat</label>
                             <input type="date" value={materielForm.date_achat} onChange={e=>setMaterielForm({...materielForm,date_achat:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                           </div>
                         </div>
                         <div style={{marginBottom:'10px'}}>
                           <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Notes</label>
                           <input type="text" value={materielForm.notes} onChange={e=>setMaterielForm({...materielForm,notes:e.target.value})}
-                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} placeholder="Optionnel" />
+                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} placeholder="Optionnel" />
                         </div>
                         <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
-                          <button onClick={() => setShowMaterielForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
-                          <button onClick={handleSaveMateriel} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'DM Sans',sans-serif"}}>Enregistrer</button>
+                          <button onClick={() => setShowMaterielForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>Annuler</button>
+                          <button onClick={handleSaveMateriel} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'Inter',sans-serif"}}>Enregistrer</button>
                         </div>
                       </div>
                     )}
@@ -10433,7 +10468,7 @@
                       <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px'}}>Toutes les actions</span>
                       <button
                         onClick={() => setShowCommForm(s => !s)}
-                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
                         + Nouvelle action
                       </button>
                     </div>
@@ -10444,19 +10479,19 @@
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Type</label>
                             <select value={commForm.action_type} onChange={e=>setCommForm({...commForm,action_type:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
                               {['Appel','Relance','Email','A faire','Point technique','Demo','Negociation','Signature'].map(t=><option key={t}>{t}</option>)}
                             </select>
                           </div>
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Date</label>
                             <input type="date" value={commForm.planned_date} onChange={e=>setCommForm({...commForm,planned_date:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}} />
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                           </div>
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Affaire / Marketing</label>
                             <select value={commForm.contexte_val} onChange={e=>setCommForm({...commForm,contexte_val:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
                               <option value="">-- Aucun --</option>
                               <option value="marketing">Marketing</option>
                               {affairesList.length > 0 && <option disabled>──────────</option>}
@@ -10466,7 +10501,7 @@
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>De (Acteur)</label>
                             <select value={commForm.actor} onChange={e=>setCommForm({...commForm,actor:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
                               <option value="">-- Acteur --</option>
                               {['Christian','Roger','Frederic'].map(n=><option key={n}>{n}</option>)}
                             </select>
@@ -10474,7 +10509,7 @@
                           <div>
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Vers (Contact)</label>
                             <select value={commForm.contact} onChange={e=>setCommForm({...commForm,contact:e.target.value})}
-                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
                               <option value="">-- Contact --</option>
                               <option value="Interne">Interne</option>
                               {interlocuteurs.map(i=><option key={i.id} value={i.nom}>{i.nom}{i.fonction?' ('+i.fonction+')':''}</option>)}
@@ -10485,10 +10520,10 @@
                           <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Commentaire</label>
                           <textarea value={commForm.comment} onChange={e=>setCommForm({...commForm,comment:e.target.value})}
                             placeholder="Optionnel"
-                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'DM Sans',sans-serif",minHeight:'60px',resize:'vertical'}} />
+                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif",minHeight:'60px',resize:'vertical'}} />
                         </div>
                         <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
-                          <button onClick={() => setShowCommForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'DM Sans',sans-serif"}}>Annuler</button>
+                          <button onClick={() => setShowCommForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>Annuler</button>
                           <button onClick={async () => {
                             if (!commForm.action_type) return;
                             const isAffaire = commForm.contexte_val.startsWith('affaire_');
@@ -10503,7 +10538,7 @@
                             fetchNextActions(selectedProspect.id);
                             setCommForm({action_type:'Appel',planned_date:new Date().toISOString().split('T')[0],actor:'',contact:'',comment:'',contexte_val:''});
                             setShowCommForm(false);
-                          }} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'DM Sans',sans-serif"}}>Enregistrer</button>
+                          }} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'Inter',sans-serif"}}>Enregistrer</button>
                         </div>
                       </div>
                     )}
@@ -10710,9 +10745,9 @@
                     const found = codesNaf.find(c => c.code === formData.code_naf);
                     if (!found) return null;
                     return (
-                      <div style={{fontSize:'11px', color:'#607a7a', marginTop:'4px', lineHeight:'1.4'}}>
+                      <div style={{fontSize:'11px', color:'var(--text-2)', marginTop:'4px', lineHeight:'1.4'}}>
                         <span style={{fontWeight:'600'}}>{found.libelle}</span><br/>
-                        <span style={{color:'#007d89'}}>{found.categorie}</span>
+                        <span style={{color:'var(--primary)'}}>{found.categorie}</span>
                       </div>
                     );
                   })()}
@@ -10753,7 +10788,7 @@
                     <input
                       type="text"
                       placeholder={formData.marques?.length ? 'Ajouter une marque…' : 'Marques (ex: PABLO, GERARD DAREL)'}
-                      style={{border:'none',outline:'none',fontSize:'13px',minWidth:'160px',flex:1,fontFamily:"'DM Sans',sans-serif"}}
+                      style={{border:'none',outline:'none',fontSize:'13px',minWidth:'160px',flex:1,fontFamily:"'Inter',sans-serif"}}
                       onKeyDown={(e) => {
                         if ((e.key === 'Enter' || e.key === ',') && e.target.value.trim()) {
                           e.preventDefault();
@@ -11088,7 +11123,7 @@
             onChange={(e) => setVal(e.target.value)}
             placeholder="Pourquoi ce devis est-il perdu ? (prix, concurrent, délai, projet annulé...)"
             rows={2}
-            style={{width:'100%',padding:'8px 10px',fontSize:'12px',border:'0.5px solid var(--tw-border)',borderRadius:'6px',resize:'vertical',fontFamily:"'DM Sans',sans-serif",boxSizing:'border-box'}}
+            style={{width:'100%',padding:'8px 10px',fontSize:'12px',border:'0.5px solid var(--tw-border)',borderRadius:'6px',resize:'vertical',fontFamily:"'Inter',sans-serif",boxSizing:'border-box'}}
           />
           <div style={{display:'flex',justifyContent:'flex-end',marginTop:'6px'}}>
             <button
@@ -11098,7 +11133,7 @@
               style={{fontSize:'11px',fontWeight:600,padding:'5px 12px',borderRadius:'6px',border:'none',
                 background: vide ? 'var(--tw-border)' : 'var(--tw-teal)',
                 color: vide ? 'var(--tw-muted)' : 'white',
-                cursor: vide ? 'not-allowed' : 'pointer', fontFamily:"'DM Sans',sans-serif"}}
+                cursor: vide ? 'not-allowed' : 'pointer', fontFamily:"'Inter',sans-serif"}}
             >Valider le motif</button>
           </div>
         </div>
@@ -11181,7 +11216,7 @@
                   Affaires <span style={{color:'var(--tw-muted)',fontWeight:400}}>· {affairesList?.length || 0}</span>
                 </h3>
                 <button onClick={handleAddAffaire}
-                  style={{background:'var(--tw-ink)',color:'white',border:'none',padding:'6px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:500,cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',fontFamily:"'DM Sans',sans-serif"}}
+                  style={{background:'var(--tw-ink)',color:'white',border:'none',padding:'6px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:500,cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',fontFamily:"'Inter',sans-serif"}}
                   onMouseEnter={(e) => e.currentTarget.style.background='#0d2424'}
                   onMouseLeave={(e) => e.currentTarget.style.background='var(--tw-ink)'}
                 >
@@ -11199,7 +11234,7 @@
                                        : {bg:'#d3edff',fg:'#0a5085'};
                     // Couleur identitaire de l'affaire : stable, dérivée de l'ID.
                     // Permet de distinguer visuellement chaque affaire (barre latérale).
-                    const PALETTE_AFFAIRES = ['#007d89','#b06e2a','#7048a8','#0a7a4a','#a8385f','#2a6cb0','#9a6212','#46807a'];
+                    const PALETTE_AFFAIRES = ['var(--primary)','#b06e2a','#7048a8','#0a7a4a','#a8385f','#2a6cb0','#9a6212','#46807a'];
                     const couleurAffaire = PALETTE_AFFAIRES[(affaire.id || 0) % PALETTE_AFFAIRES.length];
                     return (
                       <div key={affaire.id}
@@ -11276,7 +11311,7 @@
                             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
                               <p style={{margin:0,fontSize:'11px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:500}}>Devis · {affaireDevis.length}</p>
                               <button onClick={handleAddDevis}
-                                style={{background:'white',border:'0.5px solid var(--tw-border)',padding:'4px 10px',borderRadius:'6px',fontSize:'11px',color:'var(--tw-slate)',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px',fontFamily:"'DM Sans',sans-serif"}}
+                                style={{background:'white',border:'0.5px solid var(--tw-border)',padding:'4px 10px',borderRadius:'6px',fontSize:'11px',color:'var(--tw-slate)',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px',fontFamily:"'Inter',sans-serif"}}
                                 onMouseEnter={(e) => { e.currentTarget.style.background='var(--tw-bg)'; e.currentTarget.style.borderColor='var(--tw-slate)'; }}
                                 onMouseLeave={(e) => { e.currentTarget.style.background='white'; e.currentTarget.style.borderColor='var(--tw-border)'; }}
                               >
@@ -11307,7 +11342,7 @@
                                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px',marginBottom:'10px'}}>
                                         <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap',minWidth:0,flex:1}}>
                                           <span style={{width:'7px',height:'7px',borderRadius:'50%',background:'#0f6e56',flexShrink:0}} title="Devis"></span>
-                                          <span style={{fontSize:'12px',fontWeight:500,color:'var(--tw-ink)',fontFamily:'"DM Mono", monospace'}}>{devis.devis_name || 'Sans nom'}</span>
+                                          <span style={{fontSize:'12px',fontWeight:500,color:'var(--tw-ink)',fontFamily:'var(--mono)'}}>{devis.devis_name || 'Sans nom'}</span>
                                           {devis.quote_date && (
                                             <span style={{fontSize:'11px',color:'var(--tw-muted)'}}>{new Date(devis.quote_date).toLocaleDateString('fr-FR')}</span>
                                           )}
@@ -11442,7 +11477,7 @@
                               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
                                 <p style={{margin:0,fontSize:'11px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:500}}>Actions de l'affaire · {affairesActions[affaire.id]?.length || 0}</p>
                                 <button onClick={() => handleOpenActionAffaireForm(affaire.id)}
-                                  style={{background:'white',border:'0.5px solid var(--tw-border)',padding:'4px 10px',borderRadius:'6px',fontSize:'11px',color:'var(--tw-slate)',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px',fontFamily:"'DM Sans',sans-serif"}}
+                                  style={{background:'white',border:'0.5px solid var(--tw-border)',padding:'4px 10px',borderRadius:'6px',fontSize:'11px',color:'var(--tw-slate)',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px',fontFamily:"'Inter',sans-serif"}}
                                   onMouseEnter={(e) => { e.currentTarget.style.background='var(--tw-bg)'; e.currentTarget.style.borderColor='var(--tw-slate)'; }}
                                   onMouseLeave={(e) => { e.currentTarget.style.background='white'; e.currentTarget.style.borderColor='var(--tw-border)'; }}
                                 >
@@ -11551,7 +11586,7 @@
                 width: '90%',
                 boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
               }}>
-                <h3 style={{marginTop: 0, marginBottom: '20px', color: '#007d89'}}>
+                <h3 style={{marginTop: 0, marginBottom: '20px', color: 'var(--primary)'}}>
                   {editingAffaireId ? 'Modifier l\'affaire' : 'Nouvelle affaire'}
                 </h3>
                 
@@ -11612,7 +11647,7 @@
                   <button
                     onClick={handleSaveAffaire}
                     style={{
-                      backgroundColor: '#007d89',
+                      backgroundColor: 'var(--primary)',
                       color: 'white',
                       border: 'none',
                       padding: '10px 20px',
@@ -11776,7 +11811,7 @@
             <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,backgroundColor:'rgba(0,0,0,0.5)',display:'flex',justifyContent:'center',alignItems:'center',zIndex:9999}}>
               <div style={{backgroundColor:'white',borderRadius:'14px',padding:'28px',maxWidth:'420px',width:'90%',boxShadow:'0 10px 40px rgba(0,0,0,0.25)'}}>
                 <h3 style={{marginTop:0,marginBottom:'6px',color:'#003366',fontSize:'1.1rem'}}>Nouveau devis</h3>
-                <p style={{color:'#607a7a',fontSize:'0.85rem',marginBottom:'20px'}}>Quel type de devis souhaitez-vous créer ?</p>
+                <p style={{color:'var(--text-2)',fontSize:'0.85rem',marginBottom:'20px'}}>Quel type de devis souhaitez-vous créer ?</p>
                 <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
                   <button onClick={handleAddDevisTexasWin}
                     style={{padding:'14px 18px',backgroundColor:'#1a9fdb',color:'white',border:'none',borderRadius:'10px',cursor:'pointer',fontSize:'0.95rem',fontWeight:'700',textAlign:'left',display:'flex',alignItems:'center',gap:'12px'}}>
@@ -11791,12 +11826,12 @@
                     <span style={{fontSize:'1.4rem'}}>📝</span>
                     <div>
                       <div>Devis libre</div>
-                      <div style={{fontSize:'0.75rem',fontWeight:'400',color:'#607a7a'}}>Développement, matériel, prestation ponctuelle</div>
+                      <div style={{fontSize:'0.75rem',fontWeight:'400',color:'var(--text-2)'}}>Développement, matériel, prestation ponctuelle</div>
                     </div>
                   </button>
                 </div>
                 <button onClick={() => setShowDevisTypeModal(false)}
-                  style={{marginTop:'16px',width:'100%',padding:'8px',border:'none',background:'none',color:'#607a7a',cursor:'pointer',fontSize:'0.85rem'}}>
+                  style={{marginTop:'16px',width:'100%',padding:'8px',border:'none',background:'none',color:'var(--text-2)',cursor:'pointer',fontSize:'0.85rem'}}>
                   Annuler
                 </button>
               </div>
@@ -11844,11 +11879,11 @@
 
                 {/* PDF existant */}
                 {editingDevis?.pdf_url && (
-                  <div style={{marginBottom: '15px', padding: '12px', backgroundColor: '#e8f4f5', borderRadius: '6px', border: '1px solid #007d89'}}>
+                  <div style={{marginBottom: '15px', padding: '12px', backgroundColor: '#e8f4f5', borderRadius: '6px', border: '1px solid var(--primary)'}}>
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                       <div style={{flex: 1}}>
-                        <div style={{fontSize: '13px', fontWeight: 'bold', color: '#1a3535', marginBottom: '4px'}}>📄 PDF joint</div>
-                        <div style={{fontSize: '12px', color: '#607a7a'}}>
+                        <div style={{fontSize: '13px', fontWeight: 'bold', color: 'var(--text)', marginBottom: '4px'}}>📄 PDF joint</div>
+                        <div style={{fontSize: '12px', color: 'var(--text-2)'}}>
                           {editingDevis.pdf_url.split('/').pop()}
                         </div>
                       </div>
@@ -11869,7 +11904,7 @@
                               window.showToast({title:'Erreur: ' + err.message, type:'error'});
                             }
                           }}
-                          style={{padding: '6px 12px', backgroundColor: '#007d89', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600'}}
+                          style={{padding: '6px 12px', backgroundColor: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600'}}
                         >
                           📄 Télécharger
                         </button>
@@ -12096,13 +12131,13 @@
 
     const styles = {
       modalLabel: {
-        display: 'block', fontSize: '0.72rem', color: '#607a7a', fontWeight: 700,
+        display: 'block', fontSize: '0.72rem', color: 'var(--text-2)', fontWeight: 700,
         textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '5px'
       },
       modalInput: {
         width: '100%', padding: '9px 11px', border: '1.5px solid #a8d0d3',
         borderRadius: '6px', fontFamily: 'inherit', fontSize: '0.9rem',
-        background: 'white', color: '#1a3535', boxSizing: 'border-box'
+        background: 'white', color: 'var(--text)', boxSizing: 'border-box'
       },
       errMsg: {
         display: 'block', color: '#dc2626', fontSize: '0.72rem',
@@ -12112,8 +12147,8 @@
         display: 'flex',
         flexDirection: 'column',
         height: '100vh',
-        fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
-        backgroundColor: '#f4f7f7'
+        fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        backgroundColor: 'var(--bg)'
       },
       header: { display: 'none' }, // remplacé par tw-topbar CSS
       headerLeft: {
@@ -12310,7 +12345,7 @@
         cursor: 'pointer',
         fontSize: '13px',
         fontWeight: '500',
-        fontFamily: "'DM Sans', sans-serif",
+        fontFamily: "'Inter', system-ui, sans-serif",
         transition: 'opacity .15s'
       },
       deleteBtn: {
@@ -12322,7 +12357,7 @@
         cursor: 'pointer',
         fontSize: '13px',
         fontWeight: '500',
-        fontFamily: "'DM Sans', sans-serif",
+        fontFamily: "'Inter', system-ui, sans-serif",
         transition: 'opacity .15s'
       },
       detailRow: {
