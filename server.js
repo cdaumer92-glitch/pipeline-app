@@ -1578,9 +1578,15 @@ app.post('/api/affaires/:id/next_actions', auth, async (req, res) => {
 });
 
 app.put('/api/next_actions/:id', auth, async (req, res) => {
-  const { completed, completed_notes, saveNotesOnly } = req.body;
+  const { completed, completed_notes, saveNotesOnly, reschedule, planned_date } = req.body;
   try {
-    if (saveNotesOnly) {
+    if (reschedule) {
+      // Reprogrammation seule (snooze / report depuis la liste Actions).
+      await pool.query(
+        `UPDATE next_actions SET planned_date=$1 WHERE id=$2`,
+        [planned_date || null, req.params.id]
+      );
+    } else if (saveNotesOnly) {
       await pool.query(
         `UPDATE next_actions SET completed_note=$1 WHERE id=$2`,
         [completed_notes || null, req.params.id]

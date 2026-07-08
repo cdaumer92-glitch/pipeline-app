@@ -651,6 +651,10 @@
       }, children)
     );
 
+    // Vocabulaire contrôlé des types d'action — source unique de vérité (évite le drift
+    // "Demo"/"Démo" entre les différents formulaires) et alimente le filtre de la liste Actions.
+    const ACTION_TYPES = ['Appel', 'Relance', 'Email', 'À faire', 'Point technique', 'Démo', 'Négociation', 'Signature'];
+
     // Badge de type de société (Suspect / Prospect / Client), au niveau module pour
     // être accessible depuis tous les composants (DashboardConsultant, Dashboard...).
     // Couleurs cohérentes avec celles utilisées ailleurs dans l'app (voir ligne ~4310).
@@ -2487,6 +2491,8 @@
       const [actions, setActions] = React.useState(null);
       const [loading, setLoading] = React.useState(false);
       const [sort, setSort] = React.useState({ key: '', dir: 'asc' }); // tri par colonne
+      const [actionTypeFilter, setActionTypeFilter] = React.useState('__all__'); // filtre par type (liste Actions)
+      const [followUp, setFollowUp] = React.useState(null); // modale "prochaine action" après complétion
       React.useEffect(() => { setSort({ key: '', dir: 'asc' }); }, [type]); // réinit à chaque changement de liste
 
       // Chargement à la demande des données non déjà présentes côté front.
@@ -2512,6 +2518,45 @@
       // Filtre de visibilité : non-admin = ses données ; admin = tout (ou un commercial choisi).
       const inScope = (c) => admin ? (commercial === '__all__' || c === commercial) : (c === (user && user.name));
       const openFiche = (prospectId, affaireId, t, id) => window.dispatchEvent(new CustomEvent('tw:navigate', { detail: { prospectId, affaireId, type: t, entityId: id } }));
+
+      // ---- Actions rapides depuis la liste (P1.1) + enchaînement de cadence (P2.4) ----
+      const actHeaders = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (user && user.token) };
+      const plusDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+      const toast = (t, type) => { if (window.showToast) window.showToast({ title: t, type: type || 'success' }); };
+      // Compléter une action : la retire de la liste (non complétées) puis propose la suivante.
+      const completeAction = async (a) => {
+        try {
+          const r = await fetch(`${API_URL}/next_actions/${a.id}`, { method: 'PUT', headers: actHeaders, body: JSON.stringify({ completed: true }) });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          setActions(prev => (prev || []).filter(x => x.id !== a.id));
+          setFollowUp({ prospect_id: a.prospect_id, affaire_id: a.affaire_id || null, prospect_name: a.prospect_name, commercial: a.commercial, action_type: a.action_type || 'Appel', planned_date: plusDays(7), actor: a.actor || '', contact: a.contact || '' });
+        } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+      };
+      // Reprogrammer (snooze / report) : met à jour la date sans compléter.
+      const rescheduleAction = async (a, dateStr) => {
+        if (!dateStr) return;
+        try {
+          const r = await fetch(`${API_URL}/next_actions/${a.id}`, { method: 'PUT', headers: actHeaders, body: JSON.stringify({ reschedule: true, planned_date: dateStr }) });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          setActions(prev => (prev || []).map(x => x.id === a.id ? { ...x, planned_date: dateStr } : x));
+          toast('Action reprogrammée au ' + dateStr.split('-').reverse().join('/'));
+        } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+      };
+      // Créer la prochaine action (depuis la modale de cadence).
+      const createFollowUp = async () => {
+        if (!followUp) return;
+        const url = followUp.affaire_id ? `${API_URL}/affaires/${followUp.affaire_id}/next_actions` : `${API_URL}/prospects/${followUp.prospect_id}/next_actions`;
+        try {
+          const r = await fetch(url, { method: 'POST', headers: actHeaders, body: JSON.stringify({ action_type: followUp.action_type, planned_date: followUp.planned_date, actor: followUp.actor, contact: followUp.contact }) });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const created = await r.json().catch(() => ({}));
+          if (created && created.id) {
+            setActions(prev => ([...(prev || []), { id: created.id, prospect_id: followUp.prospect_id, affaire_id: followUp.affaire_id, action_type: followUp.action_type, planned_date: followUp.planned_date, actor: followUp.actor, contact: followUp.contact, prospect_name: followUp.prospect_name, commercial: followUp.commercial || (user && user.name) }]));
+          }
+          toast('Prochaine action créée');
+        } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+        setFollowUp(null);
+      };
 
       const commerciaux = (() => {
         const src = type === 'devis' ? (devis || []).map(d => d.commercial)
@@ -2632,34 +2677,75 @@
       if (type === 'actions') {
         if (loading || actions === null) return Wrap('Actions', '', commercialFilter, Empty('Chargement…'));
         const today = new Date().toISOString().slice(0, 10);
-        const scoped = (actions || []).filter(a => inScope(a.commercial));
+        const scoped = (actions || []).filter(a => inScope(a.commercial) && (actionTypeFilter === '__all__' || a.action_type === actionTypeFilter));
         const late = scoped.filter(a => a.planned_date && String(a.planned_date).slice(0, 10) < today).sort((a, b) => String(a.planned_date).localeCompare(String(b.planned_date)));
         const upcoming = scoped.filter(a => !a.planned_date || String(a.planned_date).slice(0, 10) >= today).sort((a, b) => String(a.planned_date || '').localeCompare(String(b.planned_date || '')));
+
+        // Filtre par type, alimenté par les types réellement présents (robuste au drift historique).
+        const presentTypes = Array.from(new Set((actions || []).map(a => a.action_type).filter(Boolean))).sort();
+        const typeFilter = (
+          <select value={actionTypeFilter} onChange={e => setActionTypeFilter(e.target.value)} style={{ padding: '6px 10px', borderRadius: '8px', border: '0.5px solid var(--tw-border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--tw-ink)', background: 'white' }}>
+            <option value="__all__">Tous les types</option>
+            {presentTypes.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        );
+
+        // Boutons d'action rapide (P1.1). stopPropagation pour ne pas déclencher l'ouverture de la fiche.
+        const qBtn = { padding: '3px 8px', fontSize: '11.5px', fontWeight: 600, borderRadius: '6px', border: '0.5px solid var(--tw-border)', background: 'white', cursor: 'pointer', marginRight: '4px', whiteSpace: 'nowrap', fontFamily: 'inherit' };
+        const doneBtn = { ...qBtn, color: 'var(--success)', borderColor: 'rgba(5,150,105,.35)' };
         const tableFor = (list, lateFlag) => {
           const sorted = applySort(list, { date: a => a.planned_date || '', societe: a => a.prospect_name, action: a => a.action_type });
           return (
           <table style={{ ...tableStyle, marginBottom: '24px' }}>
-            <thead><tr>{SortTh('Date', 'date')}{SortTh('Société', 'societe')}{SortTh('Action', 'action')}<th style={th}>Acteur</th><th style={th}>Contact</th></tr></thead>
+            <thead><tr>{SortTh('Date', 'date')}{SortTh('Société', 'societe')}{SortTh('Action', 'action')}<th style={th}>Acteur</th><th style={th}>Contact</th><th style={{ ...th, textAlign: 'right' }}>Suivi</th></tr></thead>
             <tbody>
               {sorted.map(a => (
                 <tr key={a.id} style={{ cursor: 'pointer' }} {...rowHover} onClick={() => openFiche(a.prospect_id, a.affaire_id, 'prospect', a.prospect_id)}>
-                  <td style={{ ...td, color: lateFlag ? '#dc2626' : 'var(--tw-ink)', fontWeight: lateFlag ? 600 : 400, whiteSpace: 'nowrap' }}>{fmtDate(a.planned_date)}</td>
+                  <td style={{ ...td, color: lateFlag ? 'var(--danger)' : 'var(--tw-ink)', fontWeight: lateFlag ? 600 : 400, whiteSpace: 'nowrap' }}>{fmtDate(a.planned_date)}</td>
                   <td style={{ ...td, ...lk }}>{a.prospect_name || '—'}</td>
                   <td style={td}>{a.action_type || '—'}</td>
                   <td style={td}>{a.actor || '—'}</td>
                   <td style={td}>{a.contact || '—'}</td>
+                  <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                    <button style={doneBtn} title="Marquer comme faite" onClick={() => completeAction(a)}>✓ Fait</button>
+                    <button style={qBtn} title="Reporter à demain" onClick={() => rescheduleAction(a, plusDays(1))}>+1j</button>
+                    <button style={qBtn} title="Reporter d'une semaine" onClick={() => rescheduleAction(a, plusDays(7))}>+7j</button>
+                    <input type="date" title="Reprogrammer à une date précise" defaultValue={a.planned_date ? String(a.planned_date).slice(0, 10) : ''} onChange={e => rescheduleAction(a, e.target.value)} style={{ padding: '2px 6px', fontSize: '11.5px', borderRadius: '6px', border: '0.5px solid var(--tw-border)', fontFamily: 'inherit', color: 'var(--tw-ink)' }} />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
           );
         };
-        return Wrap('Actions', `${late.length} en retard · ${upcoming.length} à venir`, commercialFilter,
+        return (
           <React.Fragment>
-            <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#dc2626', margin: '4px 0 10px' }}>⚠ En retard ({late.length})</h2>
-            {late.length === 0 ? Empty('Aucune action en retard 🎉') : tableFor(late, true)}
-            <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--tw-ink)', margin: '8px 0 10px' }}>À venir / en cours ({upcoming.length})</h2>
-            {upcoming.length === 0 ? Empty('Aucune action à venir.') : tableFor(upcoming, false)}
+            {Wrap('Actions', `${late.length} en retard · ${upcoming.length} à venir`, <React.Fragment>{typeFilter}{commercialFilter}</React.Fragment>,
+              <React.Fragment>
+                <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--danger)', margin: '4px 0 10px' }}>⚠ En retard ({late.length})</h2>
+                {late.length === 0 ? Empty('Aucune action en retard 🎉') : tableFor(late, true)}
+                <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--tw-ink)', margin: '8px 0 10px' }}>À venir / en cours ({upcoming.length})</h2>
+                {upcoming.length === 0 ? Empty('Aucune action à venir.') : tableFor(upcoming, false)}
+              </React.Fragment>
+            )}
+            {followUp && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(11,31,78,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setFollowUp(null)}>
+                <div style={{ background: 'white', borderRadius: 'var(--r-md)', padding: '22px 24px', width: '400px', maxWidth: '90vw', boxShadow: 'var(--sh-md)' }} onClick={e => e.stopPropagation()}>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--tw-ink)', marginBottom: '4px' }}>Prochaine action</h3>
+                  <p style={{ fontSize: '13px', color: 'var(--tw-muted)', marginBottom: '16px' }}>{followUp.prospect_name} — ne jamais laisser une société sans prochaine étape.</p>
+                  <label style={{ fontSize: '11px', color: 'var(--tw-muted)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Type</label>
+                  <select value={followUp.action_type} onChange={e => setFollowUp({ ...followUp, action_type: e.target.value })} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--tw-border)', borderRadius: '8px', fontSize: '13px', fontFamily: 'inherit', marginBottom: '12px', background: 'white', color: 'var(--tw-ink)' }}>
+                    {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                  <label style={{ fontSize: '11px', color: 'var(--tw-muted)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Date prévue</label>
+                  <input type="date" value={followUp.planned_date} onChange={e => setFollowUp({ ...followUp, planned_date: e.target.value })} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--tw-border)', borderRadius: '8px', fontSize: '13px', fontFamily: 'inherit', marginBottom: '20px', color: 'var(--tw-ink)' }} />
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                    <button onClick={() => setFollowUp(null)} style={{ padding: '8px 16px', borderRadius: '999px', border: '1px solid var(--tw-border)', background: 'white', color: 'var(--tw-slate)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Aucune</button>
+                    <button onClick={createFollowUp} style={{ padding: '8px 16px', borderRadius: '999px', border: 'none', background: 'var(--primary)', color: 'white', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Créer</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </React.Fragment>
         );
       }
@@ -10481,7 +10567,7 @@
                             <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Type</label>
                             <select value={commForm.action_type} onChange={e=>setCommForm({...commForm,action_type:e.target.value})}
                               style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
-                              {['Appel','Relance','Email','A faire','Point technique','Demo','Negociation','Signature'].map(t=><option key={t}>{t}</option>)}
+                              {ACTION_TYPES.map(t=><option key={t}>{t}</option>)}
                             </select>
                           </div>
                           <div>
@@ -11697,14 +11783,7 @@
                     onChange={(e) => setActionAffaireFormData({...actionAffaireFormData, action_type: e.target.value})}
                     style={{flex: 1, minWidth: '150px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
                   >
-                    <option>Appel</option>
-                    <option>Relance</option>
-                    <option>Email</option>
-                    <option>A faire</option>
-                    <option>Point technique</option>
-                    <option>Démo</option>
-                    <option>Négociation</option>
-                    <option>Signature</option>
+                    {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
                   </select>
                   <input
                     type="date"
