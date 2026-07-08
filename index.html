@@ -2707,7 +2707,7 @@
                   <td style={td}>{a.actor || '—'}</td>
                   <td style={td}>{a.contact || '—'}</td>
                   <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
-                    <button style={doneBtn} title="Marquer cette action comme réalisée" onClick={() => completeAction(a)}>✓ Terminer</button>
+                    <button style={doneBtn} title="Marquer cette action comme réalisée" onClick={() => completeAction(a)}>Terminer</button>
                     <button style={qBtn} title="Reporter à demain" onClick={() => rescheduleAction(a, plusDays(1))}>+1j</button>
                     <button style={qBtn} title="Reporter d'une semaine" onClick={() => rescheduleAction(a, plusDays(7))}>+7j</button>
                     <input type="date" title="Reprogrammer à une date précise" defaultValue={a.planned_date ? String(a.planned_date).slice(0, 10) : ''} onChange={e => rescheduleAction(a, e.target.value)} style={{ padding: '2px 6px', fontSize: '11.5px', borderRadius: '6px', border: '0.5px solid var(--tw-border)', fontFamily: 'inherit', color: 'var(--tw-ink)' }} />
