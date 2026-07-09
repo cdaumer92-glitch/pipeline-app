@@ -204,3 +204,10 @@ export function getProspectRealStatus(affaires, devisList) {
         quoteDate: affairePlusRecente.devis.quote_date
       };
     }
+
+export function displayName(c) {
+      if (!c) return '';
+      const p = (c.prenom || '').trim();
+      const n = (c.nom || '').trim();
+      return [p, n].filter(Boolean).join(' ');
+    }
