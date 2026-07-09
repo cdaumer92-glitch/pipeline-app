@@ -11,6 +11,13 @@ on:
         type: boolean
         default: false
 
+# Un seul déploiement à la fois par branche : un nouveau push annule proprement
+# le run précédent encore en cours (évite les annulations parasites et les builds
+# concurrents lors de pushs rapprochés).
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   SCW_REGION: fr-par
   REGISTRY_NAMESPACE: pipeline-app
