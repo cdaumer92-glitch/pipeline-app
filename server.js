@@ -1584,9 +1584,16 @@ app.post('/api/affaires/:id/next_actions', auth, async (req, res) => {
 });
 
 app.put('/api/next_actions/:id', auth, async (req, res) => {
-  const { completed, completed_notes, saveNotesOnly, reschedule, planned_date, setPriority, priority } = req.body;
+  const { completed, completed_notes, saveNotesOnly, reschedule, planned_date, setPriority, priority, edit, action_type, actor, contact, completed_note } = req.body;
   try {
-    if (setPriority) {
+    if (edit) {
+      // Édition des champs d'une action (type, date, acteur, contact, priorité, commentaire).
+      // Ne touche pas au statut de complétion.
+      await pool.query(
+        `UPDATE next_actions SET action_type=$1, planned_date=$2, actor=$3, contact=$4, priority=$5, completed_note=$6 WHERE id=$7`,
+        [action_type || null, planned_date || null, actor || null, contact || null, priority || 1, completed_note || null, req.params.id]
+      );
+    } else if (setPriority) {
       // Changement de priorité seul (bascule Normale/Haute depuis la liste Actions).
       await pool.query(
         `UPDATE next_actions SET priority=$1 WHERE id=$2`,
@@ -2120,7 +2127,7 @@ app.get('/api/lists/actions', auth, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT na.id, na.prospect_id, na.affaire_id, na.action_type, na.planned_date,
-              na.actor, na.contact, COALESCE(na.priority, 1) AS priority,
+              na.actor, na.contact, na.completed_note, COALESCE(na.priority, 1) AS priority,
               p.name AS prospect_name, p.assigned_to AS commercial
          FROM next_actions na
          JOIN prospects p ON p.id = na.prospect_id

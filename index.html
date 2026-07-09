@@ -2494,6 +2494,8 @@
       const [actionTypeFilter, setActionTypeFilter] = React.useState('__all__'); // filtre par type (liste Actions)
       const [completion, setCompletion] = React.useState(null); // modale de complétion (résultat + prochaine action)
       const [stats, setStats] = React.useState(null); // métriques de pilotage (par commercial)
+      const [editing, setEditing] = React.useState(null); // modale d'édition d'une action
+      const [reopenable, setReopenable] = React.useState([]); // actions terminées à l'instant (undo "Rouvrir")
       React.useEffect(() => { setSort({ key: '', dir: 'asc' }); }, [type]); // réinit à chaque changement de liste
 
       // Chargement à la demande des données non déjà présentes côté front.
@@ -2537,6 +2539,8 @@
           const r = await fetch(`${API_URL}/next_actions/${a.id}`, { method: 'PUT', headers: actHeaders, body: JSON.stringify({ completed: true, completed_notes: completion.resultNote || '' }) });
           if (!r.ok) throw new Error('HTTP ' + r.status);
           setActions(prev => (prev || []).filter(x => x.id !== a.id));
+          // Undo de session : garder l'action terminée pour pouvoir la rouvrir en un clic.
+          setReopenable(prev => [{ ...a, completed_note: completion.resultNote || a.completed_note || '' }, ...prev.filter(x => x.id !== a.id)].slice(0, 6));
           if (completion.createNext && completion.nextDate) {
             const url = a.affaire_id ? `${API_URL}/affaires/${a.affaire_id}/next_actions` : `${API_URL}/prospects/${a.prospect_id}/next_actions`;
             const rc = await fetch(url, { method: 'POST', headers: actHeaders, body: JSON.stringify({ action_type: completion.nextType, planned_date: completion.nextDate, priority: completion.nextPriority, actor: a.actor || '', contact: a.contact || '' }) });
@@ -2567,6 +2571,28 @@
           if (!r.ok) throw new Error('HTTP ' + r.status);
           setActions(prev => (prev || []).map(x => x.id === a.id ? { ...x, priority: next } : x));
         } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+      };
+      // Rouvrir une action terminée par erreur : la repasse en non complétée et la remet dans la liste.
+      const reopenAction = async (a) => {
+        try {
+          const r = await fetch(`${API_URL}/next_actions/${a.id}`, { method: 'PUT', headers: actHeaders, body: JSON.stringify({ completed: false, completed_notes: a.completed_note || '' }) });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          setReopenable(prev => prev.filter(x => x.id !== a.id));
+          setActions(prev => ([...(prev || []).filter(x => x.id !== a.id), a]));
+          toast('Action rouverte');
+        } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+      };
+      // Ouvrir la modale d'édition d'une action (type, date, acteur, contact, priorité, commentaire).
+      const openEdit = (a) => setEditing({ id: a.id, prospect_id: a.prospect_id, affaire_id: a.affaire_id, prospect_name: a.prospect_name, commercial: a.commercial, action_type: a.action_type || 'Appel', planned_date: a.planned_date ? String(a.planned_date).slice(0, 10) : '', actor: a.actor || '', contact: a.contact || '', priority: Number(a.priority) === 2 ? 2 : 1, completed_note: a.completed_note || '' });
+      const saveEdit = async () => {
+        if (!editing) return;
+        try {
+          const r = await fetch(`${API_URL}/next_actions/${editing.id}`, { method: 'PUT', headers: actHeaders, body: JSON.stringify({ edit: true, action_type: editing.action_type, planned_date: editing.planned_date || null, actor: editing.actor, contact: editing.contact, priority: editing.priority, completed_note: editing.completed_note }) });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          setActions(prev => (prev || []).map(x => x.id === editing.id ? { ...x, action_type: editing.action_type, planned_date: editing.planned_date, actor: editing.actor, contact: editing.contact, priority: editing.priority, completed_note: editing.completed_note } : x));
+          toast('Action modifiée');
+        } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+        setEditing(null);
       };
 
       const commerciaux = (() => {
@@ -2755,6 +2781,7 @@
                     <button style={qBtn} title="Reporter à demain" onClick={() => rescheduleAction(a, plusDays(1))}>+1j</button>
                     <button style={qBtn} title="Reporter d'une semaine" onClick={() => rescheduleAction(a, plusDays(7))}>+7j</button>
                     <input type="date" title="Reprogrammer à une date précise" defaultValue={a.planned_date ? String(a.planned_date).slice(0, 10) : ''} onChange={e => rescheduleAction(a, e.target.value)} style={{ padding: '2px 6px', fontSize: '11.5px', borderRadius: '6px', border: '0.5px solid var(--tw-border)', fontFamily: 'inherit', color: 'var(--tw-ink)' }} />
+                    <button style={{ ...qBtn, marginRight: 0, marginLeft: '4px' }} title="Modifier l'action" onClick={() => openEdit(a)}>✎</button>
                   </td>
                 </tr>
               ))}
@@ -2768,6 +2795,18 @@
           <React.Fragment>
             {Wrap('Actions', `${late.length} en retard · ${upcoming.length} à venir`, <React.Fragment>{typeFilter}{commercialFilter}</React.Fragment>,
               <React.Fragment>
+                {reopenable.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', background: 'var(--success-soft)', border: '1px solid rgba(5,150,105,.2)', borderRadius: '10px', padding: '8px 14px', marginBottom: '14px' }}>
+                    <span style={{ fontSize: '12.5px', color: 'var(--tw-ink)', fontWeight: 600 }}>Terminé à l'instant :</span>
+                    {reopenable.map(a => (
+                      <span key={a.id} style={{ fontSize: '12.5px', color: 'var(--tw-slate)' }}>
+                        {a.prospect_name} · {a.action_type}
+                        <button onClick={() => reopenAction(a)} title="Rouvrir cette action (annuler la complétion)" style={{ marginLeft: '6px', padding: '2px 8px', borderRadius: '999px', border: '1px solid var(--tw-border)', background: 'white', color: 'var(--primary)', fontSize: '11.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Rouvrir</button>
+                      </span>
+                    ))}
+                    <button onClick={() => setReopenable([])} title="Masquer" style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: 'var(--tw-muted)', cursor: 'pointer', fontSize: '13px' }}>✕</button>
+                  </div>
+                )}
                 {metricsStrip}
                 <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--danger)', margin: '4px 0 10px' }}>⚠ En retard ({late.length})</h2>
                 {late.length === 0 ? Empty('Aucune action en retard 🎉') : tableFor(late, true)}
@@ -2810,6 +2849,47 @@
                   <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                     <button onClick={() => setCompletion(null)} style={{ padding: '8px 16px', borderRadius: '999px', border: '1px solid var(--tw-border)', background: 'white', color: 'var(--tw-slate)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Annuler</button>
                     <button onClick={validateCompletion} style={{ padding: '8px 16px', borderRadius: '999px', border: 'none', background: 'var(--primary)', color: 'white', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Valider</button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {editing && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(11,31,78,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setEditing(null)}>
+                <div style={{ background: 'white', borderRadius: 'var(--r-md)', padding: '22px 24px', width: '440px', maxWidth: '92vw', boxShadow: 'var(--sh-md)' }} onClick={e => e.stopPropagation()}>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--tw-ink)', marginBottom: '4px' }}>Modifier l'action</h3>
+                  <p style={{ fontSize: '13px', color: 'var(--tw-muted)', marginBottom: '16px' }}>{editing.prospect_name}</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                    <div>
+                      <label style={lblStyle}>Type</label>
+                      <select value={editing.action_type} onChange={e => setEditing({ ...editing, action_type: e.target.value })} style={fldStyle}>
+                        {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={lblStyle}>Date prévue</label>
+                      <input type="date" value={editing.planned_date} onChange={e => setEditing({ ...editing, planned_date: e.target.value })} style={fldStyle} />
+                    </div>
+                    <div>
+                      <label style={lblStyle}>Acteur</label>
+                      <input type="text" value={editing.actor} onChange={e => setEditing({ ...editing, actor: e.target.value })} placeholder="De…" style={fldStyle} />
+                    </div>
+                    <div>
+                      <label style={lblStyle}>Contact</label>
+                      <input type="text" value={editing.contact} onChange={e => setEditing({ ...editing, contact: e.target.value })} placeholder="Vers…" style={fldStyle} />
+                    </div>
+                    <div style={{ gridColumn: '1 / span 2' }}>
+                      <label style={lblStyle}>Priorité</label>
+                      <select value={editing.priority} onChange={e => setEditing({ ...editing, priority: Number(e.target.value) })} style={fldStyle}>
+                        <option value={1}>Normale</option>
+                        <option value={2}>Haute</option>
+                      </select>
+                    </div>
+                  </div>
+                  <label style={lblStyle}>Commentaire</label>
+                  <textarea value={editing.completed_note} onChange={e => setEditing({ ...editing, completed_note: e.target.value })} rows={2} placeholder="Optionnel" style={{ ...fldStyle, marginBottom: '20px', resize: 'vertical' }} />
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                    <button onClick={() => setEditing(null)} style={{ padding: '8px 16px', borderRadius: '999px', border: '1px solid var(--tw-border)', background: 'white', color: 'var(--tw-slate)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Annuler</button>
+                    <button onClick={saveEdit} style={{ padding: '8px 16px', borderRadius: '999px', border: 'none', background: 'var(--primary)', color: 'white', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Enregistrer</button>
                   </div>
                 </div>
               </div>
@@ -10746,7 +10826,7 @@
                             const isLate = d && d < today && !a.completed;
                             return (
                               <div key={a.id} style={{display:'flex',alignItems:'flex-start',gap:'12px',padding:'10px 14px',borderRadius:'6px',background:a.completed?'var(--tw-bg)':'white',border:'1px solid var(--tw-border)',marginBottom:'6px',opacity:a.completed?.7:1}}>
-                                <input type="checkbox" checked={!!a.completed} onChange={() => onToggleNextAction(a.id)}
+                                <input type="checkbox" checked={!!a.completed} onChange={() => onToggleNextAction(a.id, a.completed)}
                                   style={{width:'16px',height:'16px',cursor:'pointer',accentColor:'var(--tw-teal)',flexShrink:0,marginTop:'2px'}} />
                                 <div style={{flex:1,minWidth:0}}>
                                   <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
