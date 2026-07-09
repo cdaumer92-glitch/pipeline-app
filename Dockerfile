@@ -1,20 +1,24 @@
-﻿# Image de base : Node.js 20 Alpine (leger, ~50 Mo)
-FROM node:20-alpine
-
-# Dossier de travail dans le container
+# ─────────────────────────────────────────────────────────────
+# Stage 1 : build du front avec Vite (JSX précompilé -> dist/)
+# ─────────────────────────────────────────────────────────────
+FROM node:20-alpine AS build
 WORKDIR /app
-
-# Copier les fichiers de dependances d'abord (optimisation cache Docker)
+# Dépendances complètes (dev incluses : vite, react…) pour builder.
 COPY package*.json ./
-
-# Installer les dependances de production uniquement
-RUN npm ci --omit=dev
-
-# Copier le reste du code source
+RUN npm ci
 COPY . .
+RUN npm run build
 
-# Exposer le port 8080 (meme que Cloud Run)
+# ─────────────────────────────────────────────────────────────
+# Stage 2 : runtime (serveur Express + dist/)
+# ─────────────────────────────────────────────────────────────
+FROM node:20-alpine
+WORKDIR /app
+# Dépendances de production uniquement (le serveur n'a pas besoin de React/Vite).
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY . .
+# Récupère le front buildé depuis l'étape 1.
+COPY --from=build /app/dist ./dist
 EXPOSE 8080
-
-# Commande de demarrage
 CMD ["node", "server.js"]

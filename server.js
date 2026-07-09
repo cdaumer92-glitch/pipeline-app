@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { existsSync } from 'fs';
 import fileUpload from 'express-fileupload';
 import {
   saveObject,
@@ -50,6 +51,13 @@ console.log(
 app.use(cors());
 app.use(express.json());
 app.use(fileUpload());
+// Front précompilé par Vite : dist/ est servi en priorité (index.html buildé +
+// bundles hashés). REQUIS : lancer `npm run build` avant `node server.js` sur
+// cette branche (la racine index.html est désormais une template Vite non
+// exécutable telle quelle). La racine reste servie en fallback pour les pages
+// annexes (admin.html, Configurateur.html) et les assets historiques.
+const distDir = join(__dirname, 'dist');
+if (existsSync(distDir)) app.use(express.static(distDir));
 app.use(express.static(__dirname));
 
 // Route explicite pour le configurateur (fichier avec C majuscule)
