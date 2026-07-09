@@ -1,4 +1,5 @@
 import * as React from 'react';
+const API_URL = '/api';
 
 export function Settings({ onClose, user }) {
       const [users, setUsers] = React.useState([]);
@@ -210,4 +211,4 @@ export function Settings({ onClose, user }) {
 
     // ══════════════════════════════════════════════════
     // COMPOSANT : SuspectsNonAttribuesPanel
-    // ══════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════

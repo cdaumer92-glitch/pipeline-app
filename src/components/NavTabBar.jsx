@@ -1,4 +1,6 @@
 import * as React from 'react';
+import { createPortal } from 'react-dom';
+const ReactDOM = { createPortal };
 
 export function NavTabBar({ currentView, onRestore, onOpenPalette }) {
       // Chaque onglet porte une PILE d'historique de vues ; la tête = vue affichée.
@@ -160,4 +162,4 @@ export function NavTabBar({ currentView, onRestore, onOpenPalette }) {
         )}
         </React.Fragment>
       );
-    }
+    }
