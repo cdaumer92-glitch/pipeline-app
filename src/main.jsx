@@ -11,6 +11,7 @@ import { useInterlocuteurs } from './hooks/useInterlocuteurs.js';
 import { useDevisAffaires } from './hooks/useDevisAffaires.js';
 import { useSocieteInfo } from './hooks/useSocieteInfo.js';
 import { useAuth } from './hooks/useAuth.js';
+import { useNextActions } from './hooks/useNextActions.js';
 import { LoginForm } from './components/LoginForm.jsx';
 import { I, displayName, displayInitials, buildInfoForm, ICONS, IconBtn, typeChip, getActionStatus, prospectDisplayName, getEmptyProspect, calculateTotal, formatCurrency, formatNumber, getStatusColor, getProspectCountByCommercial, getProspectRealStatus } from './lib/shared.jsx';
 import { Dashboard } from './components/Dashboard.jsx';
@@ -175,17 +176,12 @@ const ReactDOM = { createRoot, createPortal };
         fetchProspects,
       } = useProspectsData(user, API_URL);
       const [activities, setActivities] = React.useState({});
-      const [nextActions, setNextActions] = React.useState([]);
-      const [allActions, setAllActions] = React.useState([]);
       const [statusHistory, setStatusHistory] = React.useState([]);
-      const [actionNotes, setActionNotes] = React.useState({});
-      const [newActionType, setNewActionType] = React.useState('Appel');
-      const [newActionDate, setNewActionDate] = React.useState(new Date().toISOString().split('T')[0]);
-      const [newActionComment, setNewActionComment] = React.useState('');
-      const [newActionActor, setNewActionActor] = React.useState('');
-      const [newActionContact, setNewActionContact] = React.useState('');
-      const [tempActionComments, setTempActionComments] = React.useState({});
       const [selectedProspect, setSelectedProspect] = React.useState(null);
+      // Next-actions (prochaines actions) : etat + handlers extraits dans un hook (apres useProspectsData).
+      const {
+        nextActions, setNextActions, allActions, setAllActions, actionNotes, setActionNotes, newActionType, setNewActionType, newActionDate, setNewActionDate, newActionComment, setNewActionComment, newActionActor, setNewActionActor, newActionContact, setNewActionContact, tempActionComments, setTempActionComments, fetchNextActions, fetchAllActions, handleAddNextAction, handleToggleNextAction, handleDeleteNextAction,
+      } = useNextActions({ user, API_URL, selectedProspect, prospectActionsInfo, setProspectActionsInfo });
       const [showForm, setShowForm] = React.useState(false);
 
       const [formData, setFormData] = React.useState(getEmptyProspect());
@@ -251,39 +247,7 @@ const ReactDOM = { createRoot, createPortal };
         }
       };
 
-      const fetchNextActions = async (prospectId) => {
-        try {
-          const res = await fetch(`${API_URL}/prospects/${prospectId}/next_actions`, {
-            headers: { 'Authorization': `Bearer ${user.token}` }
-          });
-          const data = await res.json();
-          setNextActions(data || []);
-          
-          // Ne mettre à jour prospectActionsInfo que si l'enriched n'a pas déjà trouvé des actions
-          // (évite d'écraser les actions d'affaire avec la route qui ne retourne que les actions directes)
-          setProspectActionsInfo(prev => {
-            const existing = prev[prospectId];
-            // Si l'enriched a déjà détecté une action, on garde ses infos
-            if (existing?.hasAction) return prev;
-            const actionInfo = getActionStatus(data || []);
-            return {...prev, [prospectId]: actionInfo};
-          });
-        } catch (err) {
-          console.error('Erreur:', err);
-        }
-      };
 
-      const fetchAllActions = async (prospectId) => {
-        try {
-          const res = await fetch(`${API_URL}/prospects/${prospectId}/actions-all`, {
-            headers: { 'Authorization': `Bearer ${user.token}` }
-          });
-          const data = await res.json();
-          setAllActions(Array.isArray(data) ? data : []);
-        } catch (err) {
-          console.error('Erreur fetchAllActions:', err);
-        }
-      };
 
       const fetchStatusHistory = async (prospectId) => {
         try {
@@ -486,75 +450,8 @@ const ReactDOM = { createRoot, createPortal };
         }
       };
 
-      const handleAddNextAction = async () => {
-        if (!selectedProspect) return;
-        try {
-          const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/next_actions`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${user.token}`
-            },
-            body: JSON.stringify({ 
-              action_type: newActionType, 
-              planned_date: newActionDate, 
-              actor: newActionActor,
-              contact: newActionContact,
-              completed_note: newActionComment 
-            })
-          });
-          if (res.ok) {
-            window.showToast({title:'Action ajoutée', type:'success'});
-            fetchNextActions(selectedProspect.id);
-            fetchAllActions(selectedProspect.id);
-            setNewActionType('Appel');
-            setNewActionDate(new Date().toISOString().split('T')[0]);
-            setNewActionActor('');
-            setNewActionContact('');
-            setNewActionComment('');
-          }
-        } catch (err) {
-          window.showToast({title:'Erreur: ' + err.message, type:'error'});
-        }
-      };
 
-      const handleToggleNextAction = async (actionId, completed, notes = '') => {
-        try {
-          const res = await fetch(`${API_URL}/next_actions/${actionId}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${user.token}`
-            },
-            body: JSON.stringify({ completed: !completed, completed_notes: notes })
-          });
-          if (res.ok) {
-            fetchNextActions(selectedProspect.id);
-            fetchAllActions(selectedProspect.id);
-            setActionNotes({...actionNotes, [actionId]: ''});
-          }
-        } catch (err) {
-          window.showToast({title:'Erreur: ' + err.message, type:'error'});
-        }
-      };
 
-      const handleDeleteNextAction = async (actionId) => {
-        if (window.confirm('Supprimer cette action ?')) {
-          try {
-            const res = await fetch(`${API_URL}/next_actions/${actionId}`, {
-              method: 'DELETE',
-              headers: { 'Authorization': `Bearer ${user.token}` }
-            });
-            if (res.ok) {
-              window.showToast({title:'Action supprimée', type:'success'});
-              fetchNextActions(selectedProspect.id);
-              fetchAllActions(selectedProspect.id);
-            }
-          } catch (err) {
-            window.showToast({title:'Erreur: ' + err.message, type:'error'});
-          }
-        }
-      };
 
       const formatDateForInput = (dateStr) => {
         if (!dateStr) return '';
