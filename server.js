@@ -2236,6 +2236,45 @@ app.get('/api/lists/actions-stats', auth, async (req, res) => {
   }
 });
 
+// Récap e-mail des actions à traiter (aujourd'hui + en retard) — envoyé à l'utilisateur
+// lui-même (jamais à un tiers), déclenché manuellement. Non-admin = ses sociétés ; admin = toutes.
+app.post('/api/actions/email-recap', auth, async (req, res) => {
+  try {
+    const u = await pool.query('SELECT email, name FROM users WHERE id = $1', [req.userId]);
+    if (!u.rows[0] || !u.rows[0].email) return res.status(404).json({ error: 'Email utilisateur introuvable' });
+    const { email, name } = u.rows[0];
+    const scoped = (await getUserRole(req.userId)) !== 'admin';
+    const q = await pool.query(
+      `SELECT na.action_type, na.planned_date, p.name AS societe
+         FROM next_actions na JOIN prospects p ON p.id = na.prospect_id
+        WHERE na.completed = 0 AND na.planned_date IS NOT NULL AND na.planned_date <= CURRENT_DATE
+          ${scoped ? 'AND p.assigned_to = $1' : ''}
+        ORDER BY na.planned_date ASC`,
+      scoped ? [name] : []
+    );
+    const rows = q.rows;
+    const today = new Date().toISOString().slice(0, 10);
+    const fmt = (d) => new Date(d).toLocaleDateString('fr-FR');
+    const li = rows.map(r => {
+      const late = String(r.planned_date).slice(0, 10) < today;
+      return `<li style="margin:4px 0">${late ? '⚠️ ' : ''}<b>${fmt(r.planned_date)}</b> — ${r.societe} : ${r.action_type}</li>`;
+    }).join('');
+    const html = rows.length === 0
+      ? `<p>Bonjour ${name},</p><p>Rien à traiter aujourd'hui — tout est à jour. 👍</p><p style="color:#888">— Pipeline TexasWin</p>`
+      : `<p>Bonjour ${name},</p><p>Vous avez <b>${rows.length}</b> action(s) à traiter (aujourd'hui ou en retard) :</p><ul style="padding-left:18px">${li}</ul><p style="color:#888">— Pipeline TexasWin</p>`;
+    await transporter.sendMail({
+      from: `"TexasWin Pipeline" <notifications@texaswin.fr>`,
+      to: email,
+      subject: rows.length ? `${rows.length} action(s) à traiter — Pipeline TexasWin` : 'Aucune action à traiter — Pipeline TexasWin',
+      html,
+    });
+    res.json({ ok: true, count: rows.length, email });
+  } catch (err) {
+    console.error('Erreur POST /api/actions/email-recap:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/prospects/:id/devis', auth, async (req, res) => {
   try {
     const { id } = req.params;

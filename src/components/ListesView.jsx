@@ -267,6 +267,22 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
           </select>
         );
 
+        // Récap par e-mail : envoie à l'utilisateur lui-même la liste de ses actions à traiter.
+        const sendRecapEmail = async () => {
+          try {
+            const r = await fetch(`${API_URL}/actions/email-recap`, { method: 'POST', headers: actHeaders });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const d = await r.json().catch(() => ({}));
+            toast(d.count > 0 ? `Récap envoyé (${d.count} action(s)) à ${d.email || 'votre e-mail'}` : 'Récap envoyé — rien à traiter 👍');
+          } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+        };
+        const recapBtn = (
+          <button onClick={sendRecapEmail} title="M'envoyer par e-mail la liste des actions à traiter (aujourd'hui + en retard)"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: '0.5px solid var(--tw-border)', background: 'white', color: 'var(--tw-ink)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+            📧 Récap par mail
+          </button>
+        );
+
         // Métriques de pilotage (agrégats backend par commercial, sommés selon le scope courant).
         const agg = (stats || []).filter(s => inScope(s.commercial)).reduce((o, s) => ({
           done_week: o.done_week + Number(s.done_week || 0),
@@ -338,7 +354,7 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
         );
         return (
           <React.Fragment>
-            {Wrap('Actions', `${late.length} en retard · ${todayList.length} aujourd'hui · ${week.length} cette semaine`, <React.Fragment>{typeFilter}{commercialFilter}</React.Fragment>,
+            {Wrap('Actions', `${late.length} en retard · ${todayList.length} aujourd'hui · ${week.length} cette semaine`, <React.Fragment>{recapBtn}{typeFilter}{commercialFilter}</React.Fragment>,
               <React.Fragment>
                 {reopenable.length > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', background: 'var(--success-soft)', border: '1px solid rgba(5,150,105,.2)', borderRadius: '10px', padding: '8px 14px', marginBottom: '14px' }}>
