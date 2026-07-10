@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { prospectDisplayName } from '../lib/shared.jsx';
 
-export function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSettings, onAttribution, showAttribution, onCampagnes, showCampagnes, onListe, activeListe, prospects, onSelectProspect, onNewProspect }) {
+export function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSettings, onAttribution, showAttribution, onCampagnes, showCampagnes, onListe, activeListe, prospects, onSelectProspect, onNewProspect, dueTodayCount, onOpenMyActions }) {
       const [globalSearch, setGlobalSearch] = React.useState('');
       const [showResults, setShowResults] = React.useState(false);
       const [searchIndex, setSearchIndex] = React.useState(-1);
@@ -124,6 +124,17 @@ export function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSe
             <kbd style={{fontFamily:'Inter,sans-serif',fontSize:'10px',fontWeight:600,background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'4px',padding:'1px 5px',color:'var(--tw-slate)'}}>Ctrl K</kbd>
           </button>
 
+          {/* RAPPEL : actions à faire aujourd'hui / en retard (badge cliquable → mes Actions) */}
+          {dueTodayCount > 0 && (
+            <button
+              onClick={onOpenMyActions}
+              title={`${dueTodayCount} action(s) à traiter aujourd'hui ou en retard`}
+              style={{display:'flex',alignItems:'center',gap:'6px',background:'var(--accent-orange)',border:'1px solid var(--accent-orange)',borderRadius:'999px',padding:'6px 12px',fontSize:'12.5px',fontWeight:700,fontFamily:'Inter,sans-serif',color:'#fff',cursor:'pointer',whiteSpace:'nowrap'}}
+            >
+              🔔 {dueTodayCount} à faire
+            </button>
+          )}
+
           {/* CTA NOUVELLE SOCIÉTÉ — bouton primaire noir style Vercel/Stripe */}
           <button
             onClick={onNewProspect}
@@ -170,4 +181,4 @@ export function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSe
 
     // ══════════════════════════════════════════════════
     // COMPOSANT : AttributionView
-    // ══════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════

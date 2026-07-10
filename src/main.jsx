@@ -2324,6 +2324,20 @@ const ReactDOM = { createRoot, createPortal };
         setIsDashboard(true); // fallback = Dashboard (la vue Suivi a été retirée)
       };
 
+      // Compteur "à faire aujourd'hui / en retard" pour le rappel dans la topbar (mes sociétés).
+      const dueTodayCount = (() => {
+        const n = new Date();
+        const today = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+        const admin = isUserAdmin(user);
+        return (prospects || []).reduce((c, p) => {
+          if (!admin && p.assigned_to !== user?.name) return c;
+          const info = prospectActionsInfo[p.id];
+          if (!info || !info.hasAction) return c;
+          const d = info.nextActionDate ? String(info.nextActionDate).slice(0, 10) : null;
+          return (info.isLate || (d && d <= today)) ? c + 1 : c;
+        }, 0);
+      })();
+
       return (
         <div style={styles.container}>
           <NavTabBar
@@ -2342,6 +2356,8 @@ const ReactDOM = { createRoot, createPortal };
             onCampagnes={() => { setListeView(null); setShowCampagnes(true); setShowAttribution(false); }}
             showCampagnes={showCampagnes}
             onListe={(t) => { setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeCtx(null); setListeView(t); }}
+            dueTodayCount={dueTodayCount}
+            onOpenMyActions={() => { setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeCtx({ commercial: user.name }); setListeView('actions'); }}
             activeListe={listeView}
             prospects={isUserAdmin(user) ? prospects : prospects.filter(p => p.assigned_to === user.name)}
             onSelectProspect={handleSelectProspect}
