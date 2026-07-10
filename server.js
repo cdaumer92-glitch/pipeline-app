@@ -275,9 +275,17 @@ async function initDB() {
 
     // Définir cdaumer92@gmail.com comme admin
     await client.query(`
-      UPDATE users 
-      SET role = 'admin' 
+      UPDATE users
+      SET role = 'admin'
       WHERE email = 'cdaumer92@gmail.com' AND role IS NULL
+    `);
+
+    // Aligner les rôles admin sur la définition du front (Christian / Frédéric) : les
+    // endpoints d'administration (gestion des comptes) sont désormais protégés par
+    // requireAdmin, qui s'appuie sur ce rôle. Idempotent.
+    await client.query(`
+      UPDATE users SET role = 'admin'
+      WHERE name IN ('Christian', 'Frédéric', 'Frederic')
     `);
 
     // Créer la table des sessions
@@ -1020,6 +1028,25 @@ const auth = async (req, res, next) => {
   }
 };
 
+// Middleware admin : réservé aux comptes role='admin'. Défini ici (avant les routes
+// qui l'utilisent, ex. gestion des comptes) pour éviter une erreur de chargement (TDZ).
+const requireAdmin = async (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Non authentifié' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const result = await pool.query('SELECT role FROM users WHERE id = $1', [decoded.id]);
+    if (!result.rows[0] || result.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Accès refusé - Admin uniquement' });
+    }
+    req.userId = decoded.id;
+    req.userName = decoded.name;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Token invalide' });
+  }
+};
+
 // REGISTER
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, name } = req.body;
@@ -1697,7 +1724,7 @@ app.get('/api/users', auth, async (req, res) => {
   }
 });
 
-app.post('/api/users', auth, async (req, res) => {
+app.post('/api/users', auth, requireAdmin, async (req, res) => {
   const { email, password, name } = req.body;
   try {
     const hashedPassword = await bcryptjs.hash(password, 10);
@@ -1711,7 +1738,7 @@ app.post('/api/users', auth, async (req, res) => {
   }
 });
 
-app.delete('/api/users/:id', auth, async (req, res) => {
+app.delete('/api/users/:id', auth, requireAdmin, async (req, res) => {
   try {
     await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
@@ -1721,7 +1748,7 @@ app.delete('/api/users/:id', auth, async (req, res) => {
 });
 
 // ===================== GENERATE TEMP PASSWORD =====================
-app.post('/api/users/:id/temp-password', auth, async (req, res) => {
+app.post('/api/users/:id/temp-password', auth, requireAdmin, async (req, res) => {
   try {
     const tempPassword = Math.random().toString(36).slice(-12).toUpperCase();
     const hashedPassword = await bcryptjs.hash(tempPassword, 10);
@@ -1738,7 +1765,7 @@ app.post('/api/users/:id/temp-password', auth, async (req, res) => {
 });
 
 // ===================== CHANGE PASSWORD =====================
-app.put('/api/users/:id/password', auth, async (req, res) => {
+app.put('/api/users/:id/password', auth, requireAdmin, async (req, res) => {
   try {
     const { password } = req.body;
     if (!password) {
@@ -5280,25 +5307,7 @@ app.get('/desinscription', (req, res) => {
 });
 
 // ===================== ADMIN ROUTES =====================
-const requireAdmin = async (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Non authentifié' });
-  
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const result = await pool.query('SELECT role FROM users WHERE id = $1', [decoded.id]);
-    
-    if (!result.rows[0] || result.rows[0].role !== 'admin') {
-      return res.status(403).json({ error: 'Accès refusé - Admin uniquement' });
-    }
-    
-    req.userId = decoded.id;
-    req.userName = decoded.name;
-    next();
-  } catch {
-    res.status(401).json({ error: 'Token invalide' });
-  }
-};
+// requireAdmin est défini plus haut (juste après le middleware `auth`).
 
 app.get('/admin', (req, res) => {
   res.sendFile(join(__dirname, 'admin.html'));
@@ -5531,7 +5540,7 @@ app.get('/api/debug/actions', auth, async (req, res) => {
 app.get('/api/health', (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
 // Nettoyage licences obsolètes (one-shot)
-app.get('/api/admin/clean-licences', auth, async (req, res) => {
+app.get('/api/admin/clean-licences', auth, requireAdmin, async (req, res) => {
   try {
     await pool.query(`DELETE FROM licences WHERE nom ILIKE '%Perpétuelle%'`);
     await pool.query(`DELETE FROM licences WHERE code IN ('AGENTS','FLUX_TIERS','PERP_BIZ','PERP_FAB','PERP_BIZ_FAB')`);
