@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import './overlay.jsx';
 import { CampagnesPage } from './components/Campagnes.jsx';
 import { styles } from './lib/styles.js';
-import { ACTION_TYPES } from './lib/constants.js';
+import { ACTION_TYPES, API_URL } from './lib/constants.js';
 import { LoginForm } from './components/LoginForm.jsx';
 import { I, displayName, displayInitials, buildInfoForm, ICONS, IconBtn, typeChip, getActionStatus, prospectDisplayName, getEmptyProspect, calculateTotal, formatCurrency, formatNumber, getStatusColor, getProspectCountByCommercial, getProspectRealStatus } from './lib/shared.jsx';
 import { Dashboard } from './components/Dashboard.jsx';
@@ -31,7 +31,6 @@ const ReactDOM = { createRoot, createPortal };
 
     // ================== APP PRINCIPALE ==================
     console.log('[Pipeline] Version chargée: ' + new Date().toISOString());
-    const API_URL = '/api';
 
     // ==================== HELPERS SOCIETEINFO : débit maîtrisé ====================
     // L'API SocieteInfo limite le débit (429 Too Many Requests) : enchaîner des dizaines
@@ -2554,7 +2553,6 @@ const ReactDOM = { createRoot, createPortal };
               actionAffaireFormData={actionAffaireFormData}
               setActionAffaireFormData={setActionAffaireFormData}
               handleSaveActionAffaire={handleSaveActionAffaire}
-              interlocuteurs={interlocuteurs}
               users={appUsers}
               codesNaf={codesNaf}
             />

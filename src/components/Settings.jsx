@@ -1,5 +1,5 @@
 import * as React from 'react';
-const API_URL = '/api';
+import { API_URL } from '../lib/constants.js';
 
 export function Settings({ onClose, user }) {
       const [users, setUsers] = React.useState([]);
