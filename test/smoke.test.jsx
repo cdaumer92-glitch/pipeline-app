@@ -22,6 +22,7 @@ import { SuspectsNonAttribuesPanel } from '../src/components/SuspectsNonAttribue
 import { CommercialEditor } from '../src/components/CommercialEditor.jsx'
 import { AttributionView } from '../src/components/AttributionView.jsx'
 import { CampagnesPage } from '../src/components/Campagnes.jsx'
+import { KanbanView } from '../src/components/KanbanView.jsx'
 
 const API_URL = '/api'
 const user = { id: 1, name: 'Christian', token: 'tok', role: 'admin', email: 'c@texaswin.fr' }
@@ -76,6 +77,12 @@ const cases = [
     <AttributionView prospects={[]} users={[]} user={user} API_URL={API_URL} onClose={noop} onUpdateProspect={noop} />
   )],
   ['CampagnesPage', <CampagnesPage user={user} API_URL={API_URL} onClose={noop} />],
+  ['KanbanView', (
+    <KanbanView
+      prospects={[{ id: 1, name: 'Acme', status: 'Devis', assigned_to: 'Christian' }, { id: 2, name: 'Globex', status: 'Prospection' }]}
+      user={user} API_URL={API_URL} onSelectProspect={noop} onStatusChanged={noop}
+    />
+  )],
 ]
 
 describe('smoke — rendu des écrans authentifiés', () => {

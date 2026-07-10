@@ -20,12 +20,15 @@ export function useProspectsData(user, API_URL) {
         headers: { 'Authorization': `Bearer ${user.token}` }
       });
       const data = await res.json();
+      // Robustesse : si le backend renvoie une erreur (objet) au lieu d'un tableau, ne pas
+      // injecter un non-tableau dans l'état (sinon `.filter`/`.map` plantent tout l'App).
+      const list = Array.isArray(data) ? data : [];
 
-      setProspects(data);
+      setProspects(list);
 
       // Pré-alimenter prospectActionsInfo depuis les données enrichies (évite N requêtes)
       const actionsMap = {};
-      data.forEach(p => {
+      list.forEach(p => {
         actionsMap[p.id] = {
           hasAction: !!p.action_has_action,
           isLate: !!p.action_next_is_late,

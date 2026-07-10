@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 // Overlay palette (Ctrl+K) : importé en side-effect pour monter son propre root #twnav-root.
 import './overlay.jsx';
 import { CampagnesPage } from './components/Campagnes.jsx';
+import { KanbanView } from './components/KanbanView.jsx';
 import { styles } from './lib/styles.js';
 import { ACTION_TYPES, API_URL } from './lib/constants.js';
 import { useProspectsData } from './hooks/useProspectsData.js';
@@ -160,6 +161,7 @@ const ReactDOM = { createRoot, createPortal };
       const [listeCtx, setListeCtx] = React.useState(null); // filtre initial d'une liste ouverte depuis le dashboard : { commercial, realStatus, devisStatut }
       const [showAttribution, setShowAttribution] = React.useState(false);
       const [showCampagnes, setShowCampagnes] = React.useState(false);
+      const [showPipeline, setShowPipeline] = React.useState(false); // vue Kanban du pipeline
       const isUserAdmin = (u) => u && ['Christian', 'Frédéric', 'Frederic'].includes(u.name);
       const [selectedCommercial, setSelectedCommercial] = React.useState(null);
       const [showSettings, setShowSettings] = React.useState(false);
@@ -643,6 +645,7 @@ const ReactDOM = { createRoot, createPortal };
         listeView       ? { view: 'liste-' + listeView, label: ({ devis: 'Devis en cours', societes: 'Sociétés', actions: 'Actions' })[listeView] || 'Listes' }
         : showCampagnes   ? { view: 'campagnes',   label: 'Campagnes' }
         : showAttribution ? { view: 'attribution', label: 'Attribution' }
+        : showPipeline    ? { view: 'pipeline',    label: 'Pipeline' }
         : selectedProspect ? { view: 'prospect', prospectId: selectedProspect.id, label: selectedProspect.name }
         :                 { view: 'dashboard',   label: 'Dashboard' }
       );
@@ -650,6 +653,8 @@ const ReactDOM = { createRoot, createPortal };
       // ── Restaure une vue depuis un onglet (action inverse de currentView) ──
       const restoreView = (d) => {
         setShowSettings(false);
+        if (d.view === 'pipeline') { setShowCampagnes(false); setShowAttribution(false); setListeView(null); setSelectedProspect(null); setIsDashboard(false); setShowPipeline(true); return; }
+        setShowPipeline(false);
         if (d.view && d.view.indexOf('liste-') === 0) { setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeCtx(null); setListeView(d.view.slice(6)); return; }
         setListeView(null);
         if (d.view === 'campagnes')   { setShowAttribution(false); setSelectedProspect(null); setShowCampagnes(true); return; }
@@ -690,16 +695,18 @@ const ReactDOM = { createRoot, createPortal };
           <Header
             user={user} 
             onLogout={() => { localStorage.removeItem('user'); setUser(null); }} 
-            onDashboard={() => { setListeView(null); setShowAttribution(false); setShowCampagnes(false); setSelectedProspect(null); setIsDashboard(true); }}
+            onDashboard={() => { setListeView(null); setShowAttribution(false); setShowCampagnes(false); setShowPipeline(false); setSelectedProspect(null); setIsDashboard(true); }}
             isDashboard={isDashboard}
             onSettings={() => setShowSettings(true)}
-            onAttribution={() => { setListeView(null); setShowAttribution(true); setShowCampagnes(false); }}
+            onAttribution={() => { setListeView(null); setShowAttribution(true); setShowCampagnes(false); setShowPipeline(false); }}
             showAttribution={showAttribution}
-            onCampagnes={() => { setListeView(null); setShowCampagnes(true); setShowAttribution(false); }}
+            onCampagnes={() => { setListeView(null); setShowCampagnes(true); setShowAttribution(false); setShowPipeline(false); }}
             showCampagnes={showCampagnes}
-            onListe={(t) => { setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeCtx(null); setListeView(t); }}
+            onPipeline={() => { setListeView(null); setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setIsDashboard(false); setShowPipeline(true); }}
+            showPipeline={showPipeline}
+            onListe={(t) => { setShowCampagnes(false); setShowAttribution(false); setShowPipeline(false); setSelectedProspect(null); setListeCtx(null); setListeView(t); }}
             dueTodayCount={dueTodayCount}
-            onOpenMyActions={() => { setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeCtx({ commercial: user.name }); setListeView('actions'); }}
+            onOpenMyActions={() => { setShowCampagnes(false); setShowAttribution(false); setShowPipeline(false); setSelectedProspect(null); setListeCtx({ commercial: user.name }); setListeView('actions'); }}
             activeListe={listeView}
             prospects={isUserAdmin(user) ? prospects : prospects.filter(p => p.assigned_to === user.name)}
             onSelectProspect={handleSelectProspect}
@@ -731,6 +738,16 @@ const ReactDOM = { createRoot, createPortal };
               onClose={() => setShowCampagnes(false)}
             />
           )}
+
+          {showPipeline && (
+            <KanbanView
+              prospects={isUserAdmin(user) ? prospects : prospects.filter(p => p.assigned_to === user.name)}
+              user={user}
+              API_URL={API_URL}
+              onSelectProspect={(p) => { setShowPipeline(false); handleSelectProspect(p); setIsDashboard(false); }}
+              onStatusChanged={(id, st) => setProspects(prev => prev.map(p => p.id === id ? { ...p, status: st } : p))}
+            />
+          )}
           
           {showRecap && recapCommercial && (
             <RecapModal 
@@ -756,13 +773,13 @@ const ReactDOM = { createRoot, createPortal };
           )}
 
           {/* Listes transverses (devis en cours / sociétés / actions) — plein écran quand actives */}
-          {listeView && !showCampagnes && !showAttribution && (
+          {listeView && !showCampagnes && !showAttribution && !showPipeline && (
             <ListesView type={listeView} prospects={prospects} user={user} API_URL={API_URL} listeCtx={listeCtx} />
           )}
 
           {/* Sans société sélectionnée → Dashboard ; sinon → fiche plein écran (le panneau-liste
               "Suivi activités" a été retiré ; on choisit une société via le menu/listes/palette). */}
-          {!showCampagnes && !listeView && (!selectedProspect ? (
+          {!showCampagnes && !listeView && !showPipeline && (!selectedProspect ? (
             isUserAdmin(user) ? <Dashboard 
               prospects={prospects} 
               selectedCommercial={selectedCommercial} 

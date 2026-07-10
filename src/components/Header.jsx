@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { prospectDisplayName } from '../lib/shared.jsx';
 
-export function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSettings, onAttribution, showAttribution, onCampagnes, showCampagnes, onListe, activeListe, prospects, onSelectProspect, onNewProspect, dueTodayCount, onOpenMyActions }) {
+export function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSettings, onAttribution, showAttribution, onCampagnes, showCampagnes, onPipeline, showPipeline, onListe, activeListe, prospects, onSelectProspect, onNewProspect, dueTodayCount, onOpenMyActions }) {
       const [globalSearch, setGlobalSearch] = React.useState('');
       const [showResults, setShowResults] = React.useState(false);
       const [searchIndex, setSearchIndex] = React.useState(-1);
@@ -47,7 +47,7 @@ export function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSe
           {/* NAV PRINCIPALE (gauche) */}
           <nav style={{display:'flex',gap:'2px',flexWrap:'wrap'}}>
             {(() => {
-              const none = !showAttribution && !showCampagnes && !activeListe;
+              const none = !showAttribution && !showCampagnes && !activeListe && !showPipeline;
               const dashOn = isDashboard && none;
               const navBtn = (label, on, onClick) => (
                 <button key={label} onClick={onClick}
@@ -56,6 +56,7 @@ export function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSe
               return (
                 <React.Fragment>
                   {navBtn('Dashboard', dashOn, () => { if (!dashOn) onDashboard(); })}
+                  {navBtn('Pipeline', showPipeline, onPipeline)}
                   {navBtn('Sociétés', activeListe === 'societes', () => onListe('societes'))}
                   {navBtn('Devis en cours', activeListe === 'devis', () => onListe('devis'))}
                   {navBtn('Actions', activeListe === 'actions', () => onListe('actions'))}

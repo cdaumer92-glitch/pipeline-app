@@ -1611,6 +1611,30 @@ app.put('/api/prospects/:id', auth, async (req, res) => {
   }
 });
 
+// PATCH statut d'un prospect (glisser-déposer Kanban) : mise à jour CIBLÉE du statut, sans
+// toucher aux autres champs (contrairement au PUT complet), + enregistrement de l'historique.
+const PROSPECT_STATUSES = ['Prospection', 'Devis', 'Démo', 'Négociation', 'Signé', 'Ajourné N+1', 'Éliminé par nous', 'Perdu'];
+app.patch('/api/prospects/:id/status', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
+  const { id } = req.params;
+  const { status } = req.body;
+  if (!PROSPECT_STATUSES.includes(status)) return res.status(400).json({ error: 'Statut invalide' });
+  try {
+    const cur = await pool.query('SELECT status FROM prospects WHERE id = $1', [id]);
+    if (cur.rows.length === 0) return res.status(404).json({ error: 'Société introuvable' });
+    const oldStatus = cur.rows[0].status;
+    if (oldStatus === status) return res.json({ ok: true, unchanged: true });
+    await pool.query('UPDATE prospects SET status = $1, status_date = CURRENT_DATE, updated_at = NOW() WHERE id = $2', [status, id]);
+    await pool.query(
+      'INSERT INTO status_history (prospect_id, old_status, new_status, status_date, user_id) VALUES ($1, $2, $3, CURRENT_DATE, $4)',
+      [id, oldStatus, status, req.userId]
+    );
+    res.json({ ok: true, old_status: oldStatus, new_status: status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete('/api/prospects/:id', auth, async (req, res) => {
   try {
     await pool.query('DELETE FROM prospects WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
