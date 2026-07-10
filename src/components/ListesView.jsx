@@ -1,9 +1,10 @@
 import * as React from 'react';
 import { ACTION_TYPES } from '../lib/constants.js';
 
-export function ListesView({ type, prospects, user, API_URL }) {
+export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
       const admin = (typeof isUserAdmin === 'function') ? isUserAdmin(user) : !!(user && (user.role === 'admin' || user.name === 'Christian'));
-      const [commercial, setCommercial] = React.useState('__all__');
+      const [commercial, setCommercial] = React.useState((listeCtx && listeCtx.commercial) || '__all__');
+      const [realStatusFilter, setRealStatusFilter] = React.useState((listeCtx && listeCtx.realStatus) || null); // filtre real_status (liste Sociétés, depuis une box du dashboard)
       const [statut, setStatut] = React.useState('Tous');
       const [devis, setDevis] = React.useState(null);
       const [actions, setActions] = React.useState(null);
@@ -15,6 +16,11 @@ export function ListesView({ type, prospects, user, API_URL }) {
       const [editing, setEditing] = React.useState(null); // modale d'édition d'une action
       const [reopenable, setReopenable] = React.useState([]); // actions terminées à l'instant (undo "Rouvrir")
       React.useEffect(() => { setSort({ key: '', dir: 'asc' }); }, [type]); // réinit à chaque changement de liste
+      // Applique le filtre initial transmis par le dashboard (commercial + real_status) à chaque ouverture.
+      React.useEffect(() => {
+        setCommercial((listeCtx && listeCtx.commercial) || '__all__');
+        setRealStatusFilter((listeCtx && listeCtx.realStatus) || null);
+      }, [listeCtx]);
 
       // Chargement à la demande des données non déjà présentes côté front.
       React.useEffect(() => {
@@ -167,7 +173,9 @@ export function ListesView({ type, prospects, user, API_URL }) {
 
       // ---- SOCIÉTÉS ----
       if (type === 'societes') {
-        const base = prospects.filter(p => inScope(p.assigned_to));
+        // Filtre real_status optionnel (arrivée depuis une box du dashboard) : chaîne ou tableau de statuts.
+        const rsMatch = (p) => !realStatusFilter || (Array.isArray(realStatusFilter) ? realStatusFilter.includes(p.real_status) : p.real_status === realStatusFilter);
+        const base = prospects.filter(p => inScope(p.assigned_to) && rsMatch(p));
         const counts = { Suspect: 0, Prospect: 0, Client: 0 };
         base.forEach(p => { const s = p.statut_societe || 'Prospect'; if (counts[s] != null) counts[s]++; });
         let rows = (statut === 'Tous' ? base : base.filter(p => (p.statut_societe || 'Prospect') === statut)).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -179,7 +187,11 @@ export function ListesView({ type, prospects, user, API_URL }) {
             ))}
           </div>
         );
-        return Wrap('Sociétés', `${counts.Suspect} suspect(s) · ${counts.Prospect} prospect(s) · ${counts.Client} client(s)`, <React.Fragment>{statutFilter}{commercialFilter}</React.Fragment>,
+        const rsLabel = Array.isArray(realStatusFilter) ? 'Pipeline actif' : realStatusFilter;
+        const realStatusChip = realStatusFilter ? (
+          <button onClick={() => setRealStatusFilter(null)} title="Retirer ce filtre de statut" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 11px', borderRadius: '8px', border: '1px solid var(--primary)', background: 'var(--primary-soft)', color: 'var(--primary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Statut : {rsLabel} ✕</button>
+        ) : null;
+        return Wrap('Sociétés', `${counts.Suspect} suspect(s) · ${counts.Prospect} prospect(s) · ${counts.Client} client(s)`, <React.Fragment>{statutFilter}{realStatusChip}{commercialFilter}</React.Fragment>,
           rows.length === 0 ? Empty('Aucune société.') : (
             <table style={tableStyle}>
               <thead><tr>{SortTh('Société', 'societe')}{SortTh('Type', 'type')}{SortTh('Commercial', 'commercial')}<th style={th}>Contact</th><th style={th}>Téléphone</th></tr></thead>
@@ -418,4 +430,4 @@ export function ListesView({ type, prospects, user, API_URL }) {
 
       return null;
     }
-
+

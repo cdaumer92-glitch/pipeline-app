@@ -380,7 +380,10 @@ export function Dashboard({ prospects, selectedCommercial, onSelectCommercial, o
       }).length;
 
       const chip = (label, val, color) => (
-        <span key={label} className="tw-chip" style={{color: val>0 ? color : 'var(--tw-muted)', opacity: val>0?1:.4}}>
+        <span key={label} className="tw-chip"
+          onClick={() => onOpenListe && onOpenListe('societes', activeTab, { realStatus: label })}
+          title={onOpenListe ? `Voir les sociétés « ${label} » de ${activeTab}` : undefined}
+          style={{color: val>0 ? color : 'var(--tw-muted)', opacity: val>0?1:.4, cursor: onOpenListe ? 'pointer' : 'default'}}>
           {label} {val}
         </span>
       );
@@ -648,12 +651,9 @@ export function Dashboard({ prospects, selectedCommercial, onSelectCommercial, o
                           style={{cursor: item.noClick?'default':'pointer'}}
                           onClick={() => {
                             if (item.noClick) return;
-                            // Appliquer les filtres avant de naviguer
-                            if (setFilterCommercial) setFilterCommercial(activeTab);
-                            if (setFilterStatus) setFilterStatus(item.filterStatusValue);
-                            // Reset filtre attribution (sinon ça peut court-circuiter le filtre commercial)
-                            if (setFilterAttribution) setFilterAttribution('Toutes');
-                            onOpenDashboard();
+                            // Ouvre la liste Sociétés filtrée sur ce commercial (+ real_status si applicable).
+                            const rs = (item.filterStatusValue && item.filterStatusValue.length) ? item.filterStatusValue : null;
+                            onOpenListe && onOpenListe('societes', activeTab, rs ? { realStatus: rs } : undefined);
                           }}
                         >
                           <div className="tw-cs-val" style={{color:item.color, fontSize: item.lbl.includes('Abo') ? '14px' : '22px'}}>{item.val}</div>
@@ -663,7 +663,7 @@ export function Dashboard({ prospects, selectedCommercial, onSelectCommercial, o
                     </div>
                     {/* Ligne actions + répartition côte à côte */}
                     <div className="tw-row-line">
-                      <div className="tw-row-box">
+                      <div className="tw-row-box" onClick={() => onOpenListe && onOpenListe('actions', activeTab)} style={{ cursor: onOpenListe ? 'pointer' : 'default' }} title={onOpenListe ? `Voir les actions de ${activeTab}` : undefined}>
                         <span className="tw-row-lbl">Actions planifiées</span>
                         <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
                           <span className="tw-pill-green">{d.actives} actives</span>
@@ -1142,4 +1142,4 @@ export function Dashboard({ prospects, selectedCommercial, onSelectCommercial, o
 
         </div>
       );
-    }
+    }

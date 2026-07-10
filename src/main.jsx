@@ -150,6 +150,7 @@ const ReactDOM = { createRoot, createPortal };
       const [user, setUser] = React.useState(null);
       const [isDashboard, setIsDashboard] = React.useState(true);
       const [listeView, setListeView] = React.useState(null); // null | 'devis' | 'societes' | 'actions' (listes transverses)
+      const [listeCtx, setListeCtx] = React.useState(null); // filtre initial d'une liste ouverte depuis le dashboard : { commercial, realStatus, devisStatut }
       const [showAttribution, setShowAttribution] = React.useState(false);
       const [showCampagnes, setShowCampagnes] = React.useState(false);
       const isUserAdmin = (u) => u && ['Christian', 'Frédéric', 'Frederic'].includes(u.name);
@@ -2180,7 +2181,7 @@ const ReactDOM = { createRoot, createPortal };
         const onNavigate = async (e) => {
           const d = (e && e.detail) || {};
           // Écrans : listes transverses, suivi, ou récap commercial
-          if (d.screen && d.screen.indexOf('liste-') === 0) { setShowRecap(false); setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeView(d.screen.slice(6)); return; }
+          if (d.screen && d.screen.indexOf('liste-') === 0) { setShowRecap(false); setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeCtx(null); setListeView(d.screen.slice(6)); return; }
           if (d.screen === 'prospects') { setListeView(null); setShowRecap(false); setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setIsDashboard(false); return; }
           if (d.screen === 'recap') { setListeView(null); setShowRecap(true); return; }
           // Enregistrement : on ouvre la fiche du prospect parent (affaire/devis/
@@ -2308,7 +2309,7 @@ const ReactDOM = { createRoot, createPortal };
       // ── Restaure une vue depuis un onglet (action inverse de currentView) ──
       const restoreView = (d) => {
         setShowSettings(false);
-        if (d.view && d.view.indexOf('liste-') === 0) { setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeView(d.view.slice(6)); return; }
+        if (d.view && d.view.indexOf('liste-') === 0) { setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeCtx(null); setListeView(d.view.slice(6)); return; }
         setListeView(null);
         if (d.view === 'campagnes')   { setShowAttribution(false); setSelectedProspect(null); setShowCampagnes(true); return; }
         if (d.view === 'attribution') { setShowCampagnes(false); setSelectedProspect(null); setShowAttribution(true); return; }
@@ -2341,7 +2342,7 @@ const ReactDOM = { createRoot, createPortal };
             showAttribution={showAttribution}
             onCampagnes={() => { setListeView(null); setShowCampagnes(true); setShowAttribution(false); }}
             showCampagnes={showCampagnes}
-            onListe={(t) => { setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeView(t); }}
+            onListe={(t) => { setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeCtx(null); setListeView(t); }}
             activeListe={listeView}
             prospects={isUserAdmin(user) ? prospects : prospects.filter(p => p.assigned_to === user.name)}
             onSelectProspect={handleSelectProspect}
@@ -2399,7 +2400,7 @@ const ReactDOM = { createRoot, createPortal };
 
           {/* Listes transverses (devis en cours / sociétés / actions) — plein écran quand actives */}
           {listeView && !showCampagnes && !showAttribution && (
-            <ListesView type={listeView} prospects={prospects} user={user} API_URL={API_URL} />
+            <ListesView type={listeView} prospects={prospects} user={user} API_URL={API_URL} listeCtx={listeCtx} />
           )}
 
           {/* Sans société sélectionnée → Dashboard ; sinon → fiche plein écran (le panneau-liste
@@ -2411,7 +2412,7 @@ const ReactDOM = { createRoot, createPortal };
               onSelectCommercial={setSelectedCommercial} 
               onSelectProspect={handleSelectProspect}
               onOpenDashboard={() => { setSelectedProspect(null); setListeView('societes'); }}
-              onOpenListe={(t) => { setSelectedProspect(null); setShowCampagnes(false); setShowAttribution(false); setListeView(t); }}
+              onOpenListe={(t, commercial, extra) => { setSelectedProspect(null); setShowCampagnes(false); setShowAttribution(false); setListeCtx((commercial || extra) ? { commercial: commercial || '__all__', ...(extra || {}) } : null); setListeView(t); }}
               user={user}
               API_URL={API_URL}
               prospectActionsInfo={prospectActionsInfo}
