@@ -14,7 +14,6 @@ import { ActivitiesSection } from './components/ActivitiesSection.jsx';
 import { ToastProvider } from './components/Toast.jsx';
 import { ListesView } from './components/ListesView.jsx';
 import { Header } from './components/Header.jsx';
-import { LeftPanel } from './components/LeftPanel.jsx';
 import { DashboardConsultant } from './components/DashboardConsultant.jsx';
 import { NavTabBar } from './components/NavTabBar.jsx';
 import { ActionCompleteModal } from './components/ActionCompleteModal.jsx';
@@ -223,10 +222,6 @@ const ReactDOM = { createRoot, createPortal };
       const [draggedContactId, setDraggedContactId] = React.useState(null);
       const [dragOverContactId, setDragOverContactId] = React.useState(null);
 
-      // Repli du panneau de gauche : volontairement non persisté entre sessions.
-      // Le panneau est toujours ouvert au chargement pour éviter les écrans vides
-      // (ex : onglet Suivi activités sans prospect sélectionné, panneau replié → écran blanc).
-      const [leftPanelCollapsed, setLeftPanelCollapsed] = React.useState(false);
       const [historyLoading, setHistoryLoading] = React.useState(false);
       const [historyData, setHistoryData] = React.useState([]);
       const [historyError, setHistoryError] = React.useState(null);
