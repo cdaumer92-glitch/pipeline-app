@@ -211,3 +211,28 @@ export function displayName(c) {
       const n = (c.nom || '').trim();
       return [p, n].filter(Boolean).join(' ');
     }
+
+export function buildInfoForm(p) {
+      return {
+        name: p?.name || '',
+        adresse: p?.adresse || '',
+        website: p?.website || '',
+        tel_standard: p?.tel_standard || '',
+        assigned_to: p?.assigned_to || '',
+        notes: p?.notes || '',
+        siren: p?.siren || '',
+        code_naf: p?.code_naf || '',
+        created_at: p?.created_at ? new Date(p.created_at).toISOString().split('T')[0] : '',
+        marques: Array.isArray(p?.marques) ? p.marques : [],
+      };
+    }
+
+export function displayInitials(c) {
+      if (!c) return '?';
+      const p = (c.prenom || '').trim();
+      const n = (c.nom || '').trim();
+      // Priorité : 1ère lettre prénom + 1ère lettre nom, sinon 2 premières du nom
+      if (p && n) return (p[0] + n[0]).toUpperCase();
+      const src = p || n || '?';
+      return src.split(/\s+/).map(w => w[0]).filter(Boolean).join('').toUpperCase().slice(0, 2) || '?';
+    }
