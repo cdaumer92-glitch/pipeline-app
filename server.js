@@ -61,11 +61,35 @@ console.log(
 // réelle (X-Forwarded-For), nécessaire au rate-limit par IP de l'authentification.
 app.set('trust proxy', 1);
 
-// En-têtes de sécurité HTTP. CSP laissée désactivée pour l'instant : le front n'a pas
-// encore été inventorié pour lister les sources autorisées, et une CSP stricte casserait
-// les styles/scripts inline. CORP/COEP off pour ne pas bloquer le chargement des assets/PDF.
+// En-têtes de sécurité HTTP. CSP en mode **Report-Only** : elle ne bloque RIEN, elle
+// signale seulement les violations dans la console du navigateur. Objectif : valider la
+// policy sur tous les écrans (y compris admin.html qui a un <script> inline) avant de
+// passer en mode bloquant. Sources autorisées, d'après l'inventaire du front :
+//   - scripts : 'self' uniquement (bundles Vite + societeinfo.js + navApi.js, tous externes)
+//   - styles : inline (gros <style> + style={{}} partout) + Google Fonts
+//   - polices : Google Fonts (gstatic)
+//   - images : 'self' + data: + blob: (aperçus PDF/SVG)
+//   - connexions : 'self' (toutes les API passent par /api same-origin)
+// CORP/COEP off pour ne pas bloquer le chargement des assets/PDF.
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    reportOnly: true,
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      connectSrc: ["'self'"],
+      frameSrc: ["'self'", 'blob:'],
+      workerSrc: ["'self'", 'blob:'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'self'"],
+    },
+  },
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: false,
 }));
