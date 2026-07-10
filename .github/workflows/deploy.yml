@@ -58,11 +58,35 @@ jobs:
               - '!propale-service/**'
 
   # ──────────────────────────────────────────────────────────────
+  # 1bis) Tests front (Vitest) — bloque le déploiement pipeline-app si un test casse
+  # ──────────────────────────────────────────────────────────────
+  test-pipeline:
+    name: Run pipeline-app tests
+    needs: changes
+    if: ${{ needs.changes.outputs.pipeline == 'true' || (github.event_name == 'workflow_dispatch' && inputs.force_all) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+  # ──────────────────────────────────────────────────────────────
   # 2) Build & push pipeline-app (avec retry)
   # ──────────────────────────────────────────────────────────────
   build-and-push-pipeline:
     name: Build and push pipeline-app image
-    needs: changes
+    needs: [changes, test-pipeline]
     if: ${{ needs.changes.outputs.pipeline == 'true' || (github.event_name == 'workflow_dispatch' && inputs.force_all) }}
     runs-on: ubuntu-latest
     outputs:
