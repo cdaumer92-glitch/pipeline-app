@@ -243,12 +243,20 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
       // ---- ACTIONS (2 sections : en retard / à venir) ----
       if (type === 'actions') {
         if (loading || actions === null) return Wrap('Actions', '', commercialFilter, Empty('Chargement…'));
-        const today = new Date().toISOString().slice(0, 10);
+        // Regroupement temporel « ma journée / ma semaine » (dates locales, comparaison de chaînes YYYY-MM-DD).
+        const dstr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const now0 = new Date(); now0.setHours(0, 0, 0, 0);
+        const today = dstr(now0);
+        const eow = new Date(now0); eow.setDate(now0.getDate() + ((7 - now0.getDay()) % 7)); // dimanche de la semaine en cours
+        const endOfWeek = dstr(eow);
         const scoped = (actions || []).filter(a => inScope(a.commercial) && (actionTypeFilter === '__all__' || a.action_type === actionTypeFilter));
         // Tri par défaut : priorité (Haute d'abord) puis date.
         const byPrioThenDate = (a, b) => (Number(b.priority || 1) - Number(a.priority || 1)) || String(a.planned_date || '').localeCompare(String(b.planned_date || ''));
-        const late = scoped.filter(a => a.planned_date && String(a.planned_date).slice(0, 10) < today).sort(byPrioThenDate);
-        const upcoming = scoped.filter(a => !a.planned_date || String(a.planned_date).slice(0, 10) >= today).sort(byPrioThenDate);
+        const dOf = (a) => a.planned_date ? String(a.planned_date).slice(0, 10) : null;
+        const late = scoped.filter(a => { const d = dOf(a); return d && d < today; }).sort(byPrioThenDate);
+        const todayList = scoped.filter(a => dOf(a) === today).sort(byPrioThenDate);
+        const week = scoped.filter(a => { const d = dOf(a); return d && d > today && d <= endOfWeek; }).sort(byPrioThenDate);
+        const later = scoped.filter(a => { const d = dOf(a); return !d || d > endOfWeek; }).sort(byPrioThenDate);
 
         // Filtre par type, alimenté par les types réellement présents (robuste au drift historique).
         const presentTypes = Array.from(new Set((actions || []).map(a => a.action_type).filter(Boolean))).sort();
@@ -321,9 +329,16 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
         };
         const lblStyle = { fontSize: '11px', color: 'var(--tw-muted)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '4px' };
         const fldStyle = { width: '100%', padding: '8px 10px', border: '1px solid var(--tw-border)', borderRadius: '8px', fontSize: '13px', fontFamily: 'inherit', background: 'white', color: 'var(--tw-ink)', boxSizing: 'border-box' };
+        // Section temporelle : titre + tableau (ou message vide).
+        const section = (title, list, color, lateFlag, emptyMsg) => (
+          <React.Fragment>
+            <h2 style={{ fontSize: '14px', fontWeight: 600, color, margin: '14px 0 10px' }}>{title} ({list.length})</h2>
+            {list.length === 0 ? Empty(emptyMsg) : tableFor(list, lateFlag)}
+          </React.Fragment>
+        );
         return (
           <React.Fragment>
-            {Wrap('Actions', `${late.length} en retard · ${upcoming.length} à venir`, <React.Fragment>{typeFilter}{commercialFilter}</React.Fragment>,
+            {Wrap('Actions', `${late.length} en retard · ${todayList.length} aujourd'hui · ${week.length} cette semaine`, <React.Fragment>{typeFilter}{commercialFilter}</React.Fragment>,
               <React.Fragment>
                 {reopenable.length > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', background: 'var(--success-soft)', border: '1px solid rgba(5,150,105,.2)', borderRadius: '10px', padding: '8px 14px', marginBottom: '14px' }}>
@@ -338,10 +353,10 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
                   </div>
                 )}
                 {metricsStrip}
-                <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--danger)', margin: '4px 0 10px' }}>⚠ En retard ({late.length})</h2>
-                {late.length === 0 ? Empty('Aucune action en retard 🎉') : tableFor(late, true)}
-                <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--tw-ink)', margin: '8px 0 10px' }}>À venir / en cours ({upcoming.length})</h2>
-                {upcoming.length === 0 ? Empty('Aucune action à venir.') : tableFor(upcoming, false)}
+                {section('⚠ En retard', late, 'var(--danger)', true, 'Aucune action en retard 🎉')}
+                {section('📌 Aujourd\'hui', todayList, 'var(--primary)', false, 'Rien de prévu aujourd\'hui.')}
+                {week.length > 0 && section('📅 Cette semaine', week, 'var(--tw-ink)', false)}
+                {later.length > 0 && section('🗓 Plus tard', later, 'var(--tw-muted)', false)}
               </React.Fragment>
             )}
             {completion && (
