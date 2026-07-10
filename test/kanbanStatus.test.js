@@ -20,9 +20,11 @@ describe('effectiveStatus', () => {
     expect(effectiveStatus({ status: 'Signé', real_status: 'En cours' })).toBe('Signé')
   })
 
-  it('devis Gagné → Signé ; devis Perdu → Perdu', () => {
+  it('devis Gagné → Signé ; devis terminal → colonne correspondante', () => {
     expect(effectiveStatus({ status: 'Prospection', real_status: 'Gagné' })).toBe('Signé')
     expect(effectiveStatus({ status: 'Devis', real_status: 'Perdu' })).toBe('Perdu')
+    expect(effectiveStatus({ status: 'Prospection', real_status: 'Ajourné N+1' })).toBe('Ajourné N+1')
+    expect(effectiveStatus({ status: 'Devis', real_status: 'Éliminé par nous' })).toBe('Éliminé par nous')
   })
 
   it('statut terminal saisi à la main : respecté malgré un devis', () => {

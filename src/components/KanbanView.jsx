@@ -24,7 +24,7 @@ export function effectiveStatus(p) {
   const real = p && p.real_status;
   if (!real) return manual;
   if (real === 'Gagné') return 'Signé';
-  if (real === 'Perdu') return 'Perdu';
+  if (TERMINAL_STATUSES.includes(real)) return real; // devis Perdu / Ajourné N+1 / Éliminé par nous
   return (RANK[manual] || 0) >= RANK['Devis'] ? manual : 'Devis';
 }
 

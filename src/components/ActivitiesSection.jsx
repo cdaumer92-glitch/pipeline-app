@@ -194,6 +194,8 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                                                     : devis.devis_status === 'Annulé' ? '#8a95a5'
                                                     : devis.devis_status === 'Discussion' ? '#0a5085'
                                                     : devis.devis_status === 'Envoyé' ? '#b06e2a'
+                                                    : devis.devis_status === 'Ajourné N+1' ? '#ff9800'
+                                                    : devis.devis_status === 'Éliminé par nous' ? '#888'
                                                     : 'var(--tw-slate)';
                                   return (
                                     <div key={devis.id}
@@ -260,9 +262,9 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                                       {/* Barre de progression du statut : boutons cliquables pour faire avancer le devis */}
                                       {devis.devis_status !== 'Annulé' && (
                                       <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'10px',flexWrap:'wrap'}} onClick={(e) => e.stopPropagation()}>
-                                        {['En cours','Envoyé','Discussion','Gagné','Perdu'].map((etape, idx) => {
+                                        {['En cours','Envoyé','Discussion','Gagné','Perdu','Ajourné N+1','Éliminé par nous'].map((etape, idx) => {
                                           const isActive = (devis.devis_status || 'En cours') === etape;
-                                          const etapeColor = etape === 'Gagné' ? '#0f6e56' : etape === 'Perdu' ? '#a52d2d' : etape === 'Discussion' ? '#0a5085' : etape === 'Envoyé' ? '#b06e2a' : 'var(--tw-slate)';
+                                          const etapeColor = etape === 'Gagné' ? '#0f6e56' : etape === 'Perdu' ? '#a52d2d' : etape === 'Discussion' ? '#0a5085' : etape === 'Envoyé' ? '#b06e2a' : etape === 'Ajourné N+1' ? '#ff9800' : etape === 'Éliminé par nous' ? '#888' : 'var(--tw-slate)';
                                           return (
                                             <React.Fragment key={etape}>
                                               {/* Avant Gagné : bouton Annuler & remplacer (sauf si déjà remplacé) */}
@@ -798,7 +800,7 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                     value={devisFormData.devis_status || 'En cours'}
                     onChange={(e) => {
                       const status = e.target.value;
-                      const probMap = {'En cours': 20, 'Envoyé': 30, 'Discussion': 60, 'Gagné': 100, 'Perdu': 0};
+                      const probMap = {'En cours': 20, 'Envoyé': 30, 'Discussion': 60, 'Gagné': 100, 'Perdu': 0, 'Ajourné N+1': 0, 'Éliminé par nous': 0};
                       const newProb = probMap[status] !== undefined ? probMap[status] : devisFormData.chance_percent;
                       setDevisFormData({...devisFormData, devis_status: status, chance_percent: newProb});
                     }}
@@ -809,6 +811,8 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                     <option value="Discussion">Discussion</option>
                     <option value="Gagné">Gagné</option>
                     <option value="Perdu">Perdu</option>
+                    <option value="Ajourné N+1">Ajourné N+1</option>
+                    <option value="Éliminé par nous">Éliminé par nous</option>
                   </select>
                 </div>
 
@@ -987,4 +991,4 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
     // ================== STYLES ==================
 
 
-    // ================== LANCEMENT ==================
+    // ================== LANCEMENT ==================
