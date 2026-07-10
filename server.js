@@ -23,6 +23,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 8080;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret-key-2024';
+// SÉCURITÉ : sans JWT_SECRET défini, on retombe sur un secret PUBLIC (visible dans le code)
+// → n'importe qui peut forger un jeton et se faire passer pour un utilisateur. En prod, la
+// variable DOIT être définie côté Scaleway. On ne coupe pas le service (éviter l'incident),
+// mais on alerte bruyamment au démarrage pour rendre l'action visible.
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️  [SÉCURITÉ] JWT_SECRET non défini : secret par défaut PUBLIC utilisé → jetons forgeables. Définir JWT_SECRET en production (Scaleway) sans tarder.');
+}
 
 // ===================== MAILER =====================
 // SMTP : on utilise le port 587 (STARTTLS) au lieu de 465 (SSL direct) car les
@@ -1247,7 +1254,7 @@ async function assertOwnsProspect(req, res, prospectId) {
 // en remontant à son prospect. `table` est une valeur littérale contrôlée (pas d'injection).
 async function assertOwnsViaProspect(req, res, table, id) {
   if ((await getUserRole(req.userId)) === 'admin') return true;
-  if (!['next_actions', 'affaires', 'devis', 'interlocuteurs'].includes(table)) { res.status(500).json({ error: 'Table invalide' }); return false; }
+  if (!['next_actions', 'affaires', 'devis', 'interlocuteurs', 'boutiques', 'client_licences', 'client_materiel'].includes(table)) { res.status(500).json({ error: 'Table invalide' }); return false; }
   const q = await pool.query(
     `SELECT p.assigned_to FROM ${table} t JOIN prospects p ON p.id = t.prospect_id WHERE t.id = $1`,
     [id]
@@ -1820,6 +1827,7 @@ app.put('/api/users/:id/password', auth, requireAdmin, async (req, res) => {
 
 // ===================== PDF UPLOAD =====================
 app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     if (!req.files || !req.files.pdf) {
       return res.status(400).json({ error: 'Pas de fichier PDF' });
@@ -1848,6 +1856,7 @@ app.post('/api/prospects/:id/upload-pdf', auth, async (req, res) => {
 
 // ===================== PDF DELETE =====================
 app.delete('/api/prospects/:id/pdf', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const result = await pool.query(
       `SELECT pdf_url FROM prospects WHERE id = $1`,
@@ -2489,9 +2498,10 @@ app.delete('/api/devis/:id', auth, async (req, res) => {
 
 // POST /api/devis/:id/upload-pdf - Upload PDF pour un devis
 app.post('/api/devis/:id/upload-pdf', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'devis', req.params.id))) return;
   try {
     const { id } = req.params;
-    
+
     if (!req.files || !req.files.pdf) {
       return res.status(400).json({ error: 'Aucun fichier fourni' });
     }
@@ -2544,9 +2554,10 @@ app.post('/api/devis/:id/upload-pdf', auth, async (req, res) => {
 
 // DELETE /api/devis/:id/pdf - Supprimer le PDF d'un devis
 app.delete('/api/devis/:id/pdf', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'devis', req.params.id))) return;
   try {
     const { id } = req.params;
-    
+
     // Récupérer l'URL du PDF
     const result = await pool.query('SELECT pdf_url FROM devis WHERE id = $1', [id]);
     
@@ -2946,6 +2957,7 @@ app.get('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
 // Met à jour la colonne display_order de chaque interlocuteur (1, 2, 3, ...) en transaction.
 // Les interlocuteurs non mentionnés dans orderedIds gardent leur display_order existant.
 app.put('/api/prospects/:id/interlocuteurs/reorder', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -2986,6 +2998,7 @@ app.put('/api/prospects/:id/interlocuteurs/reorder', auth, async (req, res) => {
 // Réinitialise l'ordre custom : tous les interlocuteurs du prospect repassent à display_order=NULL.
 // Le tri auto (Principal+Décideur en haut) reprend automatiquement.
 app.post('/api/prospects/:id/interlocuteurs/reset-order', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const { id } = req.params;
     const r = await pool.query(
@@ -3001,6 +3014,7 @@ app.post('/api/prospects/:id/interlocuteurs/reset-order', auth, async (req, res)
 });
 
 app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -3089,6 +3103,7 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
 });
 
 app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.prospectId))) return;
   const client = await pool.connect();
   try {
     const { prospectId, id } = req.params;
@@ -3189,6 +3204,7 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
 });
 
 app.delete('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.prospectId))) return;
   try {
     const { prospectId, id } = req.params;
     
@@ -4995,6 +5011,7 @@ app.post('/api/optin/cloturer', auth, async (req, res) => {
 // Body optionnel : { value: true|false }. Sans body → toggle.
 // Trace dans interlocuteurs_consents avec source='manual_demande_optin'.
 app.post('/api/interlocuteurs/:id/demande-optin', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'interlocuteurs', req.params.id))) return;
   const id = parseInt(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {
     return res.status(400).json({ error: 'id interlocuteur invalide' });
@@ -5657,6 +5674,7 @@ app.get('/api/prospects/:id/boutiques', auth, async (req, res) => {
 });
 
 app.post('/api/prospects/:id/boutiques', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   const { nom, adresse, ville, cp, telephone, responsable_id, notes } = req.body;
   try {
     const r = await pool.query(`
@@ -5668,6 +5686,7 @@ app.post('/api/prospects/:id/boutiques', auth, async (req, res) => {
 });
 
 app.put('/api/boutiques/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'boutiques', req.params.id))) return;
   const { nom, adresse, ville, cp, telephone, responsable_id, notes } = req.body;
   try {
     const r = await pool.query(`
@@ -5680,6 +5699,7 @@ app.put('/api/boutiques/:id', auth, async (req, res) => {
 });
 
 app.delete('/api/boutiques/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'boutiques', req.params.id))) return;
   try {
     await pool.query(`DELETE FROM boutiques WHERE id=$1`, [req.params.id]);
     res.json({ok: true});
@@ -5702,6 +5722,7 @@ app.get('/api/prospects/:id/licences', auth, async (req, res) => {
 });
 
 app.post('/api/prospects/:id/licences', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   const { licence_id, nb_utilisateurs, facturation, hebergement, maintenance, date_contrat, notes } = req.body;
   try {
     const r = await pool.query(`
@@ -5713,6 +5734,7 @@ app.post('/api/prospects/:id/licences', auth, async (req, res) => {
 });
 
 app.put('/api/licences-client/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'client_licences', req.params.id))) return;
   const { licence_id, nb_utilisateurs, facturation, hebergement, maintenance, date_contrat, notes } = req.body;
   try {
     const r = await pool.query(`
@@ -5725,6 +5747,7 @@ app.put('/api/licences-client/:id', auth, async (req, res) => {
 });
 
 app.delete('/api/licences-client/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'client_licences', req.params.id))) return;
   try {
     await pool.query(`DELETE FROM client_licences WHERE id=$1`, [req.params.id]);
     res.json({ok: true});
@@ -5749,6 +5772,7 @@ app.get('/api/prospects/:id/materiel', auth, async (req, res) => {
 });
 
 app.post('/api/prospects/:id/materiel', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   const { boutique_id, materiel_type_id, marque, modele, os, version_os, nb_unites, localisation, date_achat, notes } = req.body;
   try {
     const r = await pool.query(`
@@ -5760,6 +5784,7 @@ app.post('/api/prospects/:id/materiel', auth, async (req, res) => {
 });
 
 app.put('/api/materiel-client/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'client_materiel', req.params.id))) return;
   const { boutique_id, materiel_type_id, marque, modele, os, version_os, nb_unites, localisation, date_achat, notes } = req.body;
   try {
     const r = await pool.query(`
@@ -5772,6 +5797,7 @@ app.put('/api/materiel-client/:id', auth, async (req, res) => {
 });
 
 app.delete('/api/materiel-client/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'client_materiel', req.params.id))) return;
   try {
     await pool.query(`DELETE FROM client_materiel WHERE id=$1`, [req.params.id]);
     res.json({ok: true});
