@@ -9,6 +9,24 @@ import { getStatusColor, prospectDisplayName, calculateTotal, formatCurrency } f
 const ACTIVE_STATUSES = ['Prospection', 'Devis', 'Démo', 'Négociation', 'Signé'];
 const TERMINAL_STATUSES = ['Ajourné N+1', 'Éliminé par nous', 'Perdu'];
 const STATUSES = [...ACTIVE_STATUSES, ...TERMINAL_STATUSES];
+const RANK = { 'Prospection': 0, 'Devis': 1, 'Démo': 2, 'Négociation': 3, 'Signé': 4 };
+
+// Statut "effectif" d'une société pour le Kanban : on part du statut MANUEL (champ `status`),
+// mais on le corrige avec la réalité du devis en cours (`real_status` = devis_status), car le
+// statut manuel est souvent laissé sur "Prospection" alors qu'un devis existe déjà.
+//   - statut terminal saisi à la main (Ajourné/Éliminé/Perdu) : respecté tel quel
+//   - devis Gagné → Signé ; devis Perdu → Perdu
+//   - devis actif (En cours / Envoyé) → au moins "Devis", sauf si le statut manuel est déjà
+//     plus avancé (Démo/Négociation/Signé), auquel cas on le conserve
+export function effectiveStatus(p) {
+  const manual = (p && p.status) || 'Prospection';
+  if (TERMINAL_STATUSES.includes(manual)) return manual;
+  const real = p && p.real_status;
+  if (!real) return manual;
+  if (real === 'Gagné') return 'Signé';
+  if (real === 'Perdu') return 'Perdu';
+  return (RANK[manual] || 0) >= RANK['Devis'] ? manual : 'Devis';
+}
 
 export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatusChanged }) {
   const admin = (typeof isUserAdmin === 'function') ? isUserAdmin(user) : !!(user && (user.role === 'admin' || user.name === 'Christian'));
@@ -26,7 +44,9 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
   }, [prospects]);
 
   const base = (prospects || []).filter(p => admin ? (commercial === '__all__' || p.assigned_to === commercial) : true);
-  const statusOf = (p) => localStatus[p.id] || p.status || 'Prospection';
+  // Un choix explicite (glisser-déposer, stocké optimistically dans localStatus) prime toujours ;
+  // sinon on affiche le statut effectif (statut manuel corrigé par le devis).
+  const statusOf = (p) => localStatus[p.id] || effectiveStatus(p);
 
   // Montant "pipeline" : privilégie le montant du devis en cours (données enrichies), sinon le total saisi.
   const amountOf = (p) => {
