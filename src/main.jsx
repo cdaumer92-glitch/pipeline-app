@@ -6,6 +6,7 @@ import './overlay.jsx';
 import { CampagnesPage } from './components/Campagnes.jsx';
 import { styles } from './lib/styles.js';
 import { ACTION_TYPES, API_URL } from './lib/constants.js';
+import { useProspectsData } from './hooks/useProspectsData.js';
 import { LoginForm } from './components/LoginForm.jsx';
 import { I, displayName, displayInitials, buildInfoForm, ICONS, IconBtn, typeChip, getActionStatus, prospectDisplayName, getEmptyProspect, calculateTotal, formatCurrency, formatNumber, getStatusColor, getProspectCountByCommercial, getProspectRealStatus } from './lib/shared.jsx';
 import { Dashboard } from './components/Dashboard.jsx';
@@ -159,15 +160,19 @@ const ReactDOM = { createRoot, createPortal };
       const [recapCommercial, setRecapCommercial] = React.useState(null);
       const [recapPeriod, setRecapPeriod] = React.useState('jour'); // 'jour', 'semaine', 'mois'
       const [recapDate, setRecapDate] = React.useState(new Date().toISOString().split('T')[0]);
-      const [prospects, setProspects] = React.useState([]);
-      const [codesNaf, setCodesNaf] = React.useState([]);
-      const [appUsers, setAppUsers] = React.useState([]);
+      // Données de base de l'app (bootstrap après connexion), extraites dans un hook.
+      const {
+        prospects, setProspects,
+        codesNaf, setCodesNaf,
+        appUsers, setAppUsers,
+        prospectActionsInfo, setProspectActionsInfo,
+        fetchProspects,
+      } = useProspectsData(user, API_URL);
       const [activities, setActivities] = React.useState({});
       const [nextActions, setNextActions] = React.useState([]);
       const [allActions, setAllActions] = React.useState([]);
       const [statusHistory, setStatusHistory] = React.useState([]);
       const [actionNotes, setActionNotes] = React.useState({});
-      const [prospectActionsInfo, setProspectActionsInfo] = React.useState({});
       const [newActionType, setNewActionType] = React.useState('Appel');
       const [newActionDate, setNewActionDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActionComment, setNewActionComment] = React.useState('');
@@ -311,16 +316,6 @@ const ReactDOM = { createRoot, createPortal };
         }
       }, []);
 
-      React.useEffect(() => {
-        if (user) {
-          fetchProspects();
-          fetch(`${API_URL}/users`, { headers: { 'Authorization': `Bearer ${user.token}` } })
-            .then(r => r.json()).then(data => { if (Array.isArray(data)) setAppUsers(data); });
-          fetch(`${API_URL}/codes-naf`, { headers: { 'Authorization': `Bearer ${user.token}` } })
-            .then(r => r.json()).then(data => { if (Array.isArray(data)) setCodesNaf(data); });
-        }
-      }, [user]);
-
       // Charger les actions de tous les prospects après le chargement
       React.useEffect(() => {
         if (prospects.length > 0 && user) {
@@ -329,37 +324,6 @@ const ReactDOM = { createRoot, createPortal };
           });
         }
       }, [prospects.length, user]);
-
-      const fetchProspects = async () => {
-        try {
-          // UNE SEULE requête optimisée côté backend (devis + actions inclus)
-          const res = await fetch(`${API_URL}/prospects/enriched`, {
-            headers: { 'Authorization': `Bearer ${user.token}` }
-          });
-          const data = await res.json();
-          
-          console.log('[DEBUG] Prospects enrichis chargés:', data.length, '- avec devis:', data.filter(p => p.real_status).length);
-
-          
-          setProspects(data);
-
-          // Pré-alimenter prospectActionsInfo depuis les données enrichies (évite N requêtes)
-          const actionsMap = {};
-          data.forEach(p => {
-            actionsMap[p.id] = {
-              hasAction: !!p.action_has_action,
-              isLate: !!p.action_next_is_late,
-              nextActionDate: p.action_next_date || null,
-              nextActionType: p.action_next_type || null,
-              nextActionActor: p.action_next_actor || null,
-              nextActionContact: p.action_next_contact || null
-            };
-          });
-          setProspectActionsInfo(actionsMap);
-        } catch (err) {
-          console.error('[ERROR] fetchProspects:', err);
-        }
-      };
 
       const fetchActivities = async (prospectId) => {
         try {
