@@ -10,6 +10,7 @@ import { useProspectsData } from './hooks/useProspectsData.js';
 import { useInterlocuteurs } from './hooks/useInterlocuteurs.js';
 import { useDevisAffaires } from './hooks/useDevisAffaires.js';
 import { useSocieteInfo } from './hooks/useSocieteInfo.js';
+import { useAuth } from './hooks/useAuth.js';
 import { LoginForm } from './components/LoginForm.jsx';
 import { I, displayName, displayInitials, buildInfoForm, ICONS, IconBtn, typeChip, getActionStatus, prospectDisplayName, getEmptyProspect, calculateTotal, formatCurrency, formatNumber, getStatusColor, getProspectCountByCommercial, getProspectRealStatus } from './lib/shared.jsx';
 import { Dashboard } from './components/Dashboard.jsx';
@@ -150,7 +151,9 @@ const ReactDOM = { createRoot, createPortal };
     // Clic sur une ligne = ouvre la fiche (event tw:navigate, réutilise la nav).
     // ══════════════════════════════════════════════════
     function App() {
-      const [user, setUser] = React.useState(null);
+      // Authentification (user + login) extraite dans un hook — premier appelé car `user`
+      // alimente tous les autres hooks/données.
+      const { user, setUser, handleLogin } = useAuth(API_URL);
       const [isDashboard, setIsDashboard] = React.useState(true);
       const [listeView, setListeView] = React.useState(null); // null | 'devis' | 'societes' | 'actions' (listes transverses)
       const [listeCtx, setListeCtx] = React.useState(null); // filtre initial d'une liste ouverte depuis le dashboard : { commercial, realStatus, devisStatut }
@@ -226,20 +229,6 @@ const ReactDOM = { createRoot, createPortal };
       const [filterAttribution, setFilterAttribution] = React.useState('Toutes');
       const [searchTerm, setSearchTerm] = React.useState('');
       const [sortBy, setSortBy] = React.useState('name');
-
-      // 🔥 AJOUT : Charger le token depuis localStorage au démarrage
-      React.useEffect(() => {
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          try {
-            const userData = JSON.parse(storedUser);
-            setUser(userData);
-          } catch (err) {
-            console.error('Erreur parse user:', err);
-            localStorage.removeItem('user');
-          }
-        }
-      }, []);
 
       // Charger les actions de tous les prospects après le chargement
       React.useEffect(() => {
@@ -360,33 +349,6 @@ const ReactDOM = { createRoot, createPortal };
           });
         } catch (err) {
           console.error('Erreur sauvegarde modules:', err);
-        }
-      };
-
-      const handleLogin = async (email, password, name, isRegister) => {
-        try {
-          const endpoint = isRegister ? 'register' : 'login';
-          const payload = isRegister 
-            ? { email, password, name }
-            : { email, password };
-          
-          const res = await fetch(`${API_URL}/auth/${endpoint}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          
-          const data = await res.json();
-          if (data.token) {
-            const userData = { ...data.user, token: data.token };
-            setUser(userData);
-            // 🔥 AJOUT : Sauvegarder dans localStorage
-            localStorage.setItem('user', JSON.stringify(userData));
-          } else {
-            window.showToast({title:'Erreur: ' + data.error, type:'error'});
-          }
-        } catch (err) {
-          window.showToast({title:'Erreur connexion: ' + err.message, type:'error'});
         }
       };
 
