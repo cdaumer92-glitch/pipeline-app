@@ -9,6 +9,8 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync } from 'fs';
 import fileUpload from 'express-fileupload';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import {
   saveObject,
   downloadObject,
@@ -54,6 +56,19 @@ const transporter = nodemailer.createTransport({
 console.log(
   `📦 Storage : ${storageConfig.provider} / ${storageConfig.bucket} @ ${storageConfig.region}`
 );
+
+// Derrière le reverse-proxy Scaleway : faire confiance au 1er hop pour lire l'IP client
+// réelle (X-Forwarded-For), nécessaire au rate-limit par IP de l'authentification.
+app.set('trust proxy', 1);
+
+// En-têtes de sécurité HTTP. CSP laissée désactivée pour l'instant : le front n'a pas
+// encore été inventorié pour lister les sources autorisées, et une CSP stricte casserait
+// les styles/scripts inline. CORP/COEP off pour ne pas bloquer le chargement des assets/PDF.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: false,
+}));
 
 app.use(cors());
 app.use(express.json());
@@ -1055,7 +1070,19 @@ const requireAdmin = async (req, res, next) => {
 };
 
 // REGISTER
-app.post('/api/auth/register', async (req, res) => {
+// Anti-bruteforce sur l'authentification : plafonne les tentatives par IP.
+// skipSuccessfulRequests → seules les tentatives ÉCHOUÉES rapprochent du plafond,
+// donc un utilisateur légitime qui se (re)connecte n'est jamais bloqué.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de tentatives de connexion. Réessayez dans quelques minutes.' },
+});
+
+app.post('/api/auth/register', authLimiter, async (req, res) => {
   const { email, password, name } = req.body;
   try {
     const hashedPassword = await bcryptjs.hash(password, 10);
@@ -1071,7 +1098,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // LOGIN
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
   try {
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
