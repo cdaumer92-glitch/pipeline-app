@@ -1233,6 +1233,30 @@ async function getUserRole(userId) {
   }
 }
 
+// ── Autorisation par propriété (anti-IDOR) : un non-admin n'agit que sur SES sociétés
+//    (prospects.assigned_to === son nom) et les ressources rattachées. Admin = accès total.
+//    Renvoie true si autorisé ; sinon répond 403/404 et renvoie false (l'appelant fait `return`).
+async function assertOwnsProspect(req, res, prospectId) {
+  if ((await getUserRole(req.userId)) === 'admin') return true;
+  const q = await pool.query('SELECT assigned_to FROM prospects WHERE id = $1', [prospectId]);
+  if (q.rows.length === 0) { res.status(404).json({ error: 'Société introuvable' }); return false; }
+  if (q.rows[0].assigned_to !== req.userName) { res.status(403).json({ error: 'Accès refusé' }); return false; }
+  return true;
+}
+// Idem pour une ressource identifiée par son propre id (next_actions/affaires/devis),
+// en remontant à son prospect. `table` est une valeur littérale contrôlée (pas d'injection).
+async function assertOwnsViaProspect(req, res, table, id) {
+  if ((await getUserRole(req.userId)) === 'admin') return true;
+  if (!['next_actions', 'affaires', 'devis'].includes(table)) { res.status(500).json({ error: 'Table invalide' }); return false; }
+  const q = await pool.query(
+    `SELECT p.assigned_to FROM ${table} t JOIN prospects p ON p.id = t.prospect_id WHERE t.id = $1`,
+    [id]
+  );
+  if (q.rows.length === 0) { res.status(404).json({ error: 'Ressource introuvable' }); return false; }
+  if (q.rows[0].assigned_to !== req.userName) { res.status(403).json({ error: 'Accès refusé' }); return false; }
+  return true;
+}
+
 // Petit formateur € pour les aperçus (peek). Tolère null/undefined.
 function fmtEur(v) {
   const n = Number(v);
@@ -1578,6 +1602,7 @@ app.get('/api/affaires/:id/next_actions', auth, async (req, res) => {
 });
 
 app.post('/api/prospects/:id/next_actions', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   const { action_type, planned_date, actor, contact, completed_note, affaire_id, contexte, priority } = req.body;
   try {
     const result = await pool.query(
@@ -1592,6 +1617,7 @@ app.post('/api/prospects/:id/next_actions', auth, async (req, res) => {
 
 // POST /api/affaires/:id/next_actions - Créer une action pour une affaire
 app.post('/api/affaires/:id/next_actions', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'affaires', req.params.id))) return;
   const affaireId = req.params.id;
   const { action_type, planned_date, actor, contact, completed_note, priority } = req.body;
 
@@ -1619,6 +1645,7 @@ app.post('/api/affaires/:id/next_actions', auth, async (req, res) => {
 });
 
 app.put('/api/next_actions/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'next_actions', req.params.id))) return;
   const { completed, completed_notes, saveNotesOnly, reschedule, planned_date, setPriority, priority, edit, action_type, actor, contact, completed_note } = req.body;
   try {
     if (edit) {
@@ -1658,6 +1685,7 @@ app.put('/api/next_actions/:id', auth, async (req, res) => {
 });
 
 app.delete('/api/next_actions/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'next_actions', req.params.id))) return;
   try {
     await pool.query('DELETE FROM next_actions WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
@@ -1679,6 +1707,7 @@ app.get('/api/prospects/:id/modules', auth, async (req, res) => {
 
 // POST - Sauvegarder les modules d'un prospect
 app.post('/api/prospects/:id/modules', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   const { modules } = req.body; // modules = [{module_name: 'Biz', nb_users: 5}, ...]
   try {
     // Supprimer les anciens modules
@@ -1961,6 +1990,7 @@ app.post('/api/prospects/:id/affaires/reset-order', auth, async (req, res) => {
 
 // POST /api/prospects/:id/affaires - Créer une nouvelle affaire
 app.post('/api/prospects/:id/affaires', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const { id } = req.params;
     const { nom_affaire, description, statut_global } = req.body;
@@ -2002,6 +2032,7 @@ app.get('/api/affaires/:id', auth, async (req, res) => {
 
 // PUT /api/affaires/:id - Modifier une affaire
 app.put('/api/affaires/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'affaires', req.params.id))) return;
   try {
     const { id } = req.params;
     const { nom_affaire, description, statut_global, motif_perte } = req.body;
@@ -2038,6 +2069,7 @@ app.put('/api/affaires/:id', auth, async (req, res) => {
 
 // DELETE /api/affaires/:id - Supprimer une affaire (et ses devis en cascade)
 app.delete('/api/affaires/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'affaires', req.params.id))) return;
   try {
     const { id } = req.params;
     
@@ -2070,6 +2102,7 @@ app.get('/api/affaires/:id/devis', auth, async (req, res) => {
 
 // POST /api/affaires/:id/devis - Créer un devis dans une affaire
 app.post('/api/affaires/:id/devis', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'affaires', req.params.id))) return;
   try {
     const affaireId = req.params.id;
     const {
@@ -2223,6 +2256,7 @@ app.get('/api/prospects/:id/devis', auth, async (req, res) => {
 
 // POST /api/prospects/:id/devis - Créer un nouveau devis
 app.post('/api/prospects/:id/devis', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const { id } = req.params;
     const {
@@ -2280,6 +2314,7 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
 
 // PUT /api/devis/:id - Modifier un devis
 app.put('/api/devis/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'devis', req.params.id))) return;
   try {
     const { id } = req.params;
     const {
@@ -2353,6 +2388,7 @@ app.put('/api/devis/:id', auth, async (req, res) => {
 //   - ancien.remplace_par_devis_id = nouveau.id
 //   - nouveau.remplace_devis_id = ancien.id
 app.post('/api/devis/:id/annuler-remplacer', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'devis', req.params.id))) return;
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -2400,6 +2436,7 @@ app.post('/api/devis/:id/annuler-remplacer', auth, async (req, res) => {
 
 // DELETE /api/devis/:id - Supprimer un devis
 app.delete('/api/devis/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'devis', req.params.id))) return;
   try {
     const { id } = req.params;
     
