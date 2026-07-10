@@ -653,7 +653,7 @@ const ReactDOM = { createRoot, createPortal };
       // ── Restaure une vue depuis un onglet (action inverse de currentView) ──
       const restoreView = (d) => {
         setShowSettings(false);
-        if (d.view === 'pipeline') { setShowCampagnes(false); setShowAttribution(false); setListeView(null); setSelectedProspect(null); setIsDashboard(false); setShowPipeline(true); return; }
+        if (d.view === 'pipeline') { setShowCampagnes(false); setShowAttribution(false); setListeView(null); setSelectedProspect(null); setIsDashboard(false); setShowPipeline(true); fetchProspects(); return; }
         setShowPipeline(false);
         if (d.view && d.view.indexOf('liste-') === 0) { setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setListeCtx(null); setListeView(d.view.slice(6)); return; }
         setListeView(null);
@@ -702,7 +702,7 @@ const ReactDOM = { createRoot, createPortal };
             showAttribution={showAttribution}
             onCampagnes={() => { setListeView(null); setShowCampagnes(true); setShowAttribution(false); setShowPipeline(false); }}
             showCampagnes={showCampagnes}
-            onPipeline={() => { setListeView(null); setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setIsDashboard(false); setShowPipeline(true); }}
+            onPipeline={() => { setListeView(null); setShowCampagnes(false); setShowAttribution(false); setSelectedProspect(null); setIsDashboard(false); setShowPipeline(true); fetchProspects(); }}
             showPipeline={showPipeline}
             onListe={(t) => { setShowCampagnes(false); setShowAttribution(false); setShowPipeline(false); setSelectedProspect(null); setListeCtx(null); setListeView(t); }}
             dueTodayCount={dueTodayCount}
