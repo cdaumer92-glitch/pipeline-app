@@ -7,6 +7,7 @@ import { CampagnesPage } from './components/Campagnes.jsx';
 import { styles } from './lib/styles.js';
 import { ACTION_TYPES, API_URL } from './lib/constants.js';
 import { useProspectsData } from './hooks/useProspectsData.js';
+import { useInterlocuteurs } from './hooks/useInterlocuteurs.js';
 import { LoginForm } from './components/LoginForm.jsx';
 import { I, displayName, displayInitials, buildInfoForm, ICONS, IconBtn, typeChip, getActionStatus, prospectDisplayName, getEmptyProspect, calculateTotal, formatCurrency, formatNumber, getStatusColor, getProspectCountByCommercial, getProspectRealStatus } from './lib/shared.jsx';
 import { Dashboard } from './components/Dashboard.jsx';
@@ -218,16 +219,18 @@ const ReactDOM = { createRoot, createPortal };
       const [enrichChoiceTarget, setEnrichChoiceTarget] = React.useState(null);
 
       const [formData, setFormData] = React.useState(getEmptyProspect());
-      const [interlocuteurs, setInterlocuteurs] = React.useState([]);
-      const [showInterlocuteurForm, setShowInterlocuteurForm] = React.useState(false);
+      // Interlocuteurs (contacts d'une société) : état + handlers extraits dans un hook.
+      const {
+        interlocuteurs, setInterlocuteurs,
+        showInterlocuteurForm, setShowInterlocuteurForm,
+        draggedContactId, setDraggedContactId,
+        dragOverContactId, setDragOverContactId,
+        interlocuteurForm, setInterlocuteurForm,
+        fetchInterlocuteurs, handleSaveInterlocuteur, handleDeleteInterlocuteur,
+      } = useInterlocuteurs(user, API_URL, selectedProspect);
 
       // RGPD - États pour le collapse "Historique consentements" du formulaire d'édition
       const [historyExpanded, setHistoryExpanded] = React.useState(false);
-      // Drag & drop des contacts : états gérés au niveau App pour passage en props
-      // à RightPanel (les hooks ne peuvent pas être appelés dans une IIFE).
-      const [draggedContactId, setDraggedContactId] = React.useState(null);
-      const [dragOverContactId, setDragOverContactId] = React.useState(null);
-
       const [historyLoading, setHistoryLoading] = React.useState(false);
       const [historyData, setHistoryData] = React.useState([]);
       const [historyError, setHistoryError] = React.useState(null);
@@ -236,20 +239,6 @@ const ReactDOM = { createRoot, createPortal };
       const [showCompteurModal, setShowCompteurModal] = React.useState(false);
       const [compteurModalData, setCompteurModalData] = React.useState({ title: '', prospects: [] });
       
-      const [interlocuteurForm, setInterlocuteurForm] = React.useState({
-        id: null,
-        prenom: '',
-        nom: '',
-        fonction: '',
-        email: '',
-        telephone: '',
-        linkedin_url: '',
-        principal: false,
-        decideur: false,
-        accept_emailing: false,
-        accept_notes_info: false,
-        demande_optin: false
-      });
       // États pour les devis
       const [devisList, setDevisList] = React.useState([]);
       const [showDevisForm, setShowDevisForm] = React.useState(false);
@@ -380,87 +369,6 @@ const ReactDOM = { createRoot, createPortal };
           setStatusHistory(data || []);
         } catch (err) {
           console.error('Erreur:', err);
-        }
-      };
-
-      const fetchInterlocuteurs = async (prospectId) => {
-        try {
-          const res = await fetch(`${API_URL}/prospects/${prospectId}/interlocuteurs`, {
-            headers: { 'Authorization': `Bearer ${user.token}` }
-          });
-          const data = await res.json();
-          setInterlocuteurs(data || []);
-        } catch (err) {
-          console.error('Erreur fetch interlocuteurs:', err);
-        }
-      };
-
-      const handleSaveInterlocuteur = async () => {
-        if (!interlocuteurForm.nom.trim()) {
-          window.showToast({title:'Le nom est obligatoire', type:'warning'});
-          return;
-        }
-
-        try {
-          const method = interlocuteurForm.id ? 'PUT' : 'POST';
-          const url = interlocuteurForm.id
-            ? `${API_URL}/prospects/${selectedProspect.id}/interlocuteurs/${interlocuteurForm.id}`
-            : `${API_URL}/prospects/${selectedProspect.id}/interlocuteurs`;
-
-          const res = await fetch(url, {
-            method,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${user.token}`
-            },
-            body: JSON.stringify(interlocuteurForm)
-          });
-
-          if (res.ok) {
-            window.showToast({title: interlocuteurForm.id ? 'Interlocuteur modifié' : 'Interlocuteur ajouté', type:'success'});
-            await fetchInterlocuteurs(selectedProspect.id);
-            setShowInterlocuteurForm(false);
-            setInterlocuteurForm({
-              id: null,
-              prenom: '',
-              nom: '',
-              fonction: '',
-              email: '',
-              telephone: '',
-              linkedin_url: '',
-              principal: false,
-              decideur: false,
-              accept_emailing: false,
-              accept_notes_info: false,
-              demande_optin: false
-            });
-          } else {
-            window.showToast({title:'Erreur lors de la sauvegarde', type:'error'});
-          }
-        } catch (err) {
-          console.error('Erreur:', err);
-          window.showToast({title:'Erreur: ' + err.message, type:'error'});
-        }
-      };
-
-      const handleDeleteInterlocuteur = async (interlocuteurId) => {
-        if (!confirm('Supprimer cet interlocuteur ?')) return;
-
-        try {
-          const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/interlocuteurs/${interlocuteurId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${user.token}` }
-          });
-
-          if (res.ok) {
-            window.showToast({title:'Interlocuteur supprimé', type:'success'});
-            await fetchInterlocuteurs(selectedProspect.id);
-          } else {
-            window.showToast({title:'Erreur lors de la suppression', type:'error'});
-          }
-        } catch (err) {
-          console.error('Erreur:', err);
-          window.showToast({title:'Erreur: ' + err.message, type:'error'});
         }
       };
 
