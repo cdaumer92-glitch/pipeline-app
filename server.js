@@ -1247,7 +1247,7 @@ async function assertOwnsProspect(req, res, prospectId) {
 // en remontant à son prospect. `table` est une valeur littérale contrôlée (pas d'injection).
 async function assertOwnsViaProspect(req, res, table, id) {
   if ((await getUserRole(req.userId)) === 'admin') return true;
-  if (!['next_actions', 'affaires', 'devis'].includes(table)) { res.status(500).json({ error: 'Table invalide' }); return false; }
+  if (!['next_actions', 'affaires', 'devis', 'interlocuteurs'].includes(table)) { res.status(500).json({ error: 'Table invalide' }); return false; }
   const q = await pool.query(
     `SELECT p.assigned_to FROM ${table} t JOIN prospects p ON p.id = t.prospect_id WHERE t.id = $1`,
     [id]
@@ -1460,7 +1460,8 @@ app.get('/api/prospects', auth, async (req, res) => {
       const result = await pool.query('SELECT id, name, siren FROM prospects WHERE siren = $1 LIMIT 1', [siren]);
       return res.json(result.rows);
     }
-    const result = await pool.query('SELECT * FROM prospects ORDER BY created_at DESC');
+    const owner = (await getUserRole(req.userId)) === 'admin' ? null : req.userName;
+    const result = await pool.query('SELECT * FROM prospects WHERE ($1::text IS NULL OR assigned_to = $1) ORDER BY created_at DESC', [owner]);
     const rows = result.rows.map(r => ({ ...r, marques: Array.isArray(r.marques) ? r.marques : (r.marques ? r.marques : []) }));
     res.json(rows);
   } catch (err) {
@@ -1563,6 +1564,7 @@ app.delete('/api/prospects/:id', auth, async (req, res) => {
 
 // ===================== NEXT ACTIONS =====================
 app.get('/api/prospects/:id/next_actions', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const result = await pool.query('SELECT * FROM next_actions WHERE prospect_id = $1 AND affaire_id IS NULL ORDER BY planned_date ASC', [req.params.id]);
     res.json(result.rows);
@@ -1573,6 +1575,7 @@ app.get('/api/prospects/:id/next_actions', auth, async (req, res) => {
 
 // GET /api/prospects/:id/actions-all — toutes les actions de l'entreprise (flottantes + liées aux affaires)
 app.get('/api/prospects/:id/actions-all', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const result = await pool.query(
       `SELECT na.*, a.nom_affaire
@@ -1590,6 +1593,7 @@ app.get('/api/prospects/:id/actions-all', auth, async (req, res) => {
 
 // GET /api/affaires/:id/next_actions - Récupérer les actions d'une affaire
 app.get('/api/affaires/:id/next_actions', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'affaires', req.params.id))) return;
   try {
     const result = await pool.query(
       'SELECT * FROM next_actions WHERE affaire_id = $1 ORDER BY planned_date ASC', 
@@ -1697,6 +1701,7 @@ app.delete('/api/next_actions/:id', auth, async (req, res) => {
 // ===================== MODULES =====================
 // GET - Récupérer les modules d'un prospect
 app.get('/api/prospects/:id/modules', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const result = await pool.query('SELECT * FROM prospect_modules WHERE prospect_id = $1', [req.params.id]);
     res.json(result.rows);
@@ -1730,6 +1735,7 @@ app.post('/api/prospects/:id/modules', auth, async (req, res) => {
 
 // ===================== STATUS HISTORY =====================
 app.get('/api/prospects/:id/status_history', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const result = await pool.query('SELECT * FROM status_history WHERE prospect_id = $1 ORDER BY created_at DESC', [req.params.id]);
     res.json(result.rows);
@@ -1871,6 +1877,7 @@ app.delete('/api/prospects/:id/pdf', auth, async (req, res) => {
 
 // ===================== PDF DOWNLOAD/VIEW =====================
 app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const result = await pool.query(
       `SELECT pdf_url FROM prospects WHERE id = $1`,
@@ -1910,11 +1917,12 @@ app.get('/api/prospects/:id/download-pdf', auth, async (req, res) => {
 
 // GET /api/prospects/:id/affaires - Récupérer toutes les affaires d'une société
 app.get('/api/prospects/:id/affaires', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const { id } = req.params;
-    
+
     const result = await pool.query(
-      `SELECT a.*, 
+      `SELECT a.*,
               COUNT(d.id) as nb_devis,
               MAX(d.created_at) as dernier_devis_date
        FROM affaires a
@@ -2011,9 +2019,10 @@ app.post('/api/prospects/:id/affaires', auth, async (req, res) => {
 
 // GET /api/affaires/:id - Récupérer une affaire spécifique
 app.get('/api/affaires/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'affaires', req.params.id))) return;
   try {
     const { id } = req.params;
-    
+
     const result = await pool.query(
       `SELECT * FROM affaires WHERE id = $1`,
       [id]
@@ -2083,11 +2092,12 @@ app.delete('/api/affaires/:id', auth, async (req, res) => {
 
 // GET /api/affaires/:id/devis - Récupérer tous les devis d'une affaire
 app.get('/api/affaires/:id/devis', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'affaires', req.params.id))) return;
   try {
     const { id } = req.params;
-    
+
     const result = await pool.query(
-      `SELECT * FROM devis 
+      `SELECT * FROM devis
        WHERE affaire_id = $1 
        ORDER BY created_at DESC`,
       [id]
@@ -2174,11 +2184,14 @@ app.post('/api/affaires/:id/devis', auth, async (req, res) => {
 // GET /api/devis/all - Récupérer tous les devis avec info commercial
 app.get('/api/devis/all', auth, async (req, res) => {
   try {
+    const owner = (await getUserRole(req.userId)) === 'admin' ? null : req.userName;
     const result = await pool.query(
       `SELECT d.*, p.name as prospect_name, p.assigned_to as commercial
        FROM devis d
        LEFT JOIN prospects p ON d.prospect_id = p.id
-       ORDER BY d.created_at DESC`
+       WHERE ($1::text IS NULL OR p.assigned_to = $1)
+       ORDER BY d.created_at DESC`,
+      [owner]
     );
     res.json(result.rows);
   } catch (err) {
@@ -2193,6 +2206,7 @@ app.get('/api/devis/all', auth, async (req, res) => {
 // "charge tout, filtre en UI", cohérent avec /api/devis/all et /api/prospects).
 app.get('/api/lists/actions', auth, async (req, res) => {
   try {
+    const owner = (await getUserRole(req.userId)) === 'admin' ? null : req.userName;
     const result = await pool.query(
       `SELECT na.id, na.prospect_id, na.affaire_id, na.action_type, na.planned_date,
               na.actor, na.contact, na.completed_note, COALESCE(na.priority, 1) AS priority,
@@ -2200,7 +2214,9 @@ app.get('/api/lists/actions', auth, async (req, res) => {
          FROM next_actions na
          JOIN prospects p ON p.id = na.prospect_id
         WHERE na.completed = 0
-        ORDER BY COALESCE(na.priority, 1) DESC, na.planned_date ASC NULLS LAST`
+          AND ($1::text IS NULL OR p.assigned_to = $1)
+        ORDER BY COALESCE(na.priority, 1) DESC, na.planned_date ASC NULLS LAST`,
+      [owner]
     );
     res.json(result.rows);
   } catch (err) {
@@ -2227,7 +2243,9 @@ app.get('/api/lists/actions-stats', auth, async (req, res) => {
               COALESCE(SUM(CURRENT_DATE - na.planned_date) FILTER (WHERE na.completed = 0 AND na.planned_date < CURRENT_DATE), 0) AS overdue_days_sum
          FROM next_actions na
          JOIN prospects p ON p.id = na.prospect_id
-        GROUP BY p.assigned_to`
+        WHERE ($1::text IS NULL OR p.assigned_to = $1)
+        GROUP BY p.assigned_to`,
+      [(await getUserRole(req.userId)) === 'admin' ? null : req.userName]
     );
     res.json(result.rows);
   } catch (err) {
@@ -2237,12 +2255,13 @@ app.get('/api/lists/actions-stats', auth, async (req, res) => {
 });
 
 app.get('/api/prospects/:id/devis', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const { id } = req.params;
-    
+
     const result = await pool.query(
-      `SELECT * FROM devis 
-       WHERE prospect_id = $1 
+      `SELECT * FROM devis
+       WHERE prospect_id = $1
        ORDER BY quote_date DESC, created_at DESC`,
       [id]
     );
@@ -2560,9 +2579,10 @@ app.delete('/api/devis/:id/pdf', auth, async (req, res) => {
 
 // GET /api/devis/:id/download-pdf - Télécharger le PDF d'un devis
 app.get('/api/devis/:id/download-pdf', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'devis', req.params.id))) return;
   try {
     const { id } = req.params;
-    
+
     const result = await pool.query('SELECT pdf_url FROM devis WHERE id = $1', [id]);
     
     if (result.rows.length === 0) {
@@ -2897,6 +2917,7 @@ Execute uniquement le script. Ne genere pas le document toi-meme.`;
 // ==========================================
 
 app.get('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const { id } = req.params;
     // emailing_unsubscribed_at + emailing_unsubscribed_source sont désormais des
@@ -3217,6 +3238,10 @@ app.get('/api/interlocuteurs/communication-list', auth, async (req, res) => {
       }
     }
 
+    const owner = (await getUserRole(req.userId)) === 'admin' ? null : req.userName;
+    params.push(owner);
+    const ownerCondition = `AND ($${params.length}::text IS NULL OR p.assigned_to = $${params.length})`;
+
     const sql = `
       SELECT
         i.id,
@@ -3234,6 +3259,7 @@ app.get('/api/interlocuteurs/communication-list', auth, async (req, res) => {
       WHERE ${whereFlag}
         AND i.email IS NOT NULL AND TRIM(i.email) <> ''
         ${statutCondition}
+        ${ownerCondition}
       ORDER BY p.name, i.principal DESC, i.nom
     `;
     const result = await pool.query(sql, params);
@@ -3250,6 +3276,7 @@ app.get('/api/interlocuteurs/communication-list', auth, async (req, res) => {
 // et accept_notes_info pour un interlocuteur. Utile pour l'audit RGPD et
 // l'affichage de la timeline de consentement sur la fiche.
 app.get('/api/interlocuteurs/:id/consents', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'interlocuteurs', req.params.id))) return;
   try {
     const { id } = req.params;
     const result = await pool.query(
@@ -4079,6 +4106,10 @@ app.get('/api/brevo/audience', auth, async (req, res) => {
     conditions.push(`i.optin_token_envoye_at IS NULL`);
   }
 
+  const owner = (await getUserRole(req.userId)) === 'admin' ? null : req.userName;
+  params.push(owner);
+  conditions.push(`($${params.length}::text IS NULL OR p.assigned_to = $${params.length})`);
+
   const sql = `
     SELECT
       i.id,
@@ -4153,6 +4184,10 @@ app.get('/api/brevo/envois', auth, async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit || '50'), 200);
   const includeArchived = req.query.include_archived === 'true';
   try {
+    const owner = (await getUserRole(req.userId)) === 'admin' ? null : req.userName;
+    const conds = [];
+    if (!includeArchived) conds.push('archived_at IS NULL');
+    conds.push('($2::text IS NULL OR envoye_par_nom = $2)');
     const r = await pool.query(
       `SELECT id, brevo_campaign_id_source, brevo_campaign_id_envoi,
               campagne_nom, campagne_objet, sender_email, sender_name,
@@ -4161,10 +4196,10 @@ app.get('/api/brevo/envois', auth, async (req, res) => {
               created_at, sent_at, filtres_json, archived_at,
               sequence_id, sequence_etape, mode
          FROM campagnes_envois
-        ${includeArchived ? '' : 'WHERE archived_at IS NULL'}
+        WHERE ${conds.join(' AND ')}
         ORDER BY created_at DESC
         LIMIT $1`,
-      [limit]
+      [limit, owner]
     );
     res.json({ count: r.rows.length, envois: r.rows });
   } catch (err) {
@@ -5464,6 +5499,7 @@ app.post('/api/admin/sessions/:id/disconnect', requireAdmin, async (req, res) =>
 // GET /api/prospects/enriched - Récupérer tous les prospects avec dernier devis actif + actions planifiées
 app.get('/api/prospects/enriched', auth, async (req, res) => {
   try {
+    const owner = (await getUserRole(req.userId)) === 'admin' ? null : req.userName;
     const result = await pool.query(`
       WITH derniers_devis AS (
         -- Pour chaque prospect, récupérer le devis le plus récent d'une affaire en cours
@@ -5548,8 +5584,9 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
       LEFT JOIN derniers_devis dd ON dd.prospect_id = p.id
       LEFT JOIN actions_info   ai ON ai.prospect_id = p.id
       LEFT JOIN actions_next   an ON an.prospect_id = p.id
+      WHERE ($1::text IS NULL OR p.assigned_to = $1)
       ORDER BY p.name
-    `);
+    `, [owner]);
 
     const rows = result.rows.map(r => ({ ...r, marques: Array.isArray(r.marques) ? r.marques : [] }));
     res.json(rows);
@@ -5561,6 +5598,7 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
 
 // ===================== DEBUG TEMPORAIRE =====================
 app.get('/api/debug/actions', auth, async (req, res) => {
+  if ((await getUserRole(req.userId)) !== 'admin') return res.status(403).json({ error: 'Accès refusé' });
   try {
     const r = await pool.query(`
       SELECT na.id, na.prospect_id, na.affaire_id, na.action_type, na.planned_date, na.completed, a.prospect_id as aff_prospect_id
@@ -5605,6 +5643,7 @@ app.get('/api/materiel-types', auth, async (req, res) => {
 
 // ── Boutiques ──
 app.get('/api/prospects/:id/boutiques', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const r = await pool.query(`
       SELECT b.*, i.nom as responsable_nom, i.telephone as responsable_tel, i.email as responsable_email
@@ -5649,6 +5688,7 @@ app.delete('/api/boutiques/:id', auth, async (req, res) => {
 
 // ── Licences client ──
 app.get('/api/prospects/:id/licences', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const r = await pool.query(`
       SELECT cl.*, l.code, l.nom as licence_nom, l.type as licence_type
@@ -5693,6 +5733,7 @@ app.delete('/api/licences-client/:id', auth, async (req, res) => {
 
 // ── Matériel client ──
 app.get('/api/prospects/:id/materiel', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const r = await pool.query(`
       SELECT cm.*, mt.nom as type_nom, mt.icone as type_icone,
