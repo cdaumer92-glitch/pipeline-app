@@ -1578,7 +1578,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                       ));
                     })()}
                     {completingAction && (
-                      <ActionCompleteModal action={completingAction} prospectId={selectedProspect && selectedProspect.id} API_URL={API_URL} token={user.token} onClose={() => setCompletingAction(null)} onCompleted={() => { if (selectedProspect) { fetchNextActions(selectedProspect.id); fetchAllActions(selectedProspect.id); } }} />
+                      <ActionCompleteModal action={completingAction} prospectId={selectedProspect && selectedProspect.id} API_URL={API_URL} token={user.token} affairesList={affairesList} interlocuteurs={interlocuteurs} onClose={() => setCompletingAction(null)} onCompleted={() => { if (selectedProspect) { fetchNextActions(selectedProspect.id); fetchAllActions(selectedProspect.id); } }} />
                     )}
                   </div>
                 )}
@@ -1591,4 +1591,4 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
         </div>
       );
     }
-
+
