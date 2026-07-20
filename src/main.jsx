@@ -494,7 +494,15 @@ const ReactDOM = { createRoot, createPortal };
       const handleSelectProspect = (prospect) => {
         console.log('Clicking on prospect:', prospect.id, prospect.name);
         setSelectedProspect(prospect);
-        setListeView(null);  // quitter une éventuelle vue "liste" pour afficher la fiche
+        // Quitter TOUTE vue plein écran concurrente, sinon elle masque la fiche :
+        // Kanban, Campagnes, Attribution et listes se rendent en frères de la fiche.
+        // Sans ça, la recherche du header ou la palette Ctrl+K sélectionnent bien le
+        // prospect mais l'écran ne bouge pas (on reste sur le Pipeline).
+        setListeView(null);
+        setShowPipeline(false);
+        setShowCampagnes(false);
+        setShowAttribution(false);
+        setIsDashboard(false);
         setShowForm(false);  // Fermer le formulaire pour afficher les activités
         if (!activities[prospect.id]) {
           fetchActivities(prospect.id);
