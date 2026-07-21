@@ -49,35 +49,56 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
   // sinon on affiche le statut effectif (statut manuel corrigé par le devis).
   const statusOf = (p) => localStatus[p.id] || effectiveStatus(p);
 
-  // Affaires d'une société qui comptent dans le montant pipeline : les affaires perdues
-  // sont listées au dépliage mais exclues du total (elles ne valent plus rien).
   const affairesOf = (p) => Array.isArray(p.affaires_detail) ? p.affaires_detail : [];
-  const isAffairePerdue = (a) => a.statut === 'Perdu';
+  const isAffairePerdue = (a) => TERMINAL_STATUSES.includes(a.statut);
+  const isAffaireGagnee = (a) => a.statut === 'Gagné';
 
   // On n'additionne PAS setup + mensuel + annuel : un forfait ponctuel (setup) et deux
   // récurrences (mensuelle, annuelle) n'ont pas la même nature. Le Kanban affiche donc
-  // trois chiffres distincts. Chaque montant est la somme des affaires NON perdues.
+  // trois chiffres distincts.
   const emptyMoney = () => ({ setup: 0, monthly: 0, annual: 0 });
-  const moneyOf = (p) => {
-    const affaires = affairesOf(p).filter(a => !isAffairePerdue(a));
-    if (affaires.length) {
-      return affaires.reduce((acc, a) => ({
-        setup:   acc.setup   + (Number(a.setup)   || 0),
-        monthly: acc.monthly + (Number(a.monthly) || 0),
-        annual:  acc.annual  + (Number(a.annual)  || 0),
-      }), emptyMoney());
-    }
-    // Repli sur les données non enrichies (société sans détail d'affaires).
-    if (p.real_setup_amount != null || p.real_monthly_amount != null || p.real_annual_amount != null) {
-      return { setup: Number(p.real_setup_amount) || 0, monthly: Number(p.real_monthly_amount) || 0, annual: Number(p.real_annual_amount) || 0 };
-    }
-    return { setup: Number(p.setup_amount) || 0, monthly: Number(p.monthly_amount) || 0, annual: 0 };
-  };
-  const sumMoney = (list) => list.reduce((acc, p) => {
-    const m = moneyOf(p);
-    return { setup: acc.setup + m.setup, monthly: acc.monthly + m.monthly, annual: acc.annual + m.annual };
-  }, emptyMoney());
+  const affaireMoney = (a) => ({ setup: Number(a.setup) || 0, monthly: Number(a.monthly) || 0, annual: Number(a.annual) || 0 });
+  const addMoney = (acc, m) => { acc.setup += m.setup; acc.monthly += m.monthly; acc.annual += m.annual; return acc; };
   const hasMoney = (m) => m.setup > 0 || m.monthly > 0 || m.annual > 0;
+  const fallbackMoney = (p) => (
+    (p.real_setup_amount != null || p.real_monthly_amount != null || p.real_annual_amount != null)
+      ? { setup: Number(p.real_setup_amount) || 0, monthly: Number(p.real_monthly_amount) || 0, annual: Number(p.real_annual_amount) || 0 }
+      : { setup: Number(p.setup_amount) || 0, monthly: Number(p.monthly_amount) || 0, annual: 0 }
+  );
+
+  // Colonne dans laquelle le MONTANT d'une affaire est comptabilisé (indépendamment de
+  // la colonne où siège la carte de la société) :
+  //   - perdue / terminale : nulle part (hors total) ;
+  //   - gagnée : colonne « Signé », même si la société est encore active ailleurs ;
+  //   - ouverte : la colonne où siège la carte (statut effectif de la société).
+  // Ainsi une affaire gagnée d'une société encore en Devis alimente bien le total Signé.
+  const columnOfAffaire = (p, a) => {
+    if (isAffairePerdue(a)) return null;
+    if (isAffaireGagnee(a)) return 'Signé';
+    return statusOf(p);
+  };
+
+  // Montant affiché sur la carte = uniquement les affaires comptées dans SA propre colonne.
+  // Une société en Devis n'affiche donc que ses affaires ouvertes ; ses affaires gagnées
+  // sont visibles au dépliage mais comptées ailleurs (Signé).
+  const cardMoney = (p) => {
+    const affaires = affairesOf(p);
+    if (!affaires.length) return fallbackMoney(p);
+    const col = statusOf(p);
+    return affaires.reduce((acc, a) => columnOfAffaire(p, a) === col ? addMoney(acc, affaireMoney(a)) : acc, emptyMoney());
+  };
+
+  // Total par colonne, piloté par le statut de chaque AFFAIRE (et non de la société).
+  const columnMoney = {};
+  STATUSES.forEach(s => (columnMoney[s] = emptyMoney()));
+  base.forEach(p => {
+    const affaires = affairesOf(p);
+    if (affaires.length) {
+      affaires.forEach(a => { const c = columnOfAffaire(p, a); if (c && columnMoney[c]) addMoney(columnMoney[c], affaireMoney(a)); });
+    } else {
+      const c = statusOf(p); if (columnMoney[c]) addMoney(columnMoney[c], fallbackMoney(p));
+    }
+  });
 
   // Bloc d'affichage des 3 chiffres (réutilisé carte, en-tête de colonne, détail affaire).
   const moneyBlock = (m, { size = 11, labelColor = 'var(--tw-muted)', valColor = 'var(--tw-slate)' } = {}) => (
@@ -123,7 +144,7 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
   const renderColumn = (status) => {
     const list = byStatus[status] || [];
     const color = getStatusColor(status);
-    const total = sumMoney(list);
+    const total = columnMoney[status] || emptyMoney();
     const isOver = overCol === status;
     return (
       <div key={status}
@@ -142,7 +163,7 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
             <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--tw-ink)', letterSpacing: '.2px' }}>{status}</span>
             <span style={{ fontSize: '11px', fontWeight: 700, color: color, background: 'white', border: `1px solid ${color}33`, borderRadius: '999px', padding: '1px 8px', minWidth: '20px', textAlign: 'center' }}>{list.length}</span>
           </div>
-          <div style={{ marginTop: '5px' }}>
+          <div data-testid={`col-total-${status}`} style={{ marginTop: '5px' }}>
             {hasMoney(total)
               ? moneyBlock(total, { size: 10.5 })
               : <span style={{ fontSize: '11px', color: 'var(--tw-muted)' }}>—</span>}
@@ -155,7 +176,7 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
             <div style={{ fontSize: '11px', color: 'var(--tw-muted)', textAlign: 'center', padding: '18px 6px', fontStyle: 'italic' }}>Aucune société</div>
           )}
           {list.map(p => {
-            const money = moneyOf(p);
+            const money = cardMoney(p);
             const dragging = dragId === p.id;
             const affaires = affairesOf(p);
             const isOpen = !!expanded[p.id];
@@ -202,6 +223,10 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
                   <div style={{ marginTop: '6px', borderTop: '1px dashed var(--tw-border)', paddingTop: '6px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
                     {affaires.map(a => {
                       const perdue = isAffairePerdue(a);
+                      // Affaire gagnée d'une société encore active : son montant est compté
+                      // dans la colonne Signé, pas ici → on le signale.
+                      const compteeSigne = isAffaireGagnee(a) && statusOf(p) !== 'Signé';
+                      const suffixe = perdue ? ' · hors total' : (compteeSigne ? ' · comptée dans Signé' : '');
                       return (
                         <div key={a.id} style={{ opacity: perdue ? 0.5 : 1 }}>
                           <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tw-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -209,7 +234,7 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
                           </div>
                           {a.statut && (
                             <div style={{ fontSize: '9.5px', color: 'var(--tw-muted)', marginTop: '1px', marginBottom: '3px' }}>
-                              {a.statut}{perdue ? ' · hors total' : ''}
+                              {a.statut}{suffixe}
                             </div>
                           )}
                           {moneyBlock({ setup: Number(a.setup) || 0, monthly: Number(a.monthly) || 0, annual: Number(a.annual) || 0 }, { size: 10 })}

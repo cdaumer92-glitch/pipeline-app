@@ -33,6 +33,17 @@ const legacy = {
   real_setup_amount: 1000, real_monthly_amount: 100, real_annual_amount: 200, real_training_amount: 0,
 };
 
+// Cas B&M : société encore active (Devis) avec 2 affaires ouvertes + 1 gagnée.
+// L'affaire gagnée ne doit pas gonfler la carte/colonne Devis : son montant va dans Signé.
+const bm = {
+  id: 7, name: 'B&M (Jack Gomme)', status: 'Devis', assigned_to: 'Roger',
+  affaires_detail: [
+    { id: 70, nom: 'Evolution GraphQL Shopify', statut: 'En cours', setup: 13294, monthly: 0, annual: 0, training: 0 },
+    { id: 71, nom: 'Interface Pennylane', statut: 'En cours', setup: 1190, monthly: 0, annual: 0, training: 0 },
+    { id: 72, nom: 'Migration V5', statut: 'Gagné', setup: 575, monthly: 0, annual: 0, training: 0 },
+  ],
+};
+
 const renderKanban = (prospects) => render(
   <KanbanView prospects={prospects} user={user} API_URL="/api" onSelectProspect={() => {}} onStatusChanged={() => {}} />
 );
@@ -105,5 +116,30 @@ describe('KanbanView — montant par société', () => {
     expect(screen.getAllByText(/4\s?000,00\s?€/).length).toBeGreaterThan(0);
     // mais aucun bouton "Voir les ... affaires"
     expect(screen.queryByText(/Voir les/)).toBeNull();
+  });
+});
+
+describe('KanbanView — affaire gagnée d\'une société encore active', () => {
+  it('exclut l\'affaire gagnée du total de la carte (colonne Devis)', () => {
+    renderKanban([bm]);
+    // Carte en Devis : setup = affaires ouvertes seulement = 13294 + 1190 = 14 484
+    const devisTotal = screen.getByTestId('col-total-Devis');
+    expect(devisTotal.textContent).toMatch(/14\s?484,00\s?€/);
+    // l'ancien cumul incluant l'affaire gagnée (15 059) ne doit plus apparaître comme total
+    expect(devisTotal.textContent).not.toMatch(/15\s?059/);
+  });
+
+  it('compte l\'affaire gagnée dans le total de la colonne Signé', () => {
+    renderKanban([bm]);
+    // La société siège en Devis (aucune carte en Signé), mais son affaire gagnée (575 €)
+    // alimente le total de la colonne Signé.
+    const signeTotal = screen.getByTestId('col-total-Signé');
+    expect(signeTotal.textContent).toMatch(/575,00\s?€/);
+  });
+
+  it('marque l\'affaire gagnée « comptée dans Signé » au dépliage', () => {
+    renderKanban([bm]);
+    fireEvent.click(screen.getByText('Voir les 3 affaires'));
+    expect(screen.getByText(/Gagné · comptée dans Signé/)).toBeTruthy();
   });
 });
