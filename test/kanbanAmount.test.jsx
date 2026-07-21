@@ -94,10 +94,13 @@ describe('KanbanView — montant par société', () => {
     expect(screen.getAllByText('Annuel').length).toBe(4);
   });
 
-  it('marque l\'affaire perdue comme hors total dans le detail', () => {
+  it('sort l\'affaire perdue de la colonne active', () => {
     renderKanban([homecore]);
-    fireEvent.click(screen.getByText('Voir les 2 affaires'));
-    expect(screen.getByText(/Perdu · hors total/)).toBeTruthy();
+    // L'affaire perdue part en colonne cloturee (repliee par defaut) : elle n'encombre
+    // plus la carte Negociation, qui ne porte que l'affaire ouverte.
+    const nego = screen.getByTestId('col-cards-Négociation');
+    expect(nego.textContent).toMatch(/Homecore - ERP/);
+    expect(nego.textContent).not.toMatch(/Homecore - Ancien/);
   });
 
   it('n\'affiche pas de bouton de depliage sans affaire', () => {
@@ -120,26 +123,37 @@ describe('KanbanView — montant par société', () => {
 });
 
 describe('KanbanView — affaire gagnée d\'une société encore active', () => {
-  it('exclut l\'affaire gagnée du total de la carte (colonne Devis)', () => {
+  it('fait DISPARAITRE l\'affaire gagnee de la colonne Devis', () => {
     renderKanban([bm]);
-    // Carte en Devis : setup = affaires ouvertes seulement = 13294 + 1190 = 14 484
-    const devisTotal = screen.getByTestId('col-total-Devis');
-    expect(devisTotal.textContent).toMatch(/14\s?484,00\s?€/);
-    // l'ancien cumul incluant l'affaire gagnée (15 059) ne doit plus apparaître comme total
-    expect(devisTotal.textContent).not.toMatch(/15\s?059/);
+    const devis = screen.getByTestId('col-cards-Devis');
+    // La societe reste en Devis pour ses affaires ouvertes...
+    expect(devis.textContent).toMatch(/B&M \(Jack Gomme\)/);
+    // ...mais l'affaire gagnee n'y figure plus, meme depliee.
+    fireEvent.click(screen.getByText('Voir les 2 affaires'));
+    expect(devis.textContent).toMatch(/Evolution GraphQL Shopify/);
+    expect(devis.textContent).toMatch(/Interface Pennylane/);
+    expect(devis.textContent).not.toMatch(/Migration V5/);
+    // Total Devis = affaires ouvertes seulement (13294 + 1190)
+    expect(screen.getByTestId('col-total-Devis').textContent).toMatch(/14\s?484,00\s?€/);
   });
 
-  it('compte l\'affaire gagnée dans le total de la colonne Signé', () => {
+  it('fait APPARAITRE l\'affaire gagnee dans la colonne Signe', () => {
     renderKanban([bm]);
-    // La société siège en Devis (aucune carte en Signé), mais son affaire gagnée (575 €)
-    // alimente le total de la colonne Signé.
-    const signeTotal = screen.getByTestId('col-total-Signé');
-    expect(signeTotal.textContent).toMatch(/575,00\s?€/);
+    const signe = screen.getByTestId('col-cards-Signé');
+    // Une carte B&M apparait en Signe, nommee par son affaire gagnee et son montant.
+    expect(signe.textContent).toMatch(/B&M \(Jack Gomme\)/);
+    expect(signe.textContent).toMatch(/Migration V5/);
+    expect(signe.textContent).toMatch(/575,00\s?€/);
+    expect(screen.getByTestId('col-total-Signé').textContent).toMatch(/575,00\s?€/);
   });
 
-  it('marque l\'affaire gagnée « comptée dans Signé » au dépliage', () => {
-    renderKanban([bm]);
-    fireEvent.click(screen.getByText('Voir les 3 affaires'));
-    expect(screen.getByText(/Gagné · comptée dans Signé/)).toBeTruthy();
+  it('ne rend deplacable que la carte de l\'etape de la societe', () => {
+    const { container } = renderKanban([bm]);
+    const devisCard = screen.getByTestId('col-cards-Devis').querySelector('div[draggable]');
+    const signeCard = screen.getByTestId('col-cards-Signé').querySelector('div[draggable]');
+    // La carte Devis (etape commerciale) se glisse ; celle de Signe non, car le
+    // glisser-deposer change le statut de la SOCIETE, pas d'une affaire isolee.
+    expect(devisCard.getAttribute('draggable')).toBe('true');
+    expect(signeCard.getAttribute('draggable')).toBe('false');
   });
 });

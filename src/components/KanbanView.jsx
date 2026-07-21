@@ -66,39 +66,23 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
       : { setup: Number(p.setup_amount) || 0, monthly: Number(p.monthly_amount) || 0, annual: 0 }
   );
 
-  // Colonne dans laquelle le MONTANT d'une affaire est comptabilisé (indépendamment de
-  // la colonne où siège la carte de la société) :
-  //   - perdue / terminale : nulle part (hors total) ;
-  //   - gagnée : colonne « Signé », même si la société est encore active ailleurs ;
-  //   - ouverte : la colonne où siège la carte (statut effectif de la société).
-  // Ainsi une affaire gagnée d'une société encore en Devis alimente bien le total Signé.
+  // Colonne d'une AFFAIRE (et non de la société) :
+  //   - gagnée   → « Signé »
+  //   - perdue / terminale → sa propre colonne clôturée
+  //   - ouverte  → l'étape commerciale de la société
+  // Une société dont les affaires sont à des étapes différentes apparaît donc dans
+  // plusieurs colonnes, chaque carte ne portant que les affaires de SA colonne.
   const columnOfAffaire = (p, a) => {
-    if (isAffairePerdue(a)) return null;
     if (isAffaireGagnee(a)) return 'Signé';
+    if (isAffairePerdue(a)) return a.statut;
     return statusOf(p);
   };
 
-  // Montant affiché sur la carte = uniquement les affaires comptées dans SA propre colonne.
-  // Une société en Devis n'affiche donc que ses affaires ouvertes ; ses affaires gagnées
-  // sont visibles au dépliage mais comptées ailleurs (Signé).
-  const cardMoney = (p) => {
-    const affaires = affairesOf(p);
-    if (!affaires.length) return fallbackMoney(p);
-    const col = statusOf(p);
-    return affaires.reduce((acc, a) => columnOfAffaire(p, a) === col ? addMoney(acc, affaireMoney(a)) : acc, emptyMoney());
-  };
-
-  // Total par colonne, piloté par le statut de chaque AFFAIRE (et non de la société).
-  const columnMoney = {};
-  STATUSES.forEach(s => (columnMoney[s] = emptyMoney()));
-  base.forEach(p => {
-    const affaires = affairesOf(p);
-    if (affaires.length) {
-      affaires.forEach(a => { const c = columnOfAffaire(p, a); if (c && columnMoney[c]) addMoney(columnMoney[c], affaireMoney(a)); });
-    } else {
-      const c = statusOf(p); if (columnMoney[c]) addMoney(columnMoney[c], fallbackMoney(p));
-    }
-  });
+  // Montant d'une carte = somme des affaires qu'elle porte (ce qui est affiché est ce qui
+  // est compté). Société sans détail d'affaires : montant de repli.
+  const entryMoney = (e) => e.affaires.length
+    ? e.affaires.reduce((acc, a) => addMoney(acc, affaireMoney(a)), emptyMoney())
+    : fallbackMoney(e.p);
 
   // Bloc d'affichage des 3 chiffres (réutilisé carte, en-tête de colonne, détail affaire).
   const moneyBlock = (m, { size = 11, labelColor = 'var(--tw-muted)', valColor = 'var(--tw-slate)' } = {}) => (
@@ -112,9 +96,31 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
     </div>
   );
 
+  // Une entrée = une carte = (société × colonne). Une société dont les affaires sont à des
+  // étapes différentes génère plusieurs cartes : ses affaires ouvertes dans son étape
+  // commerciale, ses affaires gagnées dans « Signé », ses affaires perdues en clôturé.
+  // `primary` marque la carte qui représente l'étape de la société : seule celle-là est
+  // déplaçable, car le glisser-déposer change le statut de la SOCIÉTÉ.
   const byStatus = {};
   STATUSES.forEach(s => (byStatus[s] = []));
-  base.forEach(p => { const s = statusOf(p); (byStatus[s] || byStatus['Prospection']).push(p); });
+  base.forEach(p => {
+    const affaires = affairesOf(p);
+    const own = statusOf(p);
+    if (!affaires.length) {
+      (byStatus[own] || byStatus['Prospection']).push({ p, affaires: [], primary: true });
+      return;
+    }
+    const groupes = {};
+    affaires.forEach(a => {
+      const c = columnOfAffaire(p, a);
+      if (byStatus[c]) (groupes[c] = groupes[c] || []).push(a);
+    });
+    Object.keys(groupes).forEach(c => byStatus[c].push({ p, affaires: groupes[c], primary: c === own }));
+    // Filet : si aucune affaire ne tombe dans l'étape de la société (ex. toutes gagnées
+    // alors que son statut est resté Devis), la société garderait quand même une carte
+    // déplaçable seulement si elle n'apparaît nulle part ailleurs.
+    if (!Object.keys(groupes).length) (byStatus[own] || byStatus['Prospection']).push({ p, affaires: [], primary: true });
+  });
   const terminalCount = TERMINAL_STATUSES.reduce((n, s) => n + (byStatus[s] || []).length, 0);
 
   const moveTo = async (prospectId, newStatus) => {
@@ -144,7 +150,8 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
   const renderColumn = (status) => {
     const list = byStatus[status] || [];
     const color = getStatusColor(status);
-    const total = columnMoney[status] || emptyMoney();
+    // Ce qui est affiché est ce qui est compté : le total agrège les cartes de la colonne.
+    const total = list.reduce((acc, e) => addMoney(acc, entryMoney(e)), emptyMoney());
     const isOver = overCol === status;
     return (
       <div key={status}
@@ -171,33 +178,43 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
         </div>
 
         {/* Cartes */}
-        <div style={{ padding: '8px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div data-testid={`col-cards-${status}`} style={{ padding: '8px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {list.length === 0 && (
             <div style={{ fontSize: '11px', color: 'var(--tw-muted)', textAlign: 'center', padding: '18px 6px', fontStyle: 'italic' }}>Aucune société</div>
           )}
-          {list.map(p => {
-            const money = cardMoney(p);
-            const dragging = dragId === p.id;
-            const affaires = affairesOf(p);
-            const isOpen = !!expanded[p.id];
+          {list.map(entry => {
+            const p = entry.p;
+            const affaires = entry.affaires;
+            const money = entryMoney(entry);
+            const dragging = dragId === p.id && entry.primary;
+            const cardKey = `${p.id}-${status}`;
+            const isOpen = !!expanded[cardKey];
             return (
-              <div key={p.id}
-                draggable
-                onDragStart={() => setDragId(p.id)}
+              <div key={cardKey}
+                draggable={entry.primary}
+                onDragStart={() => entry.primary && setDragId(p.id)}
                 onDragEnd={() => { setDragId(null); setOverCol(null); }}
                 onClick={() => onSelectProspect && onSelectProspect(p)}
-                title="Cliquer pour ouvrir · glisser pour déplacer"
+                title={entry.primary ? 'Cliquer pour ouvrir · glisser pour déplacer' : 'Cliquer pour ouvrir la fiche'}
                 style={{
                   background: 'white', border: '1px solid var(--tw-border)', borderLeft: `3px solid ${color}`,
-                  borderRadius: '9px', padding: '10px 11px', cursor: 'grab', boxShadow: 'var(--sh-sm)',
+                  borderRadius: '9px', padding: '10px 11px', cursor: entry.primary ? 'grab' : 'pointer', boxShadow: 'var(--sh-sm)',
                   opacity: dragging ? 0.45 : 1, transition: 'opacity .12s, box-shadow .12s'
                 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '6px', marginBottom: '5px' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '6px', marginBottom: '2px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--tw-ink)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prospectDisplayName(p)}</span>
                   {admin && p.assigned_to && (
                     <span style={{ fontSize: '10px', color: 'var(--tw-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80px', flexShrink: 0 }}>{p.assigned_to}</span>
                   )}
                 </div>
+                {/* Une seule affaire : on la nomme directement, sans dépliage — utile
+                    maintenant qu'une même société peut apparaître dans deux colonnes. */}
+                {affaires.length === 1 && affaires[0].nom && (
+                  <div style={{ fontSize: '10.5px', color: 'var(--tw-muted)', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {affaires[0].nom}
+                  </div>
+                )}
+                {affaires.length !== 1 && <div style={{ height: '3px' }} />}
                 {hasMoney(money)
                   ? moneyBlock(money)
                   : <span style={{ fontSize: '11px', color: 'var(--tw-muted)' }}>—</span>}
@@ -207,7 +224,7 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
                     à déplier. stopPropagation sinon le clic ouvrirait la fiche. */}
                 {affaires.length >= 2 && (
                   <button type="button"
-                    onClick={(e) => { e.stopPropagation(); setExpanded(prev => ({ ...prev, [p.id]: !prev[p.id] })); }}
+                    onClick={(e) => { e.stopPropagation(); setExpanded(prev => ({ ...prev, [cardKey]: !prev[cardKey] })); }}
                     title={isOpen ? 'Masquer le détail des affaires' : 'Voir le détail par affaire'}
                     style={{
                       marginTop: '8px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
@@ -221,26 +238,19 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
                 )}
                 {isOpen && affaires.length >= 2 && (
                   <div style={{ marginTop: '6px', borderTop: '1px dashed var(--tw-border)', paddingTop: '6px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                    {affaires.map(a => {
-                      const perdue = isAffairePerdue(a);
-                      // Affaire gagnée d'une société encore active : son montant est compté
-                      // dans la colonne Signé, pas ici → on le signale.
-                      const compteeSigne = isAffaireGagnee(a) && statusOf(p) !== 'Signé';
-                      const suffixe = perdue ? ' · hors total' : (compteeSigne ? ' · comptée dans Signé' : '');
-                      return (
-                        <div key={a.id} style={{ opacity: perdue ? 0.5 : 1 }}>
-                          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tw-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {a.nom || 'Affaire'}
-                          </div>
-                          {a.statut && (
-                            <div style={{ fontSize: '9.5px', color: 'var(--tw-muted)', marginTop: '1px', marginBottom: '3px' }}>
-                              {a.statut}{suffixe}
-                            </div>
-                          )}
-                          {moneyBlock({ setup: Number(a.setup) || 0, monthly: Number(a.monthly) || 0, annual: Number(a.annual) || 0 }, { size: 10 })}
+                    {affaires.map(a => (
+                      // Toutes les affaires listées ici appartiennent à la colonne courante :
+                      // plus de mention « hors total » ni « comptée ailleurs ».
+                      <div key={a.id}>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tw-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {a.nom || 'Affaire'}
                         </div>
-                      );
-                    })}
+                        {a.statut && (
+                          <div style={{ fontSize: '9.5px', color: 'var(--tw-muted)', marginTop: '1px', marginBottom: '3px' }}>{a.statut}</div>
+                        )}
+                        {moneyBlock({ setup: Number(a.setup) || 0, monthly: Number(a.monthly) || 0, annual: Number(a.annual) || 0 }, { size: 10 })}
+                      </div>
+                    ))}
                   </div>
                 )}
 
