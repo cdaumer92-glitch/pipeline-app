@@ -74,7 +74,7 @@ describe('KanbanView — montant par société', () => {
 
   it('deplie le detail par affaire (3 chiffres chacun)', () => {
     renderKanban([cuirco]);
-    fireEvent.click(screen.getByText('2 affaires'));
+    fireEvent.click(screen.getByText('Voir les 2 affaires'));
     expect(screen.getByText('Cuirco - Socle Biz')).toBeTruthy();
     expect(screen.getByText('Cuirco - Extension Mag')).toBeTruthy();
     // En-tête de colonne (1) + carte (1) + 2 affaires dépliées = 4 blocs
@@ -85,12 +85,25 @@ describe('KanbanView — montant par société', () => {
 
   it('marque l\'affaire perdue comme hors total dans le detail', () => {
     renderKanban([homecore]);
-    fireEvent.click(screen.getByText('2 affaires'));
+    fireEvent.click(screen.getByText('Voir les 2 affaires'));
     expect(screen.getByText(/Perdu · hors total/)).toBeTruthy();
   });
 
   it('n\'affiche pas de bouton de depliage sans affaire', () => {
     renderKanban([legacy]);
     expect(screen.queryByText(/affaires?$/)).toBeNull();
+  });
+
+  it('pas de bouton de depliage avec une seule affaire', () => {
+    // Une seule affaire : les 3 chiffres de la carte SONT ceux de cette affaire.
+    const solo = {
+      id: 5, name: 'Solo SARL', status: 'Devis', assigned_to: 'Roger',
+      affaires_detail: [{ id: 50, nom: 'Solo - ERP', statut: 'En cours', setup: 4000, monthly: 500, annual: 800, training: 0 }],
+    };
+    renderKanban([solo]);
+    // Les montants s'affichent directement
+    expect(screen.getAllByText(/4\s?000,00\s?€/).length).toBeGreaterThan(0);
+    // mais aucun bouton "Voir les ... affaires"
+    expect(screen.queryByText(/Voir les/)).toBeNull();
   });
 });

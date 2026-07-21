@@ -181,22 +181,24 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
                   ? moneyBlock(money)
                   : <span style={{ fontSize: '11px', color: 'var(--tw-muted)' }}>—</span>}
 
-                {/* Dépliage du détail : une ligne par affaire (setup / abo mensuel / annuel).
-                    stopPropagation sinon le clic ouvrirait la fiche au lieu de déplier. */}
-                {affaires.length > 0 && (
+                {/* Bouton de dépliage : UNIQUEMENT à partir de 2 affaires. Avec une seule
+                    affaire, les 3 chiffres ci-dessus SONT déjà ceux de cette affaire, rien
+                    à déplier. stopPropagation sinon le clic ouvrirait la fiche. */}
+                {affaires.length >= 2 && (
                   <button type="button"
                     onClick={(e) => { e.stopPropagation(); setExpanded(prev => ({ ...prev, [p.id]: !prev[p.id] })); }}
-                    title={isOpen ? 'Masquer le détail des affaires' : 'Voir le détail des affaires'}
+                    title={isOpen ? 'Masquer le détail des affaires' : 'Voir le détail par affaire'}
                     style={{
-                      marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px',
-                      background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
-                      fontFamily: 'Inter,sans-serif', fontSize: '10px', fontWeight: 600, color: 'var(--tw-muted)'
+                      marginTop: '8px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                      background: isOpen ? 'var(--tw-teal-light)' : 'white', border: `1px solid ${color}55`,
+                      borderRadius: '7px', padding: '5px 8px', cursor: 'pointer',
+                      fontFamily: 'Inter,sans-serif', fontSize: '10.5px', fontWeight: 700, color: 'var(--primary)'
                     }}>
                     <span style={{ fontSize: '9px' }}>{isOpen ? '▾' : '▸'}</span>
-                    {affaires.length} affaire{affaires.length > 1 ? 's' : ''}
+                    {isOpen ? 'Masquer' : 'Voir'} les {affaires.length} affaires
                   </button>
                 )}
-                {isOpen && (
+                {isOpen && affaires.length >= 2 && (
                   <div style={{ marginTop: '6px', borderTop: '1px dashed var(--tw-border)', paddingTop: '6px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
                     {affaires.map(a => {
                       const perdue = isAffairePerdue(a);
