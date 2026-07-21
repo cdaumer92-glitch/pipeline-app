@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { getStatusColor, prospectDisplayName, calculateTotal, formatCurrency } from '../lib/shared.jsx';
+import { getStatusColor, prospectDisplayName, formatCurrency } from '../lib/shared.jsx';
 
 // Vue Kanban du pipeline : les sociétés réparties en colonnes par statut, glisser-déposer
 // d'une carte vers une autre colonne pour changer son statut (PATCH ciblé côté serveur).
@@ -54,22 +54,42 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
   const affairesOf = (p) => Array.isArray(p.affaires_detail) ? p.affaires_detail : [];
   const isAffairePerdue = (a) => a.statut === 'Perdu';
 
-  // Total 1re année d'une affaire : setup + 12 mois d'abonnement + annuel + formation.
-  const affaireTotal = (a) =>
-    (Number(a.setup) || 0) + (Number(a.monthly) || 0) * 12 + (Number(a.annual) || 0) + (Number(a.training) || 0);
-
-  // Montant "pipeline" d'une société = somme de TOUTES ses affaires non perdues.
-  // Avant, on n'affichait que le dernier devis (un seul par société) : une société
-  // avec deux affaires signées n'en montrait qu'une, d'où un total incohérent.
-  // Repli sur l'ancien calcul pour les sociétés sans détail d'affaires (données non enrichies).
-  const amountOf = (p) => {
+  // On n'additionne PAS setup + mensuel + annuel : un forfait ponctuel (setup) et deux
+  // récurrences (mensuelle, annuelle) n'ont pas la même nature. Le Kanban affiche donc
+  // trois chiffres distincts. Chaque montant est la somme des affaires NON perdues.
+  const emptyMoney = () => ({ setup: 0, monthly: 0, annual: 0 });
+  const moneyOf = (p) => {
     const affaires = affairesOf(p).filter(a => !isAffairePerdue(a));
-    if (affaires.length) return affaires.reduce((s, a) => s + affaireTotal(a), 0);
-    if (p.real_setup_amount != null || p.real_monthly_amount != null || p.real_annual_amount != null) {
-      return (Number(p.real_setup_amount) || 0) + (Number(p.real_monthly_amount) || 0) * 12 + (Number(p.real_annual_amount) || 0) + (Number(p.real_training_amount) || 0);
+    if (affaires.length) {
+      return affaires.reduce((acc, a) => ({
+        setup:   acc.setup   + (Number(a.setup)   || 0),
+        monthly: acc.monthly + (Number(a.monthly) || 0),
+        annual:  acc.annual  + (Number(a.annual)  || 0),
+      }), emptyMoney());
     }
-    return calculateTotal(p);
+    // Repli sur les données non enrichies (société sans détail d'affaires).
+    if (p.real_setup_amount != null || p.real_monthly_amount != null || p.real_annual_amount != null) {
+      return { setup: Number(p.real_setup_amount) || 0, monthly: Number(p.real_monthly_amount) || 0, annual: Number(p.real_annual_amount) || 0 };
+    }
+    return { setup: Number(p.setup_amount) || 0, monthly: Number(p.monthly_amount) || 0, annual: 0 };
   };
+  const sumMoney = (list) => list.reduce((acc, p) => {
+    const m = moneyOf(p);
+    return { setup: acc.setup + m.setup, monthly: acc.monthly + m.monthly, annual: acc.annual + m.annual };
+  }, emptyMoney());
+  const hasMoney = (m) => m.setup > 0 || m.monthly > 0 || m.annual > 0;
+
+  // Bloc d'affichage des 3 chiffres (réutilisé carte, en-tête de colonne, détail affaire).
+  const moneyBlock = (m, { size = 11, labelColor = 'var(--tw-muted)', valColor = 'var(--tw-slate)' } = {}) => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '1px 8px', fontSize: `${size}px`, fontVariantNumeric: 'tabular-nums' }}>
+      <span style={{ color: labelColor }}>Setup</span>
+      <span style={{ textAlign: 'right', color: valColor, fontWeight: 700 }}>{formatCurrency(m.setup)}</span>
+      <span style={{ color: labelColor }}>Mensuel</span>
+      <span style={{ textAlign: 'right', color: valColor, fontWeight: 700 }}>{m.monthly > 0 ? formatCurrency(m.monthly) + '/mois' : formatCurrency(0)}</span>
+      <span style={{ color: labelColor }}>Annuel</span>
+      <span style={{ textAlign: 'right', color: valColor, fontWeight: 700 }}>{m.annual > 0 ? formatCurrency(m.annual) + '/an' : formatCurrency(0)}</span>
+    </div>
+  );
 
   const byStatus = {};
   STATUSES.forEach(s => (byStatus[s] = []));
@@ -103,7 +123,7 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
   const renderColumn = (status) => {
     const list = byStatus[status] || [];
     const color = getStatusColor(status);
-    const total = list.reduce((s, p) => s + amountOf(p), 0);
+    const total = sumMoney(list);
     const isOver = overCol === status;
     return (
       <div key={status}
@@ -122,7 +142,11 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
             <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--tw-ink)', letterSpacing: '.2px' }}>{status}</span>
             <span style={{ fontSize: '11px', fontWeight: 700, color: color, background: 'white', border: `1px solid ${color}33`, borderRadius: '999px', padding: '1px 8px', minWidth: '20px', textAlign: 'center' }}>{list.length}</span>
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--tw-muted)', marginTop: '3px', fontVariantNumeric: 'tabular-nums' }}>{total > 0 ? formatCurrency(total) : '—'}</div>
+          <div style={{ marginTop: '5px' }}>
+            {hasMoney(total)
+              ? moneyBlock(total, { size: 10.5 })
+              : <span style={{ fontSize: '11px', color: 'var(--tw-muted)' }}>—</span>}
+          </div>
         </div>
 
         {/* Cartes */}
@@ -131,7 +155,7 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
             <div style={{ fontSize: '11px', color: 'var(--tw-muted)', textAlign: 'center', padding: '18px 6px', fontStyle: 'italic' }}>Aucune société</div>
           )}
           {list.map(p => {
-            const amount = amountOf(p);
+            const money = moneyOf(p);
             const dragging = dragId === p.id;
             const affaires = affairesOf(p);
             const isOpen = !!expanded[p.id];
@@ -147,13 +171,15 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
                   borderRadius: '9px', padding: '10px 11px', cursor: 'grab', boxShadow: 'var(--sh-sm)',
                   opacity: dragging ? 0.45 : 1, transition: 'opacity .12s, box-shadow .12s'
                 }}>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--tw-ink)', lineHeight: 1.3, marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prospectDisplayName(p)}</div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--tw-slate)', fontVariantNumeric: 'tabular-nums' }}>{amount > 0 ? formatCurrency(amount) : '—'}</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '6px', marginBottom: '5px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--tw-ink)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prospectDisplayName(p)}</span>
                   {admin && p.assigned_to && (
-                    <span style={{ fontSize: '10px', color: 'var(--tw-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '90px' }}>{p.assigned_to}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--tw-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80px', flexShrink: 0 }}>{p.assigned_to}</span>
                   )}
                 </div>
+                {hasMoney(money)
+                  ? moneyBlock(money)
+                  : <span style={{ fontSize: '11px', color: 'var(--tw-muted)' }}>—</span>}
 
                 {/* Dépliage du détail : une ligne par affaire (setup / abo mensuel / annuel).
                     stopPropagation sinon le clic ouvrirait la fiche au lieu de déplier. */}
@@ -176,29 +202,15 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
                       const perdue = isAffairePerdue(a);
                       return (
                         <div key={a.id} style={{ opacity: perdue ? 0.5 : 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '6px' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tw-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {a.nom || 'Affaire'}
-                            </span>
-                            <span style={{ fontSize: '10px', fontWeight: 700, color: perdue ? 'var(--tw-muted)' : 'var(--tw-slate)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                              {formatCurrency(affaireTotal(a))}
-                            </span>
+                          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tw-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {a.nom || 'Affaire'}
                           </div>
                           {a.statut && (
-                            <div style={{ fontSize: '9.5px', color: 'var(--tw-muted)', marginTop: '1px' }}>
+                            <div style={{ fontSize: '9.5px', color: 'var(--tw-muted)', marginTop: '1px', marginBottom: '3px' }}>
                               {a.statut}{perdue ? ' · hors total' : ''}
                             </div>
                           )}
-                          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0 8px', marginTop: '3px', fontSize: '10px', color: 'var(--tw-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                            <span>Setup</span><span style={{ textAlign: 'right' }}>{formatCurrency(Number(a.setup) || 0)}</span>
-                            <span>Abo mensuel</span><span style={{ textAlign: 'right' }}>{formatCurrency(Number(a.monthly) || 0)}</span>
-                            <span>Abo annuel</span><span style={{ textAlign: 'right' }}>{formatCurrency(Number(a.annual) || 0)}</span>
-                            {Number(a.training) > 0 && (
-                              <React.Fragment>
-                                <span>Formation</span><span style={{ textAlign: 'right' }}>{formatCurrency(Number(a.training))}</span>
-                              </React.Fragment>
-                            )}
-                          </div>
+                          {moneyBlock({ setup: Number(a.setup) || 0, monthly: Number(a.monthly) || 0, annual: Number(a.annual) || 0 }, { size: 10 })}
                         </div>
                       );
                     })}
