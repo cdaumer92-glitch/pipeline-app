@@ -5613,6 +5613,48 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
           CASE d.devis_status WHEN 'Perdu' THEN 1 WHEN 'Gagné' THEN 1 ELSE 0 END,
           d.quote_date DESC NULLS LAST, d.created_at DESC
       ),
+      -- Devis retenu POUR CHAQUE affaire (et non plus un seul par prospect) :
+      -- une affaire gagnée est représentée par son devis Gagné, une affaire en cours
+      -- par son devis actif le plus récent.
+      devis_par_affaire AS (
+        SELECT DISTINCT ON (d.affaire_id)
+          d.affaire_id,
+          d.devis_status,
+          d.setup_amount,
+          d.monthly_amount,
+          d.annual_amount,
+          d.training_amount
+        FROM devis d
+        WHERE d.affaire_id IS NOT NULL
+        ORDER BY d.affaire_id,
+          CASE
+            WHEN d.devis_status = 'Gagné' THEN 0
+            WHEN d.devis_status IN ('Perdu', 'Ajourné N+1', 'Éliminé par nous') THEN 2
+            ELSE 1
+          END,
+          d.quote_date DESC NULLS LAST, d.created_at DESC
+      ),
+      -- Détail des affaires par prospect : alimente le dépliage d'une carte du Kanban
+      -- et le total réel de la société (somme de TOUTES ses affaires, pas d'un seul devis).
+      affaires_detail AS (
+        SELECT
+          a.prospect_id,
+          json_agg(
+            json_build_object(
+              'id',       a.id,
+              'nom',      a.nom_affaire,
+              'statut',   a.statut_global,
+              'setup',    COALESCE(dpa.setup_amount, 0),
+              'monthly',  COALESCE(dpa.monthly_amount, 0),
+              'annual',   COALESCE(dpa.annual_amount, 0),
+              'training', COALESCE(dpa.training_amount, 0)
+            )
+            ORDER BY a.display_order ASC NULLS LAST, a.created_at DESC
+          ) AS affaires
+        FROM affaires a
+        INNER JOIN devis_par_affaire dpa ON dpa.affaire_id = a.id
+        GROUP BY a.prospect_id
+      ),
       -- Résoudre le prospect_id même quand il est NULL (anciennes actions sans prospect_id)
       actions_resolved AS (
         SELECT
@@ -5665,6 +5707,7 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
         dd.devis_monthly      AS real_monthly_amount,
         dd.devis_annual       AS real_annual_amount,
         dd.devis_training     AS real_training_amount,
+        ad.affaires                            AS affaires_detail,
         COALESCE(ai.has_action, false)         AS action_has_action,
         COALESCE(ai.is_late, false)            AS action_is_late,
         an.planned_date                        AS action_next_date,
@@ -5673,14 +5716,19 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
         an.contact                             AS action_next_contact,
         COALESCE(an.is_late, false)            AS action_next_is_late
       FROM prospects p
-      LEFT JOIN derniers_devis dd ON dd.prospect_id = p.id
-      LEFT JOIN actions_info   ai ON ai.prospect_id = p.id
-      LEFT JOIN actions_next   an ON an.prospect_id = p.id
+      LEFT JOIN derniers_devis  dd ON dd.prospect_id = p.id
+      LEFT JOIN affaires_detail ad ON ad.prospect_id = p.id
+      LEFT JOIN actions_info    ai ON ai.prospect_id = p.id
+      LEFT JOIN actions_next    an ON an.prospect_id = p.id
       WHERE ($1::text IS NULL OR p.assigned_to = $1)
       ORDER BY p.name
     `, [owner]);
 
-    const rows = result.rows.map(r => ({ ...r, marques: Array.isArray(r.marques) ? r.marques : [] }));
+    const rows = result.rows.map(r => ({
+      ...r,
+      marques: Array.isArray(r.marques) ? r.marques : [],
+      affaires_detail: Array.isArray(r.affaires_detail) ? r.affaires_detail : []
+    }));
     res.json(rows);
   } catch (err) {
     console.error('Erreur GET /api/prospects/enriched:', err);
