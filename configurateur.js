@@ -235,6 +235,7 @@ const FORMATION_DATA = [
   { module:'col', label:'Module Col (Collection)',  joursSd:0.25,tjm:1150, maxSession:5, qtyFrom:'col',         activeFrom:'col' },
   { module:'log', label:'Module Log (Logistique)',  joursSd:5,   tjm:1150, maxSession:5, qtyFrom:'log',         activeFrom:'log' },
   { module:'jet', label:'Module Jet (Inventaire)',  joursSd:1,   tjm:1150, maxSession:3, qtyFrom:'jet',         activeFrom:'jet' },
+  { module:'sage',label:'Module Compta Sage',       joursSd:2,   tjm:1150, maxSession:3, qtyFrom:null,          activeFrom:'comptaSage', fixedQty:1 },
 ];
 
 // État modules actifs et quantités
