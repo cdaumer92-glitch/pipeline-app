@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TexasWin — Configurateur</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Lato:wght@300;400;700&family=DM+Sans:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="configurateur.css?v=2026-04-29">
+<link rel="stylesheet" href="configurateur.css?v=2026-07-22">
 <link rel="stylesheet" href="configurateur-2026.css?v=2026-05-04">
 </head>
 <body>
@@ -43,7 +43,11 @@
         <!-- Colonne droite : Coordonnées -->
         <div class="prospect-col">
           <label class="field-label">Contact</label>
-          <input type="text" class="field-input" id="contact" placeholder="Prénom Nom, Fonction">
+          <div class="contact-field-row">
+            <input type="text" class="field-input" id="contact" placeholder="Prénom Nom, Fonction">
+            <button type="button" class="btn btn-secondary btn-sm btn-pick-contact" onclick="openContactPicker()"
+              title="Choisir le destinataire parmi les décideurs et contacts principaux">👤 Choisir</button>
+          </div>
           <label class="field-label">Commercial</label>
           <select class="field-input" id="commercial" style="cursor:pointer;margin-bottom:0">
             <option value="christian">Christian Daumer</option>
@@ -377,14 +381,15 @@
 <!-- Modal contact picker -->
 <div class="modal-overlay" id="contactPickerModal">
   <div class="modal-box">
-    <div class="modal-title">Choisir le contact</div>
-    <div class="modal-sub">Qui sera mentionné sur la proposition ?</div>
+    <div class="modal-title">Choisir le destinataire</div>
+    <div class="modal-sub" id="contactPickerSub">Qui sera mentionné sur la proposition ?</div>
     <div id="contactPickerList"></div>
+    <div class="contact-picker-toggle" id="contactPickerToggle" style="display:none"></div>
     <button class="btn btn-secondary btn-full btn-sm" style="margin-top:12px"
       onclick="document.getElementById('contactPickerModal').classList.remove('open')">Annuler</button>
   </div>
 </div>
 
-<script src="configurateur.js?v=2026-07-22" defer></script>
+<script src="configurateur.js?v=2026-07-22b" defer></script>
 </body>
 </html>

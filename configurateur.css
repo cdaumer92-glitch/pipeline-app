@@ -1246,6 +1246,37 @@ body {
   font-weight: 700;
   vertical-align: middle;
 }
+.badge-decideur {
+  display: inline-block;
+  font-size: 0.7rem;
+  background: var(--navy);
+  color: white;
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 6px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+/* Bascule « décideurs/principaux » ↔ « tous les contacts » dans la modale */
+.contact-picker-toggle {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--teal);
+  cursor: pointer;
+  text-align: center;
+  padding: 6px 0 2px;
+}
+.contact-picker-toggle:hover { text-decoration: underline; }
+
+/* Champ Contact + bouton de sélection du destinataire */
+.contact-field-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.contact-field-row .field-input { margin-bottom: 0; flex: 1 1 auto; min-width: 110px; }
+.btn-pick-contact { flex: 0 0 auto; white-space: nowrap; padding: 9px 12px; }
 
 /* Section collapsible */
 .section-toggle {

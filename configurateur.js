@@ -2385,33 +2385,129 @@ function selectCompany(company) {
   document.getElementById('pipelineResults').style.display = 'none';
   document.getElementById('pipelineSearch').value = '';
 
-  const inters = company.interlocuteurs || [];
-  if (inters.length === 0) {
-    document.getElementById('contact').value = '';
-  } else if (inters.length === 1) {
-    const i = inters[0];
-    document.getElementById('contact').value = i.nom + (i.fonction ? ', ' + i.fonction : '');
-  } else {
-    showContactPicker(inters);
-  }
+  const inters = normalizeContacts(company.interlocuteurs);
+  CTX.contact_list = inters;
+  autoSelectContact(inters);
   document.getElementById('societe').classList.add('highlight');
   setTimeout(() => document.getElementById('societe').classList.remove('highlight'), 1500);
 }
 
-function showContactPicker(inters) {
+// ══════════════════════════════════════════════════════════════
+// DESTINATAIRE DE LA PROPALE (contacts décideurs / principaux)
+// ══════════════════════════════════════════════════════════════
+// Normalise une liste d'interlocuteurs : le backend renvoie tantôt un champ
+// `nom` déjà concaténé (recherche Pipeline), tantôt prenom/nom séparés
+// (/api/prospects/:id/interlocuteurs).
+function normalizeContacts(list) {
+  return (list || []).map(i => ({
+    id: i.id,
+    nom: (i.prenom || i.nom) ? [(i.prenom||'').trim(), (i.nom||'').trim()].filter(Boolean).join(' ') : (i.name || ''),
+    fonction: i.fonction || '',
+    principal: !!i.principal,
+    decideur: !!i.decideur,
+  })).filter(i => i.nom);
+}
+
+// Destinataires éligibles : uniquement les décideurs et les contacts principaux.
+function filterDestinataires(list) {
+  return (list || []).filter(i => i.decideur || i.principal);
+}
+
+// Ordre d'affichage : décideurs, puis principaux, puis les autres.
+function sortContacts(list) {
+  const rank = i => (i.decideur ? 0 : (i.principal ? 1 : 2));
+  return [...(list || [])].sort((a, b) => rank(a) - rank(b) || a.nom.localeCompare(b.nom));
+}
+
+function setContactField(i) {
+  const el = document.getElementById('contact');
+  if (el) el.value = i.nom + (i.fonction ? ', ' + i.fonction : '');
+}
+
+// Pré-remplit le destinataire : si un seul décideur/principal, on le prend
+// directement ; sinon on laisse le commercial choisir.
+function autoSelectContact(inters) {
+  if (!inters || inters.length === 0) {
+    const el = document.getElementById('contact');
+    if (el) el.value = '';
+    return;
+  }
+  const cibles = filterDestinataires(inters);
+  if (cibles.length === 1) { setContactField(cibles[0]); return; }
+  if (cibles.length === 0 && inters.length === 1) { setContactField(inters[0]); return; }
+  showContactPicker(inters);
+}
+
+// Liste complète mémorisée, pour pouvoir basculer entre « décideurs/principaux »
+// et « tous les contacts » sans refaire d'appel réseau.
+let contactPickerAll = [];
+
+// Ouverture manuelle depuis le bouton « Choisir » à côté du champ Contact.
+function openContactPicker() {
+  const list = CTX.contact_list || [];
+  if (!list.length) {
+    window.showToast({
+      title: 'Aucun contact disponible',
+      message: 'Sélectionnez une société via la recherche Pipeline, ou saisissez le contact à la main.',
+      type: 'warning'
+    });
+    return;
+  }
+  showContactPicker(list, false);
+}
+
+// showAll = true : affiche aussi les contacts non décideurs / non principaux.
+function showContactPicker(inters, showAll) {
   const modal = document.getElementById('contactPickerModal');
   const list = document.getElementById('contactPickerList');
+  const sub = document.getElementById('contactPickerSub');
+  const toggle = document.getElementById('contactPickerToggle');
+
+  const all = sortContacts(normalizeContacts(inters));
+  contactPickerAll = all;
+  const cibles = filterDestinataires(all);
+  // Par défaut on ne propose que les décideurs / principaux. Si la société n'en
+  // a aucun de marqué, on retombe sur la liste complète pour ne pas bloquer.
+  const onlyCibles = cibles.length > 0 && !showAll;
+  const shown = onlyCibles ? cibles : all;
+
+  if (sub) {
+    sub.textContent = onlyCibles
+      ? 'Décideurs et contacts principaux de la société'
+      : 'Tous les contacts de la société';
+  }
+
   list.innerHTML = '';
-  inters.forEach(i => {
+  shown.forEach(i => {
     const div = document.createElement('div');
     div.className = 'contact-option';
-    div.innerHTML = `<div class="c-name">${i.nom}${i.principal ? '<span class="badge-principal">★ principal</span>' : ''}</div>${i.fonction ? `<div class="c-fn">${i.fonction}</div>` : ''}`;
+    const badges = (i.decideur ? '<span class="badge-decideur">◆ décideur</span>' : '')
+                 + (i.principal ? '<span class="badge-principal">★ principal</span>' : '');
+    div.innerHTML = `<div class="c-name">${escapeHtml(i.nom)}${badges}</div>`
+                  + (i.fonction ? `<div class="c-fn">${escapeHtml(i.fonction)}</div>` : '');
     div.onclick = () => {
-      document.getElementById('contact').value = i.nom + (i.fonction ? ', ' + i.fonction : '');
+      setContactField(i);
       modal.classList.remove('open');
     };
     list.appendChild(div);
   });
+
+  if (toggle) {
+    toggle.innerHTML = '';
+    if (onlyCibles && all.length > cibles.length) {
+      toggle.textContent = `Afficher tous les contacts (${all.length})`;
+      toggle.style.display = '';
+      toggle.onclick = () => showContactPicker(contactPickerAll, true);
+    } else if (!onlyCibles && cibles.length > 0) {
+      toggle.textContent = 'Afficher seulement les décideurs et principaux';
+      toggle.style.display = '';
+      toggle.onclick = () => showContactPicker(contactPickerAll, false);
+    } else {
+      toggle.style.display = 'none';
+      toggle.onclick = null;
+    }
+  }
+
   modal.classList.add('open');
 }
 
@@ -3202,9 +3298,11 @@ async function initFromUrlParams() {
     }
   }
 
-  // Si on a un prospect_id et qu'on n'est PAS en édition, récupérer les contacts pour le picker
-  if (CTX.prospect_id && !CTX.devis_id) {
-    await fetchAndSetContacts(CTX.prospect_id);
+  // Charger les contacts de la société pour alimenter le sélecteur de destinataire.
+  // En édition (devis_id présent), on ne pré-remplit pas : le destinataire déjà
+  // enregistré reste en place, mais le bouton « Choisir » permet d'en changer.
+  if (CTX.prospect_id) {
+    await fetchAndSetContacts(CTX.prospect_id, { autoSelect: !CTX.devis_id });
   }
 }
 
@@ -3387,7 +3485,11 @@ async function updateDevis() {
   }
 }
 
-async function fetchAndSetContacts(prospectId) {
+// opts.autoSelect = false : on charge seulement la liste (bouton « Choisir »)
+// sans toucher au champ Contact ni ouvrir la modale — cas de l'édition d'un
+// devis existant, où le destinataire enregistré ne doit pas être écrasé.
+async function fetchAndSetContacts(prospectId, opts = {}) {
+  const autoSelect = opts.autoSelect !== false;
   const token = getAuthToken();
   if (!token) {
     // Pas de token, on laisse l'utilisateur saisir à la main
@@ -3402,26 +3504,11 @@ async function fetchAndSetContacts(prospectId) {
     const inters = await resp.json();
     if (!Array.isArray(inters) || inters.length === 0) return;
 
-    // Normaliser le format (backend peut renvoyer nom/prenom séparés)
-    const normalized = inters.map(i => ({
-      id: i.id,
-      nom: (i.prenom || i.nom) ? [(i.prenom||'').trim(), (i.nom||'').trim()].filter(Boolean).join(' ') : (i.name || ''),
-      fonction: i.fonction || '',
-      principal: !!i.principal,
-      decideur: !!i.decideur,
-    })).filter(i => i.nom);
-
+    const normalized = sortContacts(normalizeContacts(inters));
     if (normalized.length === 0) return;
     CTX.contact_list = normalized;
 
-    if (normalized.length === 1) {
-      const i = normalized[0];
-      document.getElementById('contact').value = i.nom + (i.fonction ? ', ' + i.fonction : '');
-    } else {
-      // Principal d'abord
-      normalized.sort((a, b) => (b.principal ? 1 : 0) - (a.principal ? 1 : 0));
-      showContactPicker(normalized);
-    }
+    if (autoSelect) autoSelectContact(normalized);
   } catch (err) {
     console.error('[configurateur] fetch contacts erreur', err);
   }
