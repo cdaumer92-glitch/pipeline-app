@@ -2293,7 +2293,7 @@ app.get('/api/lists/actions', auth, async (req, res) => {
     const owner = (await getUserRole(req.userId)) === 'admin' ? null : req.userName;
     const result = await pool.query(
       `SELECT na.id, na.prospect_id, na.affaire_id, na.action_type, na.planned_date,
-              na.actor, na.contact, na.completed_note, COALESCE(na.priority, 1) AS priority,
+              na.actor, na.contact, na.completed_note, na.contexte, COALESCE(na.priority, 1) AS priority,
               p.name AS prospect_name, p.assigned_to AS commercial
          FROM next_actions na
          JOIN prospects p ON p.id = na.prospect_id

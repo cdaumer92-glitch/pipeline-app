@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { ACTION_TYPES } from '../lib/constants.js';
+import { ActionCompleteModal } from './ActionCompleteModal.jsx';
 
 export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
       const admin = (typeof isUserAdmin === 'function') ? isUserAdmin(user) : !!(user && (user.role === 'admin' || user.name === 'Christian'));
@@ -11,7 +12,7 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
       const [loading, setLoading] = React.useState(false);
       const [sort, setSort] = React.useState({ key: '', dir: 'asc' }); // tri par colonne
       const [actionTypeFilter, setActionTypeFilter] = React.useState('__all__'); // filtre par type (liste Actions)
-      const [completion, setCompletion] = React.useState(null); // modale de complétion (résultat + prochaine action)
+      const [completing, setCompleting] = React.useState(null); // modale de complétion partagée (ActionCompleteModal) + données du prospect (affaires, interlocuteurs)
       const [stats, setStats] = React.useState(null); // métriques de pilotage (par commercial)
       const [editing, setEditing] = React.useState(null); // modale d'édition d'une action
       const [reopenable, setReopenable] = React.useState([]); // actions terminées à l'instant (undo "Rouvrir")
@@ -53,29 +54,28 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
       const actHeaders = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (user && user.token) };
       const plusDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
       const toast = (t, type) => { if (window.showToast) window.showToast({ title: t, type: type || 'success' }); };
-      // Cliquer "Fait ?" : ouvre la modale de complétion (on saisit le résultat + la suite AVANT de valider).
-      const openCompletion = (a) => setCompletion({ action: a, resultNote: '', createNext: true, nextType: a.action_type || 'Appel', nextDate: plusDays(7), nextPriority: 1 });
-      // Valider : enregistre la complétion (+ résultat), retire la ligne, crée éventuellement la prochaine action.
-      const validateCompletion = async () => {
-        if (!completion) return;
-        const a = completion.action;
-        try {
-          const r = await fetch(`${API_URL}/next_actions/${a.id}`, { method: 'PUT', headers: actHeaders, body: JSON.stringify({ completed: true, completed_notes: completion.resultNote || '' }) });
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          setActions(prev => (prev || []).filter(x => x.id !== a.id));
-          // Undo de session : garder l'action terminée pour pouvoir la rouvrir en un clic.
-          setReopenable(prev => [{ ...a, completed_note: completion.resultNote || a.completed_note || '' }, ...prev.filter(x => x.id !== a.id)].slice(0, 6));
-          if (completion.createNext && completion.nextDate) {
-            const url = a.affaire_id ? `${API_URL}/affaires/${a.affaire_id}/next_actions` : `${API_URL}/prospects/${a.prospect_id}/next_actions`;
-            const rc = await fetch(url, { method: 'POST', headers: actHeaders, body: JSON.stringify({ action_type: completion.nextType, planned_date: completion.nextDate, priority: completion.nextPriority, actor: a.actor || '', contact: a.contact || '' }) });
-            const created = await rc.json().catch(() => ({}));
-            if (rc.ok && created && created.id) {
-              setActions(prev => ([...(prev || []), { id: created.id, prospect_id: a.prospect_id, affaire_id: a.affaire_id, action_type: completion.nextType, planned_date: completion.nextDate, priority: completion.nextPriority, actor: a.actor, contact: a.contact, prospect_name: a.prospect_name, commercial: a.commercial || (user && user.name) }]));
-            }
-          }
-          toast('Action terminée' + (completion.createNext && completion.nextDate ? ' · prochaine action créée' : ''));
-        } catch (e) { toast('Erreur : ' + e.message, 'error'); }
-        setCompletion(null);
+      // Cliquer "Fait ?" : ouvre la modale de complétion partagée (même écran que dans la fiche
+      // client) et charge en parallèle les affaires + interlocuteurs du prospect pour ses listes.
+      const openCompletion = (a) => {
+        setCompleting({ action: a, affairesList: [], interlocuteurs: [] });
+        const opts = { headers: { 'Authorization': 'Bearer ' + (user && user.token) } };
+        fetch(`${API_URL}/prospects/${a.prospect_id}/affaires`, opts).then(r => r.json())
+          .then(d => setCompleting(prev => (prev && prev.action.id === a.id) ? { ...prev, affairesList: Array.isArray(d) ? d : [] } : prev))
+          .catch(() => {});
+        fetch(`${API_URL}/prospects/${a.prospect_id}/interlocuteurs`, opts).then(r => r.json())
+          .then(d => setCompleting(prev => (prev && prev.action.id === a.id) ? { ...prev, interlocuteurs: Array.isArray(d) ? d : [] } : prev))
+          .catch(() => {});
+      };
+      // Complétion validée dans la modale : retire la ligne, garde l'undo, recharge la liste
+      // (la prochaine action éventuelle est créée côté modale).
+      const onCompletionDone = (info) => {
+        const a = completing && completing.action;
+        if (!a) return;
+        setActions(prev => (prev || []).filter(x => x.id !== a.id));
+        // Undo de session : garder l'action terminée pour pouvoir la rouvrir en un clic.
+        setReopenable(prev => [{ ...a, completed_note: (info && info.resultNote) || a.completed_note || '' }, ...prev.filter(x => x.id !== a.id)].slice(0, 6));
+        fetch(`${API_URL}/lists/actions`, { headers: { 'Authorization': 'Bearer ' + (user && user.token) } })
+          .then(r => r.json()).then(d => setActions(Array.isArray(d) ? d : [])).catch(() => {});
       };
       // Reprogrammer (snooze / report) : met à jour la date sans compléter.
       const rescheduleAction = async (a, dateStr) => {
@@ -359,44 +359,8 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
                 {later.length > 0 && section('🗓 Plus tard', later, 'var(--tw-muted)', false)}
               </React.Fragment>
             )}
-            {completion && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(11,31,78,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setCompletion(null)}>
-                <div style={{ background: 'white', borderRadius: 'var(--r-md)', padding: '22px 24px', width: '420px', maxWidth: '92vw', boxShadow: 'var(--sh-md)' }} onClick={e => e.stopPropagation()}>
-                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--tw-ink)', marginBottom: '4px' }}>Action terminée</h3>
-                  <p style={{ fontSize: '13px', color: 'var(--tw-muted)', marginBottom: '16px' }}>{completion.action.prospect_name} — {completion.action.action_type}</p>
-                  <label style={lblStyle}>Résultat de l'action (optionnel)</label>
-                  <textarea value={completion.resultNote} onChange={e => setCompletion({ ...completion, resultNote: e.target.value })} rows={3} placeholder="Ex. : joint, rappeler mardi ; devis à envoyer ; pas intéressé…" style={{ ...fldStyle, marginBottom: '16px', resize: 'vertical' }} />
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--tw-ink)', fontWeight: 600, marginBottom: '12px', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={completion.createNext} onChange={e => setCompletion({ ...completion, createNext: e.target.checked })} />
-                    Programmer une prochaine action
-                  </label>
-                  {completion.createNext && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-                      <div>
-                        <label style={lblStyle}>Type</label>
-                        <select value={completion.nextType} onChange={e => setCompletion({ ...completion, nextType: e.target.value })} style={fldStyle}>
-                          {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={lblStyle}>Date prévue</label>
-                        <input type="date" value={completion.nextDate} onChange={e => setCompletion({ ...completion, nextDate: e.target.value })} style={fldStyle} />
-                      </div>
-                      <div style={{ gridColumn: '1 / span 2' }}>
-                        <label style={lblStyle}>Priorité</label>
-                        <select value={completion.nextPriority} onChange={e => setCompletion({ ...completion, nextPriority: Number(e.target.value) })} style={fldStyle}>
-                          <option value={1}>Normale</option>
-                          <option value={2}>Haute</option>
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                    <button onClick={() => setCompletion(null)} style={{ padding: '8px 16px', borderRadius: '999px', border: '1px solid var(--tw-border)', background: 'white', color: 'var(--tw-slate)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Annuler</button>
-                    <button onClick={validateCompletion} style={{ padding: '8px 16px', borderRadius: '999px', border: 'none', background: 'var(--primary)', color: 'white', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Valider</button>
-                  </div>
-                </div>
-              </div>
+            {completing && (
+              <ActionCompleteModal action={completing.action} prospectId={completing.action.prospect_id} API_URL={API_URL} token={user && user.token} affairesList={completing.affairesList} interlocuteurs={completing.interlocuteurs} onClose={() => setCompleting(null)} onCompleted={onCompletionDone} />
             )}
             {editing && (
               <div style={{ position: 'fixed', inset: 0, background: 'rgba(11,31,78,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setEditing(null)}>

@@ -33,7 +33,7 @@ export function ActionCompleteModal({ action, prospectId, API_URL, token, onClos
             await fetch(url, { method: 'POST', headers: hdrs, body: JSON.stringify({ action_type: nextType, planned_date: nextDate, priority: nextPriority, actor: nextActor, contact: nextContact, completed_note: nextComment, affaire_id, contexte }) });
           }
           if (window.showToast) window.showToast({ title: 'Action terminée' + (createNext && nextDate ? ' · prochaine action créée' : ''), type: 'success' });
-          if (onCompleted) onCompleted();
+          if (onCompleted) onCompleted({ resultNote });
           onClose();
         } catch (e) {
           if (window.showToast) window.showToast({ title: 'Erreur : ' + e.message, type: 'error' });
@@ -44,7 +44,7 @@ export function ActionCompleteModal({ action, prospectId, API_URL, token, onClos
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(11,31,78,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }} onClick={onClose}>
           <div style={{ background: 'white', borderRadius: 'var(--r-md)', padding: '22px 24px', width: '520px', maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--sh-md)' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--tw-ink)', marginBottom: '4px' }}>Action terminée</h3>
-            <p style={{ fontSize: '13px', color: 'var(--tw-muted)', marginBottom: '16px' }}>{action.action_type}{action.planned_date ? ' · ' + String(action.planned_date).slice(0, 10).split('-').reverse().join('/') : ''}</p>
+            <p style={{ fontSize: '13px', color: 'var(--tw-muted)', marginBottom: '16px' }}>{action.prospect_name ? action.prospect_name + ' — ' : ''}{action.action_type}{action.planned_date ? ' · ' + String(action.planned_date).slice(0, 10).split('-').reverse().join('/') : ''}</p>
             <label style={lbl}>Résultat de l'action (optionnel)</label>
             <textarea value={resultNote} onChange={e => setResultNote(e.target.value)} rows={3} placeholder="Ex. : joint, rappeler mardi ; devis à envoyer ; pas intéressé…" style={{ ...fld, marginBottom: '16px', resize: 'vertical' }} />
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--tw-ink)', fontWeight: 600, marginBottom: '12px', cursor: 'pointer' }}>
