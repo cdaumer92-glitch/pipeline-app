@@ -1146,7 +1146,7 @@ function renderSection4() {
   if (jet)  items.push({ key:'jet_install', kind:'tjm', defaultLabel:'Jet : Installation et paramétrage', prix:1150, defaultQty: moduleState.jet * 0.5 });
   for (let i = 1; i <= (moduleState.fluxTiers||0); i++) {
     const nom = fluxNoms[i-1] || ('Flux '+i);
-    items.push({ key:'flux_'+i, kind:'tjm', defaultLabel:nom+' : Installation et paramétrage', prix:1150, defaultQty:0.5 });
+    items.push({ key:'flux_'+i, kind:'tjm', defaultLabel:nom+' : Installation et paramétrage', prix:1150, defaultQty:1 });
   }
   // -- d. Pilotage (en fin) --
   items.push({ key:'gestion_proj', kind:'tjm', defaultLabel:'Gestion de projet et encadrement technique', prix:1150, defaultQty:0 });
