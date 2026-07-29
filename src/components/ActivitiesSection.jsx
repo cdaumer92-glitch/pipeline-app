@@ -173,7 +173,7 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                           <div style={{padding:'14px 14px 12px',background:'white'}}>
                             {/* Header devis */}
                             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
-                              <p style={{margin:0,fontSize:'11px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:500}}>Devis · {affaireDevis.length}</p>
+                              <p style={{margin:0,fontSize:'11px',color:'var(--tw-ink)',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:700}}>Devis <span style={{color:'var(--tw-muted)',fontWeight:500}}>·</span> <span style={{color:'#10a0dc'}}>{affaireDevis.length}</span></p>
                               <button onClick={handleAddDevis}
                                 style={{background:'var(--tw-teal)',border:'none',padding:'5px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:600,color:'white',cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',fontFamily:"'Inter',sans-serif",boxShadow:'0 1px 3px rgba(26,86,219,.35)'}}
                                 onMouseEnter={(e) => { e.currentTarget.style.background='var(--primary-dark)'; }}
@@ -341,7 +341,17 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                             {/* ========== ACTIONS DE L'AFFAIRE ========== */}
                             <div style={{marginTop:'18px'}}>
                               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
-                                <p style={{margin:0,fontSize:'11px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:500}}>Actions de l'affaire · {affairesActions[affaire.id]?.length || 0}</p>
+                                {(() => {
+                                  const actionsAffaire = affairesActions[affaire.id] || [];
+                                  const nbEnCours = actionsAffaire.filter(a => !a.completed).length;
+                                  return (
+                                    <p style={{margin:0,fontSize:'11px',color:'var(--tw-ink)',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:700}}>
+                                      Actions de l'affaire <span style={{color:'var(--tw-muted)',fontWeight:500}}>·</span>{' '}
+                                      <span style={{color:'#10a0dc'}}>{nbEnCours}</span>
+                                      <span style={{color:'var(--tw-muted)',fontWeight:500}}>/{actionsAffaire.length}</span>
+                                    </p>
+                                  );
+                                })()}
                                 <button onClick={() => handleOpenActionAffaireForm(affaire.id)}
                                   style={{background:'var(--tw-teal)',border:'none',padding:'5px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:600,color:'white',cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',fontFamily:"'Inter',sans-serif",boxShadow:'0 1px 3px rgba(26,86,219,.35)'}}
                                   onMouseEnter={(e) => { e.currentTarget.style.background='var(--primary-dark)'; }}
