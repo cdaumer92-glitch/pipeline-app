@@ -1422,6 +1422,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                     handleUploadDevisPdfDirect={handleUploadDevisPdfDirect}
                     handleRattacherDevisAffaire={handleRattacherDevisAffaire}
                     selectedProspect={selectedProspect}
+                    onRequestCompleteAction={setCompletingAction}
                   />
                 )}
 
@@ -1580,10 +1581,13 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                         </div>
                       ));
                     })()}
-                    {completingAction && (
-                      <ActionCompleteModal action={completingAction} prospectId={selectedProspect && selectedProspect.id} API_URL={API_URL} token={user.token} affairesList={affairesList} interlocuteurs={interlocuteurs} onClose={() => setCompletingAction(null)} onCompleted={() => { if (selectedProspect) { fetchNextActions(selectedProspect.id); fetchAllActions(selectedProspect.id); } }} />
-                    )}
                   </div>
+                )}
+
+                {/* Modale de complétion : partagée entre l'onglet Actions/Tâches et les actions
+                    d'une affaire (onglet Affaires) — même formulaire dans les deux cas */}
+                {completingAction && (
+                  <ActionCompleteModal action={completingAction} prospectId={selectedProspect && selectedProspect.id} API_URL={API_URL} token={user.token} affairesList={affairesList} interlocuteurs={interlocuteurs} onClose={() => setCompletingAction(null)} onCompleted={() => { if (selectedProspect) { fetchNextActions(selectedProspect.id); fetchAllActions(selectedProspect.id); fetchAffaires(selectedProspect.id); } }} />
                 )}
 
               </div>
