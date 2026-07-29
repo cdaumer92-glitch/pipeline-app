@@ -36,6 +36,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
       // ── Groupe de sociétés (rattachement holding/filiales) ──
       const [groupeAddMode, setGroupeAddMode] = React.useState(null); // 'parent' | 'filiale' | null
       const [groupeSearch, setGroupeSearch] = React.useState('');
+      const [groupeOpen, setGroupeOpen] = React.useState(false); // accordéon replié par défaut
 
       // ── Onglets fiche client ──
       const [clientTab, setClientTab] = React.useState('infos');
@@ -626,10 +627,13 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
 
                       return (
                         <div style={{marginBottom:'20px'}}>
-                          <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-ink)',marginBottom:'8px'}}>
-                            Groupe de sociétés{isGroupe && <span style={{color:'var(--tw-muted)',fontWeight:500}}> · </span>}{isGroupe && <span style={{color:'#10a0dc'}}>{membres.length}</span>}
+                          <div onClick={() => setGroupeOpen(o => !o)}
+                            style={{display:'flex',alignItems:'center',gap:'6px',cursor:'pointer',userSelect:'none',fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-ink)',marginBottom: groupeOpen ? '8px' : 0}}>
+                            <span style={{display:'inline-flex',color:'var(--tw-muted)'}}>{I(groupeOpen ? ICONS.chevron : ICONS.chevronR, 11)}</span>
+                            <span>Groupe de sociétés{isGroupe && <span style={{color:'var(--tw-muted)',fontWeight:500}}> · </span>}{isGroupe && <span style={{color:'#10a0dc'}}>{membres.length}</span>}</span>
+                            {!isGroupe && <span style={{color:'var(--tw-muted)',fontWeight:500,textTransform:'none',letterSpacing:0,fontStyle:'italic'}}>— société indépendante</span>}
                           </div>
-                          {!isGroupe ? (
+                          {groupeOpen && (!isGroupe ? (
                             <div style={{background:'var(--tw-bg)',border:'0.5px dashed var(--tw-border)',borderRadius:'10px',padding:'12px 14px'}}>
                               {groupeAddMode === null ? (
                                 <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'}}>
@@ -663,7 +667,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                 {groupeAddMode === 'filiale' ? searchBox('filiale') : btnDiscret(`+ Ajouter une filiale à « ${selectedProspect.name} »`, () => { setGroupeAddMode('filiale'); setGroupeSearch(''); })}
                               </div>
                             </div>
-                          )}
+                          ))}
                         </div>
                       );
                     })()}
