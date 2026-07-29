@@ -511,10 +511,23 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                     {/* ── Groupe de sociétés (holding / filiales) ── */}
                     {(() => {
                       const all = (prospects || []).filter(p => p.id !== undefined);
-                      const holding = selectedProspect.parent_id ? all.find(p => p.id === selectedProspect.parent_id) : null;
-                      const root = holding || selectedProspect;
-                      const filiales = all.filter(p => p.parent_id === root.id).sort((a,b) => (a.name||'').localeCompare(b.name||''));
-                      const isGroupe = !!holding || filiales.length > 0;
+                      // Racine du groupe : on remonte toute la chaîne des maisons mères depuis la
+                      // fiche courante (gère les groupes multi-niveaux : Holding → Sous-holding → Filiale)
+                      let topRoot = selectedProspect, guardUp = 0;
+                      while (topRoot.parent_id && guardUp++ < 20) {
+                        const up = all.find(p => p.id === topRoot.parent_id);
+                        if (!up) break;
+                        topRoot = up;
+                      }
+                      const childrenOf = (id) => all.filter(p => p.parent_id === id).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+                      // Arbre complet du groupe : compteur du titre + exclusion des suggestions
+                      const membres = [];
+                      (function collect(n, depth) {
+                        if (depth > 6) return;
+                        membres.push(n);
+                        childrenOf(n.id).forEach(c => collect(c, depth + 1));
+                      })(topRoot, 0);
+                      const isGroupe = membres.length > 1;
 
                       const patchParent = async (societeId, parentId) => {
                         try {
@@ -532,7 +545,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
 
                       // Suggestions pour le rattachement : exclut la société courante, la relation
                       // déjà en place et les membres actuels du groupe (anti-cycle complet côté serveur)
-                      const dejaDansGroupe = new Set([root.id, ...filiales.map(f => f.id)]);
+                      const dejaDansGroupe = new Set(membres.map(m => m.id));
                       const suggestions = groupeSearch.trim().length < 2 ? [] : all
                         .filter(p => !dejaDansGroupe.has(p.id) && p.id !== selectedProspect.id)
                         .filter(p => (p.name||'').toLowerCase().includes(groupeSearch.trim().toLowerCase()))
@@ -582,7 +595,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                             <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:50,background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'8px',marginTop:'4px',boxShadow:'0 8px 24px rgba(17,24,39,.10)',overflow:'hidden'}}>
                               {suggestions.map(p => (
                                 <div key={p.id}
-                                  onClick={() => { if (mode === 'parent') patchParent(selectedProspect.id, p.id); else patchParent(p.id, root.id); }}
+                                  onClick={() => { if (mode === 'parent') patchParent(selectedProspect.id, p.id); else patchParent(p.id, selectedProspect.id); }}
                                   style={{padding:'7px 12px',fontSize:'13px',cursor:'pointer',display:'flex',justifyContent:'space-between',gap:'8px'}}
                                   onMouseEnter={(e)=>e.currentTarget.style.background='var(--tw-bg)'}
                                   onMouseLeave={(e)=>e.currentTarget.style.background='white'}>
@@ -608,7 +621,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                       return (
                         <div style={{marginBottom:'20px'}}>
                           <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-ink)',marginBottom:'8px'}}>
-                            Groupe de sociétés{isGroupe && <span style={{color:'var(--tw-muted)',fontWeight:500}}> · </span>}{isGroupe && <span style={{color:'#10a0dc'}}>{1 + filiales.length}</span>}
+                            Groupe de sociétés{isGroupe && <span style={{color:'var(--tw-muted)',fontWeight:500}}> · </span>}{isGroupe && <span style={{color:'#10a0dc'}}>{membres.length}</span>}
                           </div>
                           {!isGroupe ? (
                             <div style={{background:'var(--tw-bg)',border:'0.5px dashed var(--tw-border)',borderRadius:'10px',padding:'12px 14px'}}>
@@ -621,26 +634,27 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                               ) : searchBox(groupeAddMode)}
                             </div>
                           ) : (
-                            <div style={{background:'var(--tw-bg)',border:'0.5px solid var(--tw-border)',borderRadius:'10px',padding:'14px'}}>
-                              {/* Maison mère */}
-                              <div style={{display:'flex',justifyContent:'center'}}>
-                                {carte(root, {isRoot:true})}
-                              </div>
-                              {/* Connecteurs */}
-                              {filiales.length > 0 && (
-                                <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-                                  <div style={{width:'1px',height:'14px',background:'var(--tw-border)',borderLeft:'1px solid #c9d2dd'}}></div>
-                                  <div style={{width:'70%',height:'1px',borderTop:'1px solid #c9d2dd'}}></div>
-                                  <div style={{width:'1px',height:'10px'}}></div>
-                                </div>
-                              )}
-                              {/* Filiales */}
-                              <div style={{display:'flex',flexWrap:'wrap',gap:'10px',justifyContent:'center'}}>
-                                {filiales.map(f => carte(f, { onDetach: () => patchParent(f.id, null) }))}
-                              </div>
-                              {/* Ajouter une filiale (depuis n'importe quelle fiche du groupe) */}
+                            <div style={{background:'var(--tw-bg)',border:'0.5px solid var(--tw-border)',borderRadius:'10px',padding:'14px',overflowX:'auto'}}>
+                              {/* Arbre complet du groupe, rendu récursivement niveau par niveau */}
+                              {(function renderNode(p, depth) {
+                                const kids = childrenOf(p.id);
+                                return (
+                                  <div key={p.id} style={{display:'flex',flexDirection:'column',alignItems:'center',minWidth:0}}>
+                                    {carte(p, { isRoot: depth === 0, onDetach: depth > 0 ? () => patchParent(p.id, null) : null })}
+                                    {kids.length > 0 && depth < 6 && (
+                                      <React.Fragment>
+                                        <div style={{width:'1px',height:'14px',borderLeft:'1px solid #c9d2dd'}}></div>
+                                        <div style={{display:'flex',gap:'10px',alignItems:'flex-start',justifyContent:'center',flexWrap:'wrap'}}>
+                                          {kids.map(k => renderNode(k, depth + 1))}
+                                        </div>
+                                      </React.Fragment>
+                                    )}
+                                  </div>
+                                );
+                              })(topRoot, 0)}
+                              {/* Ajouter une filiale : rattachée à la société dont on consulte la fiche */}
                               <div style={{display:'flex',justifyContent:'center',marginTop:'12px'}}>
-                                {groupeAddMode === 'filiale' ? searchBox('filiale') : btnDiscret('+ Ajouter une filiale', () => { setGroupeAddMode('filiale'); setGroupeSearch(''); })}
+                                {groupeAddMode === 'filiale' ? searchBox('filiale') : btnDiscret(`+ Ajouter une filiale à « ${selectedProspect.name} »`, () => { setGroupeAddMode('filiale'); setGroupeSearch(''); })}
                               </div>
                             </div>
                           )}
