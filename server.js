@@ -475,6 +475,9 @@ async function initDB() {
     `);
 
     // Migration: colonnes import
+    // Groupes de sociétés : une société peut être rattachée à une maison mère (holding),
+    // elle-même une fiche société normale. NULL = société seule ou holding de tête.
+    await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES prospects(id) ON DELETE SET NULL`);
     await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS cp TEXT`);
     await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS ville TEXT`);
     await client.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS secteur TEXT`);
@@ -1630,6 +1633,37 @@ app.patch('/api/prospects/:id/status', auth, async (req, res) => {
       [id, oldStatus, status, req.userId]
     );
     res.json({ ok: true, old_status: oldStatus, new_status: status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH parent d'un prospect (groupes de sociétés) : rattache la société à une maison mère
+// (parent_id = id d'une autre société) ou la détache (parent_id = null). Mise à jour CIBLÉE,
+// sans toucher aux autres champs.
+app.patch('/api/prospects/:id/parent', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
+  const id = parseInt(req.params.id);
+  let { parent_id } = req.body;
+  if (parent_id === undefined) return res.status(400).json({ error: 'parent_id manquant' });
+  try {
+    if (parent_id !== null) {
+      parent_id = parseInt(parent_id);
+      if (!Number.isInteger(parent_id)) return res.status(400).json({ error: 'parent_id invalide' });
+      if (parent_id === id) return res.status(400).json({ error: 'Une société ne peut pas être sa propre maison mère' });
+      const parent = await pool.query('SELECT parent_id FROM prospects WHERE id = $1', [parent_id]);
+      if (parent.rows.length === 0) return res.status(404).json({ error: 'Maison mère introuvable' });
+      // Anti-cycle : remonter la chaîne des parents depuis la maison mère proposée ;
+      // si on retombe sur la société à rattacher, le rattachement créerait une boucle.
+      let cur = parent.rows[0].parent_id, guard = 0;
+      while (cur !== null && guard++ < 50) {
+        if (cur === id) return res.status(400).json({ error: 'Rattachement impossible : cela créerait un cycle dans le groupe' });
+        const up = await pool.query('SELECT parent_id FROM prospects WHERE id = $1', [cur]);
+        cur = up.rows.length ? up.rows[0].parent_id : null;
+      }
+    }
+    await pool.query('UPDATE prospects SET parent_id = $1, updated_at = NOW() WHERE id = $2', [parent_id, id]);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

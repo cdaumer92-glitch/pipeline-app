@@ -823,6 +823,9 @@ const ReactDOM = { createRoot, createPortal };
             <RightPanel
               key={selectedProspect?.id}
               selectedProspect={selectedProspect}
+              prospects={prospects}
+              onSelectProspect={handleSelectProspect}
+              fetchProspects={fetchProspects}
               activities={activities}
               nextActions={nextActions}
               allActions={allActions}

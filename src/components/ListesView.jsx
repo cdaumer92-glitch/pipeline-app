@@ -180,6 +180,22 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
         base.forEach(p => { const s = p.statut_societe || 'Prospect'; if (counts[s] != null) counts[s]++; });
         let rows = (statut === 'Tous' ? base : base.filter(p => (p.statut_societe || 'Prospect') === statut)).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         rows = applySort(rows, { societe: p => p.name, type: p => p.statut_societe || 'Prospect', commercial: p => p.assigned_to });
+        // Groupes de sociétés : pictogramme immeuble bleu pour une maison mère (a des filiales),
+        // gris pour une filiale (rattachée à une maison mère), avec le nom du groupe en infobulle.
+        const parentIds = new Set(prospects.filter(x => x.parent_id).map(x => x.parent_id));
+        const groupeIcon = (p) => {
+          const isHolding = parentIds.has(p.id);
+          const isFiliale = !!p.parent_id;
+          if (!isHolding && !isFiliale) return null;
+          const holdingName = isHolding ? p.name : (prospects.find(h => h.id === p.parent_id) || {}).name;
+          return (
+            <span title={isHolding ? 'Maison mère du groupe ' + (holdingName || '') : 'Filiale du groupe ' + (holdingName || '')} style={{ marginLeft: '7px', display: 'inline-flex', verticalAlign: 'middle' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={isHolding ? '#10a0dc' : 'var(--tw-muted)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="2" width="6" height="6" rx="1"/><path d="M12 8v4M5 12h14M5 12v4M19 12v4"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/>
+              </svg>
+            </span>
+          );
+        };
         const statutFilter = (
           <div style={{ display: 'flex', gap: '4px' }}>
             {['Tous', 'Suspect', 'Prospect', 'Client'].map(s => (
@@ -198,7 +214,7 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
               <tbody>
                 {rows.map(p => (
                   <tr key={p.id} style={{ cursor: 'pointer' }} {...rowHover} onClick={() => openFiche(p.id, null, 'prospect', p.id)}>
-                    <td style={{ ...td, ...lk }}>{p.name}</td>
+                    <td style={{ ...td, ...lk }}>{p.name}{groupeIcon(p)}</td>
                     <td style={td}><span style={badge(p.statut_societe || 'Prospect')}>{p.statut_societe || 'Prospect'}</span></td>
                     <td style={td}>{p.assigned_to || '—'}</td>
                     <td style={td}>{p.contact_name || '—'}</td>

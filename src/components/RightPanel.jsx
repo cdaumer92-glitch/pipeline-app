@@ -7,7 +7,7 @@ import { ActivitiesSection } from './ActivitiesSection.jsx';
 import { CommercialEditor } from './CommercialEditor.jsx';
 import { ProspectForm } from './ProspectForm.jsx';
 
-export function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, fetchAllActions, fetchNextActions, fetchAffaires, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, fetchInterlocuteurs, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, draggedContactId, setDraggedContactId, dragOverContactId, setDragOverContactId, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf }) {
+export function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, fetchAllActions, fetchNextActions, fetchAffaires, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, fetchInterlocuteurs, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, draggedContactId, setDraggedContactId, dragOverContactId, setDragOverContactId, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf, prospects, onSelectProspect, fetchProspects }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
       const [newActivityDate, setNewActivityDate] = React.useState(new Date().toISOString().split('T')[0]);
       const [newActivityDesc, setNewActivityDesc] = React.useState('');
@@ -32,6 +32,10 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
         created_at: selectedProspect?.created_at ? new Date(selectedProspect.created_at).toISOString().split('T')[0] : '',
         marques: Array.isArray(selectedProspect?.marques) ? selectedProspect.marques : [],
       });
+
+      // ── Groupe de sociétés (rattachement holding/filiales) ──
+      const [groupeAddMode, setGroupeAddMode] = React.useState(null); // 'parent' | 'filiale' | null
+      const [groupeSearch, setGroupeSearch] = React.useState('');
 
       // ── Onglets fiche client ──
       const [clientTab, setClientTab] = React.useState('infos');
@@ -503,6 +507,146 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                         }
                       </div>
                     </div>
+
+                    {/* ── Groupe de sociétés (holding / filiales) ── */}
+                    {(() => {
+                      const all = (prospects || []).filter(p => p.id !== undefined);
+                      const holding = selectedProspect.parent_id ? all.find(p => p.id === selectedProspect.parent_id) : null;
+                      const root = holding || selectedProspect;
+                      const filiales = all.filter(p => p.parent_id === root.id).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+                      const isGroupe = !!holding || filiales.length > 0;
+
+                      const patchParent = async (societeId, parentId) => {
+                        try {
+                          const r = await fetch(`${API_URL}/prospects/${societeId}/parent`, {
+                            method:'PATCH',
+                            headers:{'Content-Type':'application/json','Authorization':`Bearer ${user.token}`},
+                            body: JSON.stringify({ parent_id: parentId })
+                          });
+                          if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error || ('HTTP '+r.status)); }
+                          setGroupeAddMode(null); setGroupeSearch('');
+                          if (societeId === selectedProspect.id) onUpdateProspect({ ...selectedProspect, parent_id: parentId });
+                          else if (fetchProspects) fetchProspects();
+                        } catch(err) { window.showToast && window.showToast({title:'Erreur : '+err.message, type:'error'}); }
+                      };
+
+                      // Suggestions pour le rattachement : exclut la société courante, la relation
+                      // déjà en place et les membres actuels du groupe (anti-cycle complet côté serveur)
+                      const dejaDansGroupe = new Set([root.id, ...filiales.map(f => f.id)]);
+                      const suggestions = groupeSearch.trim().length < 2 ? [] : all
+                        .filter(p => !dejaDansGroupe.has(p.id) && p.id !== selectedProspect.id)
+                        .filter(p => (p.name||'').toLowerCase().includes(groupeSearch.trim().toLowerCase()))
+                        .slice(0, 8);
+
+                      const nbAffairesEnCours = (p) => (Array.isArray(p.affaires_detail) ? p.affaires_detail : [])
+                        .filter(a => a.statut !== 'Gagné' && a.statut !== 'Perdu').length;
+
+                      const carte = (p, opts = {}) => {
+                        const isCurrent = p.id === selectedProspect.id;
+                        const nbAff = nbAffairesEnCours(p);
+                        return (
+                          <div key={p.id}
+                            onClick={() => { if (!isCurrent && onSelectProspect) onSelectProspect(p); }}
+                            style={{background:'white',border: isCurrent ? '2px solid #10a0dc' : '0.5px solid var(--tw-border)',
+                              borderRadius:'10px',padding:'9px 12px',minWidth:'170px',maxWidth:'230px',
+                              cursor: isCurrent ? 'default' : 'pointer',position:'relative',
+                              boxShadow: opts.isRoot ? '0 1px 3px rgba(17,24,39,.07)' : 'none'}}
+                            onMouseEnter={(e) => { if (!isCurrent) e.currentTarget.style.background='var(--tw-bg)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background='white'; }}>
+                            <div style={{display:'flex',alignItems:'center',gap:'7px'}}>
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={opts.isRoot ? '#10a0dc' : 'var(--tw-slate)'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+                                <rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M8 10h.01M16 10h.01M12 10h.01M8 14h.01M16 14h.01M12 14h.01"/>
+                              </svg>
+                              <span style={{fontSize:'12.5px',fontWeight:600,color:'var(--tw-ink)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</span>
+                              {opts.onDetach && (
+                                <span title={isCurrent ? 'Se détacher du groupe' : 'Détacher cette filiale du groupe'}
+                                  onClick={(e) => { e.stopPropagation(); if (window.confirm(`Détacher « ${p.name} » du groupe ?`)) opts.onDetach(); }}
+                                  style={{marginLeft:'auto',color:'var(--tw-muted)',fontWeight:700,fontSize:'13px',lineHeight:1,cursor:'pointer',padding:'0 2px'}}>×</span>
+                              )}
+                            </div>
+                            <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'3px',marginLeft:'22px'}}>
+                              {opts.isRoot ? 'Maison mère' : (p.statut_societe || 'Prospect')}
+                              {nbAff > 0 && <span style={{color:'#10a0dc',fontWeight:600}}> · {nbAff} affaire{nbAff>1?'s':''} en cours</span>}
+                            </div>
+                          </div>
+                        );
+                      };
+
+                      const searchBox = (mode) => (
+                        <div style={{position:'relative',maxWidth:'320px'}}>
+                          <input type="text" autoFocus value={groupeSearch} onChange={e=>setGroupeSearch(e.target.value)}
+                            placeholder={mode === 'parent' ? 'Nom de la maison mère…' : 'Nom de la société à rattacher…'}
+                            onKeyDown={e => { if (e.key === 'Escape') { setGroupeAddMode(null); setGroupeSearch(''); } }}
+                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'7px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
+                          {suggestions.length > 0 && (
+                            <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:50,background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'8px',marginTop:'4px',boxShadow:'0 8px 24px rgba(17,24,39,.10)',overflow:'hidden'}}>
+                              {suggestions.map(p => (
+                                <div key={p.id}
+                                  onClick={() => { if (mode === 'parent') patchParent(selectedProspect.id, p.id); else patchParent(p.id, root.id); }}
+                                  style={{padding:'7px 12px',fontSize:'13px',cursor:'pointer',display:'flex',justifyContent:'space-between',gap:'8px'}}
+                                  onMouseEnter={(e)=>e.currentTarget.style.background='var(--tw-bg)'}
+                                  onMouseLeave={(e)=>e.currentTarget.style.background='white'}>
+                                  <span style={{fontWeight:500,color:'var(--tw-ink)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</span>
+                                  <span style={{fontSize:'11px',color:'var(--tw-muted)',flexShrink:0}}>{p.statut_societe || 'Prospect'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div style={{fontSize:'10px',color:'var(--tw-muted)',marginTop:'3px'}}>Échap pour annuler · tapez au moins 2 lettres</div>
+                        </div>
+                      );
+
+                      const btnDiscret = (label, onClick) => (
+                        <button onClick={onClick}
+                          style={{background:'white',border:'0.5px solid var(--tw-border)',padding:'5px 11px',borderRadius:'7px',fontSize:'12px',color:'var(--tw-slate)',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}
+                          onMouseEnter={(e)=>{e.currentTarget.style.background='var(--tw-bg)';}}
+                          onMouseLeave={(e)=>{e.currentTarget.style.background='white';}}>
+                          {label}
+                        </button>
+                      );
+
+                      return (
+                        <div style={{marginBottom:'20px'}}>
+                          <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-ink)',marginBottom:'8px'}}>
+                            Groupe de sociétés{isGroupe && <span style={{color:'var(--tw-muted)',fontWeight:500}}> · </span>}{isGroupe && <span style={{color:'#10a0dc'}}>{1 + filiales.length}</span>}
+                          </div>
+                          {!isGroupe ? (
+                            <div style={{background:'var(--tw-bg)',border:'0.5px dashed var(--tw-border)',borderRadius:'10px',padding:'12px 14px'}}>
+                              {groupeAddMode === null ? (
+                                <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'}}>
+                                  <span style={{fontSize:'12px',color:'var(--tw-muted)',fontStyle:'italic'}}>Société indépendante — aucun groupe</span>
+                                  {btnDiscret('Rattacher à une maison mère', () => { setGroupeAddMode('parent'); setGroupeSearch(''); })}
+                                  {btnDiscret('Ajouter une filiale', () => { setGroupeAddMode('filiale'); setGroupeSearch(''); })}
+                                </div>
+                              ) : searchBox(groupeAddMode)}
+                            </div>
+                          ) : (
+                            <div style={{background:'var(--tw-bg)',border:'0.5px solid var(--tw-border)',borderRadius:'10px',padding:'14px'}}>
+                              {/* Maison mère */}
+                              <div style={{display:'flex',justifyContent:'center'}}>
+                                {carte(root, {isRoot:true})}
+                              </div>
+                              {/* Connecteurs */}
+                              {filiales.length > 0 && (
+                                <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+                                  <div style={{width:'1px',height:'14px',background:'var(--tw-border)',borderLeft:'1px solid #c9d2dd'}}></div>
+                                  <div style={{width:'70%',height:'1px',borderTop:'1px solid #c9d2dd'}}></div>
+                                  <div style={{width:'1px',height:'10px'}}></div>
+                                </div>
+                              )}
+                              {/* Filiales */}
+                              <div style={{display:'flex',flexWrap:'wrap',gap:'10px',justifyContent:'center'}}>
+                                {filiales.map(f => carte(f, { onDetach: () => patchParent(f.id, null) }))}
+                              </div>
+                              {/* Ajouter une filiale (depuis n'importe quelle fiche du groupe) */}
+                              <div style={{display:'flex',justifyContent:'center',marginTop:'12px'}}>
+                                {groupeAddMode === 'filiale' ? searchBox('filiale') : btnDiscret('+ Ajouter une filiale', () => { setGroupeAddMode('filiale'); setGroupeSearch(''); })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Marques */}
                     <div style={{marginBottom:'20px'}}>
