@@ -205,7 +205,7 @@ def sep_kn(pid):
 
 def generer_propale(data: dict, output_path: str, work_dir: Path):
     today   = date.today()
-    date_fr = f"{today.day} {MOIS_FR[today.month-1]} {today.year}"
+    date_fr = f"Roanne le {today.day} {MOIS_FR[today.month-1]} {today.year}"
     annee   = str(today.year)
     mois    = f"{today.month:02d}"
 
