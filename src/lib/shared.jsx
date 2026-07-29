@@ -44,6 +44,7 @@ export const typeChip = (type) => {
         'Suspect':  {cls:'var(--meta)', bg:'var(--surface-hover)'},
         'Prospect': {cls:'var(--warning)', bg:'var(--warning-soft)'},
         'Client':   {cls:'var(--primary)', bg:'var(--primary-soft)'},
+        'Holding':  {cls:'#0d7fb0', bg:'#e8f6fc'},
       };
       const s = map[type] || {cls:'var(--tw-muted)', bg:'var(--surface-hover)'};
       return <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'10px',color:s.cls,background:s.bg}}>{type||'—'}</span>;
@@ -203,14 +204,14 @@ export function getProspectRealStatus(affaires, devisList) {
         probability: affairePlusRecente.devis.chance_percent,
         quoteDate: affairePlusRecente.devis.quote_date
       };
-    }
+    }
 
 export function displayName(c) {
       if (!c) return '';
       const p = (c.prenom || '').trim();
       const n = (c.nom || '').trim();
       return [p, n].filter(Boolean).join(' ');
-    }
+    }
 
 export function buildInfoForm(p) {
       return {
@@ -225,7 +226,7 @@ export function buildInfoForm(p) {
         created_at: p?.created_at ? new Date(p.created_at).toISOString().split('T')[0] : '',
         marques: Array.isArray(p?.marques) ? p.marques : [],
       };
-    }
+    }
 
 export function displayInitials(c) {
       if (!c) return '?';
@@ -235,4 +236,4 @@ export function displayInitials(c) {
       if (p && n) return (p[0] + n[0]).toUpperCase();
       const src = p || n || '?';
       return src.split(/\s+/).map(w => w[0]).filter(Boolean).join('').toUpperCase().slice(0, 2) || '?';
-    }
+    }

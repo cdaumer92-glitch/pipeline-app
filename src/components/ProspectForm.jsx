@@ -90,6 +90,7 @@ export function ProspectForm({ formData, onFormChange, onSave, onCancel, selecte
                   <option value="Suspect">Suspect</option>
                   <option value="Prospect">Prospect</option>
                   <option value="Client">Client</option>
+                  <option value="Holding">Holding</option>
                 </select>
                 <select
                   value={formData.assigned_to}
@@ -495,4 +496,4 @@ export function ProspectForm({ formData, onFormChange, onSave, onCancel, selecte
     // sauvegarder à chaque frappe. Le motif est obligatoire : le bouton "Valider
     // le motif" est désactivé tant que le champ est vide. Valider déclenche aussi
     // la proposition de passer l'affaire en Perdu (géré par onSave).
-
+

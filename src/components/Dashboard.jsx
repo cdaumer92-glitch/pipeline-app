@@ -708,6 +708,7 @@ export function Dashboard({ prospects, selectedCommercial, onSelectCommercial, o
                               {key:'Suspect',  label:'Suspect'},
                               {key:'Prospect', label:'Prospect'},
                               {key:'Client',   label:'Client'},
+                              {key:'Holding',  label:'Holding'},
                             ].map(t => {
                               const active = societesTypeFilter === t.key;
                               const count = t.key === 'all' ? mine.length : mine.filter(p => p.statut_societe === t.key).length;

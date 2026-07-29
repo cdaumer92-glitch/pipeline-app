@@ -100,7 +100,7 @@ export function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSe
                     <div style={{fontWeight: '600', fontSize: '13px', color: 'var(--tw-ink)'}}>{prospectDisplayName(p)}</div>
                     <div style={{fontSize: '11px', color: 'var(--tw-muted)', marginTop: '2px'}}>
                       {p.contact_name && `${p.contact_name} · `}
-                      <span style={{color: p.statut_societe === 'Client' ? 'var(--tw-teal)' : p.statut_societe === 'Prospect' ? 'var(--tw-orange)' : 'var(--tw-muted)'}}>{p.statut_societe || 'Prospect'}</span>
+                      <span style={{color: p.statut_societe === 'Client' ? 'var(--tw-teal)' : p.statut_societe === 'Prospect' ? 'var(--tw-orange)' : p.statut_societe === 'Holding' ? '#0d7fb0' : 'var(--tw-muted)'}}>{p.statut_societe || 'Prospect'}</span>
                       {p.real_status && <span style={{color: 'var(--tw-slate)'}}> · {p.real_status}</span>}
                     </div>
                   </div>
