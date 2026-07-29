@@ -592,8 +592,10 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                             placeholder={mode === 'parent' ? 'Nom de la maison mère…' : 'Nom de la société à rattacher…'}
                             onKeyDown={e => { if (e.key === 'Escape') { setGroupeAddMode(null); setGroupeSearch(''); } }}
                             style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'7px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
+                          {/* Liste en flux normal (pas en absolu) : un dropdown absolu serait rogné
+                              par l'overflow du conteneur de l'organigramme */}
                           {suggestions.length > 0 && (
-                            <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:50,background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'8px',marginTop:'4px',boxShadow:'0 8px 24px rgba(17,24,39,.10)',overflow:'hidden'}}>
+                            <div style={{background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'8px',marginTop:'4px',boxShadow:'0 8px 24px rgba(17,24,39,.10)',maxHeight:'220px',overflowY:'auto'}}>
                               {suggestions.map(p => (
                                 <div key={p.id}
                                   onClick={() => { if (mode === 'parent') patchParent(selectedProspect.id, p.id); else patchParent(p.id, selectedProspect.id); }}
@@ -605,6 +607,9 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                 </div>
                               ))}
                             </div>
+                          )}
+                          {groupeSearch.trim().length >= 2 && suggestions.length === 0 && (
+                            <div style={{fontSize:'12px',color:'var(--tw-muted)',fontStyle:'italic',marginTop:'6px',padding:'4px 2px'}}>Aucune société trouvée (déjà dans le groupe ou nom inconnu)</div>
                           )}
                           <div style={{fontSize:'10px',color:'var(--tw-muted)',marginTop:'3px'}}>Échap pour annuler · tapez au moins 2 lettres</div>
                         </div>
