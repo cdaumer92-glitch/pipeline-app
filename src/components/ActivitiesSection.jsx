@@ -175,11 +175,11 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
                               <p style={{margin:0,fontSize:'11px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:500}}>Devis · {affaireDevis.length}</p>
                               <button onClick={handleAddDevis}
-                                style={{background:'white',border:'0.5px solid var(--tw-border)',padding:'4px 10px',borderRadius:'6px',fontSize:'11px',color:'var(--tw-slate)',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px',fontFamily:"'Inter',sans-serif"}}
-                                onMouseEnter={(e) => { e.currentTarget.style.background='var(--tw-bg)'; e.currentTarget.style.borderColor='var(--tw-slate)'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.background='white'; e.currentTarget.style.borderColor='var(--tw-border)'; }}
+                                style={{background:'var(--tw-teal)',border:'none',padding:'5px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:600,color:'white',cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',fontFamily:"'Inter',sans-serif",boxShadow:'0 1px 3px rgba(26,86,219,.35)'}}
+                                onMouseEnter={(e) => { e.currentTarget.style.background='var(--primary-dark)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background='var(--tw-teal)'; }}
                               >
-                                {I(ICONS.plus, 10)} Devis
+                                {I(ICONS.plus, 11)} Devis
                               </button>
                             </div>
 
@@ -343,11 +343,11 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
                                 <p style={{margin:0,fontSize:'11px',color:'var(--tw-muted)',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:500}}>Actions de l'affaire · {affairesActions[affaire.id]?.length || 0}</p>
                                 <button onClick={() => handleOpenActionAffaireForm(affaire.id)}
-                                  style={{background:'white',border:'0.5px solid var(--tw-border)',padding:'4px 10px',borderRadius:'6px',fontSize:'11px',color:'var(--tw-slate)',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px',fontFamily:"'Inter',sans-serif"}}
-                                  onMouseEnter={(e) => { e.currentTarget.style.background='var(--tw-bg)'; e.currentTarget.style.borderColor='var(--tw-slate)'; }}
-                                  onMouseLeave={(e) => { e.currentTarget.style.background='white'; e.currentTarget.style.borderColor='var(--tw-border)'; }}
+                                  style={{background:'var(--tw-teal)',border:'none',padding:'5px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:600,color:'white',cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',fontFamily:"'Inter',sans-serif",boxShadow:'0 1px 3px rgba(26,86,219,.35)'}}
+                                  onMouseEnter={(e) => { e.currentTarget.style.background='var(--primary-dark)'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background='var(--tw-teal)'; }}
                                 >
-                                  {I(ICONS.plus, 10)} Action
+                                  {I(ICONS.plus, 11)} Action
                                 </button>
                               </div>
 

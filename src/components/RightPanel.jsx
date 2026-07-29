@@ -377,7 +377,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
           {(() => {
             const isClient = selectedProspect.statut_societe === 'Client';
             // Icônes SVG inline pour cohérence visuelle (au lieu d'images png + emojis)
-            const TabIcon = ({path, size=14}) => React.createElement('svg', {width:size, height:size, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:1.8, strokeLinecap:'round', strokeLinejoin:'round'}, path);
+            const TabIcon = ({path, size=14, fill='none', stroke='currentColor'}) => React.createElement('svg', {width:size, height:size, viewBox:'0 0 24 24', fill, stroke, strokeWidth:1.8, strokeLinecap:'round', strokeLinejoin:'round'}, path);
             const ICON = {
               info:    React.createElement(React.Fragment, null, React.createElement('circle',{cx:12,cy:12,r:10}), React.createElement('path',{d:'M12 16v-4M12 8h.01'})),
               key:     React.createElement(React.Fragment, null, React.createElement('path',{d:'M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4'})),
@@ -399,7 +399,10 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                       {id:'boutiques', label:'Boutiques', icon: ICON.bag,      count: clientBoutiques.length},
                       {id:'materiel',  label:'Matériel',  icon: ICON.hardware, count: clientMateriel.length},
                     ] : []),
-                    {id:'affaires',     label:'Affaires',       icon: ICON.folder,  count: nbAffaires},
+                    // Dossier rempli bleu s'il y a au moins une affaire en cours, fond blanc sinon
+                    {id:'affaires',     label:'Affaires',       icon: ICON.folder,  count: nbAffaires,
+                      iconFill: nbAffaires > 0 ? '#10a0dc' : 'white',
+                      iconStroke: nbAffaires > 0 ? '#10a0dc' : undefined},
                     {id:'communication',label:'Actions / Tâches', icon: ICON.actions},
                   ];
                   return tabs;
@@ -408,19 +411,19 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                   return (
                     <button key={t.id}
                       onClick={() => setClientTab(t.id)}
-                      style={{padding:'10px 14px',fontFamily:"'Inter',sans-serif",fontSize:'13px',
-                        fontWeight: 500,
-                        border:'none',background:'transparent',
-                        color: active ? 'var(--tw-teal)' : 'var(--tw-ink)',
-                        opacity: active ? 1 : 0.65,
-                        borderBottom: active ? '2px solid var(--tw-teal)' : '2px solid transparent',
-                        marginBottom:'-0.5px',
-                        cursor:'pointer',whiteSpace:'nowrap',transition:'color .15s, opacity .15s, border-color .15s',
+                      style={{padding:'8px 13px',fontFamily:"'Inter',sans-serif",fontSize:'13px',
+                        fontWeight: active ? 600 : 500,
+                        border: active ? '0.5px solid rgba(26,86,219,.25)' : '0.5px solid transparent',
+                        background: active ? 'var(--primary-soft)' : 'transparent',
+                        color: active ? 'var(--tw-teal)' : 'var(--tw-slate)',
+                        borderRadius:'8px',
+                        margin:'7px 0',
+                        cursor:'pointer',whiteSpace:'nowrap',transition:'background .15s, color .15s, border-color .15s',
                         display:'flex',alignItems:'center',gap:'6px'}}
-                      onMouseEnter={(e) => { if (!active) e.currentTarget.style.opacity = '1'; }}
-                      onMouseLeave={(e) => { if (!active) e.currentTarget.style.opacity = '0.65'; }}
+                      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                      onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}
                     >
-                      <TabIcon path={t.icon}/>
+                      <TabIcon path={t.icon} fill={t.iconFill} stroke={t.iconStroke}/>
                       {t.label}
                       {t.count > 0 && (
                         <span style={{fontSize:'11px',fontWeight:600,padding:'1px 7px',borderRadius:'10px',
