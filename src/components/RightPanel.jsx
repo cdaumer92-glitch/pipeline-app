@@ -630,6 +630,9 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                           <div onClick={() => setGroupeOpen(o => !o)}
                             style={{display:'flex',alignItems:'center',gap:'6px',cursor:'pointer',userSelect:'none',fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-ink)',marginBottom: groupeOpen ? '8px' : 0}}>
                             <span style={{display:'inline-flex',color:'var(--tw-muted)'}}>{I(groupeOpen ? ICONS.chevron : ICONS.chevronR, 11)}</span>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={isGroupe ? '#10a0dc' : 'var(--tw-muted)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+                              <rect x="9" y="2" width="6" height="6" rx="1"/><path d="M12 8v4M5 12h14M5 12v4M19 12v4"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/>
+                            </svg>
                             <span>Groupe de sociétés{isGroupe && <span style={{color:'var(--tw-muted)',fontWeight:500}}> · </span>}{isGroupe && <span style={{color:'#10a0dc'}}>{membres.length}</span>}</span>
                             {!isGroupe && <span style={{color:'var(--tw-muted)',fontWeight:500,textTransform:'none',letterSpacing:0,fontStyle:'italic'}}>— société indépendante</span>}
                           </div>
