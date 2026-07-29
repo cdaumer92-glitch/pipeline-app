@@ -1111,10 +1111,10 @@ const ReactDOM = { createRoot, createPortal };
                         style={{ ...styles.modalInput, borderColor: newCompanyErrors.statut_societe ? '#dc2626' : '#a8d0d3', background: newCompanyErrors.statut_societe ? '#fff5f5' : 'white' }}
                       >
                         <option value="">— Sélectionner —</option>
+                        <option value="Holding">Holding</option>
                         <option value="Suspect">Suspect</option>
                         <option value="Prospect">Prospect</option>
                         <option value="Client">Client</option>
-                        <option value="Holding">Holding</option>
                       </select>
                       {newCompanyErrors.statut_societe && <span style={styles.errMsg}>{newCompanyErrors.statut_societe}</span>}
                     </div>

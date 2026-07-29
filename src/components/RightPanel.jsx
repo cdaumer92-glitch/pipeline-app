@@ -265,10 +265,10 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                         color:statutColors[selectedProspect.statut_societe]||'#999',
                         background:statutBgs[selectedProspect.statut_societe]||'#f5f5f5',
                         fontFamily:"'Inter',sans-serif",appearance:'none',paddingRight:'22px',backgroundImage:'url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%278%27 height=%278%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%273%27><polyline points=%276 9 12 15 18 9%27/></svg>")',backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center'}}>
+                      <option value="Holding">Holding</option>
                       <option value="Suspect">Suspect</option>
                       <option value="Prospect">Prospect</option>
                       <option value="Client">Client</option>
-                      <option value="Holding">Holding</option>
                     </select>
                     {/* Pastille cible : enrichir depuis SocieteInfo */}
                     <button

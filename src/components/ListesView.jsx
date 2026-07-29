@@ -198,7 +198,7 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
         };
         const statutFilter = (
           <div style={{ display: 'flex', gap: '4px' }}>
-            {['Tous', 'Suspect', 'Prospect', 'Client', 'Holding'].map(s => (
+            {['Tous', 'Holding', 'Suspect', 'Prospect', 'Client'].map(s => (
               <button key={s} onClick={() => setStatut(s)} style={{ padding: '6px 11px', borderRadius: '8px', border: '0.5px solid ' + (statut === s ? '#12a0dc' : 'var(--tw-border)'), background: statut === s ? '#e8f6fc' : 'white', color: statut === s ? '#0d7fb0' : 'var(--tw-slate)', fontSize: '12.5px', fontWeight: statut === s ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>{s}</button>
             ))}
           </div>
@@ -207,7 +207,7 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
         const realStatusChip = realStatusFilter ? (
           <button onClick={() => setRealStatusFilter(null)} title="Retirer ce filtre de statut" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 11px', borderRadius: '8px', border: '1px solid var(--primary)', background: 'var(--primary-soft)', color: 'var(--primary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Statut : {rsLabel} ✕</button>
         ) : null;
-        return Wrap('Sociétés', `${counts.Suspect} suspect(s) · ${counts.Prospect} prospect(s) · ${counts.Client} client(s)${counts.Holding ? ` · ${counts.Holding} holding(s)` : ''}`, <React.Fragment>{statutFilter}{realStatusChip}{commercialFilter}</React.Fragment>,
+        return Wrap('Sociétés', `${counts.Holding ? `${counts.Holding} holding(s) · ` : ''}${counts.Suspect} suspect(s) · ${counts.Prospect} prospect(s) · ${counts.Client} client(s)`, <React.Fragment>{statutFilter}{realStatusChip}{commercialFilter}</React.Fragment>,
           rows.length === 0 ? Empty('Aucune société.') : (
             <table style={tableStyle}>
               <thead><tr>{SortTh('Société', 'societe')}{SortTh('Type', 'type')}{SortTh('Commercial', 'commercial')}<th style={th}>Contact</th><th style={th}>Téléphone</th></tr></thead>

@@ -87,10 +87,10 @@ export function ProspectForm({ formData, onFormChange, onSave, onCancel, selecte
                   style={{...styles.formInput, flex: 1}}
                 >
                   <option value="">-- Type Société --</option>
+                  <option value="Holding">Holding</option>
                   <option value="Suspect">Suspect</option>
                   <option value="Prospect">Prospect</option>
                   <option value="Client">Client</option>
-                  <option value="Holding">Holding</option>
                 </select>
                 <select
                   value={formData.assigned_to}
