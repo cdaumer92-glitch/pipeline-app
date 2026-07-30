@@ -14,7 +14,7 @@ import { useSocieteInfo } from './hooks/useSocieteInfo.js';
 import { useAuth } from './hooks/useAuth.js';
 import { useNextActions } from './hooks/useNextActions.js';
 import { LoginForm } from './components/LoginForm.jsx';
-import { I, displayName, displayInitials, buildInfoForm, ICONS, IconBtn, typeChip, getActionStatus, prospectDisplayName, getEmptyProspect, calculateTotal, formatCurrency, formatNumber, getStatusColor, getProspectCountByCommercial, getProspectRealStatus } from './lib/shared.jsx';
+import { I, displayName, displayInitials, buildInfoForm, ICONS, IconBtn, typeChip, getActionStatus, prospectDisplayName, getEmptyProspect, calculateTotal, formatCurrency, formatNumber, getStatusColor, getProspectCountByCommercial, getProspectRealStatus, AdresseAutocomplete } from './lib/shared.jsx';
 import { Dashboard } from './components/Dashboard.jsx';
 import { RightPanel } from './components/RightPanel.jsx';
 import { ProspectForm } from './components/ProspectForm.jsx';
@@ -1178,11 +1178,11 @@ const ReactDOM = { createRoot, createPortal };
 
                     <div style={{ gridColumn: 'span 2' }}>
                       <label style={styles.modalLabel}>Adresse siège</label>
-                      <input
-                        type="text" placeholder="Adresse complète"
+                      <AdresseAutocomplete
+                        placeholder="Tapez le début de l'adresse…"
                         value={newCompanyData.adresse}
-                        onChange={(e) => handleNewCompanyChange('adresse', e.target.value)}
-                        style={styles.modalInput}
+                        onChange={(v) => handleNewCompanyChange('adresse', v)}
+                        inputStyle={styles.modalInput}
                       />
                     </div>
 

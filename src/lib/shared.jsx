@@ -33,6 +33,78 @@ export const IconBtn = ({ onClick, title, color = 'var(--tw-slate)', hoverColor 
       }, children)
     );
 
+    // ── Autocomplétion d'adresse (Base Adresse Nationale — api-adresse.data.gouv.fr) ──
+    // Champ texte contrôlé : propose des adresses françaises au fil de la frappe
+    // (débounce 250 ms, minimum 3 caractères), navigation clavier ↑/↓/Entrée/Échap.
+    // - onChange(texte) : appelé à chaque frappe (saisie libre toujours possible)
+    // - onSelect(sug)   : appelé au choix d'une suggestion ; par défaut (absent),
+    //   le label complet remplace la valeur. sug = { label, name, cp, ville, context }
+    //   (name = numéro + rue sans la ville, pratique pour remplir adresse/cp/ville séparés)
+export function AdresseAutocomplete({ value, onChange, onSelect, placeholder = 'Adresse', inputStyle = {}, style = {}, disabled = false }) {
+      const [sugs, setSugs] = React.useState([]);
+      const [open, setOpen] = React.useState(false);
+      const [hi, setHi] = React.useState(-1);
+      const tRef = React.useRef(null);
+      const blurRef = React.useRef(null);
+
+      const search = (q) => {
+        if (tRef.current) clearTimeout(tRef.current);
+        const query = (q || '').trim();
+        if (query.length < 3) { setSugs([]); setOpen(false); return; }
+        tRef.current = setTimeout(async () => {
+          try {
+            const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&limit=6&autocomplete=1`);
+            const data = await r.json();
+            const feats = Array.isArray(data && data.features) ? data.features : [];
+            setSugs(feats.map(f => ({
+              label: f.properties.label || '',
+              name: f.properties.name || '',
+              cp: f.properties.postcode || '',
+              ville: f.properties.city || '',
+              context: f.properties.context || '',
+            })));
+            setOpen(feats.length > 0);
+            setHi(-1);
+          } catch (_) { /* API indisponible : la saisie libre continue de fonctionner */ }
+        }, 250);
+      };
+
+      const pick = (s) => {
+        setOpen(false); setSugs([]);
+        if (onSelect) onSelect(s); else onChange(s.label);
+      };
+
+      return (
+        <div style={{ position: 'relative', ...style }}>
+          <input type="text" value={value || ''} placeholder={placeholder} disabled={disabled}
+            onChange={e => { onChange(e.target.value); search(e.target.value); }}
+            onFocus={() => { if (sugs.length > 0) setOpen(true); }}
+            onBlur={() => { blurRef.current = setTimeout(() => setOpen(false), 180); }}
+            onKeyDown={e => {
+              if (!open || sugs.length === 0) return;
+              if (e.key === 'ArrowDown') { e.preventDefault(); setHi(h => Math.min(h + 1, sugs.length - 1)); }
+              else if (e.key === 'ArrowUp') { e.preventDefault(); setHi(h => Math.max(h - 1, 0)); }
+              else if (e.key === 'Enter') { if (hi >= 0) { e.preventDefault(); pick(sugs[hi]); } }
+              else if (e.key === 'Escape') { setOpen(false); }
+            }}
+            style={{ width: '100%', boxSizing: 'border-box', ...inputStyle }} />
+          {open && sugs.length > 0 && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300, background: 'white', border: '0.5px solid var(--tw-border)', borderRadius: '8px', marginTop: '3px', boxShadow: '0 10px 28px rgba(17,24,39,.14)', overflow: 'hidden' }}>
+              {sugs.map((s, i) => (
+                <div key={i}
+                  onMouseDown={e => { e.preventDefault(); if (blurRef.current) clearTimeout(blurRef.current); pick(s); }}
+                  onMouseEnter={() => setHi(i)}
+                  style={{ padding: '7px 12px', fontSize: '13px', cursor: 'pointer', background: hi === i ? 'var(--tw-bg)' : 'white', color: 'var(--tw-ink)', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--tw-muted)', flexShrink: 0 }}>{(s.context || '').split(',').slice(-1)[0]}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     // Vocabulaire contrôlé des types d'action — source unique de vérité (évite le drift
     // "Demo"/"Démo" entre les différents formulaires) et alimente le filtre de la liste Actions.
 

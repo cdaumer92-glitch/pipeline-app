@@ -81,7 +81,9 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
       imgSrc: ["'self'", 'data:', 'blob:'],
-      connectSrc: ["'self'"],
+      // api-adresse.data.gouv.fr : autocomplétion d'adresses (Base Adresse Nationale),
+      // appelée directement depuis le navigateur. data.geopf.fr = future URL (Géoplateforme).
+      connectSrc: ["'self'", 'https://api-adresse.data.gouv.fr', 'https://data.geopf.fr'],
       frameSrc: ["'self'", 'blob:'],
       workerSrc: ["'self'", 'blob:'],
       objectSrc: ["'none'"],

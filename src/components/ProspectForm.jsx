@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { styles } from '../lib/styles.js';
-import { calculateTotal, displayName } from '../lib/shared.jsx';
+import { calculateTotal, displayName, AdresseAutocomplete } from '../lib/shared.jsx';
 
 export function ProspectForm({ formData, onFormChange, onSave, onCancel, selectedProspect, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleEditDevis, handleSaveDevis, handleDeleteDevis, handleUploadDevisPdf, handleDeleteDevisPDF, codesNaf = [] }) {
       const [pdfFile, setPdfFile] = React.useState(null);
@@ -135,12 +135,12 @@ export function ProspectForm({ formData, onFormChange, onSave, onCancel, selecte
                     );
                   })()}
                 </div>
-                <input
-                  type="text"
+                <AdresseAutocomplete
                   placeholder="Adresse de la société"
                   value={formData.adresse}
-                  onChange={(e) => handleChange('adresse', e.target.value)}
-                  style={{...styles.formInput, flex: 2}}
+                  onChange={(v) => handleChange('adresse', v)}
+                  style={{flex: 2}}
+                  inputStyle={styles.formInput}
                 />
                 <input
                   type="text"

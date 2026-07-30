@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { styles } from '../lib/styles.js';
 import { ACTION_TYPES } from '../lib/constants.js';
-import { I, ICONS, IconBtn, calculateTotal, displayName, displayInitials, buildInfoForm, getProspectRealStatus, prospectDisplayName } from '../lib/shared.jsx';
+import { I, ICONS, IconBtn, calculateTotal, displayName, displayInitials, buildInfoForm, getProspectRealStatus, prospectDisplayName, AdresseAutocomplete } from '../lib/shared.jsx';
 import { ActionCompleteModal } from './ActionCompleteModal.jsx';
 import { ActivitiesSection } from './ActivitiesSection.jsx';
 import { CommercialEditor } from './CommercialEditor.jsx';
@@ -591,8 +591,12 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                               <div key={f.field}>
                                 <div style={lblStyle}>{f.lbl}</div>
                                 {infoEdit
-                                  ? <input type="text" value={infoForm[f.field]||''} onChange={e=>setInfoForm({...infoForm,[f.field]:e.target.value})}
-                                      style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
+                                  ? (f.field === 'adresse'
+                                      ? <AdresseAutocomplete value={infoForm.adresse} onChange={v=>setInfoForm({...infoForm,adresse:v})}
+                                          placeholder="Tapez le début de l'adresse…"
+                                          inputStyle={{padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
+                                      : <input type="text" value={infoForm[f.field]||''} onChange={e=>setInfoForm({...infoForm,[f.field]:e.target.value})}
+                                          style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />)
                                   : f.field==='website' && infoForm[f.field]
                                     ? <a href={infoForm[f.field].startsWith('http')?infoForm[f.field]:'https://'+infoForm[f.field]} target="_blank" style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-teal)'}}>{infoForm[f.field]}</a>
                                     : <div style={{fontSize:'13px',fontWeight:'500',color:infoForm[f.field]?'var(--tw-ink)':'var(--tw-muted)'}}>{infoForm[f.field]||'—'}</div>
@@ -1682,9 +1686,16 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                           ].map(({lbl,field,placeholder}) => (
                             <div key={field}>
                               <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>{lbl}</label>
-                              <input type="text" value={boutiqueForm[field]} onChange={e=>setBoutiqueForm({...boutiqueForm,[field]:e.target.value})}
-                                placeholder={placeholder}
-                                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
+                              {field === 'adresse'
+                                ? <AdresseAutocomplete value={boutiqueForm.adresse}
+                                    onChange={v=>setBoutiqueForm({...boutiqueForm,adresse:v})}
+                                    onSelect={s=>setBoutiqueForm({...boutiqueForm,adresse:s.name||s.label,cp:s.cp||boutiqueForm.cp,ville:s.ville||boutiqueForm.ville})}
+                                    placeholder={placeholder}
+                                    inputStyle={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
+                                : <input type="text" value={boutiqueForm[field]} onChange={e=>setBoutiqueForm({...boutiqueForm,[field]:e.target.value})}
+                                    placeholder={placeholder}
+                                    style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
+                              }
                             </div>
                           ))}
                           <div>
