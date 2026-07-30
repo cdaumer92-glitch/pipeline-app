@@ -75,8 +75,11 @@ export function useInterlocuteurs(user, API_URL, selectedProspect) {
     }
   };
 
-  const handleDeleteInterlocuteur = async (interlocuteurId) => {
-    if (!confirm('Supprimer cet interlocuteur ?')) return;
+  const handleDeleteInterlocuteur = async (interlocuteurId, estMultiSocietes = false) => {
+    const msg = estMultiSocietes
+      ? 'Retirer ce contact de cette société ? Il restera rattaché à ses autres sociétés.'
+      : 'Supprimer cet interlocuteur ?';
+    if (!confirm(msg)) return;
 
     try {
       const res = await fetch(`${API_URL}/prospects/${selectedProspect.id}/interlocuteurs/${interlocuteurId}`, {
@@ -85,7 +88,8 @@ export function useInterlocuteurs(user, API_URL, selectedProspect) {
       });
 
       if (res.ok) {
-        window.showToast({ title: 'Interlocuteur supprimé', type: 'success' });
+        const data = await res.json().catch(() => ({}));
+        window.showToast({ title: data.detached ? 'Contact détaché de cette société' : 'Interlocuteur supprimé', type: 'success' });
         await fetchInterlocuteurs(selectedProspect.id);
       } else {
         window.showToast({ title: 'Erreur lors de la suppression', type: 'error' });

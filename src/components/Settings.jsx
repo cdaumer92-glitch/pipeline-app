@@ -12,8 +12,46 @@ export function Settings({ onClose, user }) {
       const [showPassword, setShowPassword] = React.useState({});
       const [showTempPassword, setShowTempPassword] = React.useState({});
 
+      // ── Doublons de contacts (fusion admin) ──
+      const [doublons, setDoublons] = React.useState(null); // null = pas encore chargé
+      const [keepChoice, setKeepChoice] = React.useState({}); // { cle: interlocuteur_id à garder }
+      const [fusionEnCours, setFusionEnCours] = React.useState(null); // cle du groupe en cours de fusion
+
+      const fetchDoublons = async () => {
+        try {
+          const res = await fetch(`${API_URL}/interlocuteurs/doublons`, {
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          if (res.ok) setDoublons(await res.json());
+          else setDoublons([]);
+        } catch (err) { console.error('Erreur doublons:', err); setDoublons([]); }
+      };
+
+      const handleFusionner = async (groupe) => {
+        const keepId = keepChoice[groupe.cle] || groupe.contacts[0].id;
+        const mergeIds = groupe.contacts.map(c => c.id).filter(id => id !== keepId);
+        const keep = groupe.contacts.find(c => c.id === keepId);
+        if (!window.confirm(`Fusionner ${mergeIds.length} fiche(s) dans « ${[keep.prenom, keep.nom].filter(Boolean).join(' ')} » ? Les rattachements sociétés et l'historique RGPD seront conservés.`)) return;
+        setFusionEnCours(groupe.cle);
+        try {
+          const res = await fetch(`${API_URL}/interlocuteurs/fusionner`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
+            body: JSON.stringify({ keep_id: keepId, merge_ids: mergeIds })
+          });
+          if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || ('HTTP ' + res.status)); }
+          window.showToast({ title: 'Fiches fusionnées', type: 'success' });
+          await fetchDoublons();
+        } catch (err) {
+          window.showToast({ title: 'Erreur fusion : ' + err.message, type: 'error' });
+        } finally {
+          setFusionEnCours(null);
+        }
+      };
+
       React.useEffect(() => {
         fetchUsers();
+        fetchDoublons();
       }, []);
 
       const fetchUsers = async () => {
@@ -202,6 +240,55 @@ export function Settings({ onClose, user }) {
                   )}
                 </div>
               ))}
+            </div>
+
+            {/* ── Doublons de contacts : même personne présente plusieurs fois dans la base ── */}
+            <div style={{marginTop: '25px'}}>
+              <h3 style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                Doublons de contacts
+                {Array.isArray(doublons) && doublons.length > 0 && (
+                  <span style={{fontSize: '12px', fontWeight: 'bold', background: '#e8f6fc', color: '#0d7fb0', padding: '2px 10px', borderRadius: '12px'}}>{doublons.length} groupe(s)</span>
+                )}
+              </h3>
+              <p style={{fontSize: '12px', color: '#888', marginTop: '-5px'}}>
+                Fiches distinctes partageant le même email (ou le même nom sans email). La fusion garde une seule fiche : les rattachements sociétés, l'historique RGPD et l'opt-in confirmé sont conservés.
+              </p>
+              {doublons === null ? (
+                <div style={{fontSize: '13px', color: '#888', fontStyle: 'italic'}}>Chargement…</div>
+              ) : doublons.length === 0 ? (
+                <div style={{fontSize: '13px', color: '#1a8f4c', backgroundColor: '#e7f7ed', padding: '10px', borderRadius: '6px'}}>Aucun doublon détecté.</div>
+              ) : doublons.map(g => {
+                const keepId = keepChoice[g.cle] || g.contacts[0].id;
+                return (
+                  <div key={g.cle} style={{backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '10px'}}>
+                    <div style={{fontSize: '12px', color: '#888', marginBottom: '8px'}}>
+                      {g.cle.startsWith('email:') ? 'Même email : ' + g.cle.slice(6) : 'Même nom : ' + g.cle.slice(4).replace('|', ' ')}
+                    </div>
+                    {g.contacts.map(c => (
+                      <label key={c.id} style={{display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', background: keepId === c.id ? '#e8f6fc' : 'transparent', marginBottom: '4px'}}>
+                        <input type="radio" name={'keep_' + g.cle} checked={keepId === c.id}
+                          onChange={() => setKeepChoice({...keepChoice, [g.cle]: c.id})}
+                          style={{marginTop: '3px'}} />
+                        <span style={{fontSize: '13px'}}>
+                          <strong>{[c.prenom, c.nom].filter(Boolean).join(' ')}</strong>
+                          {c.email && <span style={{color: '#666'}}> · {c.email}</span>}
+                          {c.fonction && <span style={{color: '#666'}}> · {c.fonction}</span>}
+                          <br/>
+                          <span style={{fontSize: '12px', color: '#0d7fb0'}}>
+                            {[c.societe_principale, ...(c.autres_societes || [])].filter(Boolean).join(' · ') || 'Aucune société'}
+                          </span>
+                          {c.optin_confirme_at && <span style={{fontSize: '11px', color: '#1a8f4c', fontWeight: 'bold'}}> · opt-in confirmé</span>}
+                          <span style={{fontSize: '11px', color: '#aaa'}}> · créé le {c.created_at ? new Date(c.created_at).toLocaleDateString('fr-FR') : '?'}</span>
+                        </span>
+                      </label>
+                    ))}
+                    <button onClick={() => handleFusionner(g)} disabled={fusionEnCours === g.cle}
+                      style={{backgroundColor: '#10a0dc', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginTop: '6px', opacity: fusionEnCours === g.cle ? 0.6 : 1}}>
+                      {fusionEnCours === g.cle ? 'Fusion…' : 'Fusionner en gardant la fiche sélectionnée'}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

@@ -597,6 +597,24 @@ async function initDB() {
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS optin_sequence_id TEXT`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_interloc_optin_seq ON interlocuteurs(optin_sequence_id) WHERE optin_sequence_id IS NOT NULL`);
 
+    // ========== CONTACTS MULTI-SOCIÉTÉS ==========
+    // Un interlocuteur = UNE personne (identité + consentements RGPD/opt-in uniques).
+    // Sa société "principale" reste interlocuteurs.prospect_id (comportement historique :
+    // campagnes opt-in, recherche globale, réordonnancement). Les rattachements
+    // SUPPLÉMENTAIRES (ex: CEO de la holding aussi président d'une filiale) vivent dans
+    // interlocuteur_societes, avec fonction et flags principal/décideur PROPRES à chaque société.
+    await client.query(`CREATE TABLE IF NOT EXISTS interlocuteur_societes (
+      id SERIAL PRIMARY KEY,
+      interlocuteur_id INTEGER NOT NULL REFERENCES interlocuteurs(id) ON DELETE CASCADE,
+      prospect_id INTEGER NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+      fonction TEXT,
+      principal BOOLEAN DEFAULT false,
+      decideur BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(interlocuteur_id, prospect_id)
+    )`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_interloc_soc_prospect ON interlocuteur_societes(prospect_id)`);
+
     // ========== SÉQUENCE DE RELANCE OPT-IN (semi-auto) ==========
     // Suit où en est chaque contact dans la séquence de relance :
     //   optin_etape : 0 = demande initiale envoyée (aucune relance)
@@ -3046,14 +3064,62 @@ app.get('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
     //   - sémantique : NULL = jamais désabonné (peut être opt-in OU non sollicité)
     //   - distinction UI : si accept_emailing=false ET unsubscribed_at=NULL → "Non sollicité"
     // Sans le sous-SELECT, on évite le bug "création interprétée comme désabo".
-    const result = await pool.query(
-      `SELECT i.*
+    // Rattachements principaux (interlocuteurs.prospect_id) + secondaires
+    // (interlocuteur_societes). Pour un rattachement secondaire, fonction /
+    // principal / décideur viennent de la LIAISON (propres à cette société),
+    // l'identité et les consentements viennent de la fiche personne.
+    const legacy = await pool.query(
+      `SELECT i.*, false AS est_secondaire, NULL::int AS liaison_id
          FROM interlocuteurs i
-        WHERE i.prospect_id = $1
-        ORDER BY i.display_order ASC NULLS LAST, (i.principal OR i.decideur) DESC, i.principal DESC, i.nom ASC`,
+        WHERE i.prospect_id = $1`,
       [id]
     );
-    res.json(result.rows);
+    const lies = await pool.query(
+      `SELECT i.*, true AS est_secondaire, s.id AS liaison_id,
+              s.fonction AS _l_fonction, s.principal AS _l_principal, s.decideur AS _l_decideur
+         FROM interlocuteur_societes s
+         JOIN interlocuteurs i ON i.id = s.interlocuteur_id
+        WHERE s.prospect_id = $1`,
+      [id]
+    );
+    const rows = [
+      ...legacy.rows,
+      ...lies.rows.map(r => {
+        const { _l_fonction, _l_principal, _l_decideur, ...rest } = r;
+        return { ...rest, fonction: _l_fonction, principal: _l_principal, decideur: _l_decideur, display_order: null };
+      })
+    ];
+    // Autres sociétés de chaque contact (badges "aussi chez ...") : union des
+    // rattachements principaux et secondaires, hors société courante.
+    if (rows.length > 0) {
+      const ids = [...new Set(rows.map(r => r.id))];
+      const autres = await pool.query(
+        `SELECT x.interlocuteur_id,
+                json_agg(json_build_object('id', p.id, 'name', p.name, 'fonction', x.fonction) ORDER BY p.name) AS societes
+           FROM (
+             SELECT i2.id AS interlocuteur_id, i2.prospect_id, i2.fonction FROM interlocuteurs i2 WHERE i2.id = ANY($1)
+             UNION ALL
+             SELECT s.interlocuteur_id, s.prospect_id, s.fonction FROM interlocuteur_societes s WHERE s.interlocuteur_id = ANY($1)
+           ) x
+           JOIN prospects p ON p.id = x.prospect_id
+          WHERE x.prospect_id <> $2
+          GROUP BY x.interlocuteur_id`,
+        [ids, id]
+      );
+      const map = {};
+      autres.rows.forEach(r => { map[r.interlocuteur_id] = r.societes; });
+      rows.forEach(r => { r.autres_societes = map[r.id] || []; });
+    }
+    // Tri identique à l'ancien ORDER BY
+    rows.sort((a, b) => {
+      const ao = a.display_order, bo = b.display_order;
+      if (ao != null || bo != null) { if (ao == null) return 1; if (bo == null) return -1; if (ao !== bo) return ao - bo; }
+      const aFlag = (a.principal || a.decideur) ? 1 : 0, bFlag = (b.principal || b.decideur) ? 1 : 0;
+      if (aFlag !== bFlag) return bFlag - aFlag;
+      if (!!a.principal !== !!b.principal) return a.principal ? -1 : 1;
+      return String(a.nom || '').localeCompare(String(b.nom || ''));
+    });
+    res.json(rows);
   } catch (err) {
     console.error('Erreur fetch interlocuteurs:', err);
     res.status(500).json({ error: err.message });
@@ -3127,7 +3193,31 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { prenom, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail } = req.body;
+    const { prenom, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail, existing_interlocuteur_id } = req.body;
+
+    // ── Rattachement d'un contact EXISTANT (anti-doublon) : on ne crée pas de
+    // nouvelle personne, juste une liaison vers cette société avec sa fonction locale.
+    if (existing_interlocuteur_id) {
+      const exId = parseInt(existing_interlocuteur_id);
+      if (!Number.isInteger(exId)) return res.status(400).json({ error: 'existing_interlocuteur_id invalide' });
+      const person = await client.query('SELECT id, prospect_id FROM interlocuteurs WHERE id = $1', [exId]);
+      if (person.rows.length === 0) return res.status(404).json({ error: 'Contact introuvable' });
+      if (person.rows[0].prospect_id === parseInt(id)) return res.status(409).json({ error: 'Ce contact est déjà rattaché à cette société' });
+      const dejaLie = await client.query('SELECT id FROM interlocuteur_societes WHERE interlocuteur_id = $1 AND prospect_id = $2', [exId, id]);
+      if (dejaLie.rows.length > 0) return res.status(409).json({ error: 'Ce contact est déjà rattaché à cette société' });
+      await client.query('BEGIN');
+      if (principal) {
+        await client.query('UPDATE interlocuteurs SET principal = false WHERE prospect_id = $1', [id]);
+        await client.query('UPDATE interlocuteur_societes SET principal = false WHERE prospect_id = $1', [id]);
+      }
+      const liaison = await client.query(
+        `INSERT INTO interlocuteur_societes (interlocuteur_id, prospect_id, fonction, principal, decideur)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [exId, id, (fonction && String(fonction).trim()) || null, !!principal, !!decideur]
+      );
+      await client.query('COMMIT');
+      return res.json({ ok: true, rattache: true, liaison: liaison.rows[0] });
+    }
 
     const acceptEmailing = !!accept_emailing;
     const acceptNotesInfo = !!accept_notes_info;
@@ -3151,6 +3241,10 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
     if (principal) {
       await client.query(
         'UPDATE interlocuteurs SET principal = false WHERE prospect_id = $1',
+        [id]
+      );
+      await client.query(
+        'UPDATE interlocuteur_societes SET principal = false WHERE prospect_id = $1',
         [id]
       );
     }
@@ -3223,17 +3317,32 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
     // Lire l'état AVANT update pour pouvoir détecter les changements RGPD.
     // Verrouillage FOR UPDATE pour éviter une race condition si 2 PUT
     // arrivent simultanément sur le même interlocuteur.
-    const beforeRes = await client.query(
+    // Deux cas : rattachement PRINCIPAL (interlocuteurs.prospect_id = prospectId)
+    // ou rattachement SECONDAIRE (ligne interlocuteur_societes) — dans ce cas
+    // l'identité est partagée, mais fonction/principal/décideur sont ceux de la liaison.
+    let liaisonId = null;
+    let beforeRes = await client.query(
       `SELECT accept_emailing, accept_notes_info
          FROM interlocuteurs
         WHERE id = $1 AND prospect_id = $2
         FOR UPDATE`,
       [id, prospectId]
     );
-
     if (beforeRes.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Interlocuteur non trouvé' });
+      const li = await client.query(
+        `SELECT s.id AS liaison_id, i.accept_emailing, i.accept_notes_info
+           FROM interlocuteur_societes s
+           JOIN interlocuteurs i ON i.id = s.interlocuteur_id
+          WHERE s.interlocuteur_id = $1 AND s.prospect_id = $2
+          FOR UPDATE OF i`,
+        [id, prospectId]
+      );
+      if (li.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Interlocuteur non trouvé' });
+      }
+      liaisonId = li.rows[0].liaison_id;
+      beforeRes = li;
     }
 
     const before = beforeRes.rows[0];
@@ -3243,6 +3352,10 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
         'UPDATE interlocuteurs SET principal = false WHERE prospect_id = $1 AND id != $2',
         [prospectId, id]
       );
+      await client.query(
+        'UPDATE interlocuteur_societes SET principal = false WHERE prospect_id = $1 AND interlocuteur_id != $2',
+        [prospectId, id]
+      );
     }
 
     // COALESCE pour ne pas écraser les flags si pas envoyés (compat ascendante).
@@ -3250,35 +3363,61 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
     // pour effacer (côté front, '' = "supprimer mon LinkedIn").
     const linkedinValue = (linkedin_url === undefined) ? null
                           : (String(linkedin_url).trim() === '' ? '' : String(linkedin_url).trim());
-    const result = await client.query(
-      `UPDATE interlocuteurs
-       SET prenom = CASE WHEN $12::text IS NULL THEN prenom ELSE $12::text END,
-           nom = $1, fonction = $2, email = $3, telephone = $4, principal = $5, decideur = $6,
-           accept_emailing = COALESCE($7, accept_emailing),
-           accept_notes_info = COALESCE($8, accept_notes_info),
-           linkedin_url = CASE WHEN $11::text IS NULL THEN linkedin_url
-                               WHEN $11::text = '' THEN NULL
-                               ELSE $11::text END,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $9 AND prospect_id = $10
-       RETURNING *`,
-      [
-        nom, fonction, email, telephone, principal || false, decideur || false,
-        accept_emailing === undefined ? null : !!accept_emailing,
-        accept_notes_info === undefined ? null : !!accept_notes_info,
-        id, prospectId,
-        linkedinValue,
-        // $12 prenom : sémantique différenciée
-        //   - undefined côté JS → null SQL → SET prenom = prenom (garde valeur, compat ascendante)
-        //   - chaîne vide → null en BDD (effacer le prénom)
-        //   - valeur réelle → update vers cette valeur
-        // Note : '' devient null grâce à la conversion plus bas (qui retourne null pour '')
-        (prenom === undefined) ? null
-                               : (String(prenom).trim() === '' ? null : String(prenom).trim())
-      ]
-    );
+    // prenom : sémantique différenciée
+    //   - undefined côté JS → null SQL → SET prenom = prenom (garde valeur, compat ascendante)
+    //   - chaîne vide → null en BDD (effacer le prénom)
+    //   - valeur réelle → update vers cette valeur
+    const prenomValue = (prenom === undefined) ? null
+                        : (String(prenom).trim() === '' ? null : String(prenom).trim());
+    const acceptEmailingParam = accept_emailing === undefined ? null : !!accept_emailing;
+    const acceptNotesParam = accept_notes_info === undefined ? null : !!accept_notes_info;
 
-    const after = result.rows[0];
+    let after;
+    if (liaisonId === null) {
+      const result = await client.query(
+        `UPDATE interlocuteurs
+         SET prenom = CASE WHEN $12::text IS NULL THEN prenom ELSE $12::text END,
+             nom = $1, fonction = $2, email = $3, telephone = $4, principal = $5, decideur = $6,
+             accept_emailing = COALESCE($7, accept_emailing),
+             accept_notes_info = COALESCE($8, accept_notes_info),
+             linkedin_url = CASE WHEN $11::text IS NULL THEN linkedin_url
+                                 WHEN $11::text = '' THEN NULL
+                                 ELSE $11::text END,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $9 AND prospect_id = $10
+         RETURNING *`,
+        [
+          nom, fonction, email, telephone, principal || false, decideur || false,
+          acceptEmailingParam, acceptNotesParam,
+          id, prospectId,
+          linkedinValue, prenomValue
+        ]
+      );
+      after = result.rows[0];
+    } else {
+      // Identité + consentements sur la fiche personne (partagés entre toutes les sociétés)
+      const resIdent = await client.query(
+        `UPDATE interlocuteurs
+         SET prenom = CASE WHEN $8::text IS NULL THEN prenom ELSE $8::text END,
+             nom = $1, email = $2, telephone = $3,
+             accept_emailing = COALESCE($4, accept_emailing),
+             accept_notes_info = COALESCE($5, accept_notes_info),
+             linkedin_url = CASE WHEN $7::text IS NULL THEN linkedin_url
+                                 WHEN $7::text = '' THEN NULL
+                                 ELSE $7::text END,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $6
+         RETURNING *`,
+        [nom, email, telephone, acceptEmailingParam, acceptNotesParam, id, linkedinValue, prenomValue]
+      );
+      // Fonction + flags propres à CETTE société (sur la liaison)
+      const resLiaison = await client.query(
+        `UPDATE interlocuteur_societes SET fonction = $1, principal = $2, decideur = $3
+          WHERE id = $4 RETURNING fonction, principal, decideur`,
+        [fonction, principal || false, decideur || false, liaisonId]
+      );
+      after = { ...resIdent.rows[0], ...resLiaison.rows[0], est_secondaire: true, liaison_id: liaisonId };
+    }
 
     // RGPD : logger uniquement les CHANGEMENTS de valeur sur les 2 flags.
     const ipAddr = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || null;
@@ -3314,22 +3453,213 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
 
 app.delete('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) => {
   if (!(await assertOwnsProspect(req, res, req.params.prospectId))) return;
+  const client = await pool.connect();
   try {
     const { prospectId, id } = req.params;
-    
-    const result = await pool.query(
+
+    await client.query('BEGIN');
+
+    // Cas 1 : rattachement SECONDAIRE → on supprime seulement la liaison,
+    // la fiche personne reste rattachée à ses autres sociétés.
+    const liaison = await client.query(
+      'DELETE FROM interlocuteur_societes WHERE interlocuteur_id = $1 AND prospect_id = $2 RETURNING *',
+      [id, prospectId]
+    );
+    if (liaison.rows.length > 0) {
+      await client.query('COMMIT');
+      return res.json({ message: 'Contact détaché de cette société', detached: true });
+    }
+
+    // Cas 2 : rattachement PRINCIPAL. S'il reste d'autres liaisons, on promeut la
+    // plus ancienne en rattachement principal (la fiche personne, ses consentements
+    // et son historique opt-in survivent). Sinon, suppression complète (comportement historique).
+    const person = await client.query('SELECT id FROM interlocuteurs WHERE id = $1 AND prospect_id = $2 FOR UPDATE', [id, prospectId]);
+    if (person.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Interlocuteur non trouvé' });
+    }
+    const next = await client.query(
+      'SELECT * FROM interlocuteur_societes WHERE interlocuteur_id = $1 ORDER BY created_at ASC, id ASC LIMIT 1',
+      [id]
+    );
+    if (next.rows.length > 0) {
+      const l = next.rows[0];
+      await client.query(
+        `UPDATE interlocuteurs
+            SET prospect_id = $1, fonction = $2, principal = $3, decideur = $4, display_order = NULL, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $5`,
+        [l.prospect_id, l.fonction, l.principal, l.decideur, id]
+      );
+      await client.query('DELETE FROM interlocuteur_societes WHERE id = $1', [l.id]);
+      await client.query('COMMIT');
+      return res.json({ message: 'Contact détaché de cette société', detached: true });
+    }
+
+    const result = await client.query(
       'DELETE FROM interlocuteurs WHERE id = $1 AND prospect_id = $2 RETURNING *',
       [id, prospectId]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Interlocuteur non trouvé' });
-    }
-
+    await client.query('COMMIT');
     res.json({ message: 'Interlocuteur supprimé', deleted: result.rows[0] });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Erreur delete interlocuteur:', err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ===================== CONTACTS MULTI-SOCIÉTÉS =====================
+// GET /api/interlocuteurs/search?q=...&exclude_prospect_id=N
+// Recherche un contact existant par nom/prénom/email (anti-doublon à la saisie).
+// Retourne les personnes avec la liste de leurs sociétés. exclude_prospect_id
+// écarte les contacts déjà rattachés à la société en cours de saisie.
+app.get('/api/interlocuteurs/search', auth, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return res.json([]);
+    const exclude = parseInt(req.query.exclude_prospect_id) || 0;
+    const result = await pool.query(
+      `SELECT i.id, i.prenom, i.nom, i.email, i.telephone,
+              (SELECT json_agg(json_build_object('id', p.id, 'name', p.name, 'fonction', x.fonction) ORDER BY p.name)
+                 FROM (
+                   SELECT i2.prospect_id, i2.fonction FROM interlocuteurs i2 WHERE i2.id = i.id
+                   UNION ALL
+                   SELECT s.prospect_id, s.fonction FROM interlocuteur_societes s WHERE s.interlocuteur_id = i.id
+                 ) x JOIN prospects p ON p.id = x.prospect_id) AS societes
+         FROM interlocuteurs i
+        WHERE (i.nom ILIKE $1 OR i.prenom ILIKE $1 OR (i.prenom || ' ' || i.nom) ILIKE $1 OR (i.nom || ' ' || i.prenom) ILIKE $1 OR i.email ILIKE $1)
+          AND ($2 = 0 OR (
+                i.prospect_id <> $2
+                AND NOT EXISTS (SELECT 1 FROM interlocuteur_societes s WHERE s.interlocuteur_id = i.id AND s.prospect_id = $2)
+              ))
+        ORDER BY i.nom ASC
+        LIMIT 8`,
+      ['%' + q + '%', exclude]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur search interlocuteurs:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/interlocuteurs/doublons (admin)
+// Groupes de fiches personnes distinctes partageant le même email (ou, à défaut
+// d'email, le même prénom+nom) → candidats à la fusion.
+app.get('/api/interlocuteurs/doublons', auth, async (req, res) => {
+  if ((await getUserRole(req.userId)) !== 'admin') return res.status(403).json({ error: 'Réservé aux administrateurs' });
+  try {
+    const result = await pool.query(
+      `WITH cles AS (
+         SELECT i.id,
+                CASE WHEN i.email IS NOT NULL AND trim(i.email) <> '' THEN 'email:' || lower(trim(i.email))
+                     WHEN i.nom IS NOT NULL AND trim(i.nom) <> '' THEN 'nom:' || lower(trim(coalesce(i.prenom,''))) || '|' || lower(trim(i.nom))
+                     ELSE NULL END AS cle
+           FROM interlocuteurs i
+       )
+       SELECT c.cle,
+              json_agg(json_build_object(
+                'id', i.id, 'prenom', i.prenom, 'nom', i.nom, 'email', i.email, 'telephone', i.telephone,
+                'fonction', i.fonction, 'optin_confirme_at', i.optin_confirme_at, 'accept_emailing', i.accept_emailing,
+                'societe_principale', p.name, 'created_at', i.created_at,
+                'autres_societes', (SELECT json_agg(p2.name ORDER BY p2.name) FROM interlocuteur_societes s JOIN prospects p2 ON p2.id = s.prospect_id WHERE s.interlocuteur_id = i.id)
+              ) ORDER BY i.created_at ASC) AS contacts
+         FROM cles c
+         JOIN interlocuteurs i ON i.id = c.id
+         LEFT JOIN prospects p ON p.id = i.prospect_id
+        WHERE c.cle IS NOT NULL
+        GROUP BY c.cle
+       HAVING count(*) > 1
+        ORDER BY c.cle`,
+      []
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Erreur doublons interlocuteurs:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/interlocuteurs/fusionner (admin)
+// Body : { keep_id, merge_ids: [..] }. Fusionne les fiches merge_ids DANS keep_id :
+//  - chaque société des doublons devient une liaison de la fiche gardée (sans doublon)
+//  - l'historique de consentements et les boutiques (responsable) sont réaffectés
+//  - opt-in : un opt-in confirmé sur un doublon est conservé s'il manque sur la fiche
+//    gardée (jamais l'inverse : un opt-out explicite de la fiche gardée prime)
+//  - les fiches doublons sont supprimées
+app.post('/api/interlocuteurs/fusionner', auth, async (req, res) => {
+  if ((await getUserRole(req.userId)) !== 'admin') return res.status(403).json({ error: 'Réservé aux administrateurs' });
+  const keepId = parseInt(req.body.keep_id);
+  const mergeIds = (Array.isArray(req.body.merge_ids) ? req.body.merge_ids : []).map(x => parseInt(x)).filter(x => Number.isInteger(x) && x !== keepId);
+  if (!Number.isInteger(keepId) || mergeIds.length === 0) return res.status(400).json({ error: 'keep_id / merge_ids invalides' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const keepRes = await client.query('SELECT * FROM interlocuteurs WHERE id = $1 FOR UPDATE', [keepId]);
+    if (keepRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Fiche à conserver introuvable' }); }
+    const keep = keepRes.rows[0];
+
+    for (const mid of mergeIds) {
+      const mRes = await client.query('SELECT * FROM interlocuteurs WHERE id = $1 FOR UPDATE', [mid]);
+      if (mRes.rows.length === 0) continue;
+      const m = mRes.rows[0];
+
+      // 1. La société principale du doublon devient une liaison de la fiche gardée
+      //    (sauf si la fiche gardée y est déjà rattachée)
+      if (m.prospect_id && m.prospect_id !== keep.prospect_id) {
+        await client.query(
+          `INSERT INTO interlocuteur_societes (interlocuteur_id, prospect_id, fonction, principal, decideur)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (interlocuteur_id, prospect_id) DO NOTHING`,
+          [keepId, m.prospect_id, m.fonction, m.principal, m.decideur]
+        );
+      }
+      // 2. Les liaisons du doublon migrent vers la fiche gardée (sans doublon)
+      await client.query(
+        `INSERT INTO interlocuteur_societes (interlocuteur_id, prospect_id, fonction, principal, decideur)
+         SELECT $1, s.prospect_id, s.fonction, s.principal, s.decideur
+           FROM interlocuteur_societes s
+          WHERE s.interlocuteur_id = $2 AND s.prospect_id <> $3
+         ON CONFLICT (interlocuteur_id, prospect_id) DO NOTHING`,
+        [keepId, mid, keep.prospect_id || 0]
+      );
+      await client.query('DELETE FROM interlocuteur_societes WHERE interlocuteur_id = $1', [mid]);
+
+      // 3. Réaffectations : historique RGPD + boutiques dont il est responsable
+      await client.query('UPDATE interlocuteurs_consents SET interlocuteur_id = $1 WHERE interlocuteur_id = $2', [keepId, mid]);
+      await client.query('UPDATE boutiques SET responsable_id = $1 WHERE responsable_id = $2', [keepId, mid]);
+
+      // 4. Consolidation : compléter la fiche gardée avec les infos manquantes.
+      //    Opt-in confirmé du doublon repris seulement si la fiche gardée n'est ni
+      //    déjà opt-in ni explicitement désabonnée.
+      await client.query(
+        `UPDATE interlocuteurs k
+            SET email = COALESCE(NULLIF(trim(k.email), ''), $2),
+                telephone = COALESCE(NULLIF(trim(k.telephone), ''), $3),
+                prenom = COALESCE(k.prenom, $4),
+                linkedin_url = COALESCE(k.linkedin_url, $5),
+                optin_confirme_at = COALESCE(k.optin_confirme_at, $6),
+                accept_emailing = CASE WHEN k.emailing_unsubscribed_at IS NOT NULL THEN k.accept_emailing ELSE (k.accept_emailing OR $7) END,
+                accept_notes_info = (k.accept_notes_info OR $8),
+                updated_at = CURRENT_TIMESTAMP
+          WHERE k.id = $1`,
+        [keepId, m.email || null, m.telephone || null, m.prenom || null, m.linkedin_url || null, m.optin_confirme_at || null, !!m.accept_emailing, !!m.accept_notes_info]
+      );
+
+      // 5. Suppression de la fiche doublon
+      await client.query('DELETE FROM interlocuteurs WHERE id = $1', [mid]);
+    }
+
+    await client.query('COMMIT');
+    res.json({ ok: true, merged: mergeIds.length });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Erreur fusion interlocuteurs:', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 

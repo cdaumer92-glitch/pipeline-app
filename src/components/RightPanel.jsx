@@ -38,6 +38,42 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
       const [groupeSearch, setGroupeSearch] = React.useState('');
       const [groupeOpen, setGroupeOpen] = React.useState(false); // accordéon replié par défaut
 
+      // ── Anti-doublon contacts : suggestions de fiches existantes pendant la saisie ──
+      const [dupSuggestions, setDupSuggestions] = React.useState([]);
+      React.useEffect(() => {
+        // Uniquement en CRÉATION de contact (pas en édition)
+        if (!showInterlocuteurForm || interlocuteurForm.id) { setDupSuggestions([]); return; }
+        const email = (interlocuteurForm.email || '').trim();
+        const nomComplet = (((interlocuteurForm.prenom || '') + ' ' + (interlocuteurForm.nom || '')).trim());
+        const q = email.length >= 2 ? email : nomComplet;
+        if (q.length < 2) { setDupSuggestions([]); return; }
+        const t = setTimeout(async () => {
+          try {
+            const r = await fetch(`${API_URL}/interlocuteurs/search?q=${encodeURIComponent(q)}&exclude_prospect_id=${selectedProspect?.id || 0}`,
+              { headers: { 'Authorization': `Bearer ${user.token}` } });
+            const data = await r.json();
+            setDupSuggestions(Array.isArray(data) ? data : []);
+          } catch (_) { setDupSuggestions([]); }
+        }, 350);
+        return () => clearTimeout(t);
+      }, [interlocuteurForm.nom, interlocuteurForm.prenom, interlocuteurForm.email, showInterlocuteurForm, interlocuteurForm.id]);
+
+      // Rattacher une fiche contact existante à la société courante (pas de doublon créé)
+      const handleRattacherContact = async (contact) => {
+        try {
+          const r = await fetch(`${API_URL}/prospects/${selectedProspect.id}/interlocuteurs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
+            body: JSON.stringify({ existing_interlocuteur_id: contact.id, fonction: interlocuteurForm.fonction || '', principal: !!interlocuteurForm.principal, decideur: !!interlocuteurForm.decideur })
+          });
+          if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || ('HTTP ' + r.status)); }
+          window.showToast({ title: 'Contact existant rattaché à la société', type: 'success' });
+          setShowInterlocuteurForm(false);
+          setDupSuggestions([]);
+          if (typeof fetchInterlocuteurs === 'function') fetchInterlocuteurs(selectedProspect.id);
+        } catch (err) { window.showToast({ title: 'Erreur : ' + err.message, type: 'error' }); }
+      };
+
       // ── Onglets fiche client ──
       const [clientTab, setClientTab] = React.useState('infos');
       const [clientLicences, setClientLicences] = React.useState([]);
@@ -833,6 +869,25 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                               onChange={e=>setInterlocuteurForm({...interlocuteurForm,nom:e.target.value})}
                               style={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
                           </div>
+                          {/* Anti-doublon : ce nom/email existe déjà dans la base → proposer le rattachement */}
+                          {!isEdit && dupSuggestions.length > 0 && (
+                            <div style={{border:'1px solid #b5d9ea',background:'#e8f6fc',borderRadius:'8px',padding:'10px 12px',marginBottom:'10px'}}>
+                              <div style={{fontSize:'12px',fontWeight:600,color:'#0d5f85',marginBottom:'6px'}}>Ce contact existe peut-être déjà — le rattacher à cette société plutôt que créer un doublon :</div>
+                              {dupSuggestions.map(s => (
+                                <div key={s.id} style={{display:'flex',alignItems:'center',gap:'8px',padding:'4px 0',fontSize:'12.5px'}}>
+                                  <span style={{fontWeight:600,color:'var(--tw-ink)',flexShrink:0}}>{[s.prenom, s.nom].filter(Boolean).join(' ')}</span>
+                                  {s.email && <span style={{color:'var(--tw-muted)',flexShrink:0}}>{s.email}</span>}
+                                  <span style={{color:'var(--tw-slate)',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                                    {(s.societes || []).map(so => so.name + (so.fonction ? ' — ' + so.fonction : '')).join(' · ')}
+                                  </span>
+                                  <button onClick={() => handleRattacherContact(s)}
+                                    style={{background:'var(--tw-teal)',color:'white',border:'none',padding:'4px 10px',borderRadius:'6px',fontSize:'11.5px',fontWeight:600,cursor:'pointer',fontFamily:"'Inter',sans-serif",flexShrink:0}}>
+                                    Rattacher ici
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
                             {[
                               {ph:'Fonction', field:'fonction'},
@@ -1123,6 +1178,23 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                       {c.telephone && <a href={`tel:${c.telephone}`} style={{color:'var(--tw-slate)',textDecoration:'none'}}>📞 {c.telephone}</a>}
                                       {c.linkedin_url && <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer" title="Profil LinkedIn" style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'18px',height:'18px',borderRadius:'3px',background:'#0a66c2',color:'white',fontSize:'9px',fontWeight:700,textDecoration:'none'}}>in</a>}
                                     </div>
+                                    {/* Contact multi-sociétés : badges des autres sociétés où il est rattaché */}
+                                    {Array.isArray(c.autres_societes) && c.autres_societes.length > 0 && (
+                                      <div style={{display:'flex',gap:'5px',flexWrap:'wrap',marginTop:'4px',alignItems:'center'}}>
+                                        <span style={{fontSize:'10px',color:'var(--tw-muted)'}}>Aussi chez :</span>
+                                        {c.autres_societes.map(so => {
+                                          const target = (prospects || []).find(p => p.id === so.id);
+                                          return (
+                                            <span key={so.id}
+                                              onClick={() => { if (target && onSelectProspect) onSelectProspect(target); }}
+                                              title={(so.fonction ? `${so.name} — ${so.fonction}` : so.name) + (target ? ' (cliquer pour ouvrir la fiche)' : '')}
+                                              style={{fontSize:'10px',fontWeight:600,padding:'1px 8px',borderRadius:'9px',background:'#e8f6fc',color:'#0d7fb0',cursor: target ? 'pointer' : 'default'}}>
+                                              {so.name}{so.fonction ? ' · ' + so.fonction : ''}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
                                   <div style={{display:'flex',gap:'5px',alignItems:'center',flexShrink:0}}>
                                     {c.accept_emailing && <span title="Accepte les emailings commerciaux" style={{display:'inline-flex',alignItems:'center',padding:'3px 5px',borderRadius:'8px',background:'#dcfce7',color:'#166534'}}>{I(ICONS.mail, 12)}</span>}
@@ -1132,8 +1204,8 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                     <IconBtn title="Modifier le contact"
                                       onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,prenom:c.prenom||'',nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',linkedin_url:c.linkedin_url||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info,demande_optin:!!c.demande_optin,emailing_unsubscribed_at:c.emailing_unsubscribed_at||null,emailing_unsubscribed_source:c.emailing_unsubscribed_source||null}); setShowInterlocuteurForm(true); }}
                                     >{I(ICONS.edit, 13)}</IconBtn>
-                                    <IconBtn title="Supprimer le contact" danger
-                                      onClick={() => handleDeleteInterlocuteur(c.id)}
+                                    <IconBtn title={Array.isArray(c.autres_societes) && c.autres_societes.length > 0 ? 'Retirer de cette société (le contact reste rattaché à ses autres sociétés)' : 'Supprimer le contact'} danger
+                                      onClick={() => handleDeleteInterlocuteur(c.id, Array.isArray(c.autres_societes) && c.autres_societes.length > 0)}
                                     >{I(ICONS.trash, 13)}</IconBtn>
                                   </div>
                                 </div>
