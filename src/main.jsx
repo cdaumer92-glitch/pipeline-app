@@ -417,7 +417,8 @@ const ReactDOM = { createRoot, createPortal };
       };
 
       const handleDeleteProspect = async (id) => {
-        if (window.confirm('Supprimer ce prospect ?')) {
+        const cible = prospects.find(p => p.id === id);
+        if (window.confirm(`Supprimer définitivement la société « ${cible?.name || '?'} » ?\n\nSes affaires, devis, contacts et actions seront également supprimés. Cette action est irréversible.`)) {
           try {
             const res = await fetch(`${API_URL}/prospects/${id}`, {
               method: 'DELETE',

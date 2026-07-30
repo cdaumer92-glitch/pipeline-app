@@ -318,22 +318,24 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                         else if (window.openSInfoEnrich) window.openSInfoEnrich(selectedProspect);
                       }}
                       style={{
-                        display:'inline-flex',alignItems:'center',justifyContent:'center',
-                        width:'24px',height:'24px',padding:0,
+                        display:'inline-flex',alignItems:'center',justifyContent:'center',gap:'5px',
+                        height:'24px',padding:'0 10px 0 7px',
                         background:'white',
                         border:'0.5px solid #f0c4c4',
-                        borderRadius:'50%',
+                        borderRadius:'12px',
                         cursor:'pointer',
+                        fontSize:'11px',fontWeight:600,color:'#a52d2d',fontFamily:"'Inter',sans-serif",
                         transition:'all .15s'
                       }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = '#fef3f2'; e.currentTarget.style.borderColor = '#a52d2d'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = '#f0c4c4'; }}
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a52d2d" strokeWidth="2">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a52d2d" strokeWidth="2">
                         <circle cx="12" cy="12" r="10"/>
                         <circle cx="12" cy="12" r="6"/>
                         <circle cx="12" cy="12" r="2" fill="#a52d2d"/>
                       </svg>
+                      Enrichir
                     </button>
                     {/* Badges client (style discret) */}
                     {selectedProspect.statut_societe === 'Client' && clientLicences.some(l=>l.licence_type==='perpetuelle') && (
@@ -426,6 +428,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
               bag:     React.createElement(React.Fragment, null, React.createElement('path',{d:'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0'})),
               hardware:React.createElement(React.Fragment, null, React.createElement('rect',{x:2,y:3,width:20,height:14,rx:2}), React.createElement('line',{x1:8,y1:21,x2:16,y2:21}), React.createElement('line',{x1:12,y1:17,x2:12,y2:21})),
               folder:  React.createElement('path',{d:'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'}),
+              users:   React.createElement(React.Fragment, null, React.createElement('path',{d:'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'}), React.createElement('circle',{cx:9,cy:7,r:4}), React.createElement('path',{d:'M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'})),
               actions: React.createElement(React.Fragment, null, React.createElement('path',{d:'M9 11l3 3L22 4'}), React.createElement('path',{d:'M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'})),
             };
             return (
@@ -436,6 +439,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                   const nbAffaires = affairesList.filter(a => a.statut_global !== 'Perdu' && a.statut_global !== 'Gagné').length;
                   const tabs = [
                     {id:'infos',        label:'Informations',   icon: ICON.info},
+                    {id:'contacts',     label:'Contacts',       icon: ICON.users, count: (interlocuteurs || []).length},
                     ...(isClient ? [
                       {id:'licences',  label:'Licences',  icon: ICON.key,      count: clientLicences.length},
                       {id:'boutiques', label:'Boutiques', icon: ICON.bag,      count: clientBoutiques.length},
@@ -485,7 +489,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                   <div>
                     {/* Coordonnées */}
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
-                      <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)'}}>Coordonnées société</div>
+                      <div style={{fontSize:'11.5px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-slate)'}}>Coordonnées société</div>
                       {!infoEdit
                         ? <button onClick={() => setInfoEdit(true)} style={{padding:'4px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',fontSize:'12px',cursor:'pointer',color:'var(--tw-slate)',fontFamily:"'Inter',sans-serif"}}>✏️ Modifier</button>
                         : <div style={{display:'flex',gap:'8px'}}>
@@ -494,57 +498,83 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                           </div>
                       }
                     </div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px',marginBottom:'20px'}}>
-                      {[
+                    {(() => {
+                      const champs = [
                         {lbl:'Raison sociale', field:'name'},
                         {lbl:'N° SIREN', field:'siren'},
                         {lbl:'Adresse siège', field:'adresse'},
                         {lbl:'Site web', field:'website'},
                         {lbl:'Téléphone standard', field:'tel_standard'},
-                      ].map(f => (
-                        <div key={f.field}>
-                          <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>{f.lbl}</div>
-                          {infoEdit
-                            ? <input type="text" value={infoForm[f.field]||''} onChange={e=>setInfoForm({...infoForm,[f.field]:e.target.value})}
-                                style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
-                            : f.field==='website' && infoForm[f.field]
-                              ? <a href={infoForm[f.field].startsWith('http')?infoForm[f.field]:'https://'+infoForm[f.field]} target="_blank" style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-teal)'}}>{infoForm[f.field]}</a>
-                              : <div style={{fontSize:'13px',fontWeight:'500',color:infoForm[f.field]?'var(--tw-ink)':'var(--tw-muted)'}}>{infoForm[f.field]||'—'}</div>
-                          }
-                        </div>
-                      ))}
-                      {/* Code NAF */}
-                      <div>
-                        <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>Code NAF</div>
-                        {infoEdit
-                          ? <select value={infoForm.code_naf||''} onChange={e=>setInfoForm({...infoForm,code_naf:e.target.value})}
-                              style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
-                              <option value="">— Sélectionner —</option>
-                              {(codesNaf||[]).map(c=>(
-                                <option key={c.code} value={c.code}>{c.code} – {c.libelle} ({c.categorie})</option>
-                              ))}
-                            </select>
-                          : (() => {
-                              const found = (codesNaf||[]).find(c=>c.code===infoForm.code_naf);
-                              return infoForm.code_naf
-                                ? <div>
-                                    <div style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{infoForm.code_naf}</div>
-                                    <div style={{fontSize:'12px',color:'var(--tw-slate)',marginTop:'2px'}}>{found?.libelle||''}</div>
-                                    <div style={{fontSize:'11px',color:'var(--tw-teal)',marginTop:'1px'}}>{found?.categorie||''}</div>
-                                  </div>
-                                : <div style={{fontSize:'13px',color:'var(--tw-muted)'}}>—</div>;
-                            })()
-                        }
-                      </div>
-                      <div>
-                        <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>Date entrée en relation</div>
-                        {infoEdit
-                          ? <input type="date" value={infoForm.created_at||''} onChange={e=>setInfoForm({...infoForm,created_at:e.target.value})}
-                              style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
-                          : <div style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-ink)'}}>{infoForm.created_at?new Date(infoForm.created_at).toLocaleDateString('fr-FR'):'—'}</div>
-                        }
-                      </div>
-                    </div>
+                      ];
+                      const rempli = (f) => !!(infoForm[f] && String(infoForm[f]).trim());
+                      const lblStyle = {fontSize:'11.5px',color:'var(--tw-slate)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'};
+                      // En lecture, les champs vides sont repliés dans une ligne compacte
+                      // « Non renseigné : ... » plutôt qu'affichés avec un « — » qui allonge la fiche.
+                      const manquants = infoEdit ? [] : [
+                        ...champs.filter(f => !rempli(f.field)).map(f => f.lbl),
+                        ...(!rempli('code_naf') ? ['Code NAF'] : []),
+                        ...(!rempli('created_at') ? ['Date entrée en relation'] : []),
+                        ...((infoForm.marques||[]).length === 0 ? ['Marques'] : []),
+                      ];
+                      return (
+                        <React.Fragment>
+                          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px',marginBottom: manquants.length ? '10px' : '20px'}}>
+                            {champs.filter(f => infoEdit || rempli(f.field)).map(f => (
+                              <div key={f.field}>
+                                <div style={lblStyle}>{f.lbl}</div>
+                                {infoEdit
+                                  ? <input type="text" value={infoForm[f.field]||''} onChange={e=>setInfoForm({...infoForm,[f.field]:e.target.value})}
+                                      style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
+                                  : f.field==='website' && infoForm[f.field]
+                                    ? <a href={infoForm[f.field].startsWith('http')?infoForm[f.field]:'https://'+infoForm[f.field]} target="_blank" style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-teal)'}}>{infoForm[f.field]}</a>
+                                    : <div style={{fontSize:'13px',fontWeight:'500',color:infoForm[f.field]?'var(--tw-ink)':'var(--tw-muted)'}}>{infoForm[f.field]||'—'}</div>
+                                }
+                              </div>
+                            ))}
+                            {/* Code NAF */}
+                            {(infoEdit || rempli('code_naf')) && (
+                              <div>
+                                <div style={lblStyle}>Code NAF</div>
+                                {infoEdit
+                                  ? <select value={infoForm.code_naf||''} onChange={e=>setInfoForm({...infoForm,code_naf:e.target.value})}
+                                      style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
+                                      <option value="">— Sélectionner —</option>
+                                      {(codesNaf||[]).map(c=>(
+                                        <option key={c.code} value={c.code}>{c.code} – {c.libelle} ({c.categorie})</option>
+                                      ))}
+                                    </select>
+                                  : (() => {
+                                      const found = (codesNaf||[]).find(c=>c.code===infoForm.code_naf);
+                                      return (
+                                        <div>
+                                          <div style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{infoForm.code_naf}</div>
+                                          <div style={{fontSize:'12px',color:'var(--tw-slate)',marginTop:'2px'}}>{found?.libelle||''}</div>
+                                          <div style={{fontSize:'11px',color:'var(--tw-teal)',marginTop:'1px'}}>{found?.categorie||''}</div>
+                                        </div>
+                                      );
+                                    })()
+                                }
+                              </div>
+                            )}
+                            {(infoEdit || rempli('created_at')) && (
+                              <div>
+                                <div style={lblStyle}>Date entrée en relation</div>
+                                {infoEdit
+                                  ? <input type="date" value={infoForm.created_at||''} onChange={e=>setInfoForm({...infoForm,created_at:e.target.value})}
+                                      style={{width:'100%',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
+                                  : <div style={{fontSize:'13px',fontWeight:'500',color:'var(--tw-ink)'}}>{infoForm.created_at?new Date(infoForm.created_at).toLocaleDateString('fr-FR'):''}</div>
+                                }
+                              </div>
+                            )}
+                          </div>
+                          {manquants.length > 0 && (
+                            <div style={{fontSize:'11.5px',color:'var(--tw-muted)',marginBottom:'20px'}}>
+                              Non renseigné : {manquants.join(' · ')}
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })()}
 
                     {/* ── Groupe de sociétés (holding / filiales) ── */}
                     {(() => {
@@ -711,10 +741,11 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                       );
                     })()}
 
-                    {/* Marques */}
+                    {/* Marques : replié quand vide en mode lecture (signalé dans « Non renseigné ») */}
+                    {(infoEdit || (infoForm.marques||[]).length > 0) && (
                     <div style={{marginBottom:'20px'}}>
                       <div>
-                        <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>Marques</div>
+                        <div style={{fontSize:'11.5px',color:'var(--tw-slate)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'}}>Marques</div>
                         {infoEdit
                           ? <div>
                               <div style={{display:'flex',flexWrap:'wrap',gap:'6px',padding:'6px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',minHeight:'36px',alignItems:'center',background:'white'}}>
@@ -752,14 +783,15 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                   <span key={i} style={{background:'var(--tw-teal-light)',color:'var(--tw-teal)',padding:'2px 10px',borderRadius:'12px',fontSize:'12px',fontWeight:'600'}}>{m}</span>
                                 ))}
                               </div>
-                            : <div style={{fontSize:'13px',color:'var(--tw-muted)'}}>—</div>
+                            : null
                         }
                       </div>
                     </div>
+                    )}
 
                     {/* Notes */}
                     <div style={{marginBottom:'20px'}}>
-                      <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>Notes</div>
+                      <div style={{fontSize:'11.5px',color:'var(--tw-slate)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>Notes</div>
                       {infoEdit
                         ? <textarea value={infoForm.notes||''} onChange={e=>setInfoForm({...infoForm,notes:e.target.value})}
                             style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif",minHeight:'80px',resize:'vertical'}} />
@@ -769,7 +801,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
 
                     {isClient && (<>
                     {/* Installation TexasWin */}
-                    <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)',marginBottom:'12px'}}>Installation TexasWin</div>
+                    <div style={{fontSize:'11.5px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-slate)',marginBottom:'12px'}}>Installation TexasWin</div>
                     <div style={{background:'linear-gradient(135deg,var(--tw-ink) 0%,#2a5555 100%)',borderRadius:'10px',padding:'18px 22px',color:'white',marginBottom:'20px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                       <div>
                         <div style={{fontSize:'11px',color:'rgba(255,255,255,.5)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:'4px'}}>Version installée</div>
@@ -796,12 +828,17 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                     {/* Solutions en place — Suspect/Prospect */}
                     {!isClient && selectedProspect.solutions_en_place && (
                       <div style={{marginBottom:'20px'}}>
-                        <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>Solutions en place</div>
+                        <div style={{fontSize:'11.5px',color:'var(--tw-slate)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>Solutions en place</div>
                         <div style={{fontSize:'13px',color:'var(--tw-slate)',background:'var(--tw-bg)',padding:'10px 12px',borderRadius:'6px',lineHeight:'1.6',whiteSpace:'pre-line'}}>{selectedProspect.solutions_en_place}</div>
                       </div>
                     )}
 
-                    {/* Contacts */}
+                  </div>
+                )}
+
+                {/* ── Onglet Contacts ── */}
+                {clientTab === 'contacts' && (
+                  <div>
                     {(() => {
                       // Helper : reset propre du formulaire ET du collapse historique
                       const closeContactForm = () => {
@@ -1125,7 +1162,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                       return (
                         <React.Fragment>
                           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
-                            <div style={{fontSize:'11px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-muted)',display:'flex',alignItems:'center',gap:'10px'}}>
+                            <div style={{fontSize:'11.5px',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px',color:'var(--tw-slate)',display:'flex',alignItems:'center',gap:'10px'}}>
                               Contacts
                               {hasCustomOrder && (
                                 <button onClick={handleResetOrder}
@@ -1475,7 +1512,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                             </div>
                             {matsB.length > 0 && (
                               <div>
-                                <div style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>Matériel</div>
+                                <div style={{fontSize:'11.5px',color:'var(--tw-slate)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>Matériel</div>
                                 <div style={{display:'flex',flexWrap:'wrap',gap:'6px'}}>
                                   {matsB.map(m => (
                                     <span key={m.id} style={{display:'inline-flex',alignItems:'center',gap:'4px',padding:'3px 9px',background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'12px',fontSize:'12px',color:'var(--tw-slate)'}}>
