@@ -615,6 +615,29 @@ async function initDB() {
     )`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_interloc_soc_prospect ON interlocuteur_societes(prospect_id)`);
 
+    // ========== JOURNAL DE NOTES ==========
+    // Remplace le champ libre prospects.notes par un journal horodaté (une note =
+    // une entrée datée et signée). prospects.notes est conservé en base (backup +
+    // compat) mais n'est plus affiché : son contenu est repris UNE FOIS comme
+    // première entrée du journal (idempotent : seulement si le prospect n'a
+    // encore aucune note dans le journal).
+    await client.query(`CREATE TABLE IF NOT EXISTS prospect_notes (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+      contenu TEXT NOT NULL,
+      created_by TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP
+    )`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_prospect_notes_prospect ON prospect_notes(prospect_id)`);
+    await client.query(`
+      INSERT INTO prospect_notes (prospect_id, contenu, created_by, created_at)
+      SELECT p.id, p.notes, NULL, COALESCE(p.updated_at, p.created_at, NOW())
+        FROM prospects p
+       WHERE p.notes IS NOT NULL AND trim(p.notes) <> ''
+         AND NOT EXISTS (SELECT 1 FROM prospect_notes n WHERE n.prospect_id = p.id)
+    `);
+
     // ========== SÉQUENCE DE RELANCE OPT-IN (semi-auto) ==========
     // Suit où en est chaque contact dans la séquence de relance :
     //   optin_etape : 0 = demande initiale envoyée (aucune relance)
@@ -1690,6 +1713,65 @@ app.patch('/api/prospects/:id/parent', auth, async (req, res) => {
 app.delete('/api/prospects/:id', auth, async (req, res) => {
   try {
     await pool.query('DELETE FROM prospects WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== NOTES (journal horodaté) =====================
+app.get('/api/prospects/:id/notes', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM prospect_notes WHERE prospect_id = $1 ORDER BY created_at DESC, id DESC',
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/prospects/:id/notes', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
+  const contenu = (req.body.contenu && String(req.body.contenu).trim()) || '';
+  if (!contenu) return res.status(400).json({ error: 'Note vide' });
+  try {
+    const result = await pool.query(
+      'INSERT INTO prospect_notes (prospect_id, contenu, created_by) VALUES ($1, $2, $3) RETURNING *',
+      [req.params.id, contenu, req.userName || null]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/prospects/:id/notes/:noteId', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
+  const contenu = (req.body.contenu && String(req.body.contenu).trim()) || '';
+  if (!contenu) return res.status(400).json({ error: 'Note vide' });
+  try {
+    const result = await pool.query(
+      'UPDATE prospect_notes SET contenu = $1, updated_at = NOW() WHERE id = $2 AND prospect_id = $3 RETURNING *',
+      [contenu, req.params.noteId, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Note introuvable' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/prospects/:id/notes/:noteId', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
+  try {
+    const result = await pool.query(
+      'DELETE FROM prospect_notes WHERE id = $1 AND prospect_id = $2 RETURNING id',
+      [req.params.noteId, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Note introuvable' });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

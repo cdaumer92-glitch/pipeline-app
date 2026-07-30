@@ -43,6 +43,69 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
       const [assocOpenFor, setAssocOpenFor] = React.useState(null); // id du contact dont la recherche société est ouverte
       const [assocSearch, setAssocSearch] = React.useState('');
 
+      // ── Journal de notes horodatées (remplace le champ libre prospects.notes) ──
+      const [notesList, setNotesList] = React.useState([]);
+      const [noteInput, setNoteInput] = React.useState('');
+      const [editingNoteId, setEditingNoteId] = React.useState(null);
+      const [editingNoteText, setEditingNoteText] = React.useState('');
+      const fetchNotes = async (pid) => {
+        try {
+          const r = await fetch(`${API_URL}/prospects/${pid}/notes`, { headers: { 'Authorization': `Bearer ${user.token}` } });
+          const data = await r.json();
+          setNotesList(Array.isArray(data) ? data : []);
+        } catch (_) { setNotesList([]); }
+      };
+      React.useEffect(() => {
+        setNotesList([]); setNoteInput(''); setEditingNoteId(null);
+        if (selectedProspect?.id) fetchNotes(selectedProspect.id);
+      }, [selectedProspect?.id]);
+      const handleAddNote = async () => {
+        const contenu = noteInput.trim();
+        if (!contenu) return;
+        try {
+          const r = await fetch(`${API_URL}/prospects/${selectedProspect.id}/notes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
+            body: JSON.stringify({ contenu })
+          });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          setNoteInput('');
+          fetchNotes(selectedProspect.id);
+        } catch (err) { window.showToast({ title: 'Erreur : ' + err.message, type: 'error' }); }
+      };
+      const handleSaveNote = async (noteId) => {
+        const contenu = editingNoteText.trim();
+        if (!contenu) return;
+        try {
+          const r = await fetch(`${API_URL}/prospects/${selectedProspect.id}/notes/${noteId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
+            body: JSON.stringify({ contenu })
+          });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          setEditingNoteId(null);
+          fetchNotes(selectedProspect.id);
+        } catch (err) { window.showToast({ title: 'Erreur : ' + err.message, type: 'error' }); }
+      };
+      const handleDeleteNote = async (noteId) => {
+        if (!window.confirm('Supprimer cette note ?')) return;
+        try {
+          const r = await fetch(`${API_URL}/prospects/${selectedProspect.id}/notes/${noteId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${user.token}` }
+          });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          fetchNotes(selectedProspect.id);
+        } catch (err) { window.showToast({ title: 'Erreur : ' + err.message, type: 'error' }); }
+      };
+      // Transformer une note en action : bascule sur l'onglet Actions/Tâches avec le
+      // formulaire « Nouvelle action » prérempli du contenu de la note.
+      const handleNoteToAction = (n) => {
+        setClientTab('communication');
+        setCommForm({ ...commForm, comment: n.contenu });
+        setShowCommForm(true);
+      };
+
       // ── Anti-doublon contacts : suggestions de fiches existantes pendant la saisie ──
       const [dupSuggestions, setDupSuggestions] = React.useState([]);
       React.useEffect(() => {
@@ -794,14 +857,53 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                     </div>
                     )}
 
-                    {/* Notes */}
+                    {/* Notes : journal horodaté (une note = une entrée datée et signée),
+                        chaque note peut être transformée en action (onglet Actions/Tâches) */}
                     <div style={{marginBottom:'20px'}}>
-                      <div style={{fontSize:'11.5px',color:'var(--tw-slate)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>Notes</div>
-                      {infoEdit
-                        ? <textarea value={infoForm.notes||''} onChange={e=>setInfoForm({...infoForm,notes:e.target.value})}
-                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif",minHeight:'80px',resize:'vertical'}} />
-                        : <div style={{fontSize:'13px',color:infoForm.notes?'var(--tw-slate)':'var(--tw-muted)',background:'var(--tw-bg)',padding:'10px 12px',borderRadius:'6px',lineHeight:'1.6',fontStyle:infoForm.notes?'normal':'italic'}}>{infoForm.notes||'Aucune note'}</div>
-                      }
+                      <div style={{fontSize:'11.5px',color:'var(--tw-slate)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'6px'}}>
+                        Notes {notesList.length > 0 && <span style={{color:'#10a0dc'}}>· {notesList.length}</span>}
+                      </div>
+                      <div style={{display:'flex',gap:'8px',alignItems:'flex-start',marginBottom:'10px'}}>
+                        <textarea value={noteInput} onChange={e=>setNoteInput(e.target.value)}
+                          placeholder="Ajouter une note… (Ctrl+Entrée pour enregistrer)"
+                          rows={noteInput ? 3 : 1}
+                          onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleAddNote(); } }}
+                          style={{flex:1,padding:'8px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif",resize:'vertical'}} />
+                        <button onClick={handleAddNote} disabled={!noteInput.trim()}
+                          style={{padding:'7px 14px',background: noteInput.trim() ? 'var(--tw-teal)' : 'var(--tw-bg)',color: noteInput.trim() ? 'white' : 'var(--tw-muted)',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:600,cursor: noteInput.trim() ? 'pointer' : 'default',fontFamily:"'Inter',sans-serif"}}>
+                          Ajouter
+                        </button>
+                      </div>
+                      {notesList.length === 0 ? (
+                        <div style={{fontSize:'12px',color:'var(--tw-muted)',fontStyle:'italic'}}>Aucune note</div>
+                      ) : notesList.map(n => (
+                        <div key={n.id} style={{background:'var(--tw-bg)',borderRadius:'8px',padding:'9px 12px',marginBottom:'6px'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px'}}>
+                            <span style={{fontSize:'11px',color:'var(--tw-muted)',fontVariantNumeric:'tabular-nums'}}>
+                              {new Date(n.created_at).toLocaleDateString('fr-FR')} {new Date(n.created_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
+                            </span>
+                            {n.created_by && <span style={{fontSize:'11px',color:'var(--tw-slate)',fontWeight:600}}>{n.created_by}</span>}
+                            {n.updated_at && <span style={{fontSize:'10px',color:'var(--tw-muted)',fontStyle:'italic'}}>(modifiée)</span>}
+                            <span style={{flex:1}}></span>
+                            <button onClick={() => handleNoteToAction(n)} title="Créer une action à partir de cette note"
+                              style={{background:'white',border:'0.5px solid var(--tw-border)',padding:'2px 9px',borderRadius:'9px',fontSize:'11px',fontWeight:600,color:'#0d7fb0',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>→ Action</button>
+                            <IconBtn title="Modifier la note" onClick={() => { setEditingNoteId(n.id); setEditingNoteText(n.contenu); }}>{I(ICONS.edit, 12)}</IconBtn>
+                            <IconBtn title="Supprimer la note" danger onClick={() => handleDeleteNote(n.id)}>{I(ICONS.trash, 12)}</IconBtn>
+                          </div>
+                          {editingNoteId === n.id ? (
+                            <div>
+                              <textarea value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)} rows={3}
+                                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif",resize:'vertical',boxSizing:'border-box'}} />
+                              <div style={{display:'flex',gap:'6px',justifyContent:'flex-end',marginTop:'4px'}}>
+                                <button onClick={() => setEditingNoteId(null)} style={{padding:'4px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',fontSize:'12px',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>Annuler</button>
+                                <button onClick={() => handleSaveNote(n.id)} style={{padding:'4px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:600,cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>Enregistrer</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{fontSize:'13px',color:'var(--tw-slate)',lineHeight:'1.6',whiteSpace:'pre-line'}}>{n.contenu}</div>
+                          )}
+                        </div>
+                      ))}
                     </div>
 
                     {isClient && (<>
