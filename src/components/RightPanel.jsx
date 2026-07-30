@@ -38,6 +38,11 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
       const [groupeSearch, setGroupeSearch] = React.useState('');
       const [groupeOpen, setGroupeOpen] = React.useState(false); // accordéon replié par défaut
 
+      // ── Contacts : dépliage fiche + association à d'autres sociétés ──
+      const [expandedContactId, setExpandedContactId] = React.useState(null);
+      const [assocOpenFor, setAssocOpenFor] = React.useState(null); // id du contact dont la recherche société est ouverte
+      const [assocSearch, setAssocSearch] = React.useState('');
+
       // ── Anti-doublon contacts : suggestions de fiches existantes pendant la saisie ──
       const [dupSuggestions, setDupSuggestions] = React.useState([]);
       React.useEffect(() => {
@@ -1159,6 +1164,35 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                       // Détection : au moins un contact a un display_order custom ?
                       const hasCustomOrder = interlocuteurs.some(c => c.display_order != null);
 
+                      // ── Association d'un contact à d'autres sociétés (depuis sa fiche dépliée) ──
+                      const associerContactA = async (contact, soc) => {
+                        const fonction = window.prompt(`Fonction de ${displayName(contact)} chez « ${soc.name} » (optionnel) :`, '');
+                        if (fonction === null) return; // annulé
+                        try {
+                          const r = await fetch(`${API_URL}/prospects/${soc.id}/interlocuteurs`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
+                            body: JSON.stringify({ existing_interlocuteur_id: contact.id, fonction: fonction.trim() })
+                          });
+                          if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || ('HTTP ' + r.status)); }
+                          window.showToast({ title: `Contact associé à ${soc.name}`, type: 'success' });
+                          setAssocOpenFor(null); setAssocSearch('');
+                          await fetchInterlocuteurs(selectedProspect.id);
+                        } catch (err) { window.showToast({ title: 'Erreur : ' + err.message, type: 'error' }); }
+                      };
+                      const detacherContactDe = async (contact, soc) => {
+                        if (!window.confirm(`Détacher ${displayName(contact)} de « ${soc.name} » ?`)) return;
+                        try {
+                          const r = await fetch(`${API_URL}/prospects/${soc.id}/interlocuteurs/${contact.id}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${user.token}` }
+                          });
+                          if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || ('HTTP ' + r.status)); }
+                          window.showToast({ title: `Contact détaché de ${soc.name}`, type: 'success' });
+                          await fetchInterlocuteurs(selectedProspect.id);
+                        } catch (err) { window.showToast({ title: 'Erreur : ' + err.message, type: 'error' }); }
+                      };
+
                       return (
                         <React.Fragment>
                           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
@@ -1188,6 +1222,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                             const isEditingThis = editingId === c.id;
                             const isDragging = draggedContactId === c.id;
                             const isDragOver = dragOverContactId === c.id && draggedContactId !== c.id;
+                            const isExpanded = expandedContactId === c.id;
                             return (
                               <React.Fragment key={c.id}>
                                 <div
@@ -1196,16 +1231,25 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                   onDragOver={(e) => handleDragOver(e, c.id)}
                                   onDragEnd={handleDragEnd}
                                   onDrop={(e) => handleDrop(e, c.id)}
+                                  onClick={(e) => {
+                                    // Clic sur le bandeau = déplier/replier la fiche du contact.
+                                    // Les liens, boutons et le handle de drag ne déclenchent pas le toggle.
+                                    if (isEditingThis) return;
+                                    if (e.target.closest && e.target.closest('a,button,input,[data-noexpand]')) return;
+                                    setExpandedContactId(isExpanded ? null : c.id);
+                                    setAssocOpenFor(null); setAssocSearch('');
+                                  }}
                                   style={{
-                                    display:'flex',alignItems:'center',gap:'10px',padding:'10px 12px',borderRadius:'6px',background:'var(--tw-bg)',marginBottom:'6px',
+                                    display:'flex',alignItems:'center',gap:'10px',padding:'10px 12px',borderRadius:'6px',background:'var(--tw-bg)',marginBottom: (isExpanded && !isEditingThis) ? 0 : '6px',
                                     opacity: isDragging ? 0.4 : 1,
                                     border: isDragOver ? '2px dashed var(--tw-teal)' : '2px solid transparent',
                                     transition: 'opacity 0.15s, border-color 0.15s',
-                                    cursor: isEditingThis ? 'default' : 'move'
+                                    cursor: isEditingThis ? 'default' : 'pointer'
                                   }}>
                                   {/* Handle drag : icône à grip à gauche, visible mais discrète.
                                       Toute la ligne est draggable, mais le handle indique visuellement la prise. */}
-                                  <span title="Glisser pour réordonner" style={{flexShrink:0,color:'var(--tw-muted)',fontSize:'14px',cursor:'grab',userSelect:'none',lineHeight:1}}>⋮⋮</span>
+                                  <span data-noexpand title="Glisser pour réordonner" style={{flexShrink:0,color:'var(--tw-muted)',fontSize:'14px',cursor:'grab',userSelect:'none',lineHeight:1}}>⋮⋮</span>
+                                  <span style={{flexShrink:0,color:'var(--tw-muted)',display:'inline-flex'}}>{I(isExpanded ? ICONS.chevron : ICONS.chevronR, 11)}</span>
                                   <div style={{width:'34px',height:'34px',borderRadius:'50%',background:col,color:'white',fontWeight:'600',fontSize:'12px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{ini}</div>
                                   <div style={{flex:1,minWidth:0}}>
                                     <div style={{fontSize:'13px',fontWeight:'600',color:'var(--tw-ink)'}}>{displayName(c)}</div>
@@ -1246,6 +1290,75 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                     >{I(ICONS.trash, 13)}</IconBtn>
                                   </div>
                                 </div>
+                                {/* Fiche dépliée (clic sur le bandeau) : détails + sociétés du contact */}
+                                {isExpanded && !isEditingThis && (() => {
+                                  const socsContact = [
+                                    { id: selectedProspect.id, name: selectedProspect.name, fonction: c.fonction, courante: true },
+                                    ...(Array.isArray(c.autres_societes) ? c.autres_societes : []),
+                                  ];
+                                  const dejaIds = new Set(socsContact.map(s => s.id));
+                                  const assocSuggestions = (assocOpenFor === c.id && assocSearch.trim().length >= 2)
+                                    ? (prospects || []).filter(p => !dejaIds.has(p.id) && (p.name||'').toLowerCase().includes(assocSearch.trim().toLowerCase())).slice(0, 8)
+                                    : [];
+                                  const lblMini = {fontSize:'10.5px',color:'var(--tw-slate)',fontWeight:600,textTransform:'uppercase',letterSpacing:'.4px',marginBottom:'4px'};
+                                  return (
+                                    <div style={{background:'white',border:'1px solid var(--tw-border)',borderRadius:'0 0 8px 8px',padding:'12px 16px',marginBottom:'6px'}}>
+                                      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'12px',marginBottom:'12px'}}>
+                                        <div>
+                                          <div style={lblMini}>Email</div>
+                                          <div style={{fontSize:'13px'}}>{c.email ? <a href={`mailto:${c.email}`} style={{color:'var(--tw-teal)',textDecoration:'none'}}>{c.email}</a> : <span style={{color:'var(--tw-muted)'}}>—</span>}</div>
+                                        </div>
+                                        <div>
+                                          <div style={lblMini}>Téléphone</div>
+                                          <div style={{fontSize:'13px'}}>{c.telephone ? <a href={`tel:${c.telephone}`} style={{color:'var(--tw-ink)',textDecoration:'none'}}>{c.telephone}</a> : <span style={{color:'var(--tw-muted)'}}>—</span>}</div>
+                                        </div>
+                                        <div>
+                                          <div style={lblMini}>Consentements</div>
+                                          <div style={{fontSize:'12px',color:'var(--tw-slate)'}}>{[c.accept_emailing && 'Emailing', c.accept_notes_info && "Notes d'info", c.optin_confirme_at && 'Opt-in confirmé'].filter(Boolean).join(' · ') || 'Aucun'}</div>
+                                        </div>
+                                      </div>
+                                      <div style={lblMini}>Sociétés rattachées</div>
+                                      <div style={{display:'flex',gap:'6px',flexWrap:'wrap',alignItems:'center'}}>
+                                        {socsContact.map(s => (
+                                          <span key={s.id} style={{display:'inline-flex',alignItems:'center',gap:'5px',fontSize:'11.5px',fontWeight:600,padding:'3px 10px',borderRadius:'11px',background:'#e8f6fc',color:'#0d7fb0',border: s.courante ? '1px solid #10a0dc' : '1px solid transparent'}}>
+                                            {s.name}{s.fonction ? ' · ' + s.fonction : ''}
+                                            {!s.courante && (
+                                              <span title={`Détacher de ${s.name}`} onClick={() => detacherContactDe(c, s)}
+                                                style={{cursor:'pointer',fontWeight:700,lineHeight:1}}>×</span>
+                                            )}
+                                          </span>
+                                        ))}
+                                        {assocOpenFor === c.id ? (
+                                          <input autoFocus type="text" value={assocSearch} onChange={e=>setAssocSearch(e.target.value)}
+                                            onKeyDown={e => { if (e.key === 'Escape') { setAssocOpenFor(null); setAssocSearch(''); } }}
+                                            placeholder="Nom de la société…"
+                                            style={{padding:'4px 10px',border:'1px solid var(--tw-border)',borderRadius:'11px',fontSize:'12px',fontFamily:"'Inter',sans-serif",width:'190px'}} />
+                                        ) : (
+                                          <button onClick={() => { setAssocOpenFor(c.id); setAssocSearch(''); }}
+                                            style={{background:'white',border:'0.5px solid var(--tw-border)',padding:'3px 10px',borderRadius:'11px',fontSize:'11.5px',color:'var(--tw-slate)',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
+                                            + Associer à une société
+                                          </button>
+                                        )}
+                                      </div>
+                                      {assocOpenFor === c.id && assocSuggestions.length > 0 && (
+                                        <div style={{marginTop:'6px',background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'8px',maxHeight:'180px',overflowY:'auto',maxWidth:'320px',boxShadow:'0 6px 18px rgba(17,24,39,.08)'}}>
+                                          {assocSuggestions.map(p => (
+                                            <div key={p.id} onClick={() => associerContactA(c, p)}
+                                              style={{padding:'6px 12px',fontSize:'12.5px',cursor:'pointer',display:'flex',justifyContent:'space-between',gap:'8px'}}
+                                              onMouseEnter={(e)=>e.currentTarget.style.background='var(--tw-bg)'}
+                                              onMouseLeave={(e)=>e.currentTarget.style.background='white'}>
+                                              <span style={{fontWeight:500,color:'var(--tw-ink)'}}>{p.name}</span>
+                                              <span style={{fontSize:'11px',color:'var(--tw-muted)',flexShrink:0}}>{p.statut_societe || 'Prospect'}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {assocOpenFor === c.id && assocSearch.trim().length >= 2 && assocSuggestions.length === 0 && (
+                                        <div style={{marginTop:'6px',fontSize:'12px',color:'var(--tw-muted)',fontStyle:'italic'}}>Aucune société trouvée (déjà associée ou nom inconnu)</div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                                 {/* Formulaire ÉDITION : sous la ligne du contact concerné */}
                                 {isEditingThis && renderContactForm(true)}
                               </React.Fragment>
