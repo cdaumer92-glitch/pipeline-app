@@ -1036,7 +1036,8 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                             {[
                               {ph:'Fonction', field:'fonction'},
                               {ph:'Email', field:'email', type:'email'},
-                              {ph:'Téléphone', field:'telephone', type:'tel'},
+                              {ph:'Tél. mobile', field:'telephone', type:'tel'},
+                              {ph:'Tél. fixe', field:'telephone_fixe', type:'tel'},
                             ].map(({ph,field,type='text'}) => (
                               <input key={field} type={type} placeholder={ph}
                                 value={interlocuteurForm[field]||''}
@@ -1308,7 +1309,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                 </button>
                               )}
                             </div>
-                            <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({prenom:'',nom:'',fonction:'',email:'',telephone:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false,demande_optin:false}); setShowInterlocuteurForm(true); }}
+                            <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({prenom:'',nom:'',fonction:'',email:'',telephone:'',telephone_fixe:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false,demande_optin:false}); setShowInterlocuteurForm(true); }}
                               style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>+ Contact</button>
                           </div>
 
@@ -1358,7 +1359,8 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                     <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'2px',display:'flex',gap:'10px',flexWrap:'wrap'}}>
                                       {c.fonction && <span>{c.fonction}</span>}
                                       {c.email && <a href={`mailto:${c.email}`} style={{color:'var(--tw-teal)',textDecoration:'none'}}>✉ {c.email}</a>}
-                                      {c.telephone && <a href={`tel:${c.telephone}`} style={{color:'var(--tw-slate)',textDecoration:'none'}}>📞 {c.telephone}</a>}
+                                      {c.telephone && <a href={`tel:${c.telephone}`} title="Mobile" style={{color:'var(--tw-slate)',textDecoration:'none'}}>📱 {c.telephone}</a>}
+                                      {c.telephone_fixe && <a href={`tel:${c.telephone_fixe}`} title="Fixe" style={{color:'var(--tw-slate)',textDecoration:'none'}}>📞 {c.telephone_fixe}</a>}
                                       {c.linkedin_url && <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer" title="Profil LinkedIn" style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'18px',height:'18px',borderRadius:'3px',background:'#0a66c2',color:'white',fontSize:'9px',fontWeight:700,textDecoration:'none'}}>in</a>}
                                     </div>
                                     {/* Contact multi-sociétés : badges des autres sociétés où il est rattaché */}
@@ -1385,7 +1387,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                     {c.decideur && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'#fdecea',color:'var(--tw-red)'}}>Décideur</span>}
                                     {c.principal && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
                                     <IconBtn title="Modifier le contact"
-                                      onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,prenom:c.prenom||'',nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',linkedin_url:c.linkedin_url||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info,demande_optin:!!c.demande_optin,emailing_unsubscribed_at:c.emailing_unsubscribed_at||null,emailing_unsubscribed_source:c.emailing_unsubscribed_source||null}); setShowInterlocuteurForm(true); }}
+                                      onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,prenom:c.prenom||'',nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',telephone_fixe:c.telephone_fixe||'',linkedin_url:c.linkedin_url||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info,demande_optin:!!c.demande_optin,emailing_unsubscribed_at:c.emailing_unsubscribed_at||null,emailing_unsubscribed_source:c.emailing_unsubscribed_source||null}); setShowInterlocuteurForm(true); }}
                                     >{I(ICONS.edit, 13)}</IconBtn>
                                     <IconBtn title={Array.isArray(c.autres_societes) && c.autres_societes.length > 0 ? 'Retirer de cette société (le contact reste rattaché à ses autres sociétés)' : 'Supprimer le contact'} danger
                                       onClick={() => handleDeleteInterlocuteur(c.id, Array.isArray(c.autres_societes) && c.autres_societes.length > 0)}
@@ -1411,8 +1413,12 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                           <div style={{fontSize:'13px'}}>{c.email ? <a href={`mailto:${c.email}`} style={{color:'var(--tw-teal)',textDecoration:'none'}}>{c.email}</a> : <span style={{color:'var(--tw-muted)'}}>—</span>}</div>
                                         </div>
                                         <div>
-                                          <div style={lblMini}>Téléphone</div>
+                                          <div style={lblMini}>Tél. mobile</div>
                                           <div style={{fontSize:'13px'}}>{c.telephone ? <a href={`tel:${c.telephone}`} style={{color:'var(--tw-ink)',textDecoration:'none'}}>{c.telephone}</a> : <span style={{color:'var(--tw-muted)'}}>—</span>}</div>
+                                        </div>
+                                        <div>
+                                          <div style={lblMini}>Tél. fixe</div>
+                                          <div style={{fontSize:'13px'}}>{c.telephone_fixe ? <a href={`tel:${c.telephone_fixe}`} style={{color:'var(--tw-ink)',textDecoration:'none'}}>{c.telephone_fixe}</a> : <span style={{color:'var(--tw-muted)'}}>—</span>}</div>
                                         </div>
                                         <div>
                                           <div style={lblMini}>Consentements</div>

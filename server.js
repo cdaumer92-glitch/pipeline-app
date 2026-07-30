@@ -507,6 +507,19 @@ async function initDB() {
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS prenom TEXT`);
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS civilite TEXT`);
 
+    // Migration: deux numéros par contact — telephone = mobile, telephone_fixe = fixe.
+    // Backfill ponctuel : les numéros existants qui sont manifestement des fixes
+    // (01-05, 08, 09, ou +33 équivalents) basculent vers telephone_fixe ; les 06/07
+    // restent dans telephone (mobile). Idempotent : ne touche que les lignes où
+    // telephone_fixe est encore NULL.
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS telephone_fixe TEXT`);
+    await client.query(`
+      UPDATE interlocuteurs
+         SET telephone_fixe = telephone, telephone = NULL
+       WHERE telephone IS NOT NULL AND trim(telephone) <> '' AND telephone_fixe IS NULL
+         AND regexp_replace(telephone, '[^0-9+]', '', 'g') ~ '^(\\+33|0)[1-589]'
+    `);
+
     // Migration auto : split nom→prenom/nom pour les contacts existants.
     // Heuristique : si prenom est NULL et nom contient un espace, on split sur le
     // PREMIER espace : tout ce qui précède devient prenom, le reste devient nom.
@@ -3275,7 +3288,7 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { prenom, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail, existing_interlocuteur_id } = req.body;
+    const { prenom, nom, fonction, email, telephone, telephone_fixe, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail, existing_interlocuteur_id } = req.body;
 
     // ── Rattachement d'un contact EXISTANT (anti-doublon) : on ne crée pas de
     // nouvelle personne, juste une liaison vers cette société avec sa fonction locale.
@@ -3332,10 +3345,10 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
     }
 
     const result = await client.query(
-      `INSERT INTO interlocuteurs (prospect_id, prenom, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      `INSERT INTO interlocuteurs (prospect_id, prenom, nom, fonction, email, telephone, telephone_fixe, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
-      [id, prenomClean, nomClean, fonction, email, telephone, linkedinClean, principal || false, decideur || false, acceptEmailing, acceptNotesInfo, demandeOptin, sourceClean, sourceDetailClean]
+      [id, prenomClean, nomClean, fonction, email, telephone, (telephone_fixe && String(telephone_fixe).trim()) || null, linkedinClean, principal || false, decideur || false, acceptEmailing, acceptNotesInfo, demandeOptin, sourceClean, sourceDetailClean]
     );
 
     const newInterloc = result.rows[0];
@@ -3392,7 +3405,7 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
   const client = await pool.connect();
   try {
     const { prospectId, id } = req.params;
-    const { prenom, nom, fonction, email, telephone, linkedin_url, principal, decideur, accept_emailing, accept_notes_info } = req.body;
+    const { prenom, nom, fonction, email, telephone, telephone_fixe, linkedin_url, principal, decideur, accept_emailing, accept_notes_info } = req.body;
 
     await client.query('BEGIN');
 
@@ -3459,7 +3472,7 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
       const result = await client.query(
         `UPDATE interlocuteurs
          SET prenom = CASE WHEN $12::text IS NULL THEN prenom ELSE $12::text END,
-             nom = $1, fonction = $2, email = $3, telephone = $4, principal = $5, decideur = $6,
+             nom = $1, fonction = $2, email = $3, telephone = $4, telephone_fixe = $13, principal = $5, decideur = $6,
              accept_emailing = COALESCE($7, accept_emailing),
              accept_notes_info = COALESCE($8, accept_notes_info),
              linkedin_url = CASE WHEN $11::text IS NULL THEN linkedin_url
@@ -3472,7 +3485,8 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
           nom, fonction, email, telephone, principal || false, decideur || false,
           acceptEmailingParam, acceptNotesParam,
           id, prospectId,
-          linkedinValue, prenomValue
+          linkedinValue, prenomValue,
+          (telephone_fixe && String(telephone_fixe).trim()) || null
         ]
       );
       after = result.rows[0];
@@ -3481,7 +3495,7 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
       const resIdent = await client.query(
         `UPDATE interlocuteurs
          SET prenom = CASE WHEN $8::text IS NULL THEN prenom ELSE $8::text END,
-             nom = $1, email = $2, telephone = $3,
+             nom = $1, email = $2, telephone = $3, telephone_fixe = $9,
              accept_emailing = COALESCE($4, accept_emailing),
              accept_notes_info = COALESCE($5, accept_notes_info),
              linkedin_url = CASE WHEN $7::text IS NULL THEN linkedin_url
@@ -3490,7 +3504,7 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
              updated_at = CURRENT_TIMESTAMP
          WHERE id = $6
          RETURNING *`,
-        [nom, email, telephone, acceptEmailingParam, acceptNotesParam, id, linkedinValue, prenomValue]
+        [nom, email, telephone, acceptEmailingParam, acceptNotesParam, id, linkedinValue, prenomValue, (telephone_fixe && String(telephone_fixe).trim()) || null]
       );
       // Fonction + flags propres à CETTE société (sur la liaison)
       const resLiaison = await client.query(

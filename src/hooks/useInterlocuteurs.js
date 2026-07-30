@@ -13,6 +13,7 @@ const EMPTY_INTERLOCUTEUR = {
   fonction: '',
   email: '',
   telephone: '',
+  telephone_fixe: '',
   linkedin_url: '',
   principal: false,
   decideur: false,
