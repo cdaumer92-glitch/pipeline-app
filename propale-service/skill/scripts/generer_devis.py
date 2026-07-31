@@ -97,11 +97,19 @@ def image_logo():
     with PILImage.open(LOGO_PATH) as im:
         im = im.convert("RGBA")
         im = im.crop((2, 2, im.width - 2, im.height - 2))
+        # Rogner aussi les marges blanches internes pour que le bord gauche du
+        # logo tombe exactement sur l'alignement du texte en dessous.
+        gris = im.convert("L")
+        bbox = gris.point(lambda p: 255 if p < 245 else 0).getbbox()
+        if bbox:
+            im = im.crop(bbox)
         ratio = im.height / im.width
         tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
         im.save(tmp.name)
     largeur = 48 * mm
-    return Image(tmp.name, width=largeur, height=largeur * ratio)
+    logo = Image(tmp.name, width=largeur, height=largeur * ratio)
+    logo.hAlign = "LEFT"  # sinon l'image est centrée dans la colonne
+    return logo
 
 
 def bloc_entete(cfg):
