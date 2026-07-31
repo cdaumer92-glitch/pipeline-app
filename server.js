@@ -266,6 +266,9 @@ async function initDB() {
     await client.query(`ALTER TABLE devis ADD COLUMN IF NOT EXISTS remplace_devis_id INTEGER`);
     // Motif de perte : explication saisie quand un devis passe en statut "Perdu".
     await client.query(`ALTER TABLE devis ADD COLUMN IF NOT EXISTS motif_perte TEXT`);
+    // Devis simple (grille Réf/Désignation/PU/Qté/Remise) : lignes + paramètres du
+    // document (validité, contact, TVA) stockés en JSONB. NULL = devis TexasWin ou importé.
+    await client.query(`ALTER TABLE devis ADD COLUMN IF NOT EXISTS lignes_json JSONB`);
 
     // Table interlocuteurs
     await client.query(`CREATE TABLE IF NOT EXISTS interlocuteurs (
@@ -2522,9 +2525,18 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
       training_amount,
       chance_percent,
       modules,
-      comment
+      comment,
+      lignes_json
     } = req.body;
-    
+
+    // Devis simple : numérotation automatique DEV-AAAA-NNN si aucun nom fourni
+    let finalName = devis_name;
+    if (!finalName && lignes_json) {
+      const annee = new Date().getFullYear();
+      const cnt = await pool.query(`SELECT COUNT(*) AS n FROM devis WHERE devis_name LIKE $1`, [`DEV-${annee}-%`]);
+      finalName = `DEV-${annee}-${String(parseInt(cnt.rows[0].n) + 1).padStart(3, '0')}`;
+    }
+
     const result = await pool.query(
       `INSERT INTO devis (
         prospect_id,
@@ -2538,13 +2550,14 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
         training_amount,
         chance_percent,
         modules,
-        comment
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        comment,
+        lignes_json
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *`,
       [
         id,
         affaire_id || null,
-        devis_name || 'Devis sans nom',
+        finalName || 'Devis sans nom',
         devis_status || 'En cours',
         quote_date === '' ? null : quote_date,
         setup_amount || 0,
@@ -2553,10 +2566,11 @@ app.post('/api/prospects/:id/devis', auth, async (req, res) => {
         training_amount || 0,
         chance_percent || 0,
         JSON.stringify(modules || {}),
-        comment || null
+        comment || null,
+        lignes_json ? JSON.stringify(lignes_json) : null
       ]
     );
-    
+
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Erreur POST /api/prospects/:id/devis:', err);
@@ -2609,6 +2623,7 @@ app.put('/api/devis/:id', auth, async (req, res) => {
     if (has('comment'))        addSet('comment', comment || null);
     if (has('motif_perte'))    addSet('motif_perte', motif_perte || null);
     if (has('affaire_id'))     addSet('affaire_id', affaire_id !== undefined ? affaire_id : null);
+    if (has('lignes_json'))    addSet('lignes_json', req.body.lignes_json ? JSON.stringify(req.body.lignes_json) : null);
 
     if (sets.length === 0) {
       return res.status(400).json({ error: 'Aucun champ à mettre à jour' });
@@ -2772,6 +2787,78 @@ app.post('/api/devis/:id/upload-pdf', auth, async (req, res) => {
     });
   } catch (err) {
     console.error('Erreur POST /api/devis/:id/upload-pdf:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/devis/:id/generate-pdf-simple — Génère le PDF d'un devis simple
+// (grille Réf/Désignation/PU/Qté/Remise) via le container propale-service,
+// le stocke sur Scaleway et l'attache au devis (pdf_url), comme un PDF uploadé.
+app.post('/api/devis/:id/generate-pdf-simple', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'devis', req.params.id))) return;
+  const PROPALE_SERVICE_URL = process.env.PROPALE_SERVICE_URL;
+  const PROPALE_SERVICE_SECRET = process.env.PROPALE_SERVICE_SECRET;
+  if (!PROPALE_SERVICE_URL) return res.status(501).json({ error: 'PROPALE_SERVICE_URL non configurée sur le serveur' });
+  try {
+    const { id } = req.params;
+    const dRes = await pool.query(
+      `SELECT d.*, p.name AS societe_name, p.adresse AS societe_adresse, p.cp AS societe_cp, p.ville AS societe_ville
+         FROM devis d JOIN prospects p ON p.id = d.prospect_id
+        WHERE d.id = $1`, [id]);
+    if (dRes.rows.length === 0) return res.status(404).json({ error: 'Devis non trouvé' });
+    const devis = dRes.rows[0];
+    const lj = devis.lignes_json;
+    if (!lj || !Array.isArray(lj.lignes) || lj.lignes.length === 0) {
+      return res.status(400).json({ error: 'Ce devis n\'a pas de lignes (devis simple uniquement)' });
+    }
+
+    const dateFr = (devis.quote_date ? new Date(devis.quote_date) : new Date()).toLocaleDateString('fr-FR');
+    const adresse = [devis.societe_adresse, [devis.societe_cp, devis.societe_ville].filter(Boolean).join(' ')]
+      .filter(s => s && String(s).trim()).join('\n');
+    const payload = {
+      numero: devis.devis_name,
+      date_fr: dateFr,
+      validite: lj.validite || '1 mois',
+      societe: devis.societe_name,
+      adresse,
+      attention_de: lj.attention_de || '',
+      tva_rate: lj.tva_rate || 20,
+      lignes: lj.lignes,
+    };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const svcRes = await fetch(`${PROPALE_SERVICE_URL}/generate-devis`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(PROPALE_SERVICE_SECRET ? { 'X-Service-Secret': PROPALE_SERVICE_SECRET } : {}),
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!svcRes.ok) {
+      const errBody = await svcRes.text();
+      throw new Error(`propale-service HTTP ${svcRes.status}: ${errBody.slice(0, 300)}`);
+    }
+    const svcData = await svcRes.json();
+    if (!svcData.ok || !svcData.file_base64) throw new Error('Réponse propale-service invalide');
+
+    const buffer = Buffer.from(svcData.file_base64, 'base64');
+    const fileName = `devis/devis-${id}-${Date.now()}.pdf`;
+    await saveObject(fileName, buffer, 'application/pdf');
+
+    const oldPdfUrl = devis.pdf_url;
+    await pool.query('UPDATE devis SET pdf_url = $1 WHERE id = $2', [fileName, id]);
+    if (oldPdfUrl) {
+      try { await deleteObject(oldPdfUrl); } catch (e) { console.error('Erreur suppression ancien PDF:', e.message); }
+    }
+
+    console.log(`[DevisSimple] ✅ PDF généré pour devis ${devis.devis_name} (${buffer.length} octets, ${svcData.elapsed_ms}ms côté service)`);
+    res.json({ ok: true, pdf_url: fileName });
+  } catch (err) {
+    console.error('Erreur POST /api/devis/:id/generate-pdf-simple:', err);
     res.status(500).json({ error: err.message });
   }
 });

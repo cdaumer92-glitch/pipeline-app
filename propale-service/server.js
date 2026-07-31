@@ -106,7 +106,79 @@ app.post('/generate', async (req, res) => {
   }
 });
 
+// Génération d'un devis simple en PDF (grille Réf/Désignation/PU/Qté/Remise)
+const SCRIPT_DEVIS = join(SKILL_DIR, 'scripts', 'generer_devis.py');
+app.post('/generate-devis', async (req, res) => {
+  if (SERVICE_SECRET) {
+    const provided = req.header('X-Service-Secret');
+    if (provided !== SERVICE_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  }
+
+  const config = req.body;
+  if (!config || !config.societe || !Array.isArray(config.lignes) || config.lignes.length === 0) {
+    return res.status(400).json({ error: 'Config invalide (societe / lignes manquants)' });
+  }
+
+  const jobId = randomUUID();
+  const workDir = `/tmp/devis-${jobId}`;
+  mkdirSync(workDir, { recursive: true });
+
+  const configPath = join(workDir, 'config.json');
+  const outputPath = join(workDir, 'devis.pdf');
+
+  try {
+    writeFileSync(configPath, JSON.stringify(config), 'utf-8');
+
+    const startTs = Date.now();
+    const result = await new Promise((resolve, reject) => {
+      const proc = spawn('python3', [SCRIPT_DEVIS, configPath, outputPath], {
+        cwd: workDir,
+        timeout: 60000,
+      });
+
+      let stdout = '', stderr = '';
+      proc.stdout.on('data', d => { stdout += d.toString(); });
+      proc.stderr.on('data', d => { stderr += d.toString(); });
+
+      proc.on('close', code => {
+        if (code === 0) resolve({ stdout, stderr });
+        else reject(new Error(`Script Python exit ${code}: ${stderr || stdout}`));
+      });
+      proc.on('error', err => reject(err));
+    });
+
+    if (result.stdout && result.stdout.trim()) console.log(`[python:stdout] ${result.stdout.trim()}`);
+    if (result.stderr && result.stderr.trim()) console.warn(`[python:stderr] ${result.stderr.trim()}`);
+
+    const elapsed = Date.now() - startTs;
+
+    if (!existsSync(outputPath)) {
+      return res.status(500).json({ error: 'Le script Python n\'a pas généré le PDF', stdout: result.stdout, stderr: result.stderr });
+    }
+
+    const pdfBuffer = readFileSync(outputPath);
+
+    try {
+      const { rmSync } = await import('fs');
+      rmSync(workDir, { recursive: true, force: true });
+    } catch {}
+
+    res.json({
+      ok: true,
+      elapsed_ms: elapsed,
+      filename: `devis_${(config.numero || 'sans-numero').replace(/[^a-zA-Z0-9-]/g, '_')}.pdf`,
+      file_base64: pdfBuffer.toString('base64'),
+      size: pdfBuffer.length,
+    });
+  } catch (e) {
+    return res.status(500).json({ error: 'Génération devis échouée', message: String(e.message || e).slice(0, 500) });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`propale-service écoute sur :${PORT}`);
   console.log(`Skill présent : ${existsSync(SCRIPT)}`);
+  console.log(`Script devis présent : ${existsSync(SCRIPT_DEVIS)}`);
 });

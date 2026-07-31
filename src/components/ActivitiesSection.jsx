@@ -3,9 +3,19 @@ import { styles } from '../lib/styles.js';
 import { ACTION_TYPES } from '../lib/constants.js';
 import { I, ICONS, IconBtn, displayName } from '../lib/shared.jsx';
 import { MotifPerteField } from './MotifPerteField.jsx';
+import { DevisSimpleForm } from './DevisSimpleForm.jsx';
 
-export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, fetchAffaires, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect, onRequestCompleteAction }) {
+export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, fetchAffaires, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect, onRequestCompleteAction, fetchDevis }) {
       const [actionNotes, setActionNotes] = React.useState({});
+      // ── Devis simple (grille Réf/Désignation/PU/Qté/Remise) ──
+      const [devisSimpleOpen, setDevisSimpleOpen] = React.useState(false);
+      const [devisSimpleEditing, setDevisSimpleEditing] = React.useState(null);
+      // Un devis simple (lignes_json présent) se rouvre dans sa grille ; les autres
+      // types gardent le formulaire existant.
+      const openDevisEdit = (devis) => {
+        if (devis && devis.lignes_json) { setDevisSimpleEditing(devis); setDevisSimpleOpen(true); }
+        else handleEditDevis(devis);
+      };
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
 
@@ -199,7 +209,7 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                                                     : 'var(--tw-slate)';
                                   return (
                                     <div key={devis.id}
-                                      onClick={() => handleEditDevis(devis)}
+                                      onClick={() => openDevisEdit(devis)}
                                       style={{padding:'12px 14px',background:'white',borderRadius:'8px',border:'0.5px solid var(--tw-border)',cursor:'pointer',transition:'background .15s'}}
                                       onMouseEnter={(e) => { e.currentTarget.style.background='#fafaf9'; }}
                                       onMouseLeave={(e) => { e.currentTarget.style.background='white'; }}
@@ -255,7 +265,7 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                                               >{I(ICONS.attach, 13)}</IconBtn>
                                             </>
                                           )}
-                                          <IconBtn title="Modifier le devis" onClick={() => handleEditDevis(devis)}>{I(ICONS.edit, 13)}</IconBtn>
+                                          <IconBtn title="Modifier le devis" onClick={() => openDevisEdit(devis)}>{I(ICONS.edit, 13)}</IconBtn>
                                           <IconBtn title="Supprimer le devis" danger onClick={() => handleDeleteDevis(devis.id)}>{I(ICONS.trash, 13)}</IconBtn>
                                         </div>
                                       </div>
@@ -675,6 +685,23 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
             </div>
           )}
 
+          {/* Grille de saisie du devis simple */}
+          {devisSimpleOpen && (
+            <DevisSimpleForm
+              prospect={selectedProspect}
+              interlocuteurs={interlocuteurs}
+              affaireId={devisSimpleEditing ? devisSimpleEditing.affaire_id : selectedAffaireId}
+              user={user}
+              API_URL={API_URL}
+              editingDevis={devisSimpleEditing}
+              onClose={() => { setDevisSimpleOpen(false); setDevisSimpleEditing(null); }}
+              onSaved={async () => {
+                if (fetchDevis && selectedProspect) await fetchDevis(selectedProspect.id);
+                if (fetchAffaires && selectedProspect) await fetchAffaires(selectedProspect.id);
+              }}
+            />
+          )}
+
           {/* Modale choix type de devis */}
           {showDevisTypeModal && (
             <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,backgroundColor:'rgba(0,0,0,0.5)',display:'flex',justifyContent:'center',alignItems:'center',zIndex:9999}}>
@@ -690,12 +717,20 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                       <div style={{fontSize:'0.75rem',fontWeight:'400',opacity:0.85}}>Configurateur modules, abonnements, formation</div>
                     </div>
                   </button>
-                  <button onClick={handleAddDevisLibre}
+                  <button onClick={() => { setShowDevisTypeModal(false); setDevisSimpleEditing(null); setDevisSimpleOpen(true); }}
                     style={{padding:'14px 18px',backgroundColor:'white',color:'#003366',border:'2px solid #c8dede',borderRadius:'10px',cursor:'pointer',fontSize:'0.95rem',fontWeight:'700',textAlign:'left',display:'flex',alignItems:'center',gap:'12px'}}>
                     <span style={{fontSize:'1.4rem'}}>📝</span>
                     <div>
-                      <div>Devis libre</div>
-                      <div style={{fontSize:'0.75rem',fontWeight:'400',color:'var(--text-2)'}}>Développement, matériel, prestation ponctuelle</div>
+                      <div>Créer un devis</div>
+                      <div style={{fontSize:'0.75rem',fontWeight:'400',color:'var(--text-2)'}}>Grille Réf / Désignation / PU / Qté / Remise → PDF TexasWin</div>
+                    </div>
+                  </button>
+                  <button onClick={handleAddDevisLibre}
+                    style={{padding:'14px 18px',backgroundColor:'white',color:'#003366',border:'2px solid #c8dede',borderRadius:'10px',cursor:'pointer',fontSize:'0.95rem',fontWeight:'700',textAlign:'left',display:'flex',alignItems:'center',gap:'12px'}}>
+                    <span style={{fontSize:'1.4rem'}}>📎</span>
+                    <div>
+                      <div>Importer un devis</div>
+                      <div style={{fontSize:'0.75rem',fontWeight:'400',color:'var(--text-2)'}}>Devis existant : montants saisis + PDF joint</div>
                     </div>
                   </button>
                 </div>

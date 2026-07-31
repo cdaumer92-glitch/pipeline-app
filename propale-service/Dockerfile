@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pil \
     python3-defusedxml \
     python3-numpy \
+    python3-reportlab \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

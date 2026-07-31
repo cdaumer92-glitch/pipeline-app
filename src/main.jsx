@@ -827,6 +827,7 @@ const ReactDOM = { createRoot, createPortal };
               prospects={prospects}
               onSelectProspect={handleSelectProspect}
               fetchProspects={fetchProspects}
+              fetchDevis={fetchDevis}
               activities={activities}
               nextActions={nextActions}
               allActions={allActions}
