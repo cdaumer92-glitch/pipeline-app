@@ -2821,7 +2821,8 @@ app.post('/api/devis/:id/generate-pdf-simple', auth, async (req, res) => {
       validite: lj.validite || '1 mois',
       societe: devis.societe_name,
       adresse,
-      attention_de: lj.attention_de || '',
+      // « À l'attention de Monsieur/Madame Prénom Nom » (civilité choisie dans la grille)
+      attention_de: [lj.attention_civilite, lj.attention_de].filter(Boolean).join(' '),
       tva_rate: lj.tva_rate || 20,
       lignes: lj.lignes,
     };

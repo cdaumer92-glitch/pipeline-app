@@ -11,6 +11,18 @@ const REFS = ['DEVELOPPEMENT', 'ASSISTANCE TECHNIQUE', 'MATERIEL', 'AUTRE'];
 const LIGNE_VIDE = { ref: 'DEVELOPPEMENT', ref_autre: '', designation: '', pu: '', qte: 1, remise: 0 };
 
 const fmtEur = (x) => (isNaN(x) ? '—' : x.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €');
+// Parse un montant saisi librement : « 1 150,00 € », « 1150.5 », « 1150,5 » → 1150.5
+const parseMontant = (v) => {
+  const n = parseFloat(String(v ?? '').replace(/[€\s ]/g, '').replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+};
+// Normalise la civilité éventuellement stockée sur le contact (M., Mme, Monsieur…)
+const normCivilite = (c) => {
+  const s = String(c || '').trim().toLowerCase();
+  if (['m', 'm.', 'mr', 'monsieur'].includes(s)) return 'Monsieur';
+  if (['mme', 'madame', 'mademoiselle', 'mlle'].includes(s)) return 'Madame';
+  return '';
+};
 
 export function DevisSimpleForm({ prospect, interlocuteurs = [], affaireId, user, API_URL, editingDevis = null, onClose, onSaved }) {
   const lj = editingDevis?.lignes_json || null;
@@ -19,12 +31,15 @@ export function DevisSimpleForm({ prospect, interlocuteurs = [], affaireId, user
   );
   const [validite, setValidite] = React.useState(lj?.validite || '1 mois');
   const [attentionDe, setAttentionDe] = React.useState(lj?.attention_de || '');
+  const [civilite, setCivilite] = React.useState(lj?.attention_civilite || '');
   const [lignes, setLignes] = React.useState(
     lj?.lignes?.length
       ? lj.lignes.map(l => ({
           ref: REFS.includes((l.ref || '').toUpperCase()) ? (l.ref || '').toUpperCase() : 'AUTRE',
           ref_autre: REFS.includes((l.ref || '').toUpperCase()) ? '' : (l.ref || ''),
-          designation: l.designation || '', pu: l.pu ?? '', qte: l.qte ?? 1, remise: l.remise ?? 0,
+          designation: l.designation || '',
+          pu: (l.pu != null && l.pu !== '') ? fmtEur(parseFloat(l.pu)) : '',
+          qte: l.qte ?? 1, remise: l.remise ?? 0,
         }))
       : [{ ...LIGNE_VIDE }]
   );
@@ -32,7 +47,7 @@ export function DevisSimpleForm({ prospect, interlocuteurs = [], affaireId, user
 
   const maj = (i, champ, val) => setLignes(ls => ls.map((l, j) => j === i ? { ...l, [champ]: val } : l));
   const totalLigne = (l) => {
-    const pu = parseFloat(l.pu) || 0, qte = parseFloat(l.qte) || 0, remise = parseFloat(l.remise) || 0;
+    const pu = parseMontant(l.pu), qte = parseFloat(l.qte) || 0, remise = parseFloat(l.remise) || 0;
     return Math.round(pu * qte * (1 - remise / 100) * 100) / 100;
   };
   const totalHT = Math.round(lignes.reduce((s, l) => s + totalLigne(l), 0) * 100) / 100;
@@ -41,11 +56,11 @@ export function DevisSimpleForm({ prospect, interlocuteurs = [], affaireId, user
 
   const enregistrer = async (genererPdf) => {
     const lignesValides = lignes
-      .filter(l => (l.designation || '').trim() && (parseFloat(l.pu) || 0) > 0)
+      .filter(l => (l.designation || '').trim() && parseMontant(l.pu) > 0)
       .map(l => ({
         ref: l.ref === 'AUTRE' ? ((l.ref_autre || '').trim() || 'AUTRE') : l.ref,
         designation: l.designation.trim(),
-        pu: parseFloat(l.pu) || 0,
+        pu: parseMontant(l.pu),
         qte: parseFloat(l.qte) || 0,
         remise: parseFloat(l.remise) || 0,
         total: totalLigne(l),
@@ -54,10 +69,16 @@ export function DevisSimpleForm({ prospect, interlocuteurs = [], affaireId, user
       window.showToast({ title: 'Ajoutez au moins une ligne avec désignation et prix', type: 'warning' });
       return;
     }
+    // Le devis s'adresse à quelqu'un : civilité obligatoire dès qu'un destinataire est choisi
+    // (« À l'attention de Monsieur/Madame Prénom Nom » sur le document).
+    if (attentionDe && !civilite) {
+      window.showToast({ title: 'Précisez la civilité du destinataire : Monsieur ou Madame ?', type: 'warning' });
+      return;
+    }
     setSaving(true);
     try {
       const hdrs = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` };
-      const lignes_json = { lignes: lignesValides, validite: validite.trim() || '1 mois', attention_de: attentionDe, tva_rate: 20 };
+      const lignes_json = { lignes: lignesValides, validite: validite.trim() || '1 mois', attention_de: attentionDe, attention_civilite: civilite, tva_rate: 20 };
       let devisId, devisName;
       if (editingDevis) {
         const r = await fetch(`${API_URL}/devis/${editingDevis.id}`, {
@@ -128,13 +149,31 @@ export function DevisSimpleForm({ prospect, interlocuteurs = [], affaireId, user
           </div>
           <div>
             <label style={lbl}>À l'attention de</label>
-            <select value={attentionDe} onChange={e => setAttentionDe(e.target.value)} style={inp}>
-              <option value="">— Aucun —</option>
-              {interlocuteurs.map(i => {
-                const n = displayName(i);
-                return <option key={i.id} value={n}>{n}{i.fonction ? ' (' + i.fonction + ')' : ''}</option>;
-              })}
-            </select>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <select value={civilite} onChange={e => setCivilite(e.target.value)}
+                title="Civilité du destinataire (obligatoire si un destinataire est choisi)"
+                style={{ ...inp, width: '92px', flexShrink: 0, borderColor: attentionDe && !civilite ? '#f0a4a4' : 'var(--tw-border)' }}>
+                <option value="">M. / Mme ?</option>
+                <option value="Monsieur">Monsieur</option>
+                <option value="Madame">Madame</option>
+              </select>
+              <select value={attentionDe}
+                onChange={e => {
+                  const n = e.target.value;
+                  setAttentionDe(n);
+                  // Pré-remplir la civilité si le contact la connaît ; sinon laisser
+                  // le choix à l'utilisateur (jamais devinée depuis le prénom).
+                  const c = interlocuteurs.find(i => displayName(i) === n);
+                  setCivilite(normCivilite(c?.civilite));
+                }}
+                style={{ ...inp, flex: 1, minWidth: 0 }}>
+                <option value="">— Aucun —</option>
+                {interlocuteurs.map(i => {
+                  const n = displayName(i);
+                  return <option key={i.id} value={n}>{n}{i.fonction ? ' (' + i.fonction + ')' : ''}</option>;
+                })}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -163,8 +202,13 @@ export function DevisSimpleForm({ prospect, interlocuteurs = [], affaireId, user
                     placeholder="Désignation de la prestation ou du matériel"
                     style={{ ...inp, resize: 'vertical', minHeight: '32px' }} />
                 </td>
-                <td style={{ padding: '5px 6px', width: '95px', verticalAlign: 'top' }}>
-                  <input type="number" step="0.01" min="0" value={l.pu} onChange={e => maj(i, 'pu', e.target.value)} placeholder="0,00" style={inpNum} />
+                <td style={{ padding: '5px 6px', width: '105px', verticalAlign: 'top' }}>
+                  {/* Affiché au format monétaire (comme Total HT) hors saisie ; valeur brute pendant la frappe */}
+                  <input type="text" inputMode="decimal" value={l.pu}
+                    onChange={e => maj(i, 'pu', e.target.value)}
+                    onFocus={() => { const p = parseMontant(l.pu); maj(i, 'pu', p ? String(p).replace('.', ',') : ''); }}
+                    onBlur={() => { const p = parseMontant(l.pu); maj(i, 'pu', p ? fmtEur(p) : ''); }}
+                    placeholder="0,00 €" style={inpNum} />
                 </td>
                 <td style={{ padding: '5px 6px', width: '62px', verticalAlign: 'top' }}>
                   <input type="number" step="0.5" min="0" value={l.qte} onChange={e => maj(i, 'qte', e.target.value)} style={inpNum} />

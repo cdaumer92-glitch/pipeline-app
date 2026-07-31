@@ -87,15 +87,29 @@ class NumeroteurCanvas(rl_canvas.Canvas):
                         "SAS ASTI · 19, rue de la Résistance, 42300 Roanne · Siret 401 646 534 00057")
 
 
+def image_logo():
+    """Logo TexasWin, débarrassé du liseré d'1-2 px présent sur les bords du PNG
+    source (sinon le logo apparaît « encadré » sur le devis)."""
+    if not LOGO_PATH.exists():
+        return None
+    import tempfile
+    from PIL import Image as PILImage
+    with PILImage.open(LOGO_PATH) as im:
+        im = im.convert("RGBA")
+        im = im.crop((2, 2, im.width - 2, im.height - 2))
+        ratio = im.height / im.width
+        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        im.save(tmp.name)
+    largeur = 48 * mm
+    return Image(tmp.name, width=largeur, height=largeur * ratio)
+
+
 def bloc_entete(cfg):
     """En-tête : logo + coordonnées ASTI à gauche ; cadres devis + client à droite."""
     gauche = []
-    if LOGO_PATH.exists():
-        from PIL import Image as PILImage
-        with PILImage.open(LOGO_PATH) as im:
-            ratio = im.height / im.width
-        largeur = 48 * mm
-        gauche.append(Image(str(LOGO_PATH), width=largeur, height=largeur * ratio))
+    logo = image_logo()
+    if logo is not None:
+        gauche.append(logo)
         gauche.append(Spacer(1, 4 * mm))
     gauche.append(Paragraph(
         "<b>SAS ASTI</b><br/>19, rue de la Résistance<br/>42300 Roanne<br/><br/>"
