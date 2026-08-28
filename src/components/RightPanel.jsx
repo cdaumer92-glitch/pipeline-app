@@ -178,13 +178,18 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
         if (!pid) return;
         try {
           const headers = { 'Authorization': `Bearer ${user.token}` };
+          // Chaque appel est INDÉPENDANT : un échec (ex. endpoint récent pas encore
+          // déployé, table absente…) ne doit PAS vider les autres sections. Sans ce
+          // catch par appel, un seul 404/500 faisait tomber tout le lot Promise.all
+          // → boutiques/licences/matériel affichés vides alors que les données existent.
+          const j = (url) => fetch(url, {headers}).then(r => r.ok ? r.json() : []).catch(() => []);
           const [lics, bouts, sites, mats, refL, refM] = await Promise.all([
-            fetch(`${API_URL}/prospects/${pid}/licences`, {headers}).then(r=>r.json()),
-            fetch(`${API_URL}/prospects/${pid}/boutiques`, {headers}).then(r=>r.json()),
-            fetch(`${API_URL}/prospects/${pid}/sites`, {headers}).then(r=>r.json()),
-            fetch(`${API_URL}/prospects/${pid}/materiel`, {headers}).then(r=>r.json()),
-            fetch(`${API_URL}/licences`, {headers}).then(r=>r.json()),
-            fetch(`${API_URL}/materiel-types`, {headers}).then(r=>r.json()),
+            j(`${API_URL}/prospects/${pid}/licences`),
+            j(`${API_URL}/prospects/${pid}/boutiques`),
+            j(`${API_URL}/prospects/${pid}/sites`),
+            j(`${API_URL}/prospects/${pid}/materiel`),
+            j(`${API_URL}/licences`),
+            j(`${API_URL}/materiel-types`),
           ]);
           setClientLicences(Array.isArray(lics)?lics:[]);
           setClientBoutiques(Array.isArray(bouts)?bouts:[]);
