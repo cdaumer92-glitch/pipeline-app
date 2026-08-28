@@ -1116,7 +1116,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                 else setInterlocuteurForm({...interlocuteurForm, site_id: '', boutique_id: ''});
                               }}
                               style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
-                              <option value="">Société (siège)</option>
+                              <option value="">Siège (adresse de la société)</option>
                               {clientSites.length > 0 && (
                                 <optgroup label="Sites">
                                   {clientSites.map(s => <option key={'s'+s.id} value={`s:${s.id}`}>{s.nom}{s.type?` (${s.type})`:''}</option>)}
@@ -1429,6 +1429,17 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                       {c.telephone_fixe && <a href={`tel:${c.telephone_fixe}`} title="Fixe" style={{color:'var(--tw-slate)',textDecoration:'none'}}>📞 {c.telephone_fixe}</a>}
                                       {c.linkedin_url && <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer" title="Profil LinkedIn" style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'18px',height:'18px',borderRadius:'3px',background:'#0a66c2',color:'white',fontSize:'9px',fontWeight:700,textDecoration:'none'}}>in</a>}
                                     </div>
+                                    {/* Rattachement du contact : site ou boutique (le siège reste implicite) */}
+                                    {(c.site_id || c.boutique_id) && (() => {
+                                      const s = c.site_id ? clientSites.find(x => x.id === c.site_id) : null;
+                                      const b = c.boutique_id ? clientBoutiques.find(x => x.id === c.boutique_id) : null;
+                                      const lbl = s ? `🏢 ${s.nom}${s.type ? ' · ' + s.type : ''}` : b ? `🏪 ${b.nom}` : (c.site_id ? '🏢 Site' : '🏪 Boutique');
+                                      return (
+                                        <div style={{marginTop:'4px'}}>
+                                          <span title="Rattachement du contact" style={{fontSize:'10px',fontWeight:600,padding:'1px 8px',borderRadius:'9px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>{lbl}</span>
+                                        </div>
+                                      );
+                                    })()}
                                     {/* Contact multi-sociétés : badges des autres sociétés où il est rattaché */}
                                     {Array.isArray(c.autres_societes) && c.autres_societes.length > 0 && (
                                       <div style={{display:'flex',gap:'5px',flexWrap:'wrap',marginTop:'4px',alignItems:'center'}}>
