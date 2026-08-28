@@ -1501,6 +1501,18 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                           <div style={lblMini}>Consentements</div>
                                           <div style={{fontSize:'12px',color:'var(--tw-slate)'}}>{[c.accept_emailing && 'Emailing', c.accept_notes_info && "Notes d'info", c.optin_confirme_at && 'Opt-in confirmé'].filter(Boolean).join(' · ') || 'Aucun'}</div>
                                         </div>
+                                        <div>
+                                          <div style={lblMini}>Rattaché à</div>
+                                          <div style={{fontSize:'13px',color:'var(--tw-ink)'}}>{(() => {
+                                            const s = c.site_id ? clientSites.find(x => x.id === c.site_id) : null;
+                                            const b = c.boutique_id ? clientBoutiques.find(x => x.id === c.boutique_id) : null;
+                                            if (s) return `🏢 ${s.nom}${s.type ? ' · ' + s.type : ''}`;
+                                            if (b) return `🏪 ${b.nom}`;
+                                            if (c.site_id) return '🏢 Site';
+                                            if (c.boutique_id) return '🏪 Boutique';
+                                            return <span style={{color:'var(--tw-muted)'}}>Siège</span>;
+                                          })()}</div>
+                                        </div>
                                       </div>
                                       <div style={lblMini}>Sociétés rattachées</div>
                                       <div style={{display:'flex',gap:'6px',flexWrap:'wrap',alignItems:'center'}}>
