@@ -81,7 +81,7 @@ import * as React from 'react';
         due.forEach(c => { const v = c.prochaine_vague || (c.etape + 1); (parVague[v] = parVague[v] || []).push(c); });
         const vagues = Object.keys(parVague).map(Number).sort((a, b) => a - b);
         const manquantes = vagues.filter(v => !brevoIdPourVague(v));
-        if (manquantes.length) { alert(`Aucune campagne Brevo configurée pour la relance ${manquantes.join(', ')}. Configure la séquence dans « Actions de relance groupées ».`); return; }
+        if (manquantes.length) { alert(`Aucune campagne Brevo configurée pour la relance ${manquantes.join(', ')}. Ajoute-la dans la définition de la campagne (colonne « Créer / lancer une campagne »).`); return; }
         if (!window.confirm(`Envoyer ${due.length} relance(s) dues pour « ${campNom} » ?`)) return;
         setProcessing(true); setFeedback(null);
         try {
