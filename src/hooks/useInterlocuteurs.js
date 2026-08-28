@@ -20,6 +20,9 @@ const EMPTY_INTERLOCUTEUR = {
   accept_emailing: false,
   accept_notes_info: false,
   demande_optin: false,
+  // Rattachement du contact : à un site OU une boutique (au plus un). '' = société (siège).
+  site_id: '',
+  boutique_id: '',
 };
 
 export function useInterlocuteurs(user, API_URL, selectedProspect) {

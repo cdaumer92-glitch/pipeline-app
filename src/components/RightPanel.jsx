@@ -162,6 +162,13 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
       const [editingBoutique, setEditingBoutique] = React.useState(null);
       const [boutiqueForm, setBoutiqueForm] = React.useState({nom:'',adresse:'',ville:'',cp:'',telephone:'',responsable_id:'',notes:''});
 
+      // Modale ajout/modif site (établissement)
+      const [clientSites, setClientSites] = React.useState([]);
+      const [showSiteForm, setShowSiteForm] = React.useState(false);
+      const [editingSite, setEditingSite] = React.useState(null);
+      const [siteForm, setSiteForm] = React.useState({nom:'',type:'Siège',adresse:'',ville:'',cp:'',telephone:'',responsable_id:'',notes:''});
+      const SITE_TYPES = ['Siège','Entrepôt','Showroom','Bureau','Dépôt','Autre'];
+
       // Modale ajout/modif matériel
       const [showMaterielForm, setShowMaterielForm] = React.useState(false);
       const [editingMateriel, setEditingMateriel] = React.useState(null);
@@ -171,15 +178,17 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
         if (!pid) return;
         try {
           const headers = { 'Authorization': `Bearer ${user.token}` };
-          const [lics, bouts, mats, refL, refM] = await Promise.all([
+          const [lics, bouts, sites, mats, refL, refM] = await Promise.all([
             fetch(`${API_URL}/prospects/${pid}/licences`, {headers}).then(r=>r.json()),
             fetch(`${API_URL}/prospects/${pid}/boutiques`, {headers}).then(r=>r.json()),
+            fetch(`${API_URL}/prospects/${pid}/sites`, {headers}).then(r=>r.json()),
             fetch(`${API_URL}/prospects/${pid}/materiel`, {headers}).then(r=>r.json()),
             fetch(`${API_URL}/licences`, {headers}).then(r=>r.json()),
             fetch(`${API_URL}/materiel-types`, {headers}).then(r=>r.json()),
           ]);
           setClientLicences(Array.isArray(lics)?lics:[]);
           setClientBoutiques(Array.isArray(bouts)?bouts:[]);
+          setClientSites(Array.isArray(sites)?sites:[]);
           setClientMateriel(Array.isArray(mats)?mats:[]);
           setRefLicences(Array.isArray(refL)?refL:[]);
           setRefMaterielTypes(Array.isArray(refM)?refM:[]);
@@ -253,6 +262,27 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
       const handleDeleteBoutique = async (id) => {
         if (!window.confirm('Supprimer cette boutique ?')) return;
         await fetch(`${API_URL}/boutiques/${id}`, {method:'DELETE',headers:{'Authorization':`Bearer ${user.token}`}});
+        setClientDataLoaded(false); loadClientData(selectedProspect.id);
+      };
+
+      // Sauvegarder site (établissement)
+      const handleSaveSite = async () => {
+        try {
+          const headers = {'Content-Type':'application/json','Authorization':`Bearer ${user.token}`};
+          const pid = selectedProspect.id;
+          if (editingSite) {
+            await fetch(`${API_URL}/sites/${editingSite.id}`, {method:'PUT',headers,body:JSON.stringify(siteForm)});
+          } else {
+            await fetch(`${API_URL}/prospects/${pid}/sites`, {method:'POST',headers,body:JSON.stringify(siteForm)});
+          }
+          setShowSiteForm(false); setEditingSite(null);
+          setClientSites([]); setClientDataLoaded(false); loadClientData(pid);
+        } catch(err) { window.showToast({title:'Erreur: '+err.message, type:'error'}); }
+      };
+
+      const handleDeleteSite = async (id) => {
+        if (!window.confirm('Supprimer ce site ?')) return;
+        await fetch(`${API_URL}/sites/${id}`, {method:'DELETE',headers:{'Authorization':`Bearer ${user.token}`}});
         setClientDataLoaded(false); loadClientData(selectedProspect.id);
       };
 
@@ -498,6 +528,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
               folder:  React.createElement('path',{d:'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'}),
               users:   React.createElement(React.Fragment, null, React.createElement('path',{d:'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'}), React.createElement('circle',{cx:9,cy:7,r:4}), React.createElement('path',{d:'M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'})),
               actions: React.createElement(React.Fragment, null, React.createElement('path',{d:'M9 11l3 3L22 4'}), React.createElement('path',{d:'M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'})),
+              building:React.createElement(React.Fragment, null, React.createElement('path',{d:'M3 21h18'}), React.createElement('path',{d:'M6 21V7l6-4 6 4v14'}), React.createElement('path',{d:'M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h.01M15 17h.01'})),
             };
             return (
             <div style={{marginBottom:'16px',background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'12px',overflow:'hidden'}}>
@@ -508,6 +539,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                   const tabs = [
                     {id:'infos',        label:'Informations',   icon: ICON.info},
                     {id:'contacts',     label:'Contacts',       icon: ICON.users, count: (interlocuteurs || []).length},
+                    {id:'sites',        label:'Sites',          icon: ICON.building, count: clientSites.length},
                     ...(isClient ? [
                       {id:'licences',  label:'Licences',  icon: ICON.key,      count: clientLicences.length},
                       {id:'boutiques', label:'Boutiques', icon: ICON.bag,      count: clientBoutiques.length},
@@ -1067,6 +1099,31 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                               Décideur
                             </label>
                           </div>
+                          {/* Rattachement : société (siège) OU un site OU une boutique */}
+                          <div style={{marginBottom:'12px'}}>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Rattaché à</label>
+                            <select
+                              value={interlocuteurForm.site_id ? `s:${interlocuteurForm.site_id}` : interlocuteurForm.boutique_id ? `b:${interlocuteurForm.boutique_id}` : ''}
+                              onChange={e => {
+                                const v = e.target.value;
+                                if (v.startsWith('s:')) setInterlocuteurForm({...interlocuteurForm, site_id: parseInt(v.slice(2)), boutique_id: ''});
+                                else if (v.startsWith('b:')) setInterlocuteurForm({...interlocuteurForm, boutique_id: parseInt(v.slice(2)), site_id: ''});
+                                else setInterlocuteurForm({...interlocuteurForm, site_id: '', boutique_id: ''});
+                              }}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
+                              <option value="">Société (siège)</option>
+                              {clientSites.length > 0 && (
+                                <optgroup label="Sites">
+                                  {clientSites.map(s => <option key={'s'+s.id} value={`s:${s.id}`}>{s.nom}{s.type?` (${s.type})`:''}</option>)}
+                                </optgroup>
+                              )}
+                              {clientBoutiques.length > 0 && (
+                                <optgroup label="Boutiques">
+                                  {clientBoutiques.map(b => <option key={'b'+b.id} value={`b:${b.id}`}>{b.nom}</option>)}
+                                </optgroup>
+                              )}
+                            </select>
+                          </div>
                           {/* Consentements RGPD - opt-in séparés pour communications */}
                           <div style={{display:'flex',gap:'16px',marginBottom:'12px',flexWrap:'wrap',padding:'8px 10px',background:'var(--bg)',borderRadius:'6px',border:'0.5px dashed #cde0e0'}}>
                             <div style={{display:'flex',flexDirection:'column',gap:'2px'}}>
@@ -1313,7 +1370,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                 </button>
                               )}
                             </div>
-                            <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({prenom:'',nom:'',fonction:'',email:'',telephone:'',telephone_fixe:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false,demande_optin:false}); setShowInterlocuteurForm(true); }}
+                            <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({prenom:'',nom:'',fonction:'',email:'',telephone:'',telephone_fixe:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false,demande_optin:false,site_id:'',boutique_id:''}); setShowInterlocuteurForm(true); }}
                               style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>+ Contact</button>
                           </div>
 
@@ -1391,7 +1448,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                     {c.decideur && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'#fdecea',color:'var(--tw-red)'}}>Décideur</span>}
                                     {c.principal && <span style={{fontSize:'10px',fontWeight:'600',padding:'2px 7px',borderRadius:'8px',background:'var(--tw-teal-light)',color:'var(--tw-teal)'}}>Principal</span>}
                                     <IconBtn title="Modifier le contact"
-                                      onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,prenom:c.prenom||'',nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',telephone_fixe:c.telephone_fixe||'',linkedin_url:c.linkedin_url||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info,demande_optin:!!c.demande_optin,emailing_unsubscribed_at:c.emailing_unsubscribed_at||null,emailing_unsubscribed_source:c.emailing_unsubscribed_source||null}); setShowInterlocuteurForm(true); }}
+                                      onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({id:c.id,prenom:c.prenom||'',nom:c.nom||'',fonction:c.fonction||'',email:c.email||'',telephone:c.telephone||'',telephone_fixe:c.telephone_fixe||'',linkedin_url:c.linkedin_url||'',principal:!!c.principal,decideur:!!c.decideur,accept_emailing:!!c.accept_emailing,accept_notes_info:!!c.accept_notes_info,demande_optin:!!c.demande_optin,site_id:c.site_id||'',boutique_id:c.boutique_id||'',emailing_unsubscribed_at:c.emailing_unsubscribed_at||null,emailing_unsubscribed_source:c.emailing_unsubscribed_source||null}); setShowInterlocuteurForm(true); }}
                                     >{I(ICONS.edit, 13)}</IconBtn>
                                     <IconBtn title={Array.isArray(c.autres_societes) && c.autres_societes.length > 0 ? 'Retirer de cette société (le contact reste rattaché à ses autres sociétés)' : 'Supprimer le contact'} danger
                                       onClick={() => handleDeleteInterlocuteur(c.id, Array.isArray(c.autres_societes) && c.autres_societes.length > 0)}
@@ -1660,6 +1717,99 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                         </tbody>
                       </table>
                     )}
+                  </div>
+                )}
+
+                {/* ── Onglet Sites (établissements) ── */}
+                {clientTab === 'sites' && (
+                  <div>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
+                      <span style={{fontSize:'12px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',letterSpacing:'.5px'}}>Sites / établissements <span style={{textTransform:'none',fontWeight:400}}>(le siège reste l'adresse de la société)</span></span>
+                      <button onClick={() => { setEditingSite(null); setSiteForm({nom:'',type:'Siège',adresse:'',ville:'',cp:'',telephone:'',responsable_id:'',notes:''}); setShowSiteForm(true); }}
+                        style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
+                        + Site
+                      </button>
+                    </div>
+
+                    {showSiteForm && (
+                      <div style={{background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'16px',marginBottom:'14px'}}>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Nom du site</label>
+                            <input type="text" value={siteForm.nom} onChange={e=>setSiteForm({...siteForm,nom:e.target.value})}
+                              placeholder="Ex: Entrepôt Nord" style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
+                          </div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Type</label>
+                            <select value={siteForm.type} onChange={e=>setSiteForm({...siteForm,type:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
+                              {SITE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Adresse</label>
+                            <AdresseAutocomplete value={siteForm.adresse}
+                              onChange={v=>setSiteForm({...siteForm,adresse:v})}
+                              onSelect={s=>setSiteForm({...siteForm,adresse:s.name||s.label,cp:s.cp||siteForm.cp,ville:s.ville||siteForm.ville})}
+                              placeholder="Numéro et rue"
+                              inputStyle={{padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
+                          </div>
+                          {[{lbl:'Ville',field:'ville',placeholder:'Ville'},{lbl:'Code postal',field:'cp',placeholder:'59000'},{lbl:'Téléphone',field:'telephone',placeholder:'+33 ...'}].map(({lbl,field,placeholder}) => (
+                            <div key={field}>
+                              <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>{lbl}</label>
+                              <input type="text" value={siteForm[field]} onChange={e=>setSiteForm({...siteForm,[field]:e.target.value})}
+                                placeholder={placeholder} style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
+                            </div>
+                          ))}
+                          <div>
+                            <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Responsable</label>
+                            <select value={siteForm.responsable_id} onChange={e=>setSiteForm({...siteForm,responsable_id:e.target.value})}
+                              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>
+                              <option value="">— Aucun —</option>
+                              {interlocuteurs.map(i => <option key={i.id} value={i.id}>{i.nom}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{marginBottom:'10px'}}>
+                          <label style={{fontSize:'11px',color:'var(--tw-muted)',fontWeight:'600',textTransform:'uppercase',display:'block',marginBottom:'4px'}}>Notes</label>
+                          <input type="text" value={siteForm.notes} onChange={e=>setSiteForm({...siteForm,notes:e.target.value})}
+                            style={{width:'100%',padding:'7px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} placeholder="Optionnel" />
+                        </div>
+                        <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
+                          <button onClick={() => setShowSiteForm(false)} style={{padding:'6px 14px',border:'1px solid var(--tw-border)',borderRadius:'6px',background:'white',cursor:'pointer',fontSize:'13px',fontFamily:"'Inter',sans-serif"}}>Annuler</button>
+                          <button onClick={handleSaveSite} style={{padding:'6px 14px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'13px',fontWeight:'600',fontFamily:"'Inter',sans-serif"}}>Enregistrer</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {clientSites.length === 0 ? (
+                      <div style={{textAlign:'center',padding:'20px',color:'var(--tw-muted)',fontStyle:'italic',fontSize:'13px'}}>Aucun site enregistré. Le siège reste l'adresse de la société.</div>
+                    ) : clientSites.map(s => {
+                      const contactsSite = (interlocuteurs || []).filter(i => i.site_id === s.id);
+                      return (
+                        <div key={s.id} style={{border:'1px solid var(--tw-border)',borderRadius:'8px',overflow:'hidden',marginBottom:'10px'}}>
+                          <div style={{padding:'10px 14px',background:'var(--tw-teal-light)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                            <div>
+                              <div style={{fontWeight:'600',fontSize:'13px',color:'var(--tw-teal)'}}>{s.nom} <span style={{fontSize:'11px',fontWeight:600,background:'white',color:'var(--tw-teal)',borderRadius:'10px',padding:'1px 8px',marginLeft:'4px'}}>{s.type||'Autre'}</span></div>
+                              <div style={{fontSize:'12px',color:'var(--tw-teal)',opacity:.8,marginTop:'2px'}}>{[s.adresse,s.cp,s.ville].filter(Boolean).join(', ')||'Adresse non renseignée'}</div>
+                            </div>
+                            <div style={{display:'flex',gap:'5px'}}>
+                              <button onClick={() => { setEditingSite(s); setSiteForm({nom:s.nom,type:s.type||'Autre',adresse:s.adresse||'',ville:s.ville||'',cp:s.cp||'',telephone:s.telephone||'',responsable_id:s.responsable_id||'',notes:s.notes||''}); setShowSiteForm(true); }}
+                                style={{padding:'3px 8px',border:'1px solid var(--tw-teal)',borderRadius:'4px',background:'white',color:'var(--tw-teal)',cursor:'pointer',fontSize:'12px'}}>✏️</button>
+                              <button onClick={() => handleDeleteSite(s.id)}
+                                style={{padding:'3px 8px',border:'none',borderRadius:'4px',background:'#f79d8d',color:'white',cursor:'pointer',fontSize:'12px'}}>🗑️</button>
+                            </div>
+                          </div>
+                          <div style={{padding:'12px 14px',background:'white',fontSize:'12px'}}>
+                            <div style={{marginBottom: contactsSite.length ? '8px':'0'}}><span style={{color:'var(--tw-muted)'}}>Responsable : </span><span style={{fontWeight:'500'}}>{s.responsable_nom||'—'}</span>{s.telephone && <span style={{color:'var(--tw-muted)'}}> · {s.telephone}</span>}</div>
+                            {contactsSite.length > 0 && (
+                              <div><span style={{color:'var(--tw-muted)'}}>Contacts rattachés : </span>{contactsSite.map((i,idx)=>(<span key={i.id}>{idx>0?', ':''}<span style={{fontWeight:500}}>{[i.prenom,i.nom].filter(Boolean).join(' ')}</span>{i.fonction?` (${i.fonction})`:''}</span>))}</div>
+                            )}
+                            {s.notes && <div style={{color:'var(--tw-muted)',marginTop:'6px'}}>{s.notes}</div>}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 

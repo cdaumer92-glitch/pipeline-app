@@ -433,6 +433,31 @@ async function initDB() {
       updated_at TIMESTAMP DEFAULT NOW()
     )`);
 
+    // ── Sites (établissements de la société) ──
+    // Distincts des boutiques (points de vente) : siège, entrepôt, showroom, bureau…
+    // Calqués sur boutiques, avec un `type` en plus. Le siège reste l'adresse de la
+    // société (prospects.adresse) ; les sites sont les établissements EN PLUS.
+    await client.query(`CREATE TABLE IF NOT EXISTS sites (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      nom TEXT NOT NULL,
+      type TEXT DEFAULT 'Autre',
+      adresse TEXT,
+      ville TEXT,
+      cp TEXT,
+      telephone TEXT,
+      responsable_id INTEGER REFERENCES interlocuteurs(id) ON DELETE SET NULL,
+      notes TEXT,
+      display_order INTEGER,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+
+    // Rattachement d'un contact : en priorité à UN site OU UNE boutique (au plus un).
+    // Le contact non rattaché reste au niveau société (rattachement = siège par défaut).
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL`);
+    await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS boutique_id INTEGER REFERENCES boutiques(id) ON DELETE SET NULL`);
+
     // Licences client
     await client.query(`CREATE TABLE IF NOT EXISTS client_licences (
       id SERIAL PRIMARY KEY,
@@ -1381,7 +1406,7 @@ async function assertOwnsProspect(req, res, prospectId) {
 // en remontant à son prospect. `table` est une valeur littérale contrôlée (pas d'injection).
 async function assertOwnsViaProspect(req, res, table, id) {
   if ((await getUserRole(req.userId)) === 'admin') return true;
-  if (!['next_actions', 'affaires', 'devis', 'interlocuteurs', 'boutiques', 'client_licences', 'client_materiel'].includes(table)) { res.status(500).json({ error: 'Table invalide' }); return false; }
+  if (!['next_actions', 'affaires', 'devis', 'interlocuteurs', 'boutiques', 'sites', 'client_licences', 'client_materiel'].includes(table)) { res.status(500).json({ error: 'Table invalide' }); return false; }
   const q = await pool.query(
     `SELECT p.assigned_to FROM ${table} t JOIN prospects p ON p.id = t.prospect_id WHERE t.id = $1`,
     [id]
@@ -3392,7 +3417,10 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { prenom, nom, fonction, email, telephone, telephone_fixe, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail, existing_interlocuteur_id } = req.body;
+    const { prenom, nom, fonction, email, telephone, telephone_fixe, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail, existing_interlocuteur_id, site_id, boutique_id } = req.body;
+    // Rattachement : au plus un des deux (site prioritaire si les deux sont fournis).
+    const siteId = site_id ? (parseInt(site_id) || null) : null;
+    const boutiqueId = (!siteId && boutique_id) ? (parseInt(boutique_id) || null) : null;
 
     // ── Rattachement d'un contact EXISTANT (anti-doublon) : on ne crée pas de
     // nouvelle personne, juste une liaison vers cette société avec sa fonction locale.
@@ -3449,10 +3477,10 @@ app.post('/api/prospects/:id/interlocuteurs', auth, async (req, res) => {
     }
 
     const result = await client.query(
-      `INSERT INTO interlocuteurs (prospect_id, prenom, nom, fonction, email, telephone, telephone_fixe, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      `INSERT INTO interlocuteurs (prospect_id, prenom, nom, fonction, email, telephone, telephone_fixe, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, demande_optin, source, source_detail, site_id, boutique_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING *`,
-      [id, prenomClean, nomClean, fonction, email, telephone, (telephone_fixe && String(telephone_fixe).trim()) || null, linkedinClean, principal || false, decideur || false, acceptEmailing, acceptNotesInfo, demandeOptin, sourceClean, sourceDetailClean]
+      [id, prenomClean, nomClean, fonction, email, telephone, (telephone_fixe && String(telephone_fixe).trim()) || null, linkedinClean, principal || false, decideur || false, acceptEmailing, acceptNotesInfo, demandeOptin, sourceClean, sourceDetailClean, siteId, boutiqueId]
     );
 
     const newInterloc = result.rows[0];
@@ -3509,7 +3537,12 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
   const client = await pool.connect();
   try {
     const { prospectId, id } = req.params;
-    const { prenom, nom, fonction, email, telephone, telephone_fixe, linkedin_url, principal, decideur, accept_emailing, accept_notes_info } = req.body;
+    const { prenom, nom, fonction, email, telephone, telephone_fixe, linkedin_url, principal, decideur, accept_emailing, accept_notes_info, site_id, boutique_id } = req.body;
+    // Rattachement site/boutique : ne concerne que la société PRINCIPALE du contact
+    // (les sites/boutiques appartiennent à ce prospect). Au plus un des deux.
+    const hasRattachement = ('site_id' in req.body) || ('boutique_id' in req.body);
+    const siteId = site_id ? (parseInt(site_id) || null) : null;
+    const boutiqueId = (!siteId && boutique_id) ? (parseInt(boutique_id) || null) : null;
 
     await client.query('BEGIN');
 
@@ -3582,6 +3615,8 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
              linkedin_url = CASE WHEN $11::text IS NULL THEN linkedin_url
                                  WHEN $11::text = '' THEN NULL
                                  ELSE $11::text END,
+             site_id = CASE WHEN $14::boolean THEN $15::int ELSE site_id END,
+             boutique_id = CASE WHEN $14::boolean THEN $16::int ELSE boutique_id END,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = $9 AND prospect_id = $10
          RETURNING *`,
@@ -3590,7 +3625,8 @@ app.put('/api/prospects/:prospectId/interlocuteurs/:id', auth, async (req, res) 
           acceptEmailingParam, acceptNotesParam,
           id, prospectId,
           linkedinValue, prenomValue,
-          (telephone_fixe && String(telephone_fixe).trim()) || null
+          (telephone_fixe && String(telephone_fixe).trim()) || null,
+          hasRattachement, siteId, boutiqueId
         ]
       );
       after = result.rows[0];
@@ -6424,6 +6460,54 @@ app.delete('/api/boutiques/:id', auth, async (req, res) => {
   if (!(await assertOwnsViaProspect(req, res, 'boutiques', req.params.id))) return;
   try {
     await pool.query(`DELETE FROM boutiques WHERE id=$1`, [req.params.id]);
+    res.json({ok: true});
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+// ── Sites (établissements) — calqués sur les boutiques, avec un `type` en plus ──
+app.get('/api/prospects/:id/sites', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
+  try {
+    const r = await pool.query(`
+      SELECT s.*, i.nom as responsable_nom, i.telephone as responsable_tel, i.email as responsable_email
+      FROM sites s
+      LEFT JOIN interlocuteurs i ON i.id = s.responsable_id
+      WHERE s.prospect_id = $1
+      ORDER BY s.display_order ASC NULLS LAST, s.nom
+    `, [req.params.id]);
+    res.json(r.rows);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.post('/api/prospects/:id/sites', auth, async (req, res) => {
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
+  const { nom, type, adresse, ville, cp, telephone, responsable_id, notes } = req.body;
+  try {
+    const r = await pool.query(`
+      INSERT INTO sites (prospect_id, nom, type, adresse, ville, cp, telephone, responsable_id, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *
+    `, [req.params.id, nom, type||'Autre', adresse||null, ville||null, cp||null, telephone||null, responsable_id||null, notes||null]);
+    res.json(r.rows[0]);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.put('/api/sites/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'sites', req.params.id))) return;
+  const { nom, type, adresse, ville, cp, telephone, responsable_id, notes } = req.body;
+  try {
+    const r = await pool.query(`
+      UPDATE sites SET nom=$1, type=$2, adresse=$3, ville=$4, cp=$5, telephone=$6,
+        responsable_id=$7, notes=$8, updated_at=NOW()
+      WHERE id=$9 RETURNING *
+    `, [nom, type||'Autre', adresse||null, ville||null, cp||null, telephone||null, responsable_id||null, notes||null, req.params.id]);
+    res.json(r.rows[0]);
+  } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.delete('/api/sites/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'sites', req.params.id))) return;
+  try {
+    await pool.query(`DELETE FROM sites WHERE id=$1`, [req.params.id]);
     res.json({ok: true});
   } catch(err) { res.status(500).json({error: err.message}); }
 });
