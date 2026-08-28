@@ -862,6 +862,20 @@ async function initDB() {
     // de la BDD (conserve la traçabilité RGPD : qui a reçu quoi et quand).
     await client.query(`ALTER TABLE campagnes_envois ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP`);
 
+    // ── Statut Actif / Archivé d'un brouillon Brevo (organisation côté CRM) ──
+    // Brevo ne connaît pas cette notion : c'est un rangement propre au CRM par-dessus
+    // les brouillons Brevo. Une ligne n'existe que pour les brouillons explicitement
+    // archivés/réactivés ; en l'absence de ligne, un brouillon est considéré « actif ».
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS brevo_campagne_statuts (
+        brevo_campaign_id INTEGER PRIMARY KEY,
+        statut            TEXT NOT NULL DEFAULT 'actif',
+        archived_at       TIMESTAMP,
+        updated_by        INTEGER REFERENCES users(id),
+        updated_at        TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     // ── Séquence opt-in : regroupe Mail 1 + ses relances en UNE campagne ──
     // Les 3 mails (initial + relance1 + relance2) étaient des lignes indépendantes.
     // sequence_id : identifiant partagé par tous les envois d'une même séquence
@@ -4161,6 +4175,41 @@ app.get('/api/brevo/campaigns', auth, async (req, res) => {
     replyTo: c.replyTo || null
   }));
   res.json({ campaigns, count: result.data?.count ?? campaigns.length });
+});
+
+// -------- GET /api/brevo/campaign-statuts --------
+// Statut Actif/Archivé des brouillons Brevo (organisation CRM). Retourne une map
+// { [brevo_campaign_id]: { statut, archived_at } }. Absent = 'actif' par défaut.
+app.get('/api/brevo/campaign-statuts', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT brevo_campaign_id, statut, archived_at FROM brevo_campagne_statuts`);
+    const statuts = {};
+    r.rows.forEach(row => { statuts[row.brevo_campaign_id] = { statut: row.statut, archived_at: row.archived_at }; });
+    res.json({ statuts });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------- POST /api/brevo/campaign-statuts/:id --------
+// Range un brouillon Brevo en 'actif' ou 'archive' (upsert). Body : { statut }.
+app.post('/api/brevo/campaign-statuts/:id', auth, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: 'id invalide' });
+  const statut = (req.body && req.body.statut) === 'archive' ? 'archive' : 'actif';
+  try {
+    await pool.query(
+      `INSERT INTO brevo_campagne_statuts (brevo_campaign_id, statut, archived_at, updated_by, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (brevo_campaign_id) DO UPDATE
+         SET statut = EXCLUDED.statut, archived_at = EXCLUDED.archived_at,
+             updated_by = EXCLUDED.updated_by, updated_at = NOW()`,
+      [id, statut, statut === 'archive' ? new Date() : null, req.userId]
+    );
+    res.json({ ok: true, brevo_campaign_id: id, statut });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // -------- GET /api/brevo/campaigns/:id --------

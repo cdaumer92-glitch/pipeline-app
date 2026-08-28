@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { CampagnesLibrary } from './CampagnesLibrary.jsx';
 
     // ===================================================================
     // COMPOSANT CampagnesPage — Page envoi de campagnes Brevo (Session 2)
@@ -727,7 +728,7 @@ import * as React from 'react';
     }
 
     export function CampagnesPage({ user, API_URL, onClose }) {
-      const [activeView, setActiveView] = React.useState('optin');
+      const [activeView, setActiveView] = React.useState('campagnes');
       const [refreshKey, setRefreshKey] = React.useState(0);
       const [typeCible, setTypeCible] = React.useState('prospect'); // client|prospect|suspect|prospect_suspect|all
       const [decideursOnly, setDecideursOnly] = React.useState(false);
@@ -901,14 +902,16 @@ import * as React from 'react';
           {/* ONGLETS : 2 modes clairs */}
           <div style={{display:'flex', gap:'4px', marginBottom:'20px', borderBottom:'1px solid var(--tw-border)', flexWrap:'wrap'}}>
             {[
-              {v:'optin',   label:'🎯 Campagnes opt-in'},
-              {v:'envoyer', label:'✉️ Envoi direct (newsletter)'}
+              {v:'campagnes', label:'📣 Campagnes'},
+              {v:'optin',     label:'🎯 Opt-in / audience'}
             ].map(t => (
               <button key={t.v} onClick={() => setActiveView(t.v)} style={{padding:'10px 18px', background:'transparent', border:'none', borderBottom: activeView===t.v ? '2px solid var(--tw-teal)' : '2px solid transparent', cursor:'pointer', fontSize:'14px', fontWeight: activeView===t.v ? 600 : 400, color: activeView===t.v ? 'var(--tw-teal)' : 'var(--tw-slate)', marginBottom:'-1px'}}>{t.label}</button>
             ))}
           </div>
 
-          {activeView === 'optin' ? (
+          {activeView === 'campagnes' ? (
+            <CampagnesLibrary user={user} API_URL={API_URL} key={'lib'+refreshKey} />
+          ) : activeView === 'optin' ? (
             <div style={{display:'flex', gap:'22px', alignItems:'flex-start', flexWrap:'wrap'}}>
               {/* Colonne gauche : créer / lancer */}
               <div style={{flex:'1 1 340px', minWidth:'310px', maxWidth:'440px'}}>
