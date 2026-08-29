@@ -544,12 +544,16 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                   const tabs = [
                     {id:'infos',        label:'Informations',   icon: ICON.info},
                     {id:'contacts',     label:'Contacts',       icon: ICON.users, count: (interlocuteurs || []).length},
-                    {id:'sites',        label:'Sites',          icon: ICON.building, count: clientSites.length},
                     ...(isClient ? [
                       {id:'licences',  label:'Licences',  icon: ICON.key,      count: clientLicences.length},
+                      // Sites et Boutiques côte à côte
+                      {id:'sites',     label:'Sites',     icon: ICON.building, count: clientSites.length},
                       {id:'boutiques', label:'Boutiques', icon: ICON.bag,      count: clientBoutiques.length},
                       {id:'materiel',  label:'Matériel',  icon: ICON.hardware, count: clientMateriel.length},
-                    ] : []),
+                    ] : [
+                      // Non-client : pas de boutiques/licences/matériel, mais les sites restent utiles
+                      {id:'sites',     label:'Sites',     icon: ICON.building, count: clientSites.length},
+                    ]),
                     // Dossier rempli bleu s'il y a au moins une affaire en cours, fond blanc sinon
                     {id:'affaires',     label:'Affaires',       icon: ICON.folder,  count: nbAffaires,
                       iconFill: nbAffaires > 0 ? '#10a0dc' : 'white',
