@@ -151,7 +151,7 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
       const td = { padding: '10px 12px', borderBottom: '0.5px solid var(--tw-border)', fontSize: '13px', color: 'var(--tw-ink)' };
       const lk = { color: '#12a0dc', fontWeight: 600 };
       const tableStyle = { width: '100%', borderCollapse: 'collapse', background: 'white', borderRadius: '12px', overflow: 'hidden', border: '0.5px solid var(--tw-border)' };
-      const badge = (s) => { const m = ({ Suspect: ['#7a7a7a', '#f0f0f0'], Prospect: ['#c47d10', '#fdf3e3'], Client: ['#1a8f4c', '#e7f7ed'], Holding: ['#0d7fb0', '#e8f6fc'] })[s] || ['#5b6b78', '#eef2f5']; return { display: 'inline-block', fontSize: '11px', fontWeight: 600, padding: '2px 9px', borderRadius: '20px', color: m[0], background: m[1] }; };
+      const badge = (s) => { const m = ({ Suspect: ['#7a7a7a', '#f0f0f0'], Prospect: ['#c47d10', '#fdf3e3'], Client: ['#1a8f4c', '#e7f7ed'], Holding: ['#0d7fb0', '#e8f6fc'], Prestataire: ['#7b5ea7', '#f1ecfa'] })[s] || ['#5b6b78', '#eef2f5']; return { display: 'inline-block', fontSize: '11px', fontWeight: 600, padding: '2px 9px', borderRadius: '20px', color: m[0], background: m[1] }; };
       const rowHover = { onMouseOver: e => e.currentTarget.style.background = '#f7fbfd', onMouseOut: e => e.currentTarget.style.background = 'white' };
       const Empty = (msg) => <div style={{ padding: '36px', textAlign: 'center', color: 'var(--tw-muted)', fontSize: '14px' }}>{msg}</div>;
 
@@ -176,7 +176,7 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
         // Filtre real_status optionnel (arrivée depuis une box du dashboard) : chaîne ou tableau de statuts.
         const rsMatch = (p) => !realStatusFilter || (Array.isArray(realStatusFilter) ? realStatusFilter.includes(p.real_status) : p.real_status === realStatusFilter);
         const base = prospects.filter(p => inScope(p.assigned_to) && rsMatch(p));
-        const counts = { Suspect: 0, Prospect: 0, Client: 0, Holding: 0 };
+        const counts = { Suspect: 0, Prospect: 0, Client: 0, Holding: 0, Prestataire: 0 };
         base.forEach(p => { const s = p.statut_societe || 'Prospect'; if (counts[s] != null) counts[s]++; });
         let rows = (statut === 'Tous' ? base : base.filter(p => (p.statut_societe || 'Prospect') === statut)).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         rows = applySort(rows, { societe: p => p.name, type: p => p.statut_societe || 'Prospect', commercial: p => p.assigned_to });
@@ -198,7 +198,7 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
         };
         const statutFilter = (
           <div style={{ display: 'flex', gap: '4px' }}>
-            {['Tous', 'Holding', 'Suspect', 'Prospect', 'Client'].map(s => (
+            {['Tous', 'Holding', 'Suspect', 'Prospect', 'Client', 'Prestataire'].map(s => (
               <button key={s} onClick={() => setStatut(s)} style={{ padding: '6px 11px', borderRadius: '8px', border: '0.5px solid ' + (statut === s ? '#12a0dc' : 'var(--tw-border)'), background: statut === s ? '#e8f6fc' : 'white', color: statut === s ? '#0d7fb0' : 'var(--tw-slate)', fontSize: '12.5px', fontWeight: statut === s ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>{s}</button>
             ))}
           </div>
@@ -207,7 +207,7 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
         const realStatusChip = realStatusFilter ? (
           <button onClick={() => setRealStatusFilter(null)} title="Retirer ce filtre de statut" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 11px', borderRadius: '8px', border: '1px solid var(--primary)', background: 'var(--primary-soft)', color: 'var(--primary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Statut : {rsLabel} ✕</button>
         ) : null;
-        return Wrap('Sociétés', `${counts.Holding ? `${counts.Holding} holding(s) · ` : ''}${counts.Suspect} suspect(s) · ${counts.Prospect} prospect(s) · ${counts.Client} client(s)`, <React.Fragment>{statutFilter}{realStatusChip}{commercialFilter}</React.Fragment>,
+        return Wrap('Sociétés', `${counts.Holding ? `${counts.Holding} holding(s) · ` : ''}${counts.Suspect} suspect(s) · ${counts.Prospect} prospect(s) · ${counts.Client} client(s)${counts.Prestataire ? ` · ${counts.Prestataire} prestataire(s)` : ''}`, <React.Fragment>{statutFilter}{realStatusChip}{commercialFilter}</React.Fragment>,
           rows.length === 0 ? Empty('Aucune société.') : (
             <table style={tableStyle}>
               <thead><tr>{SortTh('Société', 'societe')}{SortTh('Type', 'type')}{SortTh('Commercial', 'commercial')}<th style={th}>Contact</th><th style={th}>Téléphone</th></tr></thead>

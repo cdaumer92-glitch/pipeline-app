@@ -371,8 +371,8 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
 
       // ── Helpers header ──
       const initials = selectedProspect.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-      const statutColors = {Client:'var(--tw-teal)',Prospect:'var(--warning)',Suspect:'#999',Holding:'#0d7fb0'};
-      const statutBgs = {Client:'var(--tw-teal-light)',Prospect:'#fff8e1',Suspect:'#f5f5f5',Holding:'#e8f6fc'};
+      const statutColors = {Client:'var(--tw-teal)',Prospect:'var(--warning)',Suspect:'#999',Holding:'#0d7fb0',Prestataire:'#7b5ea7'};
+      const statutBgs = {Client:'var(--tw-teal-light)',Prospect:'#fff8e1',Suspect:'#f5f5f5',Holding:'#e8f6fc',Prestataire:'#f1ecfa'};
       const realStatus = getProspectRealStatus(affairesList, devisList);
 
       return (
@@ -409,6 +409,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                       <option value="Suspect">Suspect</option>
                       <option value="Prospect">Prospect</option>
                       <option value="Client">Client</option>
+                      <option value="Prestataire">Prestataire</option>
                     </select>
                     {/* Pastille cible : enrichir depuis SocieteInfo */}
                     <button

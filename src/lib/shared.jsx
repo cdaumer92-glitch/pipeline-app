@@ -117,6 +117,7 @@ export const typeChip = (type) => {
         'Prospect': {cls:'var(--warning)', bg:'var(--warning-soft)'},
         'Client':   {cls:'var(--primary)', bg:'var(--primary-soft)'},
         'Holding':  {cls:'#0d7fb0', bg:'#e8f6fc'},
+        'Prestataire': {cls:'#7b5ea7', bg:'#f1ecfa'},
       };
       const s = map[type] || {cls:'var(--tw-muted)', bg:'var(--surface-hover)'};
       return <span style={{fontSize:'11px',fontWeight:'600',padding:'2px 9px',borderRadius:'10px',color:s.cls,background:s.bg}}>{type||'—'}</span>;

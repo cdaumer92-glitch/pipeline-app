@@ -91,6 +91,7 @@ export function ProspectForm({ formData, onFormChange, onSave, onCancel, selecte
                   <option value="Suspect">Suspect</option>
                   <option value="Prospect">Prospect</option>
                   <option value="Client">Client</option>
+                  <option value="Prestataire">Prestataire</option>
                 </select>
                 <select
                   value={formData.assigned_to}

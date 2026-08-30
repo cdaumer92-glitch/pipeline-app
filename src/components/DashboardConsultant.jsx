@@ -120,6 +120,7 @@ export function DashboardConsultant({ prospects, user, prospectActionsInfo, onSe
               {key:'Suspect',  label:'Suspect'},
               {key:'Prospect', label:'Prospect'},
               {key:'Client',   label:'Client'},
+              {key:'Prestataire', label:'Prestataire'},
             ].map(t => {
               const active = typeFilter === t.key;
               const count = t.key === 'all' ? mine.length : mine.filter(p => p.statut_societe === t.key).length;
