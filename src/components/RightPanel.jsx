@@ -126,6 +126,40 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
         return () => clearTimeout(t);
       }, [interlocuteurForm.nom, interlocuteurForm.prenom, interlocuteurForm.email, showInterlocuteurForm, interlocuteurForm.id]);
 
+      // ── Rattacher un contact EXISTANT (ex. d'un partenaire/prestataire) à cette société ──
+      // Action délibérée : recherche parmi toutes les fiches, puis rattachement (pas de doublon).
+      const [showAttachContact, setShowAttachContact] = React.useState(false);
+      const [attachSearch, setAttachSearch] = React.useState('');
+      const [attachResults, setAttachResults] = React.useState([]);
+      React.useEffect(() => {
+        if (!showAttachContact) { setAttachResults([]); return; }
+        const q = attachSearch.trim();
+        if (q.length < 2) { setAttachResults([]); return; }
+        const t = setTimeout(async () => {
+          try {
+            const r = await fetch(`${API_URL}/interlocuteurs/search?q=${encodeURIComponent(q)}&exclude_prospect_id=${selectedProspect?.id || 0}`,
+              { headers: { 'Authorization': `Bearer ${user.token}` } });
+            const d = await r.json();
+            setAttachResults(Array.isArray(d) ? d : []);
+          } catch (_) { setAttachResults([]); }
+        }, 300);
+        return () => clearTimeout(t);
+      }, [attachSearch, showAttachContact, selectedProspect?.id]);
+      const attachExistingContact = async (contact) => {
+        try {
+          const fonction = Array.isArray(contact.societes) && contact.societes[0] ? (contact.societes[0].fonction || '') : '';
+          const r = await fetch(`${API_URL}/prospects/${selectedProspect.id}/interlocuteurs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
+            body: JSON.stringify({ existing_interlocuteur_id: contact.id, fonction })
+          });
+          if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || ('HTTP ' + r.status)); }
+          window.showToast({ title: 'Contact rattaché à la société', type: 'success' });
+          setShowAttachContact(false); setAttachSearch(''); setAttachResults([]);
+          if (typeof fetchInterlocuteurs === 'function') fetchInterlocuteurs(selectedProspect.id);
+        } catch (err) { window.showToast({ title: 'Erreur : ' + err.message, type: 'error' }); }
+      };
+
       // Rattacher une fiche contact existante à la société courante (pas de doublon créé)
       const handleRattacherContact = async (contact) => {
         try {
@@ -1380,9 +1414,42 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                                 </button>
                               )}
                             </div>
-                            <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({prenom:'',nom:'',fonction:'',email:'',telephone:'',telephone_fixe:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false,demande_optin:false,site_id:'',boutique_id:''}); setShowInterlocuteurForm(true); }}
-                              style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>+ Contact</button>
+                            <div style={{display:'flex',gap:'6px'}}>
+                              <button onClick={() => { setShowAttachContact(v=>!v); setAttachSearch(''); }}
+                                title="Rattacher un contact existant (ex. d'un partenaire) à cette société"
+                                style={{padding:'5px 12px',background:'white',color:'var(--tw-teal)',border:'1px solid var(--tw-teal)',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>+ Contact existant</button>
+                              <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({prenom:'',nom:'',fonction:'',email:'',telephone:'',telephone_fixe:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false,demande_optin:false,site_id:'',boutique_id:''}); setShowInterlocuteurForm(true); }}
+                                style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>+ Contact</button>
+                            </div>
                           </div>
+
+                          {/* Rattacher un contact existant (d'un partenaire / prestataire, ou d'une autre société) */}
+                          {showAttachContact && (
+                            <div style={{background:'var(--tw-bg)',border:'1px solid var(--tw-border)',borderRadius:'8px',padding:'14px',marginBottom:'12px'}}>
+                              <div style={{fontSize:'12px',color:'var(--tw-slate)',marginBottom:'8px'}}>Chercher une personne déjà en base (nom ou email) — utile pour ajouter le contact d'un partenaire (ESN, e-commerce, logistique…) sans le recréer.</div>
+                              <input autoFocus type="text" value={attachSearch} onChange={e=>setAttachSearch(e.target.value)}
+                                placeholder="Nom, prénom ou email…"
+                                onKeyDown={e=>{ if(e.key==='Escape'){ setShowAttachContact(false); setAttachSearch(''); } }}
+                                style={{width:'100%',padding:'8px 10px',border:'1px solid var(--tw-border)',borderRadius:'6px',fontSize:'13px',fontFamily:"'Inter',sans-serif"}} />
+                              {attachSearch.trim().length >= 2 && (
+                                <div style={{marginTop:'8px',display:'flex',flexDirection:'column',gap:'4px'}}>
+                                  {attachResults.length === 0 ? (
+                                    <div style={{fontSize:'12px',color:'var(--tw-muted)',fontStyle:'italic',padding:'4px 0'}}>Aucune personne trouvée (ou déjà rattachée ici).</div>
+                                  ) : attachResults.map(s => (
+                                    <div key={s.id} style={{display:'flex',alignItems:'center',gap:'8px',padding:'6px 8px',background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'6px',fontSize:'12.5px'}}>
+                                      <span style={{fontWeight:600,color:'var(--tw-ink)',flexShrink:0}}>{[s.prenom,s.nom].filter(Boolean).join(' ')}</span>
+                                      {s.email && <span style={{color:'var(--tw-muted)',flexShrink:0}}>{s.email}</span>}
+                                      <span style={{color:'var(--tw-slate)',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                                        {(s.societes||[]).map(so => so.name + (so.statut ? ` [${so.statut}]` : '') + (so.fonction ? ' — ' + so.fonction : '')).join(' · ')}
+                                      </span>
+                                      <button onClick={() => attachExistingContact(s)}
+                                        style={{background:'var(--tw-teal)',color:'white',border:'none',padding:'4px 10px',borderRadius:'6px',fontSize:'11.5px',fontWeight:600,cursor:'pointer',fontFamily:"'Inter',sans-serif",flexShrink:0}}>Rattacher</button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           {/* Formulaire CRÉATION : en haut, uniquement si pas d'id */}
                           {isCreating && renderContactForm(false)}

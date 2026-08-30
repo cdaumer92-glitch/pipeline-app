@@ -3758,7 +3758,7 @@ app.get('/api/interlocuteurs/search', auth, async (req, res) => {
     const exclude = parseInt(req.query.exclude_prospect_id) || 0;
     const result = await pool.query(
       `SELECT i.id, i.prenom, i.nom, i.email, i.telephone,
-              (SELECT json_agg(json_build_object('id', p.id, 'name', p.name, 'fonction', x.fonction) ORDER BY p.name)
+              (SELECT json_agg(json_build_object('id', p.id, 'name', p.name, 'fonction', x.fonction, 'statut', p.statut_societe) ORDER BY p.name)
                  FROM (
                    SELECT i2.prospect_id, i2.fonction FROM interlocuteurs i2 WHERE i2.id = i.id
                    UNION ALL
