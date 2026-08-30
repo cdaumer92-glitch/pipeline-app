@@ -1417,7 +1417,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                             <div style={{display:'flex',gap:'6px'}}>
                               <button onClick={() => { setShowAttachContact(v=>!v); setAttachSearch(''); }}
                                 title="Rattacher un contact existant (ex. d'un partenaire) à cette société"
-                                style={{padding:'5px 12px',background:'white',color:'var(--tw-teal)',border:'1px solid var(--tw-teal)',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>+ Contact existant</button>
+                                style={{padding:'5px 12px',background:'white',color:'var(--tw-teal)',border:'1px solid var(--tw-teal)',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>+ Contact Externe</button>
                               <button onClick={() => { setHistoryExpanded(false); setHistoryData([]); setInterlocuteurForm({prenom:'',nom:'',fonction:'',email:'',telephone:'',telephone_fixe:'',linkedin_url:'',principal:false,decideur:false,accept_emailing:false,accept_notes_info:false,demande_optin:false,site_id:'',boutique_id:''}); setShowInterlocuteurForm(true); }}
                                 style={{padding:'5px 12px',background:'var(--tw-teal)',color:'white',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'600',cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>+ Contact</button>
                             </div>
