@@ -1117,6 +1117,7 @@ const ReactDOM = { createRoot, createPortal };
                         <option value="Suspect">Suspect</option>
                         <option value="Prospect">Prospect</option>
                         <option value="Client">Client</option>
+                        <option value="Prestataire">Prestataire</option>
                       </select>
                       {newCompanyErrors.statut_societe && <span style={styles.errMsg}>{newCompanyErrors.statut_societe}</span>}
                     </div>
