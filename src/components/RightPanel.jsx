@@ -131,6 +131,8 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
       const [showAttachContact, setShowAttachContact] = React.useState(false);
       const [attachSearch, setAttachSearch] = React.useState('');
       const [attachResults, setAttachResults] = React.useState([]);
+      // Sous-onglets Contacts : internes (propres à la société) / externes (rattachés d'ailleurs)
+      const [contactSubTab, setContactSubTab] = React.useState('internes');
       React.useEffect(() => {
         if (!showAttachContact) { setAttachResults([]); return; }
         const q = attachSearch.trim();
@@ -1454,9 +1456,22 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                           {/* Formulaire CRÉATION : en haut, uniquement si pas d'id */}
                           {isCreating && renderContactForm(false)}
 
-                          {interlocuteurs.length === 0 ? (
-                            <div style={{fontSize:'13px',color:'var(--tw-muted)',fontStyle:'italic',padding:'10px 0'}}>Aucun contact</div>
-                          ) : interlocuteurs.map(c => {
+                          {/* Sous-onglets : contacts internes (propres à la société) vs externes (partenaires) */}
+                          <div style={{display:'flex',gap:'4px',marginBottom:'12px',borderBottom:'0.5px solid var(--tw-border)'}}>
+                            {[
+                              {k:'internes', lbl:'Contacts internes', n:interlocuteurs.filter(c=>!c.est_secondaire).length},
+                              {k:'externes', lbl:'Contacts externes', n:interlocuteurs.filter(c=>c.est_secondaire).length},
+                            ].map(t => (
+                              <button key={t.k} onClick={() => setContactSubTab(t.k)}
+                                style={{padding:'7px 12px',background:'transparent',border:'none',borderBottom: contactSubTab===t.k ? '2px solid var(--tw-teal)' : '2px solid transparent',cursor:'pointer',fontSize:'12.5px',fontWeight: contactSubTab===t.k ? 600 : 500,color: contactSubTab===t.k ? 'var(--tw-teal)' : 'var(--tw-slate)',fontFamily:"'Inter',sans-serif",marginBottom:'-1px'}}>
+                                {t.lbl} <span style={{color:'var(--tw-muted)',fontWeight:400}}>{t.n}</span>
+                              </button>
+                            ))}
+                          </div>
+
+                          {(contactSubTab === 'externes' ? interlocuteurs.filter(c=>c.est_secondaire) : interlocuteurs.filter(c=>!c.est_secondaire)).length === 0 ? (
+                            <div style={{fontSize:'13px',color:'var(--tw-muted)',fontStyle:'italic',padding:'10px 0'}}>{contactSubTab === 'externes' ? 'Aucun contact externe. Utilisez « + Contact Externe » pour rattacher le contact d\'un partenaire.' : 'Aucun contact interne'}</div>
+                          ) : (contactSubTab === 'externes' ? interlocuteurs.filter(c=>c.est_secondaire) : interlocuteurs.filter(c=>!c.est_secondaire)).map(c => {
                             const avatarColors = ['var(--tw-teal)','#667eea','var(--warning)','var(--success)','var(--danger)','#9b59b6'];
                             const col = avatarColors[c.id % avatarColors.length];
                             const ini = displayInitials(c);
