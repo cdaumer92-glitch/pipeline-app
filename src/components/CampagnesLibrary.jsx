@@ -266,12 +266,23 @@ function SendDrawer({ drawer, audience, rates, joignablesForSegment, onClose, on
   }, [rates, draft.id, emailToId]);
   const untouchedIds = allJoignableIds.filter(id => !alreadyIds.has(id));
 
+  // Mode Lancer : liste des contacts du segment + consentement choisis, sélectionnables
+  // (l'utilisateur peut en décocher avant l'envoi). La sélection se réinitialise à « tous »
+  // quand la liste change (segment / type d'envoi / décideurs).
+  const segContacts = React.useMemo(
+    () => mode === 'send' ? joignablesForSegment(seg, decideurs, consentType) : [],
+    [mode, seg, decideurs, consentType, joignablesForSegment]
+  );
+  const [selectedIds, setSelectedIds] = React.useState(() => new Set());
+  React.useEffect(() => { setSelectedIds(new Set(segContacts.map(c => c.id))); }, [segContacts]);
+  const toggleOne = (id) => setSelectedIds(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
   // Cible effective + count
   let contactIds, count;
   if (mode === 'relance') {
     contactIds = relanceCible === 'nonopen' ? nonOpenerIds : relanceCible === 'untouched' ? untouchedIds : allJoignableIds;
   } else {
-    contactIds = joignablesForSegment(seg, decideurs, consentType).map(c => c.id);
+    contactIds = segContacts.filter(c => selectedIds.has(c.id)).map(c => c.id);
   }
   count = contactIds.length;
 
@@ -345,6 +356,34 @@ function SendDrawer({ drawer, audience, rates, joignablesForSegment, onClose, on
                 </label>
               </div>
               <div style={{ fontSize: '12px', color: 'var(--tw-muted)', marginTop: '12px' }}>Les listes nommées réutilisables arrivent dans une prochaine version.</div>
+
+              {/* Liste des contacts ciblés : décochez ceux que vous ne voulez pas inclure */}
+              <div style={{ marginTop: '18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div style={lbl} title="Contacts resultant du segment + type d'envoi">Contacts ciblés — <b style={{ color: 'var(--primary)' }}>{selectedIds.size}</b>/{segContacts.length}</div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button onClick={() => setSelectedIds(new Set(segContacts.map(c => c.id)))} style={{ fontSize: '11.5px', fontWeight: 600, padding: '3px 9px', border: '1px solid var(--tw-border-strong, rgba(17,24,39,.16))', borderRadius: '999px', background: 'white', color: 'var(--tw-slate)', cursor: 'pointer', fontFamily: 'inherit' }}>Tout cocher</button>
+                    <button onClick={() => setSelectedIds(new Set())} style={{ fontSize: '11.5px', fontWeight: 600, padding: '3px 9px', border: '1px solid var(--tw-border-strong, rgba(17,24,39,.16))', borderRadius: '999px', background: 'white', color: 'var(--tw-slate)', cursor: 'pointer', fontFamily: 'inherit' }}>Tout décocher</button>
+                  </div>
+                </div>
+                {segContacts.length === 0 ? (
+                  <div style={{ fontSize: '12.5px', color: 'var(--tw-muted)', fontStyle: 'italic', padding: '10px 0' }}>Aucun contact pour ce segment et ce type d'envoi.</div>
+                ) : (
+                  <div style={{ border: '1px solid var(--tw-border)', borderRadius: '10px', maxHeight: '260px', overflowY: 'auto' }}>
+                    {segContacts.map(c => {
+                      const on = selectedIds.has(c.id);
+                      return (
+                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderBottom: '0.5px solid var(--tw-border)', cursor: 'pointer', fontSize: '13px', opacity: on ? 1 : .5 }}>
+                          <input type="checkbox" checked={on} onChange={() => toggleOne(c.id)} />
+                          <span style={{ fontWeight: 600, color: 'var(--tw-ink)', flexShrink: 0, minWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[c.prenom, c.nom].filter(Boolean).join(' ') || '—'}</span>
+                          <span style={{ color: 'var(--tw-slate)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.societe || ''}</span>
+                          <span style={{ color: 'var(--tw-muted)', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>{c.email}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
           <div style={{ fontSize: '12px', color: 'var(--tw-slate)', background: 'var(--tw-bg)', borderRadius: '10px', padding: '11px 13px', lineHeight: 1.45 }}>

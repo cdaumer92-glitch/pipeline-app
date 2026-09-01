@@ -4855,6 +4855,7 @@ app.get('/api/brevo/audience', auth, async (req, res) => {
       i.fonction,
       i.email,
       COALESCE(i.accept_emailing, false) AS accept_emailing,
+      COALESCE(i.accept_notes_info, false) AS accept_notes_info,
       COALESCE(i.decideur, false)        AS decideur,
       COALESCE(i.principal, false)       AS principal,
       COALESCE(i.demande_optin, false)   AS demande_optin,
