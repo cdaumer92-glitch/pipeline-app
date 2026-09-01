@@ -72,12 +72,16 @@ export function CampagnesLibrary({ user, API_URL }) {
     return { joignable, attente, desabo, jamais };
   }, [audience]);
 
-  // Contacts joignables (opt-in) d'un segment commercial
-  const joignablesForSegment = React.useCallback((seg, decideurOnly) => {
+  // Contacts joignables d'un segment commercial, selon le type de consentement :
+  //  - 'emailing' → accept_emailing (emailing commercial)
+  //  - 'notes'    → accept_notes_info (notes d'information)
+  // RGPD : on ne cible QUE les contacts ayant donné le consentement correspondant.
+  const joignablesForSegment = React.useCallback((seg, decideurOnly, consent = 'emailing') => {
     const map = { client: ['Client'], prospect: ['Prospect'], suspect: ['Suspect'], all: null };
     const allowed = map[seg];
+    const okConsent = (c) => consent === 'notes' ? c.accept_notes_info === true : c.accept_emailing === true;
     return audience.filter(c =>
-      c.accept_emailing === true &&
+      okConsent(c) &&
       (!allowed || allowed.includes(c.statut_societe)) &&
       (!decideurOnly || c.decideur === true)
     );
@@ -241,6 +245,7 @@ function CampRow({ r, onLancer, onRelancer, onArchive, onReactivate }) {
 // ── Panneau Lancer / Relancer ──
 function SendDrawer({ drawer, audience, rates, joignablesForSegment, onClose, onDone, onError, onTest, API_URL, authH }) {
   const { mode, draft } = drawer;
+  const [consentType, setConsentType] = React.useState('emailing'); // 'emailing' | 'notes'
   const [seg, setSeg] = React.useState('prospect');
   const [decideurs, setDecideurs] = React.useState(false);
   const [relanceCible, setRelanceCible] = React.useState('nonopen'); // nonopen | untouched | all
@@ -254,7 +259,7 @@ function SendDrawer({ drawer, audience, rates, joignablesForSegment, onClose, on
       .map(x => emailToId[(x.email || '').toLowerCase()]).filter(Boolean);
   }, [rates, draft.id, emailToId]);
 
-  const allJoignableIds = React.useMemo(() => joignablesForSegment('all', false).map(c => c.id), [joignablesForSegment]);
+  const allJoignableIds = React.useMemo(() => joignablesForSegment('all', false, consentType).map(c => c.id), [joignablesForSegment, consentType]);
   const alreadyIds = React.useMemo(() => {
     const rr = (rates[draft.id] && rates[draft.id].recipients) || [];
     return new Set(rr.map(x => emailToId[(x.email || '').toLowerCase()]).filter(Boolean));
@@ -266,7 +271,7 @@ function SendDrawer({ drawer, audience, rates, joignablesForSegment, onClose, on
   if (mode === 'relance') {
     contactIds = relanceCible === 'nonopen' ? nonOpenerIds : relanceCible === 'untouched' ? untouchedIds : allJoignableIds;
   } else {
-    contactIds = joignablesForSegment(seg, decideurs).map(c => c.id);
+    contactIds = joignablesForSegment(seg, decideurs, consentType).map(c => c.id);
   }
   count = contactIds.length;
 
@@ -276,7 +281,7 @@ function SendDrawer({ drawer, audience, rates, joignablesForSegment, onClose, on
     if (count === 0) { onError('Aucun contact joignable pour cette cible.'); return; }
     if (!window.confirm(`${verb} ${count} contact(s) — « ${draft.name} » ?`)) return;
     setSending(true);
-    fetch(`${API_URL}/brevo/send-campaign`, { method: 'POST', headers: authH(), body: JSON.stringify({ campaignId: draft.id, contactIds, mode: 'normal', filtres: { source: mode } }) })
+    fetch(`${API_URL}/brevo/send-campaign`, { method: 'POST', headers: authH(), body: JSON.stringify({ campaignId: draft.id, contactIds, mode: 'normal', consent: consentType, filtres: { source: mode, consent: consentType } }) })
       .then(r => r.json().then(d => ({ ok: r.ok, d })))
       .then(({ ok, d }) => {
         if (!ok) throw new Error(d.error || 'Envoi échoué');
@@ -297,6 +302,20 @@ function SendDrawer({ drawer, audience, rates, joignablesForSegment, onClose, on
           <h3 style={{ fontSize: '17px', fontWeight: 700, margin: '4px 0 0', color: 'var(--tw-ink)' }}>{draft.name}</h3>
         </div>
         <div style={{ padding: '20px 22px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Base de consentement : détermine QUELS contacts sont ciblés (RGPD) */}
+          <div>
+            <div style={lbl}>Type d'envoi</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {[['emailing', 'Emailing commercial', 'accept_emailing'], ['notes', "Notes d'information", 'accept_notes_info']].map(([v, t]) => (
+                <button key={v} onClick={() => setConsentType(v)} style={{ flex: 1, ...pill(consentType === v), textAlign: 'center' }}>{t}</button>
+              ))}
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--tw-muted)', marginTop: '8px' }}>
+              {consentType === 'notes'
+                ? 'Cible uniquement les contacts ayant accepté les notes d\'information.'
+                : 'Cible uniquement les contacts ayant accepté l\'emailing commercial.'}
+            </div>
+          </div>
           {mode === 'relance' ? (
             <div>
               <div style={lbl}>Relancer qui ?</div>
@@ -319,7 +338,7 @@ function SendDrawer({ drawer, audience, rates, joignablesForSegment, onClose, on
               <div style={lbl}>Sur quelle liste — segment rapide</div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                 {[['client', 'Clients'], ['prospect', 'Prospects'], ['suspect', 'Suspects'], ['all', 'Tous']].map(([v, t]) => (
-                  <button key={v} onClick={() => setSeg(v)} style={pill(seg === v)}>{t} <span style={{ fontSize: '11px', opacity: .7 }}>{joignablesForSegment(v, decideurs).length}</span></button>
+                  <button key={v} onClick={() => setSeg(v)} style={pill(seg === v)}>{t} <span style={{ fontSize: '11px', opacity: .7 }}>{joignablesForSegment(v, decideurs, consentType).length}</span></button>
                 ))}
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--tw-slate)', cursor: 'pointer', marginLeft: '4px' }}>
                   <input type="checkbox" checked={decideurs} onChange={e => setDecideurs(e.target.checked)} /> Décideurs

@@ -4299,7 +4299,12 @@ app.get('/api/brevo/campaigns/:id', auth, async (req, res) => {
 // En cas d'erreur après le clone : tentative de cleanup (delete clone + delete liste)
 // pour ne pas laisser de pollution côté Brevo, et UPDATE statut='failed'.
 app.post('/api/brevo/send-campaign', auth, async (req, res) => {
-  const { campaignId, contactIds, filtres, mode } = req.body || {};
+  const { campaignId, contactIds, filtres, mode, consent } = req.body || {};
+  // Base de consentement pour le mode normal :
+  //  - 'emailing' (défaut) → accept_emailing (emailing commercial)
+  //  - 'notes'             → accept_notes_info (notes d'information)
+  // On ne cible QUE les contacts ayant donné CE consentement précis (RGPD).
+  const consentBasis = (consent === 'notes') ? 'notes' : 'emailing';
 
   // ----- Validation entrée -----
   const srcCampaignId = parseInt(campaignId);
@@ -4386,6 +4391,7 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
     const r = await pool.query(
       `SELECT i.id, i.email, i.prenom, i.nom,
               COALESCE(i.accept_emailing, false) AS accept_emailing,
+              COALESCE(i.accept_notes_info, false) AS accept_notes_info,
               COALESCE(i.demande_optin, false)   AS demande_optin,
               i.emailing_unsubscribed_at,
               p.name AS societe,
@@ -4432,12 +4438,12 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
       console.warn(`[brevo-send mode=opt_in_request] ${optedOut.length} contact(s) opt-out explicite, filtrés (non re-sollicités):`, optedOut.map(r => r.email));
     }
   } else {
-    // Mode normal : filtre RGPD strict
-    optOut = interlocs.filter(r => r.email && r.email.trim() && r.accept_emailing !== true);
+    // Mode normal : filtre RGPD strict sur la base de consentement demandée
+    // ('emailing' → accept_emailing ; 'notes' → accept_notes_info).
+    const consent = (r) => consentBasis === 'notes' ? r.accept_notes_info === true : r.accept_emailing === true;
+    optOut = interlocs.filter(r => r.email && r.email.trim() && !consent(r));
     badStatusForOptin = [];
-    eligibles = interlocs.filter(r =>
-      r.email && r.email.trim() && r.accept_emailing === true
-    );
+    eligibles = interlocs.filter(r => r.email && r.email.trim() && consent(r));
   }
 
   // Choix #2 : 400 + liste détaillée des emails KO si au moins un problème bloquant
