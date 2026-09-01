@@ -1768,9 +1768,14 @@ app.patch('/api/prospects/:id/parent', auth, async (req, res) => {
 });
 
 app.delete('/api/prospects/:id', auth, async (req, res) => {
+  // Droits alignés sur le reste de l'app : admin (tout) ou propriétaire (assigned_to).
+  // AVANT : filtrait par user_id (le CRÉATEUR), donc une societe importee ou creee par
+  // un autre biais (user_id != courant / NULL) n'etait jamais supprimee — la requete
+  // matchait 0 ligne mais renvoyait ok:true, d'ou "elle reste en base".
+  if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
-    await pool.query('DELETE FROM prospects WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
-    res.json({ ok: true });
+    const r = await pool.query('DELETE FROM prospects WHERE id = $1', [req.params.id]);
+    res.json({ ok: true, deleted: r.rowCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
