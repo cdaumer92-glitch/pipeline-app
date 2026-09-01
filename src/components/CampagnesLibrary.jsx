@@ -276,6 +276,17 @@ function SendDrawer({ drawer, audience, rates, joignablesForSegment, onClose, on
   const [selectedIds, setSelectedIds] = React.useState(() => new Set());
   React.useEffect(() => { setSelectedIds(new Set(segContacts.map(c => c.id))); }, [segContacts]);
   const toggleOne = (id) => setSelectedIds(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  // Regroupement par entreprise. Décocher une entreprise = décocher tous ses contacts.
+  const groups = React.useMemo(() => {
+    const m = new Map();
+    segContacts.forEach(c => { const k = c.societe || '—'; if (!m.has(k)) m.set(k, []); m.get(k).push(c); });
+    return [...m.entries()];
+  }, [segContacts]);
+  const toggleEntreprise = (contacts, allOn) => setSelectedIds(s => {
+    const n = new Set(s);
+    contacts.forEach(c => allOn ? n.delete(c.id) : n.add(c.id));
+    return n;
+  });
 
   // Cible effective + count
   let contactIds, count;
@@ -369,16 +380,31 @@ function SendDrawer({ drawer, audience, rates, joignablesForSegment, onClose, on
                 {segContacts.length === 0 ? (
                   <div style={{ fontSize: '12.5px', color: 'var(--tw-muted)', fontStyle: 'italic', padding: '10px 0' }}>Aucun contact pour ce segment et ce type d'envoi.</div>
                 ) : (
-                  <div style={{ border: '1px solid var(--tw-border)', borderRadius: '10px', maxHeight: '260px', overflowY: 'auto' }}>
-                    {segContacts.map(c => {
-                      const on = selectedIds.has(c.id);
+                  <div style={{ border: '1px solid var(--tw-border)', borderRadius: '10px', maxHeight: '300px', overflowY: 'auto' }}>
+                    {groups.map(([societe, contacts]) => {
+                      const nbOn = contacts.filter(c => selectedIds.has(c.id)).length;
+                      const allOn = nbOn === contacts.length;
+                      const someOn = nbOn > 0;
                       return (
-                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderBottom: '0.5px solid var(--tw-border)', cursor: 'pointer', fontSize: '13px', opacity: on ? 1 : .5 }}>
-                          <input type="checkbox" checked={on} onChange={() => toggleOne(c.id)} />
-                          <span style={{ fontWeight: 600, color: 'var(--tw-ink)', flexShrink: 0, minWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[c.prenom, c.nom].filter(Boolean).join(' ') || '—'}</span>
-                          <span style={{ color: 'var(--tw-slate)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.societe || ''}</span>
-                          <span style={{ color: 'var(--tw-muted)', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>{c.email}</span>
-                        </label>
+                        <div key={societe}>
+                          {/* En-tête entreprise : case maître */}
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', background: 'var(--tw-bg)', borderBottom: '0.5px solid var(--tw-border)', borderTop: '0.5px solid var(--tw-border)', cursor: 'pointer', fontSize: '13px', position: 'sticky', top: 0 }}>
+                            <input type="checkbox" checked={allOn} ref={el => { if (el) el.indeterminate = someOn && !allOn; }} onChange={() => toggleEntreprise(contacts, allOn)} />
+                            <span style={{ fontWeight: 700, color: 'var(--tw-ink)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{societe}</span>
+                            <span style={{ fontSize: '11.5px', color: someOn ? 'var(--primary)' : 'var(--tw-muted)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{nbOn}/{contacts.length}</span>
+                          </label>
+                          {/* Contacts de l'entreprise */}
+                          {contacts.map(c => {
+                            const on = selectedIds.has(c.id);
+                            return (
+                              <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 12px 7px 32px', borderBottom: '0.5px solid var(--tw-border)', cursor: 'pointer', fontSize: '13px', opacity: on ? 1 : .5 }}>
+                                <input type="checkbox" checked={on} onChange={() => toggleOne(c.id)} />
+                                <span style={{ fontWeight: 600, color: 'var(--tw-ink)', flexShrink: 0, minWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[c.prenom, c.nom].filter(Boolean).join(' ') || '—'}</span>
+                                <span style={{ color: 'var(--tw-muted)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.fonction || ''}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
                       );
                     })}
                   </div>
