@@ -144,7 +144,7 @@ export function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSe
             onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(180deg,#2B6BF0,var(--primary))'}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
-            Nx Prospect
+            Nlle Société
           </button>
 
           {/* PARAMÈTRES (icône discrète) */}
