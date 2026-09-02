@@ -55,18 +55,39 @@
         <button id="logout-btn" class="btn btn-ghost">Déconnexion</button>
       </header>
 
-      <div class="stats">
-        <div class="stat"><div class="n" id="stat-societes">—</div><div class="k">Sociétés</div></div>
-        <div class="stat"><div class="n" id="stat-clients">—</div><div class="k">Clients</div></div>
+      <nav class="segment" role="tablist">
+        <button id="seg-societes" class="seg active" role="tab">Sociétés</button>
+        <button id="seg-actions" class="seg" role="tab">Actions à faire <span id="seg-actions-badge" class="seg-badge" hidden></span></button>
+      </nav>
+
+      <!-- Mode Sociétés -->
+      <div id="mode-societes">
+        <div class="stats">
+          <div class="stat"><div class="n" id="stat-societes">—</div><div class="k">Sociétés</div></div>
+          <div class="stat"><div class="n" id="stat-clients">—</div><div class="k">Clients</div></div>
+        </div>
+        <div class="list-head">
+          <h2>Sociétés</h2>
+          <input id="search" type="search" placeholder="Filtrer nom / ville…" />
+        </div>
+        <div id="societes" class="list" aria-live="polite">
+          <div class="empty">Chargement…</div>
+        </div>
       </div>
 
-      <div class="list-head">
-        <h2>Sociétés</h2>
-        <input id="search" type="search" placeholder="Filtrer nom / ville…" />
-      </div>
-
-      <div id="societes" class="list" aria-live="polite">
-        <div class="empty">Chargement…</div>
+      <!-- Mode Actions -->
+      <div id="mode-actions" hidden>
+        <div class="stats">
+          <div class="stat"><div class="n danger" id="stat-actions-retard">—</div><div class="k">En retard</div></div>
+          <div class="stat"><div class="n" id="stat-actions-total">—</div><div class="k">À faire</div></div>
+        </div>
+        <div class="list-head">
+          <h2>Actions à faire</h2>
+          <input id="search-actions" type="search" placeholder="Filtrer société / type…" />
+        </div>
+        <div id="actions" class="list" aria-live="polite">
+          <div class="empty">Chargement…</div>
+        </div>
       </div>
     </section>
 

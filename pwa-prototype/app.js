@@ -11,6 +11,8 @@ const LS_API = 'pwa_api_base';
 let TOKEN = sessionStorage.getItem('pwa_token') || null;
 let USER = null;
 let SOCIETES = [];
+let ACTIONS = [];
+let LIST_MODE = 'societes'; // 'societes' | 'actions'
 let CURRENT = null;      // société ouverte dans la fiche
 let ACTIVE_TAB = null;
 
@@ -43,6 +45,19 @@ function euro(n) {
 }
 function tagClass(st) {
   return ['Client', 'Prospect', 'Suspect', 'Prestataire'].includes(st) ? st : '';
+}
+function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+/* Échéance : retourne { label, cls } relatif à aujourd'hui. */
+function dueInfo(dateStr) {
+  if (!dateStr) return { label: 'sans date', cls: 'none' };
+  const d = startOfDay(dateStr), today = startOfDay(new Date());
+  const days = Math.round((d - today) / 86400000);
+  const fmt = d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  if (days < 0) return { label: `En retard · ${fmt}`, cls: 'late' };
+  if (days === 0) return { label: `Aujourd'hui`, cls: 'today' };
+  if (days === 1) return { label: `Demain · ${fmt}`, cls: 'soon' };
+  if (days <= 7) return { label: `Dans ${days} j · ${fmt}`, cls: 'soon' };
+  return { label: fmt, cls: 'far' };
 }
 
 /* ── Appel API (jamais mis en cache) ── */
@@ -158,9 +173,66 @@ function renderSocietes(filter) {
     el.addEventListener('click', () => openFiche(Number(el.dataset.id))));
 }
 
+/* ── Bascule Sociétés / Actions ── */
+function setMode(mode) {
+  LIST_MODE = mode;
+  $('seg-societes').classList.toggle('active', mode === 'societes');
+  $('seg-actions').classList.toggle('active', mode === 'actions');
+  $('mode-societes').hidden = mode !== 'societes';
+  $('mode-actions').hidden = mode !== 'actions';
+  if (mode === 'actions' && !ACTIONS.length) loadActions();
+}
+
+/* ── Actions à faire (appel réel : /lists/actions) ── */
+async function loadActions() {
+  const box = $('actions');
+  box.innerHTML = '<div class="empty">Chargement…</div>';
+  try {
+    const data = await api('/lists/actions');
+    ACTIONS = Array.isArray(data) ? data : [];
+    const retard = ACTIONS.filter((a) => a.planned_date && startOfDay(a.planned_date) < startOfDay(new Date())).length;
+    $('stat-actions-total').textContent = ACTIONS.length;
+    $('stat-actions-retard').textContent = retard;
+    const badge = $('seg-actions-badge');
+    badge.textContent = ACTIONS.length; badge.hidden = !ACTIONS.length;
+    renderActions($('search-actions').value);
+  } catch (ex) {
+    if (handleAuthError(ex)) return;
+    box.innerHTML = `<div class="empty">Échec du chargement : ${esc(ex.message)}</div>`;
+  }
+}
+
+function renderActions(filter) {
+  const q = (filter || '').toLowerCase().trim();
+  const box = $('actions');
+  const list = ACTIONS.filter((a) => {
+    if (!q) return true;
+    return [a.prospect_name, a.action_type, a.contact, a.actor].some((v) => (v || '').toLowerCase().includes(q));
+  });
+  if (!list.length) { box.innerHTML = '<div class="empty">Aucune action à faire. 🎉</div>'; return; }
+
+  box.innerHTML = list.slice(0, 500).map((a) => {
+    const due = dueInfo(a.planned_date);
+    const meta = [a.prospect_name, a.contact, a.actor && ('→ ' + a.actor)].filter(Boolean).join(' · ') || '—';
+    const prio = Number(a.priority) >= 3 ? '<span class="pill hot">Prioritaire</span>' : '';
+    return `<button class="row link" data-pid="${a.prospect_id}">
+      <div class="ico">✅</div>
+      <div class="col">
+        <div class="name">${esc(a.action_type || 'Action')} ${prio}</div>
+        <div class="meta">${esc(meta)}</div>
+      </div>
+      <span class="due ${due.cls}">${esc(due.label)}</span>
+      <span class="chev">›</span>
+    </button>`;
+  }).join('');
+  box.querySelectorAll('.row.link').forEach((el) =>
+    el.addEventListener('click', () => openFiche(Number(el.dataset.pid))));
+}
+
 /* ── Fiche société + onglets ── */
 const TABS = [
   { key: 'infos',      label: 'Infos' },
+  { key: 'actions',    label: 'Actions' },
   { key: 'contacts',   label: 'Contacts' },
   { key: 'sites',      label: 'Sites' },
   { key: 'boutiques',  label: 'Boutiques' },
@@ -199,6 +271,7 @@ function selectTab(key) {
   panel.innerHTML = '<div class="empty">Chargement…</div>';
   const id = CURRENT.id;
   const routes = {
+    actions:   `/prospects/${id}/actions-all`,
     contacts:  `/prospects/${id}/interlocuteurs`,
     sites:     `/prospects/${id}/sites`,
     boutiques: `/prospects/${id}/boutiques`,
@@ -211,6 +284,7 @@ function selectTab(key) {
       if (ACTIVE_TAB !== key) return;        // onglet changé entre-temps
       const rows = Array.isArray(data) ? data : [];
       const render = {
+        actions: renderFicheActions,
         contacts: renderContacts, sites: renderSites, boutiques: renderBoutiques,
         affaires: renderAffaires, licences: renderLicences, materiel: renderMateriel,
       }[key];
@@ -248,6 +322,33 @@ function renderInfos(s) {
   </div>`;
 }
 function empty(msg) { return `<div class="card"><div class="empty">${esc(msg)}</div></div>`; }
+
+function renderFicheActions(rows) {
+  if (!rows.length) return empty('Aucune action.');
+  // À faire (completed=0) d'abord, triées par date ; puis les faites.
+  const todo = rows.filter((a) => Number(a.completed) === 0)
+    .sort((a, b) => String(a.planned_date || '').localeCompare(String(b.planned_date || '')));
+  const done = rows.filter((a) => Number(a.completed) === 1)
+    .sort((a, b) => String(b.completed_date || b.planned_date || '').localeCompare(String(a.completed_date || a.planned_date || '')));
+
+  const rowHtml = (a, isDone) => {
+    const due = dueInfo(a.planned_date);
+    const meta = [a.nom_affaire, a.contact, a.actor && ('→ ' + a.actor)].filter(Boolean).join(' · ') || '—';
+    return `<div class="row${isDone ? ' done' : ''}">
+      <div class="ico">${isDone ? '☑️' : '✅'}</div>
+      <div class="col">
+        <div class="name">${esc(a.action_type || 'Action')}</div>
+        <div class="meta">${esc(meta)}</div>
+      </div>
+      ${isDone ? '<span class="pill">Fait</span>' : `<span class="due ${due.cls}">${esc(due.label)}</span>`}
+    </div>`;
+  };
+
+  let html = '<div class="list">';
+  if (todo.length) html += `<div class="grouplab">À faire (${todo.length})</div>` + todo.map((a) => rowHtml(a, false)).join('');
+  if (done.length) html += `<div class="grouplab">Historique (${done.length})</div>` + done.slice(0, 50).map((a) => rowHtml(a, true)).join('');
+  return html + '</div>';
+}
 
 function renderContacts(rows) {
   if (!rows.length) return empty('Aucun contact.');
@@ -351,7 +452,8 @@ function renderMateriel(rows) {
 
 /* ── Déconnexion ── */
 function logout() {
-  TOKEN = null; USER = null; SOCIETES = []; CURRENT = null;
+  TOKEN = null; USER = null; SOCIETES = []; ACTIONS = []; CURRENT = null;
+  setMode('societes');
   sessionStorage.removeItem('pwa_token');
   showLogin();
 }
@@ -364,6 +466,9 @@ function init() {
   $('logout-btn2').addEventListener('click', logout);
   $('back-btn').addEventListener('click', showList);
   $('search').addEventListener('input', (e) => renderSocietes(e.target.value));
+  $('search-actions').addEventListener('input', (e) => renderActions(e.target.value));
+  $('seg-societes').addEventListener('click', () => setMode('societes'));
+  $('seg-actions').addEventListener('click', () => setMode('actions'));
 
   if (TOKEN) { showList(); loadSocietes(); } else { showLogin(); }
 
