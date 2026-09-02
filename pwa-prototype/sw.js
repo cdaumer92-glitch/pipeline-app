@@ -6,9 +6,15 @@
  * servis depuis la même origine que ce SW). Aucune réponse d'API n'est
  * jamais interceptée ni mise en cache : les appels partent vers une autre
  * origine (crm.texaswin.fr) et sont donc ignorés d'office par le fetch
- * handler ci-dessous. */
+ * handler ci-dessous.
+ *
+ * Stratégie coquille : RÉSEAU D'ABORD. En ligne, on sert toujours la
+ * dernière version (indispensable pour un proto qui évolue souvent) et on
+ * rafraîchit le cache au passage ; le cache ne sert qu'en secours hors-ligne.
+ * Bump le numéro de version ci-dessous à chaque changement de coquille pour
+ * évincer l'ancien cache. */
 
-const CACHE = 'texaswin-pwa-shell-v1';
+const CACHE = 'texaswin-pwa-shell-v2';
 
 const SHELL = [
   './',
@@ -45,8 +51,14 @@ self.addEventListener('fetch', (event) => {
     return; // laisse le navigateur gérer normalement
   }
 
-  // App-shell : cache d'abord, réseau en secours.
+  // App-shell : réseau d'abord (toujours à jour en ligne), cache en secours.
   event.respondWith(
-    caches.match(req).then((hit) => hit || fetch(req))
+    fetch(req)
+      .then((resp) => {
+        const copy = resp.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        return resp;
+      })
+      .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')))
   );
 });
