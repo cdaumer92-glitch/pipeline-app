@@ -1,0 +1,10 @@
+{
+  "name": "pipeline-texaswin-pwa-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prototype PWA autonome du CRM Pipeline TexasWin — consomme l'API existante, aucune dépendance.",
+  "type": "module",
+  "scripts": {
+    "start": "node serve.mjs"
+  }
+}
