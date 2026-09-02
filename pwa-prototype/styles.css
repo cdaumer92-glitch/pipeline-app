@@ -53,16 +53,51 @@ h1,h2{margin:0;letter-spacing:-.01em}
 .list-head input:focus{outline:2px solid var(--teal);outline-offset:1px}
 
 .list{display:flex;flex-direction:column;gap:8px}
-.row{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 13px}
+.row{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 13px;width:100%;text-align:left}
+button.row.link{cursor:pointer;font:inherit;color:inherit}
+button.row.link:hover{border-color:var(--teal)}
+button.row.link:active{transform:translateY(1px)}
 .avatar{width:34px;height:34px;border-radius:50%;background:#e6f4f5;color:var(--teal-dark);display:grid;place-items:center;font-weight:700;font-size:12px;flex-shrink:0}
-.row .name{font-weight:600;font-size:14px}
-.row .meta{font-size:12.5px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.avatar.big{width:44px;height:44px;font-size:15px}
+.ico{width:34px;height:34px;border-radius:10px;background:#eef2f5;display:grid;place-items:center;font-size:17px;flex-shrink:0}
+.row .name{font-weight:600;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.row .meta{font-size:12.5px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis}
+.row .meta.subtle{margin-top:2px;font-size:11.5px}
 .row .col{min-width:0;flex:1}
+.chev{color:var(--muted);font-size:20px;flex-shrink:0;margin-left:2px}
+.pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:#eef2f5;color:var(--slate);flex-shrink:0}
+.pill.hot{background:rgba(0,125,137,.12);color:var(--teal-dark)}
+.pill.ext{background:#fdf3e3;color:#c47d10}
 .tag{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:#eef2f5;color:var(--slate);flex-shrink:0}
 .tag.Client{background:#e7f7ed;color:#1a8f4c}
 .tag.Prospect{background:#fdf3e3;color:#c47d10}
 .tag.Suspect{background:#f0f0f0;color:#7a7a7a}
+.tag.Prestataire{background:#eae7fb;color:#6a4dc0}
 .empty{padding:26px;text-align:center;color:var(--muted);font-size:13px}
+
+/* ── Fiche société ── */
+.fiche-head{padding:14px 16px}
+.fiche-title{display:flex;align-items:center;gap:12px}
+.fiche-title .min0{min-width:0;flex:1}
+.fiche-title h2{font-size:18px;overflow:hidden;text-overflow:ellipsis}
+.fiche-sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+.tabs{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 0;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;padding:8px 14px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--slate);font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.tab.active{background:var(--teal);color:#fff;border-color:var(--teal)}
+.tab-panel{display:flex;flex-direction:column;gap:8px}
+.panel-card{gap:0}
+
+.kv{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid var(--border)}
+.kv:last-child{border-bottom:0}
+.kv .k{font-size:12.5px;color:var(--muted);flex-shrink:0}
+.kv .v{font-size:13.5px;font-weight:600;text-align:right;word-break:break-word}
+
+.money{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.money .m{background:#f4f8f9;border-radius:12px;padding:12px 8px;text-align:center}
+.money .mv{font-size:16px;font-weight:800;color:var(--teal-dark);font-variant-numeric:tabular-nums;line-height:1.1}
+.money .mk{font-size:11px;color:var(--muted);margin-top:3px}
 
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 16px;border-radius:999px;font-size:13px;font-weight:600;box-shadow:var(--sh);z-index:50}
 
@@ -70,5 +105,8 @@ h1,h2{margin:0;letter-spacing:-.01em}
   :root{--bg:#0b1220;--surface:#141a2e;--ink:#eaeef7;--slate:#a6b0c4;--muted:#6b7690;--border:rgba(255,255,255,.10)}
   .field input,.list-head input{background:#0f1626;color:var(--ink)}
   .avatar{background:rgba(0,125,137,.18)}
-  .tag{background:rgba(255,255,255,.08)}
+  .ico,.pill{background:rgba(255,255,255,.08)}
+  .tab{background:var(--surface)}
+  .money .m{background:rgba(255,255,255,.05)}
+  .money .mv{color:#4fd3e0}
 }

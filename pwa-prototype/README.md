@@ -30,8 +30,17 @@ Puis ouvrir **http://localhost:5173**.
 1. **API** : pré-remplie sur la prod `https://crm.texaswin.fr/api` (modifiable dans l'écran de connexion).
 2. **Se connecter** avec un compte du CRM (email + mot de passe).
    → `POST /api/auth/login`, le token JWT est gardé en mémoire de l'onglet (`sessionStorage`).
-3. L'écran de démo appelle réellement l'API : `GET /api/brevo/audience?type=all`
-   et affiche la **liste des contacts** + deux compteurs (sociétés / contacts avec email).
+3. **Liste des sociétés** : `GET /api/prospects/enriched` (nom, statut, ville, nb d'affaires),
+   avec recherche instantanée + deux compteurs (sociétés / clients).
+4. **Fiche société** (clic sur une société) avec **navigation par onglets** ; chaque
+   onglet charge son endpoint **à la demande**, jamais mis en cache :
+   - **Infos** — montants Setup / Mensuel / Annuel + coordonnées (données de la liste).
+   - **Contacts** — `GET /api/prospects/:id/interlocuteurs` (badges Principal / Décideur / Externe).
+   - **Sites** — `GET /api/prospects/:id/sites`.
+   - **Boutiques** — `GET /api/prospects/:id/boutiques`.
+   - **Affaires** — `GET /api/prospects/:id/affaires` (statut + montants + nb devis).
+   - **Licences** — `GET /api/prospects/:id/licences`.
+   - **Matériel** — `GET /api/prospects/:id/materiel`.
 
 ## Installer l'application (« Installer l'application »)
 

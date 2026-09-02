@@ -42,8 +42,8 @@
       </form>
     </section>
 
-    <!-- ── Écran données ── -->
-    <section id="data-view" class="view" hidden>
+    <!-- ── Écran liste sociétés ── -->
+    <section id="list-view" class="view" hidden>
       <header class="topbar">
         <div class="who">
           <span class="mark small">T</span>
@@ -57,17 +57,39 @@
 
       <div class="stats">
         <div class="stat"><div class="n" id="stat-societes">—</div><div class="k">Sociétés</div></div>
-        <div class="stat"><div class="n" id="stat-contacts">—</div><div class="k">Contacts (avec email)</div></div>
+        <div class="stat"><div class="n" id="stat-clients">—</div><div class="k">Clients</div></div>
       </div>
 
       <div class="list-head">
-        <h2>Contacts</h2>
-        <input id="search" type="search" placeholder="Filtrer nom / société / email…" />
+        <h2>Sociétés</h2>
+        <input id="search" type="search" placeholder="Filtrer nom / ville…" />
       </div>
 
-      <div id="contacts" class="list" aria-live="polite">
+      <div id="societes" class="list" aria-live="polite">
         <div class="empty">Chargement…</div>
       </div>
+    </section>
+
+    <!-- ── Écran fiche société ── -->
+    <section id="fiche-view" class="view" hidden>
+      <header class="topbar">
+        <button id="back-btn" class="btn btn-ghost">‹ Sociétés</button>
+        <button id="logout-btn2" class="btn btn-ghost">Déconnexion</button>
+      </header>
+
+      <div class="fiche-head card">
+        <div class="fiche-title">
+          <span id="fiche-avatar" class="avatar big">?</span>
+          <div class="min0">
+            <h2 id="fiche-name">—</h2>
+            <div id="fiche-sub" class="fiche-sub">—</div>
+          </div>
+          <span id="fiche-tag" class="tag"></span>
+        </div>
+      </div>
+
+      <nav id="tabs" class="tabs" role="tablist"></nav>
+      <div id="tab-panel" class="tab-panel" aria-live="polite"></div>
     </section>
   </div>
 

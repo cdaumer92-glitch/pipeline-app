@@ -10,7 +10,9 @@ const LS_API = 'pwa_api_base';
    jamais dans le cache du service worker, effacé à la fermeture. */
 let TOKEN = sessionStorage.getItem('pwa_token') || null;
 let USER = null;
-let CONTACTS = [];
+let SOCIETES = [];
+let CURRENT = null;      // société ouverte dans la fiche
+let ACTIVE_TAB = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -25,24 +27,30 @@ function toast(msg) {
   clearTimeout(toast._t);
   toast._t = setTimeout(() => { t.hidden = true; }, 2600);
 }
-function initials(prenom, nom) {
-  const a = (prenom || '').trim()[0] || '';
-  const b = (nom || '').trim()[0] || '';
-  return (a + b).toUpperCase() || '?';
-}
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+function initials(a, b) {
+  const x = (a || '').trim()[0] || '';
+  const y = (b || '').trim()[0] || '';
+  return (x + y).toUpperCase() || '?';
+}
+function euro(n) {
+  const v = Number(n || 0);
+  if (!v) return '—';
+  return v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+}
+function tagClass(st) {
+  return ['Client', 'Prospect', 'Suspect', 'Prestataire'].includes(st) ? st : '';
+}
 
-/* ── Appel API (jamais mis en cache : requêtes cross-origin,
-      ignorées par le SW ; en plus cache:'no-store' explicite) ── */
+/* ── Appel API (jamais mis en cache) ── */
 async function api(path, { method = 'GET', body, auth = true } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (auth && TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
   const res = await fetch(apiBase() + path, {
-    method,
-    headers,
+    method, headers,
     body: body ? JSON.stringify(body) : undefined,
     cache: 'no-store',
   });
@@ -51,19 +59,26 @@ async function api(path, { method = 'GET', body, auth = true } = {}) {
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   if (!res.ok) {
     const msg = (data && (data.error || data.message)) || `Erreur ${res.status}`;
-    throw new Error(msg);
+    const err = new Error(msg); err.status = res.status; throw err;
   }
   return data;
 }
+function handleAuthError(ex) {
+  if (ex.status === 401 || ex.status === 403 || /token|jwt/i.test(ex.message)) {
+    toast('Session expirée, reconnecte-toi.');
+    logout();
+    return true;
+  }
+  return false;
+}
 
 /* ── Navigation entre écrans ── */
-function showLogin() {
-  $('login-view').hidden = false;
-  $('data-view').hidden = true;
+function show(view) {
+  for (const v of ['login-view', 'list-view', 'fiche-view']) $(v).hidden = (v !== view);
 }
-function showData() {
-  $('login-view').hidden = true;
-  $('data-view').hidden = false;
+function showLogin() { show('login-view'); }
+function showList() {
+  show('list-view');
   $('who-name').textContent = USER ? (USER.name || USER.email || 'Connecté') : 'Connecté';
   $('who-api').textContent = apiBase();
 }
@@ -71,98 +86,272 @@ function showData() {
 /* ── Connexion ── */
 async function doLogin(e) {
   e.preventDefault();
-  const btn = $('login-btn');
-  const err = $('login-error');
+  const btn = $('login-btn'), err = $('login-error');
   err.hidden = true;
-
   const base = $('api-base').value.trim() || DEFAULT_API;
   localStorage.setItem(LS_API, base);
-
-  btn.disabled = true;
-  btn.textContent = 'Connexion…';
+  btn.disabled = true; btn.textContent = 'Connexion…';
   try {
     const data = await api('/auth/login', {
-      method: 'POST',
-      auth: false,
+      method: 'POST', auth: false,
       body: { email: $('email').value.trim(), password: $('password').value },
     });
     if (!data || !data.token) throw new Error('Réponse inattendue du serveur (pas de token).');
     TOKEN = data.token;
     USER = data.user || { email: $('email').value.trim() };
     sessionStorage.setItem('pwa_token', TOKEN);
-    showData();
-    loadContacts();
+    showList();
+    loadSocietes();
   } catch (ex) {
-    err.textContent = ex.message.includes('Failed to fetch')
+    err.textContent = /Failed to fetch/.test(ex.message)
       ? "Impossible de joindre l'API (réseau / CORS). Vérifie l'URL de l'API."
       : ex.message;
     err.hidden = false;
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Se connecter';
+    btn.disabled = false; btn.textContent = 'Se connecter';
   }
 }
 
-/* ── Chargement des contacts (démo : appel réel de l'API) ── */
-async function loadContacts() {
-  const box = $('contacts');
+/* ── Liste des sociétés (appel réel : /prospects/enriched) ── */
+async function loadSocietes() {
+  const box = $('societes');
   box.innerHTML = '<div class="empty">Chargement…</div>';
   try {
-    const data = await api('/brevo/audience?type=all');
-    CONTACTS = Array.isArray(data) ? data : (data && data.contacts) || [];
-    renderStats();
-    renderContacts($('search').value);
+    const data = await api('/prospects/enriched');
+    SOCIETES = Array.isArray(data) ? data : [];
+    const clients = SOCIETES.filter((s) => (s.statut_societe || s.status) === 'Client').length;
+    $('stat-societes').textContent = SOCIETES.length;
+    $('stat-clients').textContent = clients;
+    renderSocietes($('search').value);
   } catch (ex) {
-    if (/401|403|token|jwt/i.test(ex.message)) {
-      toast('Session expirée, reconnecte-toi.');
-      return logout();
-    }
+    if (handleAuthError(ex)) return;
     box.innerHTML = `<div class="empty">Échec du chargement : ${esc(ex.message)}</div>`;
   }
 }
 
-function renderStats() {
-  const societes = new Set(CONTACTS.map((c) => c.societe).filter(Boolean));
-  const withEmail = CONTACTS.filter((c) => c.email);
-  $('stat-societes').textContent = societes.size;
-  $('stat-contacts').textContent = withEmail.length;
+function renderSocietes(filter) {
+  const q = (filter || '').toLowerCase().trim();
+  const box = $('societes');
+  const list = SOCIETES.filter((s) => {
+    if (!q) return true;
+    return [s.name, s.ville, s.secteur].some((v) => (v || '').toLowerCase().includes(q));
+  });
+  if (!list.length) { box.innerHTML = '<div class="empty">Aucune société.</div>'; return; }
+
+  box.innerHTML = list.slice(0, 500).map((s) => {
+    const st = s.statut_societe || s.status || '';
+    const nbAff = Array.isArray(s.affaires_detail) ? s.affaires_detail.length : 0;
+    const loc = [s.ville, s.cp].filter(Boolean).join(' ');
+    const meta = [loc, s.secteur].filter(Boolean).join(' · ') || '—';
+    return `<button class="row link" data-id="${s.id}">
+      <div class="avatar">${esc(initials(s.name, s.name && s.name.slice(1)))}</div>
+      <div class="col">
+        <div class="name">${esc(s.name || '(sans nom)')}</div>
+        <div class="meta">${esc(meta)}</div>
+      </div>
+      ${nbAff ? `<span class="pill">${nbAff} aff.</span>` : ''}
+      ${st ? `<span class="tag ${tagClass(st)}">${esc(st)}</span>` : ''}
+      <span class="chev">›</span>
+    </button>`;
+  }).join('');
+  box.querySelectorAll('.row.link').forEach((el) =>
+    el.addEventListener('click', () => openFiche(Number(el.dataset.id))));
 }
 
-function renderContacts(filter) {
-  const q = (filter || '').toLowerCase().trim();
-  const box = $('contacts');
-  const list = CONTACTS.filter((c) => {
-    if (!q) return true;
-    return [c.prenom, c.nom, c.societe, c.email, c.fonction]
-      .some((v) => (v || '').toLowerCase().includes(q));
-  });
+/* ── Fiche société + onglets ── */
+const TABS = [
+  { key: 'infos',      label: 'Infos' },
+  { key: 'contacts',   label: 'Contacts' },
+  { key: 'sites',      label: 'Sites' },
+  { key: 'boutiques',  label: 'Boutiques' },
+  { key: 'affaires',   label: 'Affaires' },
+  { key: 'licences',   label: 'Licences' },
+  { key: 'materiel',   label: 'Matériel' },
+];
 
-  if (!list.length) {
-    box.innerHTML = '<div class="empty">Aucun contact.</div>';
-    return;
-  }
+function openFiche(id) {
+  CURRENT = SOCIETES.find((s) => s.id === id) || { id, name: '—' };
+  show('fiche-view');
+  const st = CURRENT.statut_societe || CURRENT.status || '';
+  $('fiche-avatar').textContent = initials(CURRENT.name, CURRENT.name && CURRENT.name.slice(1));
+  $('fiche-name').textContent = CURRENT.name || '—';
+  const loc = [CURRENT.ville, CURRENT.cp].filter(Boolean).join(' ');
+  $('fiche-sub').textContent = [loc, CURRENT.secteur].filter(Boolean).join(' · ') || '—';
+  const tag = $('fiche-tag');
+  tag.textContent = st; tag.className = 'tag ' + tagClass(st); tag.hidden = !st;
 
-  box.innerHTML = list.slice(0, 400).map((c) => {
+  // barre d'onglets
+  $('tabs').innerHTML = TABS.map((t) =>
+    `<button class="tab" role="tab" data-tab="${t.key}">${t.label}</button>`).join('');
+  $('tabs').querySelectorAll('.tab').forEach((el) =>
+    el.addEventListener('click', () => selectTab(el.dataset.tab)));
+  window.scrollTo(0, 0);
+  selectTab('infos');
+}
+
+function selectTab(key) {
+  ACTIVE_TAB = key;
+  $('tabs').querySelectorAll('.tab').forEach((el) =>
+    el.classList.toggle('active', el.dataset.tab === key));
+  const panel = $('tab-panel');
+  if (key === 'infos') { panel.innerHTML = renderInfos(CURRENT); return; }
+
+  panel.innerHTML = '<div class="empty">Chargement…</div>';
+  const id = CURRENT.id;
+  const routes = {
+    contacts:  `/prospects/${id}/interlocuteurs`,
+    sites:     `/prospects/${id}/sites`,
+    boutiques: `/prospects/${id}/boutiques`,
+    affaires:  `/prospects/${id}/affaires`,
+    licences:  `/prospects/${id}/licences`,
+    materiel:  `/prospects/${id}/materiel`,
+  };
+  api(routes[key])
+    .then((data) => {
+      if (ACTIVE_TAB !== key) return;        // onglet changé entre-temps
+      const rows = Array.isArray(data) ? data : [];
+      const render = {
+        contacts: renderContacts, sites: renderSites, boutiques: renderBoutiques,
+        affaires: renderAffaires, licences: renderLicences, materiel: renderMateriel,
+      }[key];
+      panel.innerHTML = render(rows);
+    })
+    .catch((ex) => {
+      if (handleAuthError(ex)) return;
+      if (ACTIVE_TAB === key) panel.innerHTML = `<div class="empty">Échec : ${esc(ex.message)}</div>`;
+    });
+}
+
+/* ── Rendus par onglet ── */
+function kv(label, value) {
+  return `<div class="kv"><span class="k">${esc(label)}</span><span class="v">${value == null || value === '' ? '—' : esc(value)}</span></div>`;
+}
+function renderInfos(s) {
+  const money = `<div class="money">
+    <div class="m"><div class="mv">${euro(s.real_setup_amount ?? s.setup_amount)}</div><div class="mk">Setup</div></div>
+    <div class="m"><div class="mv">${euro(s.real_monthly_amount ?? s.monthly_amount)}</div><div class="mk">Mensuel</div></div>
+    <div class="m"><div class="mv">${euro(s.real_annual_amount ?? s.annual_amount)}</div><div class="mk">Annuel</div></div>
+  </div>`;
+  return `<div class="card panel-card">
+    ${money}
+    ${kv('Statut', s.statut_societe || s.status)}
+    ${kv('Secteur', s.secteur)}
+    ${kv('Ville', [s.cp, s.ville].filter(Boolean).join(' '))}
+    ${kv('Téléphone', s.tel_standard || s.phone)}
+    ${kv('Email société', s.email_societe || s.email)}
+    ${kv('Site web', s.website)}
+    ${kv('SIREN', s.siren)}
+    ${kv('Code NAF', s.code_naf)}
+    ${kv('Version TW', s.tw_version)}
+    ${kv('Commercial', s.assigned_to)}
+    ${Array.isArray(s.marques) && s.marques.length ? kv('Marques', s.marques.join(', ')) : ''}
+  </div>`;
+}
+function empty(msg) { return `<div class="card"><div class="empty">${esc(msg)}</div></div>`; }
+
+function renderContacts(rows) {
+  if (!rows.length) return empty('Aucun contact.');
+  return `<div class="list">` + rows.map((c) => {
     const nom = [c.prenom, c.nom].filter(Boolean).join(' ') || '(sans nom)';
-    const meta = [c.fonction, c.email].filter(Boolean).join(' · ') || '—';
-    const st = c.statut_societe || '';
-    const stClass = ['Client', 'Prospect', 'Suspect'].includes(st) ? st : '';
+    const meta = [c.fonction, c.email, c.telephone].filter(Boolean).join(' · ') || '—';
+    const badges = [
+      c.principal ? '<span class="pill hot">Principal</span>' : '',
+      c.decideur ? '<span class="pill">Décideur</span>' : '',
+      c.est_secondaire ? '<span class="pill ext">Externe</span>' : '',
+    ].join('');
+    const autres = Array.isArray(c.autres_societes) && c.autres_societes.length
+      ? `<div class="meta subtle">aussi chez ${esc(c.autres_societes.map((a) => a.name).join(', '))}</div>` : '';
     return `<div class="row">
       <div class="avatar">${esc(initials(c.prenom, c.nom))}</div>
       <div class="col">
-        <div class="name">${esc(nom)}</div>
-        <div class="meta">${esc(c.societe || '')}${c.societe ? ' — ' : ''}${esc(meta)}</div>
+        <div class="name">${esc(nom)} ${badges}</div>
+        <div class="meta">${esc(meta)}</div>
+        ${autres}
       </div>
-      ${st ? `<span class="tag ${stClass}">${esc(st)}</span>` : ''}
     </div>`;
-  }).join('') + (list.length > 400 ? `<div class="empty">… ${list.length - 400} de plus (affichage limité)</div>` : '');
+  }).join('') + `</div>`;
+}
+function renderSites(rows) {
+  if (!rows.length) return empty('Aucun site.');
+  return `<div class="list">` + rows.map((s) => {
+    const addr = [s.adresse, [s.cp, s.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    const meta = [addr, s.telephone].filter(Boolean).join(' · ') || '—';
+    const resp = s.responsable_nom ? `<div class="meta subtle">Resp. ${esc(s.responsable_nom)}</div>` : '';
+    return `<div class="row">
+      <div class="ico">🏢</div>
+      <div class="col">
+        <div class="name">${esc(s.nom || '(site)')} ${s.type ? `<span class="pill">${esc(s.type)}</span>` : ''}</div>
+        <div class="meta">${esc(meta)}</div>${resp}
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+function renderBoutiques(rows) {
+  if (!rows.length) return empty('Aucune boutique.');
+  return `<div class="list">` + rows.map((b) => {
+    const addr = [b.adresse, [b.cp, b.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    const meta = [addr, b.telephone].filter(Boolean).join(' · ') || '—';
+    const resp = b.responsable_nom ? `<div class="meta subtle">Resp. ${esc(b.responsable_nom)}</div>` : '';
+    return `<div class="row">
+      <div class="ico">🛍️</div>
+      <div class="col">
+        <div class="name">${esc(b.nom || '(boutique)')}</div>
+        <div class="meta">${esc(meta)}</div>${resp}
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+function renderAffaires(rows) {
+  if (!rows.length) return empty('Aucune affaire.');
+  return `<div class="list">` + rows.map((a) => {
+    const st = a.statut_global || '';
+    const stc = st === 'Gagné' ? 'Client' : st === 'Perdu' ? 'Suspect' : 'Prospect';
+    const line = [euro(a.setup_amount) !== '—' ? 'Setup ' + euro(a.setup_amount) : '',
+                  euro(a.monthly_amount) !== '—' ? 'Mens. ' + euro(a.monthly_amount) : '',
+                  euro(a.annual_amount) !== '—' ? 'Ann. ' + euro(a.annual_amount) : '']
+                  .filter(Boolean).join(' · ') || '—';
+    return `<div class="row">
+      <div class="ico">📁</div>
+      <div class="col">
+        <div class="name">${esc(a.nom_affaire || '(affaire)')} ${st ? `<span class="tag ${stc}">${esc(st)}</span>` : ''}</div>
+        <div class="meta">${esc(line)}${a.nb_devis ? ` · ${a.nb_devis} devis` : ''}</div>
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+function renderLicences(rows) {
+  if (!rows.length) return empty('Aucune licence.');
+  return `<div class="list">` + rows.map((l) => {
+    const meta = [l.licence_type, l.nb_utilisateurs ? l.nb_utilisateurs + ' util.' : '', l.facturation, l.hebergement]
+      .filter(Boolean).join(' · ') || '—';
+    return `<div class="row">
+      <div class="ico">🔑</div>
+      <div class="col">
+        <div class="name">${esc(l.licence_nom || l.code || '(licence)')}</div>
+        <div class="meta">${esc(meta)}</div>
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+function renderMateriel(rows) {
+  if (!rows.length) return empty('Aucun matériel.');
+  return `<div class="list">` + rows.map((m) => {
+    const title = [m.marque, m.modele].filter(Boolean).join(' ') || m.type_nom || '(matériel)';
+    const meta = [m.type_nom, m.os, m.nb_unites ? m.nb_unites + ' u.' : '', m.boutique_nom, m.localisation]
+      .filter(Boolean).join(' · ') || '—';
+    return `<div class="row">
+      <div class="ico">💻</div>
+      <div class="col">
+        <div class="name">${esc(title)}</div>
+        <div class="meta">${esc(meta)}</div>
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
 }
 
 /* ── Déconnexion ── */
 function logout() {
-  TOKEN = null;
-  USER = null;
-  CONTACTS = [];
+  TOKEN = null; USER = null; SOCIETES = []; CURRENT = null;
   sessionStorage.removeItem('pwa_token');
   showLogin();
 }
@@ -172,14 +361,11 @@ function init() {
   $('api-base').value = apiBase();
   $('login-form').addEventListener('submit', doLogin);
   $('logout-btn').addEventListener('click', logout);
-  $('search').addEventListener('input', (e) => renderContacts(e.target.value));
+  $('logout-btn2').addEventListener('click', logout);
+  $('back-btn').addEventListener('click', showList);
+  $('search').addEventListener('input', (e) => renderSocietes(e.target.value));
 
-  if (TOKEN) {
-    showData();
-    loadContacts();
-  } else {
-    showLogin();
-  }
+  if (TOKEN) { showList(); loadSocietes(); } else { showLogin(); }
 
   /* Service worker : app-shell uniquement, JAMAIS l'API. */
   if ('serviceWorker' in navigator) {
@@ -190,5 +376,4 @@ function init() {
     });
   }
 }
-
 document.addEventListener('DOMContentLoaded', init);
