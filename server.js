@@ -4631,33 +4631,34 @@ app.post('/api/brevo/send-campaign', auth, async (req, res) => {
 
   // ----- 8) [Correction asynchronicité Brevo] Polling de la liste -----
   // Brevo répond 200 au add-to-list même si la propagation interne vers le
-  // moteur d'envoi de campagnes n'est pas terminée. On vérifie via GET list
-  // que uniqueSubscribers atteint le nombre attendu avant de continuer.
-  // Sans cette vérif, sendNow peut s'exécuter sur une liste "vue vide" → Brevo
-  // suspend la campagne avec "aucun destinataire au moment de l'envoi".
-  // Doc: GET /v3/contacts/lists/{listId} → champ uniqueSubscribers
+  // moteur d'envoi n'est pas terminée. Sans vérif, sendNow peut partir sur une
+  // liste "vue vide" → campagne suspendue "aucun destinataire".
+  //
+  // IMPORTANT : on interroge le COMPTE RÉEL des contacts de la liste
+  //   GET /contacts/lists/{id}/contacts → champ `count`
+  // et NON `uniqueSubscribers` de GET /contacts/lists/{id} : ce dernier est une
+  // statistique agrégée que Brevo recalcule en différé (elle peut rester à 0
+  // plusieurs secondes/minutes après l'ajout), ce qui provoquait des faux
+  // "0/N contacts non propagés" alors que les contacts étaient bien dans la liste.
   const expectedCount = upsertedEmails.length;
   let listReady = false;
   let lastListCount = 0;
-  // Tentatives : 1s, 3s, 5s cumulés (= 9s max). Suffisant en pratique.
-  for (const waitMs of [1000, 2000, 2000]) {
+  // Attente progressive jusqu'à ~15s (send est une action ponctuelle, on peut patienter).
+  for (const waitMs of [800, 1500, 2500, 3500, 3500, 3500]) {
     await sleep(waitMs);
-    const checkRes = await brevoFetch(`/contacts/lists/${listId}`);
-    if (!checkRes.ok) {
-      // On ignore l'erreur de check et on retentera, sauf si c'est le dernier essai
-      continue;
-    }
-    lastListCount = checkRes.data?.uniqueSubscribers ?? 0;
+    const checkRes = await brevoFetch(`/contacts/lists/${listId}/contacts?limit=1&offset=0`);
+    if (!checkRes.ok) continue; // erreur de check : on retente
+    lastListCount = checkRes.data?.count ?? 0;
     if (lastListCount >= expectedCount) {
       listReady = true;
       break;
     }
   }
   if (!listReady) {
-    await markFailed(`Liste non propagée: ${lastListCount}/${expectedCount} contacts visibles après 5s d'attente`);
+    await markFailed(`Liste non propagée: ${lastListCount}/${expectedCount} contacts visibles après ~15s`);
     await cleanupOnError();
     return res.status(502).json({
-      error: `Brevo n'a pas propagé tous les contacts dans la liste (${lastListCount}/${expectedCount})`,
+      error: `Brevo n'a pas propagé les contacts dans la liste (${lastListCount}/${expectedCount}). Réessayez dans un instant ; si cela persiste, vérifiez que ces contacts ne sont pas blacklistés dans Brevo.`,
       audit_id: auditId
     });
   }
