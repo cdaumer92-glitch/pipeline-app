@@ -130,6 +130,32 @@
     </div>
   </div>
 
+  <!-- ── Feuille « Nouvelle action » ── -->
+  <div id="action-sheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-aclose></div>
+    <div class="sheet-card">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Nouvelle action</div>
+      <label class="field"><span>Type</span>
+        <select id="af-type"></select></label>
+      <label class="field"><span>Date</span>
+        <input id="af-date" type="date" /></label>
+      <label class="field"><span>Acteur</span>
+        <select id="af-actor"></select></label>
+      <label class="field"><span>Contact</span>
+        <input id="af-contact" type="text" placeholder="Optionnel" /></label>
+      <div class="field"><span>Priorité</span>
+        <div class="prio-toggle">
+          <button type="button" class="prio active" data-prio="1">Normale</button>
+          <button type="button" class="prio" data-prio="2">Haute</button>
+        </div>
+      </div>
+      <button id="af-submit" class="btn btn-primary">Créer l'action</button>
+      <button class="btn btn-ghost" data-aclose>Annuler</button>
+      <p id="af-error" class="error" hidden></p>
+    </div>
+  </div>
+
   <div id="toast" class="toast" hidden></div>
   <script src="./app.js"></script>
 </body>

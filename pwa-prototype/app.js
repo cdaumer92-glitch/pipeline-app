@@ -6,6 +6,10 @@
 const DEFAULT_API = 'https://crm.texaswin.fr/api';
 const LS_API = 'pwa_api_base';
 
+/* Miroir de src/lib/constants.js (proto en lecture seule sur l'existant). */
+const ACTION_TYPES = ['Appel', 'Relance', 'Email', 'À faire', 'Point technique', 'Démo', 'Négociation', 'Signature'];
+const ACTORS = ['Christian', 'Roger', 'Frederic'];
+
 /* Le token JWT reste en mémoire de l'onglet uniquement (sessionStorage) :
    jamais dans le cache du service worker, effacé à la fermeture. */
 let TOKEN = sessionStorage.getItem('pwa_token') || null;
@@ -232,6 +236,54 @@ async function applySnooze(iso) {
   if (onDone) onDone(iso);
 }
 
+/* ── Créer une action (écriture : POST /prospects/:id/next_actions) ── */
+let AF_PRIO = 1;
+function openActionSheet() {
+  if (!CURRENT) return;
+  // (re)peupler les listes
+  $('af-type').innerHTML = ACTION_TYPES.map((t) => `<option>${esc(t)}</option>`).join('');
+  const defActor = USER && ACTORS.includes(USER.name) ? USER.name : '';
+  $('af-actor').innerHTML = `<option value="">— Acteur —</option>` +
+    ACTORS.map((a) => `<option ${a === defActor ? 'selected' : ''}>${esc(a)}</option>`).join('');
+  $('af-date').value = toISO(addDays(0));
+  $('af-contact').value = '';
+  setActionPrio(1);
+  $('af-error').hidden = true;
+  $('action-sheet').hidden = false;
+}
+function closeActionSheet() { $('action-sheet').hidden = true; }
+function setActionPrio(p) {
+  AF_PRIO = p;
+  document.querySelectorAll('#action-sheet .prio').forEach((el) =>
+    el.classList.toggle('active', Number(el.dataset.prio) === p));
+}
+async function submitActionSheet() {
+  if (!CURRENT) return;
+  const btn = $('af-submit'), err = $('af-error');
+  err.hidden = true;
+  const body = {
+    action_type: $('af-type').value,
+    planned_date: $('af-date').value || null,
+    actor: $('af-actor').value || null,
+    contact: $('af-contact').value.trim() || null,
+    priority: AF_PRIO,
+  };
+  if (!body.action_type) { err.textContent = 'Choisis un type.'; err.hidden = false; return; }
+  btn.disabled = true; btn.textContent = 'Création…';
+  try {
+    await api(`/prospects/${CURRENT.id}/next_actions`, { method: 'POST', body });
+    closeActionSheet();
+    toast('Action créée ✅');
+    if (ACTIVE_TAB === 'actions') selectTab('actions'); // recharge la liste
+    ACTIONS = []; // invalide la vue globale (rechargée à la prochaine ouverture)
+  } catch (ex) {
+    if (handleAuthError(ex)) return;
+    err.textContent = 'Échec : ' + ex.message; err.hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = "Créer l'action";
+  }
+}
+
 function recomputeActionStats() {
   const retard = ACTIONS.filter((a) => a.planned_date && startOfDay(a.planned_date) < startOfDay(new Date())).length;
   $('stat-actions-total').textContent = ACTIONS.length;
@@ -405,7 +457,14 @@ function renderInfos(s) {
 function empty(msg) { return `<div class="card"><div class="empty">${esc(msg)}</div></div>`; }
 
 function renderFicheActions(rows) {
-  if (!rows.length) return empty('Aucune action.');
+  const addBtn = `<button class="btn btn-primary add-action">+ Nouvelle action</button>`;
+  if (!rows.length) {
+    setTimeout(() => {
+      const b = document.querySelector('#tab-panel .add-action');
+      if (b) b.addEventListener('click', openActionSheet);
+    }, 0);
+    return addBtn + empty('Aucune action.');
+  }
   // À faire (completed=0) d'abord, triées par date ; puis les faites.
   const todo = rows.filter((a) => Number(a.completed) === 0)
     .sort((a, b) => String(a.planned_date || '').localeCompare(String(b.planned_date || '')));
@@ -432,13 +491,15 @@ function renderFicheActions(rows) {
     </div>`;
   };
 
-  let html = '<div class="list">';
+  let html = addBtn + '<div class="list">';
   if (todo.length) html += `<div class="grouplab">À faire (${todo.length})</div>` + todo.map((a) => rowHtml(a, false)).join('');
   if (done.length) html += `<div class="grouplab">Historique (${done.length})</div>` + done.slice(0, 50).map((a) => rowHtml(a, true)).join('');
   html += '</div>';
 
   // brancher les contrôles après insertion dans le DOM
   setTimeout(() => {
+    const add = document.querySelector('#tab-panel .add-action');
+    if (add) add.addEventListener('click', openActionSheet);
     document.querySelectorAll('#tab-panel .check[data-fdone]').forEach((el) =>
       el.addEventListener('click', (e) => onCheckFicheAction(e.currentTarget)));
     document.querySelectorAll('#tab-panel .snooze[data-fsnooze]').forEach((el) =>
@@ -590,6 +651,10 @@ function init() {
   $('seg-actions').addEventListener('click', () => setMode('actions'));
   $('sheet-validate').addEventListener('click', () => applySnooze($('sheet-date').value));
   $('sheet').querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', closeSnooze));
+  $('af-submit').addEventListener('click', submitActionSheet);
+  $('action-sheet').querySelectorAll('[data-aclose]').forEach((el) => el.addEventListener('click', closeActionSheet));
+  $('action-sheet').querySelectorAll('.prio').forEach((el) =>
+    el.addEventListener('click', () => setActionPrio(Number(el.dataset.prio))));
 
   if (TOKEN) { showList(); loadSocietes(); } else { showLogin(); }
 
