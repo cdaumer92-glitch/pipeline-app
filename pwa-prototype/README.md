@@ -104,6 +104,24 @@ ce qui ne pose aucun problème de CORS avec credentials.
 | `app.js` | Logique : login JWT, appels API, rendu, enregistrement du SW |
 | `sw.js` | Service worker : cache app-shell only, jamais l'API |
 | `manifest.json` | Manifeste PWA (nom, standalone, thème, icônes 192/512) |
-| `icons/` | Icônes placeholder 192 / 512 |
+| `icons/` | Icônes 192 / 512 (écran d'accueil) + `logo-source.png` + `make-icons.ps1` |
+
+## Icônes de l'application
+
+Les icônes `icon-192.png` (purpose `any`) et `icon-512.png` (purpose `any maskable`) sont
+générées depuis `icons/logo-source.png` par le script `icons/make-icons.ps1` (System.Drawing,
+sans dépendance). Le `logo-source.png` actuel est une **recréation** du logo « TW » sur dégradé
+bleu ; pour utiliser le fichier officiel :
+
+1. Déposer le logo (PNG carré, idéalement 1024 px, plein cadre) sous `icons/logo-source.png`.
+2. Lancer :
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File pwa-prototype\icons\make-icons.ps1
+   ```
+   Pour un logo détouré (fond transparent), ajouter `-Pad 0.10` : Android (« maskable »)
+   exige que le motif reste dans les 80 % centraux ; le fond est alors rempli en bleu marine.
+3. Incrémenter le numéro de cache dans `sw.js` pour que les téléphones déjà installés
+   récupèrent la nouvelle icône (Android la rafraîchit à la prochaine ouverture ; sur iOS,
+   supprimer puis réinstaller l'app depuis Safari).
 | `serve.mjs` | Serveur statique local (Node natif, 0 dépendance) |
 | `package.json` | Script `npm start` |
