@@ -128,6 +128,8 @@ button.col.open{background:transparent;border:0;font:inherit;color:inherit;text-
 .kv:last-child{border-bottom:0}
 .kv .k{font-size:12.5px;color:var(--muted);flex-shrink:0}
 .kv .v{font-size:13.5px;font-weight:600;text-align:right;word-break:break-word}
+.kv.kv-block{flex-direction:column;align-items:flex-start;gap:4px}
+.kv.kv-block .v{text-align:left;font-weight:500;white-space:pre-wrap;line-height:1.45}
 
 .money{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
 .money .m{background:#f4f8f9;border-radius:12px;padding:12px 8px;text-align:center}

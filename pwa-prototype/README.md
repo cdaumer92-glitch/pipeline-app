@@ -54,7 +54,8 @@ apparaît dans le CRM.
 
 | Action | Où | Endpoint |
 |---|---|---|
-| Créer une **société** | bouton « + Nouvelle société » (liste) → ouvre la nouvelle fiche | `POST /api/prospects` |
+| Créer une **société** | bouton « + Nouvelle société » (liste) : coordonnées, **marques** (séparées par des virgules), **note** libre → ouvre la nouvelle fiche | `POST /api/prospects` |
+| Ajouter une **note** datée | onglet Notes → « + Nouvelle note » | `POST /api/prospects/:id/notes` |
 | Créer un **contact** | onglet Contacts → « + Nouveau contact » | `POST /api/prospects/:id/interlocuteurs` |
 | Créer une **action** | onglet Actions → « + Nouvelle action » (contact en autocomplétion) | `POST /api/prospects/:id/next_actions` |
 | Modifier / supprimer une action | onglet Actions ou liste globale (✏️) | `PUT` / `DELETE /api/next_actions/:id` |

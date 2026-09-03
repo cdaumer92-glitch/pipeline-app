@@ -535,6 +535,7 @@ function renderInfos(s) {
     ${kv('Version TW', s.tw_version)}
     ${kv('Commercial', s.assigned_to)}
     ${Array.isArray(s.marques) && s.marques.length ? kv('Marques', s.marques.join(', ')) : ''}
+    ${s.notes ? `<div class="kv kv-block"><span class="k">Notes</span><span class="v">${esc(s.notes)}</span></div>` : ''}
   </div>`;
 }
 function empty(msg) { return `<div class="card"><div class="empty">${esc(msg)}</div></div>`; }
@@ -745,12 +746,16 @@ function openSocSheet() {
   const defActor = USER && ACTORS.includes(USER.name) ? USER.name : '';
   $('sf-actor').innerHTML = `<option value="">— Commercial —</option>` +
     ACTORS.map((a) => `<option ${a === defActor ? 'selected' : ''}>${esc(a)}</option>`).join('');
-  ['sf-name', 'sf-tel', 'sf-siren', 'sf-email', 'sf-web', 'sf-adresse'].forEach((id) => { $(id).value = ''; });
+  ['sf-name', 'sf-tel', 'sf-siren', 'sf-email', 'sf-web', 'sf-adresse', 'sf-marques', 'sf-notes'].forEach((id) => { $(id).value = ''; });
   $('sf-error').hidden = true;
   $('soc-sheet').hidden = false;
   setTimeout(() => $('sf-name').focus(), 50);
 }
 function closeSocSheet() { $('soc-sheet').hidden = true; }
+/* "Marque A, Marque B" → ['Marque A','Marque B'] (vides et doublons retirés). */
+function parseMarques(s) {
+  return [...new Set(String(s || '').split(',').map((m) => m.trim()).filter(Boolean))];
+}
 async function submitSocSheet() {
   const btn = $('sf-submit'), err = $('sf-error');
   err.hidden = true;
@@ -758,6 +763,7 @@ async function submitSocSheet() {
   if (!name) { err.textContent = 'Le nom est obligatoire.'; err.hidden = false; return; }
   const siren = $('sf-siren').value.replace(/\D/g, '');
   if (siren && siren.length !== 9) { err.textContent = 'Le SIREN doit faire 9 chiffres.'; err.hidden = false; return; }
+  const marques = parseMarques($('sf-marques').value);
   const body = {
     name,
     statut_societe: $('sf-statut').value || 'Prospect',
@@ -767,6 +773,8 @@ async function submitSocSheet() {
     website: $('sf-web').value.trim() || null,
     adresse: $('sf-adresse').value.trim() || null,
     siren: siren || null,
+    marques: marques.length ? marques : null,
+    notes: $('sf-notes').value.trim() || null,
   };
   btn.disabled = true; btn.textContent = 'Création…';
   try {
