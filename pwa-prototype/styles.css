@@ -22,6 +22,7 @@ h1,h2{margin:0;letter-spacing:-.01em}
 
 .mark{width:38px;height:38px;border-radius:11px;background:var(--teal);color:#fff;display:grid;place-items:center;font-weight:800;font-size:17px;flex-shrink:0}
 .mark.small{width:30px;height:30px;border-radius:8px;font-size:14px}
+img.mark{background:transparent;object-fit:cover;display:block;padding:0}
 .brand{display:flex;align-items:center;gap:12px;padding:8px 2px 4px}
 .brand h1{font-size:20px}
 .brand .sub{margin:2px 0 0;font-size:12.5px;color:var(--muted)}
