@@ -154,7 +154,12 @@ button.col.open{background:transparent;border:0;font:inherit;color:inherit;text-
 .prio-toggle{display:flex;gap:8px}
 .prio{flex:1;padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--slate);font:inherit;font-weight:700;font-size:13.5px;cursor:pointer}
 .prio.active{background:var(--teal);color:#fff;border-color:var(--teal)}
+.toggle{flex:1;padding:10px 8px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--slate);font:inherit;font-weight:700;font-size:12.5px;cursor:pointer}
+.toggle.active{background:var(--teal);color:#fff;border-color:var(--teal)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.two .field{min-width:0}
 .add-action,.add-note{margin-bottom:10px}
+.sheet-card{max-height:92vh;overflow-y:auto}
 .note-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
 .note-body{font-size:14px;white-space:pre-wrap;word-break:break-word}
 .note-foot{margin-top:8px;font-size:11.5px;color:var(--muted)}
@@ -162,7 +167,7 @@ button.col.open{background:transparent;border:0;font:inherit;color:inherit;text-
 @media (prefers-color-scheme: dark){
   :root{--bg:#0b1220;--surface:#141a2e;--ink:#eaeef7;--slate:#a6b0c4;--muted:#6b7690;--border:rgba(255,255,255,.10)}
   .field input,.field select,.field textarea,.list-head input{background:#0f1626;color:var(--ink)}
-  .prio{background:var(--surface)}
+  .prio,.toggle{background:var(--surface)}
   .avatar{background:rgba(0,125,137,.18)}
   .ico,.pill,.due{background:rgba(255,255,255,.08)}
   .tab{background:var(--surface)}

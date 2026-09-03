@@ -35,12 +35,34 @@ Puis ouvrir **http://localhost:5173**.
 4. **Fiche société** (clic sur une société) avec **navigation par onglets** ; chaque
    onglet charge son endpoint **à la demande**, jamais mis en cache :
    - **Infos** — montants Setup / Mensuel / Annuel + coordonnées (données de la liste).
-   - **Contacts** — `GET /api/prospects/:id/interlocuteurs` (badges Principal / Décideur / Externe).
+   - **Actions** — `GET /api/prospects/:id/actions-all` (À faire / Historique, échéances colorées).
+   - **Contacts** — `GET /api/prospects/:id/interlocuteurs` (téléphones dans la carte, badges
+     Principal / Décideur / Externe ; clic → fiche contact détaillée avec liens `tel:` / `mailto:`).
    - **Sites** — `GET /api/prospects/:id/sites`.
    - **Boutiques** — `GET /api/prospects/:id/boutiques`.
    - **Affaires** — `GET /api/prospects/:id/affaires` (statut + montants + nb devis).
    - **Licences** — `GET /api/prospects/:id/licences`.
    - **Matériel** — `GET /api/prospects/:id/materiel`.
+5. **Actions à faire** (bascule en haut de la liste) : `GET /api/lists/actions`, triées par
+   urgence (aujourd'hui, retards du plus récent au plus ancien, puis à venir), compteur
+   préchargé dès la connexion.
+
+## Saisie (écriture — modifie réellement les données du CRM)
+
+Le proto utilise les **mêmes endpoints que l'application principale** ; ce qui est saisi ici
+apparaît dans le CRM.
+
+| Action | Où | Endpoint |
+|---|---|---|
+| Créer une **société** | bouton « + Nouvelle société » (liste) → ouvre la nouvelle fiche | `POST /api/prospects` |
+| Créer un **contact** | onglet Contacts → « + Nouveau contact » | `POST /api/prospects/:id/interlocuteurs` |
+| Créer une **action** | onglet Actions → « + Nouvelle action » (contact en autocomplétion) | `POST /api/prospects/:id/next_actions` |
+| Modifier / supprimer une action | onglet Actions ou liste globale (✏️) | `PUT` / `DELETE /api/next_actions/:id` |
+| Cocher une action **faite** | case ronde (liste globale et fiche) | `PUT /api/next_actions/:id` `{completed:true}` |
+| **Reporter** une action | ⏰ → Demain / +3 j / +1 semaine / Lundi / date précise | `PUT /api/next_actions/:id` `{reschedule:true}` |
+
+> Le champ « Commercial » d'une nouvelle société est pré-rempli avec l'utilisateur connecté :
+> un utilisateur non-admin ne voit que les sociétés qui lui sont attribuées.
 
 ## Installer l'application (« Installer l'application »)
 
@@ -74,7 +96,7 @@ ce qui ne pose aucun problème de CORS avec credentials.
 
 | Fichier | Rôle |
 |---|---|
-| `index.html` | Coquille : écran connexion + écran contacts |
+| `index.html` | Coquille : connexion, liste sociétés / actions, fiche à onglets, feuilles de saisie |
 | `styles.css` | Habillage (charte teal/navy, responsive, dark mode) |
 | `app.js` | Logique : login JWT, appels API, rendu, enregistrement du SW |
 | `sw.js` | Service worker : cache app-shell only, jamais l'API |

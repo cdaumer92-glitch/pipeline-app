@@ -675,8 +675,13 @@ function contactBadges(c) {
 }
 function renderContacts(rows) {
   CONTACTS_ROWS = rows;
-  if (!rows.length) return empty('Aucun contact.');
-  const html = `<div class="list">` + rows.map((c, i) => {
+  const addBtn = `<button class="btn btn-primary add-action add-contact">+ Nouveau contact</button>`;
+  const wireAdd = () => {
+    const b = document.querySelector('#tab-panel .add-contact');
+    if (b) b.addEventListener('click', openContactSheet);
+  };
+  if (!rows.length) { setTimeout(wireAdd, 0); return addBtn + empty('Aucun contact.'); }
+  const html = addBtn + `<div class="list">` + rows.map((c, i) => {
     const nom = [c.prenom, c.nom].filter(Boolean).join(' ') || '(sans nom)';
     const line = [c.fonction, c.email].filter(Boolean).join(' · ') || '—';
     const phones = [
@@ -697,6 +702,7 @@ function renderContacts(rows) {
     </button>`;
   }).join('') + `</div>`;
   setTimeout(() => {
+    wireAdd();
     document.querySelectorAll('#tab-panel .row.link[data-cidx]').forEach((el) =>
       el.addEventListener('click', () => openContactDetail(Number(el.dataset.cidx))));
   }, 0);
@@ -731,6 +737,111 @@ function openContactDetail(idx) {
   $('contact-sheet').hidden = false;
 }
 function closeContactDetail() { $('contact-sheet').hidden = true; }
+
+/* ── Créer une société (écriture : POST /prospects) ── */
+const STATUTS = ['Prospect', 'Client', 'Suspect', 'Prestataire'];
+function openSocSheet() {
+  $('sf-statut').innerHTML = STATUTS.map((s) => `<option>${esc(s)}</option>`).join('');
+  const defActor = USER && ACTORS.includes(USER.name) ? USER.name : '';
+  $('sf-actor').innerHTML = `<option value="">— Commercial —</option>` +
+    ACTORS.map((a) => `<option ${a === defActor ? 'selected' : ''}>${esc(a)}</option>`).join('');
+  ['sf-name', 'sf-tel', 'sf-siren', 'sf-email', 'sf-web', 'sf-adresse'].forEach((id) => { $(id).value = ''; });
+  $('sf-error').hidden = true;
+  $('soc-sheet').hidden = false;
+  setTimeout(() => $('sf-name').focus(), 50);
+}
+function closeSocSheet() { $('soc-sheet').hidden = true; }
+async function submitSocSheet() {
+  const btn = $('sf-submit'), err = $('sf-error');
+  err.hidden = true;
+  const name = $('sf-name').value.trim();
+  if (!name) { err.textContent = 'Le nom est obligatoire.'; err.hidden = false; return; }
+  const siren = $('sf-siren').value.replace(/\D/g, '');
+  if (siren && siren.length !== 9) { err.textContent = 'Le SIREN doit faire 9 chiffres.'; err.hidden = false; return; }
+  const body = {
+    name,
+    statut_societe: $('sf-statut').value || 'Prospect',
+    assigned_to: $('sf-actor').value || null,
+    tel_standard: $('sf-tel').value.trim() || null,
+    email: $('sf-email').value.trim() || null,
+    website: $('sf-web').value.trim() || null,
+    adresse: $('sf-adresse').value.trim() || null,
+    siren: siren || null,
+  };
+  btn.disabled = true; btn.textContent = 'Création…';
+  try {
+    const res = await api('/prospects', { method: 'POST', body });
+    closeSocSheet();
+    toast('Société créée ✅');
+    await loadSocietes();
+    // Ouvre directement la nouvelle fiche (pour y saisir les contacts).
+    if (res && res.id) {
+      if (!SOCIETES.find((s) => s.id === res.id)) {
+        SOCIETES.push({ id: res.id, ...body, affaires_detail: [] });
+      }
+      openFiche(res.id);
+    }
+  } catch (ex) {
+    if (handleAuthError(ex)) return;
+    err.textContent = 'Échec : ' + ex.message; err.hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Créer la société';
+  }
+}
+
+/* ── Créer un contact (écriture : POST /prospects/:id/interlocuteurs) ── */
+const CT_FLAGS = { principal: false, decideur: false, accept_emailing: false, accept_notes_info: false };
+function setToggle(key, on) {
+  CT_FLAGS[key] = !!on;
+  const el = document.querySelector(`#ct-sheet .toggle[data-t="${key}"]`);
+  if (el) el.classList.toggle('active', !!on);
+}
+function openContactSheet() {
+  if (!CURRENT) return;
+  $('ct-title').textContent = 'Nouveau contact — ' + (CURRENT.name || '');
+  ['cf-prenom', 'cf-nom', 'cf-fonction', 'cf-mobile', 'cf-fixe', 'cf-email', 'cf-linkedin'].forEach((id) => { $(id).value = ''; });
+  Object.keys(CT_FLAGS).forEach((k) => setToggle(k, false));
+  $('cf-error').hidden = true;
+  $('ct-sheet').hidden = false;
+  setTimeout(() => $('cf-prenom').focus(), 50);
+}
+function closeContactSheet() { $('ct-sheet').hidden = true; }
+async function submitContactSheet() {
+  if (!CURRENT) return;
+  const btn = $('cf-submit'), err = $('cf-error');
+  err.hidden = true;
+  const nom = $('cf-nom').value.trim();
+  if (!nom) { err.textContent = 'Le nom est obligatoire.'; err.hidden = false; return; }
+  const email = $('cf-email').value.trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { err.textContent = 'Email invalide.'; err.hidden = false; return; }
+  const body = {
+    prenom: $('cf-prenom').value.trim() || null,
+    nom,
+    fonction: $('cf-fonction').value.trim() || null,
+    telephone: $('cf-mobile').value.trim() || null,
+    telephone_fixe: $('cf-fixe').value.trim() || null,
+    email: email || null,
+    linkedin_url: $('cf-linkedin').value.trim() || null,
+    principal: CT_FLAGS.principal,
+    decideur: CT_FLAGS.decideur,
+    accept_emailing: CT_FLAGS.accept_emailing,
+    accept_notes_info: CT_FLAGS.accept_notes_info,
+    source: 'manuel',
+    source_detail: 'PWA',
+  };
+  btn.disabled = true; btn.textContent = 'Création…';
+  try {
+    await api(`/prospects/${CURRENT.id}/interlocuteurs`, { method: 'POST', body });
+    closeContactSheet();
+    toast('Contact créé ✅');
+    if (ACTIVE_TAB === 'contacts') selectTab('contacts'); // recharge la liste
+  } catch (ex) {
+    if (handleAuthError(ex)) return;
+    err.textContent = 'Échec : ' + ex.message; err.hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Créer le contact';
+  }
+}
 function renderSites(rows) {
   if (!rows.length) return empty('Aucun site.');
   return `<div class="list">` + rows.map((s) => {
@@ -835,6 +946,16 @@ function init() {
   $('action-sheet').querySelectorAll('.prio').forEach((el) =>
     el.addEventListener('click', () => setActionPrio(Number(el.dataset.prio))));
   $('contact-sheet').querySelectorAll('[data-cclose]').forEach((el) => el.addEventListener('click', closeContactDetail));
+  // Nouvelle société
+  $('add-soc').addEventListener('click', openSocSheet);
+  $('sf-submit').addEventListener('click', submitSocSheet);
+  $('soc-sheet').querySelectorAll('[data-sclose]').forEach((el) => el.addEventListener('click', closeSocSheet));
+  $('sf-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitSocSheet(); });
+  // Nouveau contact
+  $('cf-submit').addEventListener('click', submitContactSheet);
+  $('ct-sheet').querySelectorAll('[data-ctclose]').forEach((el) => el.addEventListener('click', closeContactSheet));
+  $('ct-sheet').querySelectorAll('.toggle').forEach((el) =>
+    el.addEventListener('click', () => setToggle(el.dataset.t, !CT_FLAGS[el.dataset.t])));
   $('af-delete').addEventListener('click', deleteAction);
   $('nf-submit').addEventListener('click', submitNote);
   $('note-sheet').querySelectorAll('[data-nclose]').forEach((el) => el.addEventListener('click', closeNoteSheet));

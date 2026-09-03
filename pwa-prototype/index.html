@@ -66,6 +66,7 @@
           <div class="stat"><div class="n" id="stat-societes">—</div><div class="k">Sociétés</div></div>
           <div class="stat"><div class="n" id="stat-clients">—</div><div class="k">Clients</div></div>
         </div>
+        <button id="add-soc" class="btn btn-primary add-action">+ Nouvelle société</button>
         <div class="list-head">
           <h2>Sociétés</h2>
           <input id="search" type="search" placeholder="Filtrer nom / ville…" />
@@ -187,6 +188,80 @@
       </div>
       <div id="contact-body"></div>
       <button class="btn btn-ghost" data-cclose>Fermer</button>
+    </div>
+  </div>
+
+  <!-- ── Feuille « Nouvelle société » ── -->
+  <div id="soc-sheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-sclose></div>
+    <div class="sheet-card">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Nouvelle société</div>
+      <label class="field"><span>Nom *</span>
+        <input id="sf-name" type="text" autocomplete="organization" placeholder="Raison sociale" /></label>
+      <div class="two">
+        <label class="field"><span>Statut</span>
+          <select id="sf-statut"></select></label>
+        <label class="field"><span>Commercial</span>
+          <select id="sf-actor"></select></label>
+      </div>
+      <div class="two">
+        <label class="field"><span>Tél. standard</span>
+          <input id="sf-tel" type="tel" placeholder="01 …" /></label>
+        <label class="field"><span>SIREN</span>
+          <input id="sf-siren" type="text" inputmode="numeric" maxlength="9" placeholder="9 chiffres" /></label>
+      </div>
+      <label class="field"><span>Email société</span>
+        <input id="sf-email" type="email" placeholder="contact@…" /></label>
+      <label class="field"><span>Site web</span>
+        <input id="sf-web" type="text" inputmode="url" placeholder="www.…" /></label>
+      <label class="field"><span>Adresse</span>
+        <input id="sf-adresse" type="text" placeholder="Rue, CP, ville" /></label>
+      <button id="sf-submit" class="btn btn-primary">Créer la société</button>
+      <button class="btn btn-ghost" data-sclose>Annuler</button>
+      <p id="sf-error" class="error" hidden></p>
+    </div>
+  </div>
+
+  <!-- ── Feuille « Nouveau contact » ── -->
+  <div id="ct-sheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-ctclose></div>
+    <div class="sheet-card">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title" id="ct-title">Nouveau contact</div>
+      <div class="two">
+        <label class="field"><span>Prénom</span>
+          <input id="cf-prenom" type="text" autocomplete="given-name" /></label>
+        <label class="field"><span>Nom *</span>
+          <input id="cf-nom" type="text" autocomplete="family-name" /></label>
+      </div>
+      <label class="field"><span>Fonction</span>
+        <input id="cf-fonction" type="text" placeholder="DAF, Responsable boutique…" /></label>
+      <div class="two">
+        <label class="field"><span>📱 Mobile</span>
+          <input id="cf-mobile" type="tel" placeholder="06 …" /></label>
+        <label class="field"><span>📞 Fixe</span>
+          <input id="cf-fixe" type="tel" placeholder="01 …" /></label>
+      </div>
+      <label class="field"><span>Email</span>
+        <input id="cf-email" type="email" placeholder="prenom.nom@…" /></label>
+      <label class="field"><span>LinkedIn</span>
+        <input id="cf-linkedin" type="text" inputmode="url" placeholder="https://linkedin.com/in/…" /></label>
+      <div class="field"><span>Rôle</span>
+        <div class="prio-toggle">
+          <button type="button" class="toggle" data-t="principal">Principal</button>
+          <button type="button" class="toggle" data-t="decideur">Décideur</button>
+        </div>
+      </div>
+      <div class="field"><span>Consentements RGPD</span>
+        <div class="prio-toggle">
+          <button type="button" class="toggle" data-t="accept_emailing">Emailing commercial</button>
+          <button type="button" class="toggle" data-t="accept_notes_info">Notes d'information</button>
+        </div>
+      </div>
+      <button id="cf-submit" class="btn btn-primary">Créer le contact</button>
+      <button class="btn btn-ghost" data-ctclose>Annuler</button>
+      <p id="cf-error" class="error" hidden></p>
     </div>
   </div>
 
