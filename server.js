@@ -106,6 +106,27 @@ app.use(fileUpload());
 // annexes (admin.html, Configurateur.html) et les assets historiques.
 const distDir = join(__dirname, 'dist');
 if (existsSync(distDir)) app.use(express.static(distDir));
+
+// PWA mobile (dossier pwa-prototype/, client autonome qui consomme /api) servie
+// sous /mobile/. Même origine que l'API : pas de CORS, HTTPS déjà en place,
+// installable depuis le téléphone (« Installer l'application »).
+//  - les fichiers de dev du dossier (serveur local, script d'icônes, README,
+//    package.json) ne sont pas servis ;
+//  - sw.js / manifest / index.html en no-store : un déploiement est pris en
+//    compte dès la prochaine ouverture de l'app (le SW est réseau-d'abord).
+const mobileDir = join(__dirname, 'pwa-prototype');
+if (existsSync(mobileDir)) {
+  app.use('/mobile', (req, res, next) => {
+    if (/\.(mjs|ps1|md)$|(^|\/)package(-lock)?\.json$/i.test(req.path)) return res.status(404).end();
+    next();
+  });
+  app.use('/mobile', express.static(mobileDir, {
+    setHeaders: (res, filePath) => {
+      if (/[\\/](sw\.js|manifest\.json|index\.html)$/i.test(filePath)) res.setHeader('Cache-Control', 'no-store');
+    },
+  }));
+}
+
 app.use(express.static(__dirname));
 
 // Route explicite pour le configurateur (fichier avec C majuscule)

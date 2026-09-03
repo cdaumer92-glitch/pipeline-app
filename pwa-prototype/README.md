@@ -84,6 +84,24 @@ L'app s'ouvre alors en fenêtre autonome (mode `standalone`), avec son icône.
   que les requêtes `GET` de **même origine** ; les appels vers `crm.texaswin.fr` sont
   cross-origin et donc ignorés. En plus, chaque `fetch` API utilise `cache: 'no-store'`.
 
+## Hébergement sur le CRM : https://crm.texaswin.fr/mobile/
+
+Le dossier est servi par `server.js` sous `/mobile/` (montage `express.static` dédié) et
+part dans l'image Docker avec le reste du dépôt : **un push sur `main` déploie l'app mobile**
+en même temps que le CRM.
+
+- Même origine que l'API : l'app appelle `/api` de l'hôte qui la sert (aucun CORS). En
+  local (`localhost:5173`), elle vise la prod par défaut ; le champ API reste modifiable.
+- Le service worker ne gère que les fichiers de son propre dossier (`/mobile/…`) :
+  `/api/` n'est jamais intercepté ni mis en cache.
+- `sw.js`, `manifest.json` et `index.html` sont servis en `no-store` : une mise à jour
+  est visible dès la prochaine ouverture de l'app (fermer puis rouvrir).
+- Les fichiers de développement du dossier (`serve.mjs`, `package.json`, `README.md`,
+  `icons/make-icons.ps1`) ne sont pas servis.
+
+Installation sur le téléphone : ouvrir `https://crm.texaswin.fr/mobile/` puis
+« Installer l'application » (Android) ou « Sur l'écran d'accueil » (iPhone).
+
 ## CORS / auth — côté serveur
 
 Rien à changer côté serveur pour ce proto : l'API active déjà `app.use(cors())`

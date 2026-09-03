@@ -3,7 +3,10 @@
 /* ── Config ─────────────────────────────────────────────
    API par défaut = prod. Éditable dans l'écran de connexion.
    IMPORTANT : aucune réponse API n'est mise en cache (voir sw.js). */
-const DEFAULT_API = 'https://crm.texaswin.fr/api';
+/* Hébergée sur le CRM (https://crm.texaswin.fr/mobile/), l'app parle à l'API de
+   la même origine ; en local (localhost:5173), elle vise la prod par défaut. */
+const IS_LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const DEFAULT_API = IS_LOCAL ? 'https://crm.texaswin.fr/api' : location.origin + '/api';
 const LS_API = 'pwa_api_base';
 
 /* Miroir de src/lib/constants.js (proto en lecture seule sur l'existant). */

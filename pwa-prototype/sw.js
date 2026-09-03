@@ -44,10 +44,12 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // On ne touche qu'aux GET de MÊME origine (l'app-shell).
-  // Tout le reste — dont les appels API cross-origin — passe au réseau
-  // sans interception ni mise en cache.
-  if (req.method !== 'GET' || url.origin !== self.location.origin) {
+  // On ne touche qu'aux GET de MÊME origine ET situés dans le dossier de
+  // l'app (l'app-shell : /mobile/… en prod, / en local). Tout le reste passe
+  // au réseau sans interception ni mise en cache — en particulier /api/, qui
+  // est désormais sur la même origine que l'app une fois hébergée sur le CRM.
+  const base = new URL('./', self.location.href).pathname;
+  if (req.method !== 'GET' || url.origin !== self.location.origin || !url.pathname.startsWith(base)) {
     return; // laisse le navigateur gérer normalement
   }
 
