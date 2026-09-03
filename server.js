@@ -127,6 +127,29 @@ if (existsSync(mobileDir)) {
   }));
 }
 
+// Le montage statique de la racine (ci-dessous) reste nécessaire pour admin.html,
+// Configurateur.html + ses css/js, et les images historiques. Mais il exposait
+// aussi le code et la configuration de l'application (server.js, package.json,
+// src/, lib/, test/, node_modules/…). On refuse explicitement ces chemins ;
+// dist/ et /mobile sont montés AVANT et ne sont donc pas concernés.
+const DENY_ROOT_STATIC = new RegExp(
+  '^/(?:' +
+    // fichiers et dossiers de code / config / outillage
+    'server\\.js|package(?:-lock)?\\.json|vite\\.config\\.[cm]?js|vitest\\.config\\.[cm]?js|' +
+    'test-db\\.js|check-[^/]*\\.cjs|generate_sql\\.js|seed-data\\.json|Dockerfile|' +
+    'src|lib|test|tests|node_modules|scripts|propale-service|pwa-prototype|prototype|' +
+    'Documentation|Archives[^/]*|SVG' +
+  ')(?:/|$)' +
+  // extensions jamais légitimes depuis la racine (sources, données, scripts, config)
+  '|\\.(?:cjs|mjs|jsx|ts|tsx|sql|db|sqlite|ps1|bat|sh|py|ya?ml|env|log|md|xlsx|csv)$',
+  'i'
+);
+app.use((req, res, next) => {
+  let p = req.path;
+  try { p = decodeURIComponent(p); } catch (_) { /* chemin mal encodé : on laisse le static répondre 404 */ }
+  if (DENY_ROOT_STATIC.test(p)) return res.status(404).end();
+  next();
+});
 app.use(express.static(__dirname));
 
 // Route explicite pour le configurateur (fichier avec C majuscule)
