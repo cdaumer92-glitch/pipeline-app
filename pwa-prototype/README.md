@@ -31,7 +31,9 @@ Puis ouvrir **http://localhost:5173**.
 2. **Se connecter** avec un compte du CRM (email + mot de passe).
    → `POST /api/auth/login`, le token JWT est gardé en mémoire de l'onglet (`sessionStorage`).
 3. **Liste des sociétés** : `GET /api/prospects/enriched` (nom, statut, ville, nb d'affaires),
-   avec recherche instantanée + deux compteurs (sociétés / clients).
+   avec recherche instantanée + deux compteurs (sociétés / clients). La même zone de
+   recherche trouve aussi les **contacts** (`GET /api/interlocuteurs/search?q=`, dès 2
+   caractères) : un clic ouvre la société sur l'onglet Contacts, directement sur la fiche du contact.
 4. **Fiche société** (clic sur une société) avec **navigation par onglets** ; chaque
    onglet charge son endpoint **à la demande**, jamais mis en cache :
    - **Infos** — montants Setup / Mensuel / Annuel + coordonnées (données de la liste).

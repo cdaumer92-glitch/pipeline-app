@@ -185,6 +185,67 @@ function renderSocietes(filter) {
     el.addEventListener('click', () => openFiche(Number(el.dataset.id))));
 }
 
+/* ── Recherche de contacts (serveur) depuis la zone de recherche ──
+   Filtre local des sociétés + GET /interlocuteurs/search?q= dès 2 caractères,
+   avec délai anti-rafale et rejet des réponses obsolètes. */
+let PENDING_CONTACT_ID = null;   // contact à ouvrir une fois l'onglet Contacts chargé
+let SEARCH_SEQ = 0, SEARCH_TIMER = null;
+function clearContactResults() {
+  const box = $('contact-results');
+  box.hidden = true; box.innerHTML = '';
+}
+function onSearchInput(q) {
+  renderSocietes(q);
+  clearTimeout(SEARCH_TIMER);
+  const query = (q || '').trim();
+  if (query.length < 2) { SEARCH_SEQ++; clearContactResults(); return; }
+  SEARCH_TIMER = setTimeout(() => searchContacts(query), 250);
+}
+async function searchContacts(query) {
+  const seq = ++SEARCH_SEQ;
+  try {
+    const rows = await api('/interlocuteurs/search?q=' + encodeURIComponent(query));
+    if (seq !== SEARCH_SEQ) return; // une frappe plus récente a pris le relais
+    renderContactResults(Array.isArray(rows) ? rows : []);
+  } catch (ex) {
+    if (handleAuthError(ex)) return;
+    if (seq === SEARCH_SEQ) clearContactResults();
+  }
+}
+function renderContactResults(rows) {
+  const box = $('contact-results');
+  // Une ligne par (contact × société) : cible de navigation sans ambiguïté.
+  const items = [];
+  rows.forEach((c) => {
+    const socs = Array.isArray(c.societes) && c.societes.length ? c.societes : [{ id: null, name: '(sans société)' }];
+    socs.forEach((s) => items.push({ c, s, known: !!s.id && SOCIETES.some((x) => x.id === s.id) }));
+  });
+  if (!items.length) { clearContactResults(); return; }
+  box.innerHTML = `<div class="grouplab">Contacts (${items.length})</div>` + items.map(({ c, s, known }, i) => {
+    const nom = [c.prenom, c.nom].filter(Boolean).join(' ') || '(sans nom)';
+    const meta = [s.fonction, s.name].filter(Boolean).join(' · ') || '—';
+    const phone = c.telephone ? `<div class="meta phones">📱 ${esc(c.telephone)}</div>` : '';
+    return `<button class="row link" data-ci="${i}" ${known ? '' : 'disabled title="Société non visible dans ta liste"'}>
+      <div class="avatar">${esc(initials(c.prenom, c.nom))}</div>
+      <div class="col">
+        <div class="name">${esc(nom)}</div>
+        <div class="meta">${esc(meta)}</div>${phone}
+      </div>
+      ${s.statut ? `<span class="tag ${tagClass(s.statut)}">${esc(s.statut)}</span>` : ''}
+      <span class="chev">›</span>
+    </button>`;
+  }).join('');
+  box.hidden = false;
+  box.querySelectorAll('.row.link[data-ci]').forEach((el) =>
+    el.addEventListener('click', () => {
+      const { c, s, known } = items[Number(el.dataset.ci)];
+      if (!known) return;
+      PENDING_CONTACT_ID = c.id;
+      openFiche(s.id);
+      selectTab('contacts'); // ouvre directement l'onglet Contacts (puis la fiche du contact)
+    }));
+}
+
 /* ── Bascule Sociétés / Actions ── */
 function setMode(mode) {
   LIST_MODE = mode;
@@ -706,6 +767,12 @@ function renderContacts(rows) {
     wireAdd();
     document.querySelectorAll('#tab-panel .row.link[data-cidx]').forEach((el) =>
       el.addEventListener('click', () => openContactDetail(Number(el.dataset.cidx))));
+    // Arrivée depuis la recherche de contacts : ouvre directement la fiche du contact.
+    if (PENDING_CONTACT_ID != null) {
+      const idx = rows.findIndex((c) => c.id === PENDING_CONTACT_ID);
+      PENDING_CONTACT_ID = null;
+      if (idx >= 0) openContactDetail(idx);
+    }
   }, 0);
   return html;
 }
@@ -931,6 +998,7 @@ function renderMateriel(rows) {
 /* ── Déconnexion ── */
 function logout() {
   TOKEN = null; USER = null; SOCIETES = []; ACTIONS = []; CURRENT = null;
+  PENDING_CONTACT_ID = null; clearContactResults();
   setMode('societes');
   sessionStorage.removeItem('pwa_token');
   showLogin();
@@ -943,7 +1011,7 @@ function init() {
   $('logout-btn').addEventListener('click', logout);
   $('logout-btn2').addEventListener('click', logout);
   $('back-btn').addEventListener('click', showList);
-  $('search').addEventListener('input', (e) => renderSocietes(e.target.value));
+  $('search').addEventListener('input', (e) => onSearchInput(e.target.value));
   $('search-actions').addEventListener('input', (e) => renderActions(e.target.value));
   $('seg-societes').addEventListener('click', () => setMode('societes'));
   $('seg-actions').addEventListener('click', () => setMode('actions'));
