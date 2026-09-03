@@ -19,6 +19,7 @@ let ACTIONS = [];
 let LIST_MODE = 'societes'; // 'societes' | 'actions'
 let CURRENT = null;      // société ouverte dans la fiche
 let ACTIVE_TAB = null;
+let CONTACTS_ROWS = [];  // contacts de l'onglet Contacts en cours (pour la fiche détail)
 
 const $ = (id) => document.getElementById(id);
 
@@ -561,28 +562,71 @@ async function onCheckFicheAction(btn) {
   toast('Action marquée faite ✅');
 }
 
+function contactBadges(c) {
+  return [
+    c.principal ? '<span class="pill hot">Principal</span>' : '',
+    c.decideur ? '<span class="pill">Décideur</span>' : '',
+    c.est_secondaire ? '<span class="pill ext">Externe</span>' : '',
+  ].join('');
+}
 function renderContacts(rows) {
+  CONTACTS_ROWS = rows;
   if (!rows.length) return empty('Aucun contact.');
-  return `<div class="list">` + rows.map((c) => {
+  const html = `<div class="list">` + rows.map((c, i) => {
     const nom = [c.prenom, c.nom].filter(Boolean).join(' ') || '(sans nom)';
-    const meta = [c.fonction, c.email, c.telephone].filter(Boolean).join(' · ') || '—';
-    const badges = [
-      c.principal ? '<span class="pill hot">Principal</span>' : '',
-      c.decideur ? '<span class="pill">Décideur</span>' : '',
-      c.est_secondaire ? '<span class="pill ext">Externe</span>' : '',
-    ].join('');
+    const line = [c.fonction, c.email].filter(Boolean).join(' · ') || '—';
+    const phones = [
+      c.telephone ? '📱 ' + c.telephone : '',
+      c.telephone_fixe ? '📞 ' + c.telephone_fixe : '',
+    ].filter(Boolean).join('    ');
     const autres = Array.isArray(c.autres_societes) && c.autres_societes.length
       ? `<div class="meta subtle">aussi chez ${esc(c.autres_societes.map((a) => a.name).join(', '))}</div>` : '';
-    return `<div class="row">
+    return `<button class="row link" data-cidx="${i}">
       <div class="avatar">${esc(initials(c.prenom, c.nom))}</div>
       <div class="col">
-        <div class="name">${esc(nom)} ${badges}</div>
-        <div class="meta">${esc(meta)}</div>
+        <div class="name">${esc(nom)} ${contactBadges(c)}</div>
+        <div class="meta">${esc(line)}</div>
+        ${phones ? `<div class="meta phones">${esc(phones)}</div>` : ''}
         ${autres}
       </div>
-    </div>`;
+      <span class="chev">›</span>
+    </button>`;
   }).join('') + `</div>`;
+  setTimeout(() => {
+    document.querySelectorAll('#tab-panel .row.link[data-cidx]').forEach((el) =>
+      el.addEventListener('click', () => openContactDetail(Number(el.dataset.cidx))));
+  }, 0);
+  return html;
 }
+
+/* ── Fiche contact détaillée ── */
+function telHref(v) { return 'tel:' + String(v).replace(/[^\d+]/g, ''); }
+function kvLink(label, href, text, ext) {
+  return `<div class="kv"><span class="k">${esc(label)}</span>` +
+    `<a class="v link-v" href="${esc(href)}"${ext ? ' target="_blank" rel="noopener"' : ''}>${esc(text)}</a></div>`;
+}
+function openContactDetail(idx) {
+  const c = CONTACTS_ROWS[idx];
+  if (!c) return;
+  const nom = [c.civilite, c.prenom, c.nom].filter(Boolean).join(' ') || '(sans nom)';
+  $('contact-avatar').textContent = initials(c.prenom, c.nom);
+  $('contact-title').innerHTML = esc(nom) + ' ' + contactBadges(c);
+  $('contact-sub').textContent = c.fonction || '—';
+
+  const parts = [];
+  if (c.telephone) parts.push(kvLink('📱 Mobile', telHref(c.telephone), c.telephone));
+  if (c.telephone_fixe) parts.push(kvLink('📞 Fixe', telHref(c.telephone_fixe), c.telephone_fixe));
+  if (c.email) parts.push(kvLink('✉️ Email', 'mailto:' + c.email, c.email));
+  if (c.linkedin_url) parts.push(kvLink('in LinkedIn', c.linkedin_url, 'Profil', true));
+  parts.push(kv('Emailing commercial', c.accept_emailing ? 'Oui' : 'Non'));
+  parts.push(kv("Notes d'information", c.accept_notes_info ? 'Oui' : 'Non'));
+  if (Array.isArray(c.autres_societes) && c.autres_societes.length)
+    parts.push(kv('Aussi chez', c.autres_societes.map((a) => a.name).join(', ')));
+  if (c.source) parts.push(kv('Source', [c.source, c.source_detail].filter(Boolean).join(' · ')));
+  $('contact-body').innerHTML = `<div class="card panel-card">${parts.join('')}</div>`;
+  $('contact-sheet').hidden = false;
+}
+function closeContactDetail() { $('contact-sheet').hidden = true; }
 function renderSites(rows) {
   if (!rows.length) return empty('Aucun site.');
   return `<div class="list">` + rows.map((s) => {
@@ -686,6 +730,7 @@ function init() {
   $('action-sheet').querySelectorAll('[data-aclose]').forEach((el) => el.addEventListener('click', closeActionSheet));
   $('action-sheet').querySelectorAll('.prio').forEach((el) =>
     el.addEventListener('click', () => setActionPrio(Number(el.dataset.prio))));
+  $('contact-sheet').querySelectorAll('[data-cclose]').forEach((el) => el.addEventListener('click', closeContactDetail));
 
   if (TOKEN) { showList(); loadSocietes(); loadActions(); } else { showLogin(); }
 
