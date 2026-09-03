@@ -126,6 +126,7 @@ async function doLogin(e) {
     sessionStorage.setItem('pwa_token', TOKEN);
     showList();
     loadSocietes();
+    loadActions(); // précharge le compteur d'actions (badge visible d'emblée)
   } catch (ex) {
     err.textContent = /Failed to fetch/.test(ex.message)
       ? "Impossible de joindre l'API (réseau / CORS). Vérifie l'URL de l'API."
@@ -287,7 +288,7 @@ async function submitActionSheet() {
     closeActionSheet();
     toast('Action créée ✅');
     if (ACTIVE_TAB === 'actions') selectTab('actions'); // recharge la liste
-    ACTIONS = []; // invalide la vue globale (rechargée à la prochaine ouverture)
+    loadActions(); // rafraîchit la vue globale + badge/compteurs
   } catch (ex) {
     if (handleAuthError(ex)) return;
     err.textContent = 'Échec : ' + ex.message; err.hidden = false;
@@ -686,7 +687,7 @@ function init() {
   $('action-sheet').querySelectorAll('.prio').forEach((el) =>
     el.addEventListener('click', () => setActionPrio(Number(el.dataset.prio))));
 
-  if (TOKEN) { showList(); loadSocietes(); } else { showLogin(); }
+  if (TOKEN) { showList(); loadSocietes(); loadActions(); } else { showLogin(); }
 
   /* Service worker : app-shell uniquement, JAMAIS l'API. */
   if ('serviceWorker' in navigator) {
