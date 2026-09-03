@@ -238,7 +238,7 @@ async function applySnooze(iso) {
 
 /* ── Créer une action (écriture : POST /prospects/:id/next_actions) ── */
 let AF_PRIO = 1;
-function openActionSheet() {
+async function openActionSheet() {
   if (!CURRENT) return;
   // (re)peupler les listes
   $('af-type').innerHTML = ACTION_TYPES.map((t) => `<option>${esc(t)}</option>`).join('');
@@ -247,9 +247,21 @@ function openActionSheet() {
     ACTORS.map((a) => `<option ${a === defActor ? 'selected' : ''}>${esc(a)}</option>`).join('');
   $('af-date').value = toISO(addDays(0));
   $('af-contact').value = '';
+  $('af-contacts').innerHTML = '';
   setActionPrio(1);
   $('af-error').hidden = true;
   $('action-sheet').hidden = false;
+
+  // Autocomplétion des contacts de la société (datalist). Best-effort :
+  // en cas d'échec, le champ reste en saisie libre.
+  try {
+    const rows = await api(`/prospects/${CURRENT.id}/interlocuteurs`);
+    const opts = (Array.isArray(rows) ? rows : [])
+      .map((c) => ({ n: [c.prenom, c.nom].filter(Boolean).join(' ').trim(), f: c.fonction }))
+      .filter((x) => x.n);
+    $('af-contacts').innerHTML = opts
+      .map((x) => `<option value="${esc(x.n)}">${x.f ? esc(x.f) : ''}</option>`).join('');
+  } catch (_) { /* saisie libre */ }
 }
 function closeActionSheet() { $('action-sheet').hidden = true; }
 function setActionPrio(p) {
@@ -284,6 +296,20 @@ async function submitActionSheet() {
   }
 }
 
+/* Tri de la liste globale : de l'action la plus proche (date la plus récente
+   / à venir) vers la plus ancienne. Dates nulles en dernier ; à date égale,
+   priorité haute d'abord. */
+function sortActionsByDate() {
+  ACTIONS.sort((a, b) => {
+    const ad = a.planned_date || '', bd = b.planned_date || '';
+    if (ad !== bd) {
+      if (!ad) return 1;
+      if (!bd) return -1;
+      return bd.localeCompare(ad); // décroissant
+    }
+    return Number(b.priority || 1) - Number(a.priority || 1);
+  });
+}
 function recomputeActionStats() {
   const retard = ACTIONS.filter((a) => a.planned_date && startOfDay(a.planned_date) < startOfDay(new Date())).length;
   $('stat-actions-total').textContent = ACTIONS.length;
@@ -299,6 +325,7 @@ async function loadActions() {
   try {
     const data = await api('/lists/actions');
     ACTIONS = Array.isArray(data) ? data : [];
+    sortActionsByDate();
     recomputeActionStats();
     renderActions($('search-actions').value);
   } catch (ex) {
@@ -342,10 +369,7 @@ function onSnoozeGlobalAction(id) {
   openSnooze(id, (iso) => {
     const a = ACTIONS.find((x) => x.id === id);
     if (a) a.planned_date = iso;
-    // même tri que le serveur : priorité DESC, puis date ASC
-    ACTIONS.sort((x, y) =>
-      (Number(y.priority || 1) - Number(x.priority || 1)) ||
-      String(x.planned_date || '').localeCompare(String(y.planned_date || '')));
+    sortActionsByDate();
     recomputeActionStats();
     renderActions($('search-actions').value);
   });

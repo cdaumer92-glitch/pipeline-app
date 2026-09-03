@@ -143,7 +143,9 @@
       <label class="field"><span>Acteur</span>
         <select id="af-actor"></select></label>
       <label class="field"><span>Contact</span>
-        <input id="af-contact" type="text" placeholder="Optionnel" /></label>
+        <input id="af-contact" type="text" list="af-contacts" autocomplete="off"
+               placeholder="Tapez quelques lettres…" />
+        <datalist id="af-contacts"></datalist></label>
       <div class="field"><span>Priorité</span>
         <div class="prio-toggle">
           <button type="button" class="prio active" data-prio="1">Normale</button>
