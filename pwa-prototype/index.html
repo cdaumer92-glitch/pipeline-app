@@ -135,7 +135,7 @@
     <div class="sheet-backdrop" data-aclose></div>
     <div class="sheet-card">
       <div class="sheet-handle"></div>
-      <div class="sheet-title">Nouvelle action</div>
+      <div class="sheet-title" id="af-title">Nouvelle action</div>
       <label class="field"><span>Type</span>
         <select id="af-type"></select></label>
       <label class="field"><span>Date</span>
@@ -153,8 +153,23 @@
         </div>
       </div>
       <button id="af-submit" class="btn btn-primary">Créer l'action</button>
+      <button id="af-delete" class="btn btn-danger" hidden>Supprimer l'action</button>
       <button class="btn btn-ghost" data-aclose>Annuler</button>
       <p id="af-error" class="error" hidden></p>
+    </div>
+  </div>
+
+  <!-- ── Feuille « Nouvelle note » ── -->
+  <div id="note-sheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-nclose></div>
+    <div class="sheet-card">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Nouvelle note</div>
+      <label class="field"><span>Note</span>
+        <textarea id="nf-text" rows="5" placeholder="Votre note…"></textarea></label>
+      <button id="nf-submit" class="btn btn-primary">Ajouter la note</button>
+      <button class="btn btn-ghost" data-nclose>Annuler</button>
+      <p id="nf-error" class="error" hidden></p>
     </div>
   </div>
 

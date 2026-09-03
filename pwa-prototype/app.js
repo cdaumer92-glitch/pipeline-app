@@ -20,6 +20,7 @@ let LIST_MODE = 'societes'; // 'societes' | 'actions'
 let CURRENT = null;      // société ouverte dans la fiche
 let ACTIVE_TAB = null;
 let CONTACTS_ROWS = [];  // contacts de l'onglet Contacts en cours (pour la fiche détail)
+let FICHE_ACTIONS = [];  // actions de l'onglet Actions en cours (pour l'édition)
 
 const $ = (id) => document.getElementById(id);
 
@@ -240,17 +241,33 @@ async function applySnooze(iso) {
 
 /* ── Créer une action (écriture : POST /prospects/:id/next_actions) ── */
 let AF_PRIO = 1;
-async function openActionSheet() {
+let AF_EDIT_ID = null;   // null = création ; sinon édition
+let AF_EDIT_NOTE = null; // completed_note à préserver en édition
+async function openActionSheet(action) {
   if (!CURRENT) return;
-  // (re)peupler les listes
+  const editing = action && action.id;
+  AF_EDIT_ID = editing ? action.id : null;
+  AF_EDIT_NOTE = editing ? (action.completed_note || null) : null;
+
+  $('af-title').textContent = editing ? "Modifier l'action" : 'Nouvelle action';
+  $('af-submit').textContent = editing ? 'Enregistrer' : "Créer l'action";
+  $('af-delete').hidden = !editing;
+
+  // Type
   $('af-type').innerHTML = ACTION_TYPES.map((t) => `<option>${esc(t)}</option>`).join('');
+  $('af-type').value = editing && ACTION_TYPES.includes(action.action_type) ? action.action_type : ACTION_TYPES[0];
+  // Acteur (inclut un acteur existant hors liste, le cas échéant)
   const defActor = USER && ACTORS.includes(USER.name) ? USER.name : '';
+  const wantActor = editing ? (action.actor || '') : defActor;
+  const actorOpts = [...new Set([wantActor, ...ACTORS].filter(Boolean))];
   $('af-actor').innerHTML = `<option value="">— Acteur —</option>` +
-    ACTORS.map((a) => `<option ${a === defActor ? 'selected' : ''}>${esc(a)}</option>`).join('');
-  $('af-date').value = toISO(addDays(0));
-  $('af-contact').value = '';
+    actorOpts.map((a) => `<option>${esc(a)}</option>`).join('');
+  $('af-actor').value = wantActor || '';
+  // Date / contact / priorité
+  $('af-date').value = editing && action.planned_date ? String(action.planned_date).slice(0, 10) : toISO(addDays(0));
+  $('af-contact').value = editing ? (action.contact || '') : '';
   $('af-contacts').innerHTML = '';
-  setActionPrio(1);
+  setActionPrio(editing ? (Number(action.priority) || 1) : 1);
   $('af-error').hidden = true;
   $('action-sheet').hidden = false;
 
@@ -274,6 +291,7 @@ function setActionPrio(p) {
 async function submitActionSheet() {
   if (!CURRENT) return;
   const btn = $('af-submit'), err = $('af-error');
+  const editing = !!AF_EDIT_ID;
   err.hidden = true;
   const body = {
     action_type: $('af-type').value,
@@ -283,18 +301,40 @@ async function submitActionSheet() {
     priority: AF_PRIO,
   };
   if (!body.action_type) { err.textContent = 'Choisis un type.'; err.hidden = false; return; }
-  btn.disabled = true; btn.textContent = 'Création…';
+  btn.disabled = true; btn.textContent = editing ? 'Enregistrement…' : 'Création…';
   try {
-    await api(`/prospects/${CURRENT.id}/next_actions`, { method: 'POST', body });
+    if (editing) {
+      await api(`/next_actions/${AF_EDIT_ID}`, { method: 'PUT', body: { ...body, edit: true, completed_note: AF_EDIT_NOTE } });
+    } else {
+      await api(`/prospects/${CURRENT.id}/next_actions`, { method: 'POST', body });
+    }
     closeActionSheet();
-    toast('Action créée ✅');
+    toast(editing ? 'Action modifiée ✅' : 'Action créée ✅');
     if (ACTIVE_TAB === 'actions') selectTab('actions'); // recharge la liste
     loadActions(); // rafraîchit la vue globale + badge/compteurs
   } catch (ex) {
     if (handleAuthError(ex)) return;
     err.textContent = 'Échec : ' + ex.message; err.hidden = false;
   } finally {
-    btn.disabled = false; btn.textContent = "Créer l'action";
+    btn.disabled = false; btn.textContent = editing ? 'Enregistrer' : "Créer l'action";
+  }
+}
+async function deleteAction() {
+  if (!AF_EDIT_ID) return;
+  if (!confirm('Supprimer définitivement cette action ?')) return;
+  const btn = $('af-delete');
+  btn.disabled = true; btn.textContent = 'Suppression…';
+  try {
+    await api(`/next_actions/${AF_EDIT_ID}`, { method: 'DELETE' });
+    closeActionSheet();
+    toast('Action supprimée');
+    if (ACTIVE_TAB === 'actions') selectTab('actions');
+    loadActions();
+  } catch (ex) {
+    if (handleAuthError(ex)) return;
+    $('af-error').textContent = 'Échec : ' + ex.message; $('af-error').hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = "Supprimer l'action";
   }
 }
 
@@ -398,6 +438,7 @@ async function onCheckGlobalAction(btn) {
 const TABS = [
   { key: 'infos',      label: 'Infos' },
   { key: 'actions',    label: 'Actions' },
+  { key: 'notes',      label: 'Notes' },
   { key: 'contacts',   label: 'Contacts' },
   { key: 'sites',      label: 'Sites' },
   { key: 'boutiques',  label: 'Boutiques' },
@@ -437,6 +478,7 @@ function selectTab(key) {
   const id = CURRENT.id;
   const routes = {
     actions:   `/prospects/${id}/actions-all`,
+    notes:     `/prospects/${id}/notes`,
     contacts:  `/prospects/${id}/interlocuteurs`,
     sites:     `/prospects/${id}/sites`,
     boutiques: `/prospects/${id}/boutiques`,
@@ -449,7 +491,7 @@ function selectTab(key) {
       if (ACTIVE_TAB !== key) return;        // onglet changé entre-temps
       const rows = Array.isArray(data) ? data : [];
       const render = {
-        actions: renderFicheActions,
+        actions: renderFicheActions, notes: renderNotes,
         contacts: renderContacts, sites: renderSites, boutiques: renderBoutiques,
         affaires: renderAffaires, licences: renderLicences, materiel: renderMateriel,
       }[key];
@@ -489,11 +531,12 @@ function renderInfos(s) {
 function empty(msg) { return `<div class="card"><div class="empty">${esc(msg)}</div></div>`; }
 
 function renderFicheActions(rows) {
+  FICHE_ACTIONS = rows;
   const addBtn = `<button class="btn btn-primary add-action">+ Nouvelle action</button>`;
   if (!rows.length) {
     setTimeout(() => {
       const b = document.querySelector('#tab-panel .add-action');
-      if (b) b.addEventListener('click', openActionSheet);
+      if (b) b.addEventListener('click', () => openActionSheet());
     }, 0);
     return addBtn + empty('Aucune action.');
   }
@@ -513,14 +556,13 @@ function renderFicheActions(rows) {
       ? '<span class="pill">Fait</span>'
       : `<span class="due ${due.cls}">${esc(due.label)}</span>
          <button class="snooze" data-fsnooze="${a.id}" title="Reporter" aria-label="Reporter">⏰</button>`;
-    return `<div class="row${isDone ? ' done' : ''}">
-      ${left}
-      <div class="col">
-        <div class="name">${esc(a.action_type || 'Action')}</div>
-        <div class="meta">${esc(meta)}</div>
-      </div>
-      ${right}
-    </div>`;
+    const body = isDone
+      ? `<div class="col"><div class="name">${esc(a.action_type || 'Action')}</div><div class="meta">${esc(meta)}</div></div>`
+      : `<button class="col open" data-edit="${a.id}" title="Modifier">
+           <div class="name">${esc(a.action_type || 'Action')}</div>
+           <div class="meta">${esc(meta)}</div>
+         </button>`;
+    return `<div class="row${isDone ? ' done' : ''}">${left}${body}${right}</div>`;
   };
 
   let html = addBtn + '<div class="list">';
@@ -531,11 +573,13 @@ function renderFicheActions(rows) {
   // brancher les contrôles après insertion dans le DOM
   setTimeout(() => {
     const add = document.querySelector('#tab-panel .add-action');
-    if (add) add.addEventListener('click', openActionSheet);
+    if (add) add.addEventListener('click', () => openActionSheet());
     document.querySelectorAll('#tab-panel .check[data-fdone]').forEach((el) =>
       el.addEventListener('click', (e) => onCheckFicheAction(e.currentTarget)));
     document.querySelectorAll('#tab-panel .snooze[data-fsnooze]').forEach((el) =>
       el.addEventListener('click', () => onSnoozeFicheAction(Number(el.dataset.fsnooze))));
+    document.querySelectorAll('#tab-panel .col.open[data-edit]').forEach((el) =>
+      el.addEventListener('click', () => openActionSheet(FICHE_ACTIONS.find((x) => x.id === Number(el.dataset.edit)))));
   }, 0);
   return html;
 }
@@ -560,6 +604,57 @@ async function onCheckFicheAction(btn) {
   ACTIONS = ACTIONS.filter((a) => a.id !== id);
   recomputeActionStats();
   toast('Action marquée faite ✅');
+}
+
+/* ── Notes ── */
+function renderNotes(rows) {
+  const addBtn = `<button class="btn btn-primary add-note">+ Nouvelle note</button>`;
+  const list = Array.isArray(rows) ? rows : [];
+  let html = addBtn;
+  if (!list.length) {
+    html += empty('Aucune note.');
+  } else {
+    html += '<div class="list">' + list.map((n) => {
+      const when = n.created_at ? new Date(n.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+      const foot = [n.created_by, when].filter(Boolean).join(' · ');
+      return `<div class="note-card">
+        <div class="note-body">${esc(n.contenu || '')}</div>
+        ${foot ? `<div class="note-foot">${esc(foot)}</div>` : ''}
+      </div>`;
+    }).join('') + '</div>';
+  }
+  setTimeout(() => {
+    const b = document.querySelector('#tab-panel .add-note');
+    if (b) b.addEventListener('click', openNoteSheet);
+  }, 0);
+  return html;
+}
+function openNoteSheet() {
+  if (!CURRENT) return;
+  $('nf-text').value = '';
+  $('nf-error').hidden = true;
+  $('note-sheet').hidden = false;
+  setTimeout(() => $('nf-text').focus(), 50);
+}
+function closeNoteSheet() { $('note-sheet').hidden = true; }
+async function submitNote() {
+  if (!CURRENT) return;
+  const btn = $('nf-submit'), err = $('nf-error');
+  err.hidden = true;
+  const contenu = $('nf-text').value.trim();
+  if (!contenu) { err.textContent = 'La note est vide.'; err.hidden = false; return; }
+  btn.disabled = true; btn.textContent = 'Ajout…';
+  try {
+    await api(`/prospects/${CURRENT.id}/notes`, { method: 'POST', body: { contenu } });
+    closeNoteSheet();
+    toast('Note ajoutée ✅');
+    if (ACTIVE_TAB === 'notes') selectTab('notes');
+  } catch (ex) {
+    if (handleAuthError(ex)) return;
+    err.textContent = 'Échec : ' + ex.message; err.hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Ajouter la note';
+  }
 }
 
 function contactBadges(c) {
@@ -731,6 +826,9 @@ function init() {
   $('action-sheet').querySelectorAll('.prio').forEach((el) =>
     el.addEventListener('click', () => setActionPrio(Number(el.dataset.prio))));
   $('contact-sheet').querySelectorAll('[data-cclose]').forEach((el) => el.addEventListener('click', closeContactDetail));
+  $('af-delete').addEventListener('click', deleteAction);
+  $('nf-submit').addEventListener('click', submitNote);
+  $('note-sheet').querySelectorAll('[data-nclose]').forEach((el) => el.addEventListener('click', closeNoteSheet));
 
   if (TOKEN) { showList(); loadSocietes(); loadActions(); } else { showLogin(); }
 
