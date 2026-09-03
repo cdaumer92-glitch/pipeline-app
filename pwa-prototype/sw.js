@@ -14,7 +14,7 @@
  * Bump le numéro de version ci-dessous à chaque changement de coquille pour
  * évincer l'ancien cache. */
 
-const CACHE = 'texaswin-pwa-shell-v22';
+const CACHE = 'texaswin-pwa-shell-v23';
 
 const SHELL = [
   './',
