@@ -183,6 +183,25 @@ function setMode(mode) {
   if (mode === 'actions' && !ACTIONS.length) loadActions();
 }
 
+/* ── Marquer une action faite (écriture : PUT /next_actions/:id) ── */
+async function markActionDone(id) {
+  try {
+    await api(`/next_actions/${id}`, { method: 'PUT', body: { completed: true } });
+    return true;
+  } catch (ex) {
+    if (handleAuthError(ex)) return false;
+    toast('Échec : ' + ex.message);
+    return false;
+  }
+}
+function recomputeActionStats() {
+  const retard = ACTIONS.filter((a) => a.planned_date && startOfDay(a.planned_date) < startOfDay(new Date())).length;
+  $('stat-actions-total').textContent = ACTIONS.length;
+  $('stat-actions-retard').textContent = retard;
+  const badge = $('seg-actions-badge');
+  badge.textContent = ACTIONS.length; badge.hidden = !ACTIONS.length;
+}
+
 /* ── Actions à faire (appel réel : /lists/actions) ── */
 async function loadActions() {
   const box = $('actions');
@@ -190,11 +209,7 @@ async function loadActions() {
   try {
     const data = await api('/lists/actions');
     ACTIONS = Array.isArray(data) ? data : [];
-    const retard = ACTIONS.filter((a) => a.planned_date && startOfDay(a.planned_date) < startOfDay(new Date())).length;
-    $('stat-actions-total').textContent = ACTIONS.length;
-    $('stat-actions-retard').textContent = retard;
-    const badge = $('seg-actions-badge');
-    badge.textContent = ACTIONS.length; badge.hidden = !ACTIONS.length;
+    recomputeActionStats();
     renderActions($('search-actions').value);
   } catch (ex) {
     if (handleAuthError(ex)) return;
@@ -215,18 +230,30 @@ function renderActions(filter) {
     const due = dueInfo(a.planned_date);
     const meta = [a.prospect_name, a.contact, a.actor && ('→ ' + a.actor)].filter(Boolean).join(' · ') || '—';
     const prio = Number(a.priority) >= 3 ? '<span class="pill hot">Prioritaire</span>' : '';
-    return `<button class="row link" data-pid="${a.prospect_id}">
-      <div class="ico">✅</div>
-      <div class="col">
+    return `<div class="row">
+      <button class="check" data-done="${a.id}" title="Marquer faite" aria-label="Marquer faite"></button>
+      <button class="col open" data-pid="${a.prospect_id}">
         <div class="name">${esc(a.action_type || 'Action')} ${prio}</div>
         <div class="meta">${esc(meta)}</div>
-      </div>
+      </button>
       <span class="due ${due.cls}">${esc(due.label)}</span>
-      <span class="chev">›</span>
-    </button>`;
+    </div>`;
   }).join('');
-  box.querySelectorAll('.row.link').forEach((el) =>
+  box.querySelectorAll('.col.open').forEach((el) =>
     el.addEventListener('click', () => openFiche(Number(el.dataset.pid))));
+  box.querySelectorAll('.check').forEach((el) =>
+    el.addEventListener('click', (e) => onCheckGlobalAction(e.currentTarget)));
+}
+
+async function onCheckGlobalAction(btn) {
+  const id = Number(btn.dataset.done);
+  btn.disabled = true; btn.classList.add('checked');
+  const ok = await markActionDone(id);
+  if (!ok) { btn.disabled = false; btn.classList.remove('checked'); return; }
+  ACTIONS = ACTIONS.filter((a) => a.id !== id);
+  recomputeActionStats();
+  renderActions($('search-actions').value);
+  toast('Action marquée faite ✅');
 }
 
 /* ── Fiche société + onglets ── */
@@ -334,8 +361,11 @@ function renderFicheActions(rows) {
   const rowHtml = (a, isDone) => {
     const due = dueInfo(a.planned_date);
     const meta = [a.nom_affaire, a.contact, a.actor && ('→ ' + a.actor)].filter(Boolean).join(' · ') || '—';
+    const left = isDone
+      ? '<div class="ico">☑️</div>'
+      : `<button class="check" data-fdone="${a.id}" title="Marquer faite" aria-label="Marquer faite"></button>`;
     return `<div class="row${isDone ? ' done' : ''}">
-      <div class="ico">${isDone ? '☑️' : '✅'}</div>
+      ${left}
       <div class="col">
         <div class="name">${esc(a.action_type || 'Action')}</div>
         <div class="meta">${esc(meta)}</div>
@@ -347,7 +377,27 @@ function renderFicheActions(rows) {
   let html = '<div class="list">';
   if (todo.length) html += `<div class="grouplab">À faire (${todo.length})</div>` + todo.map((a) => rowHtml(a, false)).join('');
   if (done.length) html += `<div class="grouplab">Historique (${done.length})</div>` + done.slice(0, 50).map((a) => rowHtml(a, true)).join('');
-  return html + '</div>';
+  html += '</div>';
+
+  // brancher les cases à cocher après insertion dans le DOM
+  setTimeout(() => {
+    document.querySelectorAll('#tab-panel .check[data-fdone]').forEach((el) =>
+      el.addEventListener('click', (e) => onCheckFicheAction(e.currentTarget)));
+  }, 0);
+  return html;
+}
+
+async function onCheckFicheAction(btn) {
+  const id = Number(btn.dataset.fdone);
+  btn.disabled = true; btn.classList.add('checked');
+  const ok = await markActionDone(id);
+  if (!ok) { btn.disabled = false; btn.classList.remove('checked'); return; }
+  // recharge l'onglet Actions pour regrouper À faire / Historique
+  if (ACTIVE_TAB === 'actions') selectTab('actions');
+  // invalide la liste globale (badge/compteurs) : rechargée à la prochaine ouverture
+  ACTIONS = ACTIONS.filter((a) => a.id !== id);
+  recomputeActionStats();
+  toast('Action marquée faite ✅');
 }
 
 function renderContacts(rows) {
