@@ -241,11 +241,14 @@ async function applySnooze(iso) {
 
 /* ── Créer une action (écriture : POST /prospects/:id/next_actions) ── */
 let AF_PRIO = 1;
-let AF_EDIT_ID = null;   // null = création ; sinon édition
-let AF_EDIT_NOTE = null; // completed_note à préserver en édition
+let AF_EDIT_ID = null;    // null = création ; sinon édition
+let AF_EDIT_NOTE = null;  // completed_note à préserver en édition
+let AF_PROSPECT_ID = null; // société cible (fiche courante OU prospect de l'action éditée)
 async function openActionSheet(action) {
-  if (!CURRENT) return;
   const editing = action && action.id;
+  // société cible : celle de l'action (liste globale) sinon la fiche ouverte
+  AF_PROSPECT_ID = editing ? (action.prospect_id || (CURRENT && CURRENT.id)) : (CURRENT && CURRENT.id);
+  if (!AF_PROSPECT_ID) return;
   AF_EDIT_ID = editing ? action.id : null;
   AF_EDIT_NOTE = editing ? (action.completed_note || null) : null;
 
@@ -274,7 +277,7 @@ async function openActionSheet(action) {
   // Autocomplétion des contacts de la société (datalist). Best-effort :
   // en cas d'échec, le champ reste en saisie libre.
   try {
-    const rows = await api(`/prospects/${CURRENT.id}/interlocuteurs`);
+    const rows = await api(`/prospects/${AF_PROSPECT_ID}/interlocuteurs`);
     const opts = (Array.isArray(rows) ? rows : [])
       .map((c) => ({ n: [c.prenom, c.nom].filter(Boolean).join(' ').trim(), f: c.fonction }))
       .filter((x) => x.n);
@@ -289,7 +292,7 @@ function setActionPrio(p) {
     el.classList.toggle('active', Number(el.dataset.prio) === p));
 }
 async function submitActionSheet() {
-  if (!CURRENT) return;
+  if (!AF_PROSPECT_ID) return;
   const btn = $('af-submit'), err = $('af-error');
   const editing = !!AF_EDIT_ID;
   err.hidden = true;
@@ -306,12 +309,11 @@ async function submitActionSheet() {
     if (editing) {
       await api(`/next_actions/${AF_EDIT_ID}`, { method: 'PUT', body: { ...body, edit: true, completed_note: AF_EDIT_NOTE } });
     } else {
-      await api(`/prospects/${CURRENT.id}/next_actions`, { method: 'POST', body });
+      await api(`/prospects/${AF_PROSPECT_ID}/next_actions`, { method: 'POST', body });
     }
     closeActionSheet();
     toast(editing ? 'Action modifiée ✅' : 'Action créée ✅');
-    if (ACTIVE_TAB === 'actions') selectTab('actions'); // recharge la liste
-    loadActions(); // rafraîchit la vue globale + badge/compteurs
+    refreshAfterActionChange();
   } catch (ex) {
     if (handleAuthError(ex)) return;
     err.textContent = 'Échec : ' + ex.message; err.hidden = false;
@@ -328,14 +330,18 @@ async function deleteAction() {
     await api(`/next_actions/${AF_EDIT_ID}`, { method: 'DELETE' });
     closeActionSheet();
     toast('Action supprimée');
-    if (ACTIVE_TAB === 'actions') selectTab('actions');
-    loadActions();
+    refreshAfterActionChange();
   } catch (ex) {
     if (handleAuthError(ex)) return;
     $('af-error').textContent = 'Échec : ' + ex.message; $('af-error').hidden = false;
   } finally {
     btn.disabled = false; btn.textContent = "Supprimer l'action";
   }
+}
+/* Recharge la vue concernée après création/édition/suppression d'action. */
+function refreshAfterActionChange() {
+  if (!$('fiche-view').hidden && ACTIVE_TAB === 'actions') selectTab('actions'); // onglet fiche visible
+  loadActions(); // liste globale + badge/compteurs
 }
 
 /* Tri de la liste globale, par urgence :
@@ -402,6 +408,7 @@ function renderActions(filter) {
         <div class="meta">${esc(meta)}</div>
       </button>
       <span class="due ${due.cls}">${esc(due.label)}</span>
+      <button class="iconbtn" data-edit-g="${a.id}" title="Modifier" aria-label="Modifier">✏️</button>
       <button class="snooze" data-snooze="${a.id}" title="Reporter" aria-label="Reporter">⏰</button>
     </div>`;
   }).join('');
@@ -411,6 +418,8 @@ function renderActions(filter) {
     el.addEventListener('click', (e) => onCheckGlobalAction(e.currentTarget)));
   box.querySelectorAll('.snooze').forEach((el) =>
     el.addEventListener('click', () => onSnoozeGlobalAction(Number(el.dataset.snooze))));
+  box.querySelectorAll('[data-edit-g]').forEach((el) =>
+    el.addEventListener('click', () => openActionSheet(ACTIONS.find((x) => x.id === Number(el.dataset.editG)))));
 }
 
 function onSnoozeGlobalAction(id) {
