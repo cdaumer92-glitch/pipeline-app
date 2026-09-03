@@ -110,10 +110,10 @@ ce qui ne pose aucun problème de CORS avec credentials.
 
 Les icônes `icon-192.png` (purpose `any`) et `icon-512.png` (purpose `any maskable`) sont
 générées depuis `icons/logo-source.png` par le script `icons/make-icons.ps1` (System.Drawing,
-sans dépendance). Le `logo-source.png` actuel est le logo officiel « TW », mais en **156 px**
-seulement : l'icône 512 est donc agrandie et un peu floue. Pour améliorer le rendu :
+sans dépendance). Le `logo-source.png` actuel est le logo officiel « TW » en 1438 px.
+Pour changer de logo :
 
-1. Déposer une version plus grande du logo (PNG carré, idéalement 1024 px, plein cadre) sous
+1. Déposer le nouveau logo (PNG carré, idéalement ≥ 1024 px, plein cadre) sous
    `icons/logo-source.png`.
 2. Lancer :
    ```powershell
