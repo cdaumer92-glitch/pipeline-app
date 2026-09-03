@@ -296,17 +296,23 @@ async function submitActionSheet() {
   }
 }
 
-/* Tri de la liste globale : de l'action la plus proche (date la plus récente
-   / à venir) vers la plus ancienne. Dates nulles en dernier ; à date égale,
-   priorité haute d'abord. */
+/* Tri de la liste globale, par urgence :
+   1) Aujourd'hui puis les retards, du plus récent au plus ancien
+   2) puis les actions à venir (demain, plus tard), les plus proches d'abord
+   3) puis les actions sans date.
+   À rang/date égale, priorité haute d'abord. */
 function sortActionsByDate() {
+  const today = startOfDay(new Date()).getTime();
+  const rank = (a) => {
+    if (!a.planned_date) return 2;                                   // sans date
+    return startOfDay(a.planned_date).getTime() <= today ? 0 : 1;    // 0 = aujourd'hui/retard, 1 = à venir
+  };
   ACTIONS.sort((a, b) => {
-    const ad = a.planned_date || '', bd = b.planned_date || '';
-    if (ad !== bd) {
-      if (!ad) return 1;
-      if (!bd) return -1;
-      return bd.localeCompare(ad); // décroissant
-    }
+    const ra = rank(a), rb = rank(b);
+    if (ra !== rb) return ra - rb;
+    if (ra === 2) return Number(b.priority || 1) - Number(a.priority || 1);
+    const ta = startOfDay(a.planned_date).getTime(), tb = startOfDay(b.planned_date).getTime();
+    if (ta !== tb) return ra === 0 ? (tb - ta) : (ta - tb);          // rang 0 décroissant, rang 1 croissant
     return Number(b.priority || 1) - Number(a.priority || 1);
   });
 }
