@@ -63,12 +63,16 @@
       <!-- Mode Sociétés -->
       <div id="mode-societes">
         <div class="stats">
-          <div class="stat"><div class="n" id="stat-societes">—</div><div class="k">Sociétés</div></div>
-          <div class="stat"><div class="n" id="stat-clients">—</div><div class="k">Clients</div></div>
+          <button id="filter-all" class="stat stat-btn active" type="button" title="Afficher toutes les sociétés">
+            <div class="n" id="stat-societes">—</div><div class="k">Sociétés</div>
+          </button>
+          <button id="filter-clients" class="stat stat-btn" type="button" title="Afficher uniquement les clients">
+            <div class="n" id="stat-clients">—</div><div class="k">Clients</div>
+          </button>
         </div>
         <button id="add-soc" class="btn btn-primary add-action">+ Nouvelle société</button>
         <div class="list-head">
-          <h2>Sociétés</h2>
+          <h2 id="list-title">Sociétés</h2>
           <input id="search" type="search" placeholder="Société, ville ou contact…" />
         </div>
         <div id="contact-results" class="list" aria-live="polite" hidden></div>

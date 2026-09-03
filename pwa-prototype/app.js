@@ -156,14 +156,28 @@ async function loadSocietes() {
   }
 }
 
+/* Filtre par statut piloté par les cartes de compteurs : 'all' (toutes les
+   sociétés, par défaut au démarrage) ou 'Client' (clients uniquement). */
+let SOC_FILTER = 'all';
+function setSocFilter(f) {
+  SOC_FILTER = f === 'Client' ? 'Client' : 'all';
+  $('filter-all').classList.toggle('active', SOC_FILTER === 'all');
+  $('filter-clients').classList.toggle('active', SOC_FILTER === 'Client');
+  $('list-title').textContent = SOC_FILTER === 'Client' ? 'Clients' : 'Sociétés';
+  renderSocietes($('search').value);
+}
 function renderSocietes(filter) {
   const q = (filter || '').toLowerCase().trim();
   const box = $('societes');
   const list = SOCIETES.filter((s) => {
+    if (SOC_FILTER === 'Client' && (s.statut_societe || s.status) !== 'Client') return false;
     if (!q) return true;
     return [s.name, s.ville, s.secteur].some((v) => (v || '').toLowerCase().includes(q));
   });
-  if (!list.length) { box.innerHTML = '<div class="empty">Aucune société.</div>'; return; }
+  if (!list.length) {
+    box.innerHTML = `<div class="empty">${SOC_FILTER === 'Client' ? 'Aucun client.' : 'Aucune société.'}</div>`;
+    return;
+  }
 
   box.innerHTML = list.slice(0, 500).map((s) => {
     const st = s.statut_societe || s.status || '';
@@ -999,6 +1013,7 @@ function renderMateriel(rows) {
 function logout() {
   TOKEN = null; USER = null; SOCIETES = []; ACTIONS = []; CURRENT = null;
   PENDING_CONTACT_ID = null; clearContactResults();
+  setSocFilter('all'); // retour à « toutes les sociétés » pour la prochaine session
   setMode('societes');
   sessionStorage.removeItem('pwa_token');
   showLogin();
@@ -1015,6 +1030,8 @@ function init() {
   $('search-actions').addEventListener('input', (e) => renderActions(e.target.value));
   $('seg-societes').addEventListener('click', () => setMode('societes'));
   $('seg-actions').addEventListener('click', () => setMode('actions'));
+  $('filter-all').addEventListener('click', () => setSocFilter('all'));
+  $('filter-clients').addEventListener('click', () => setSocFilter('Client'));
   $('sheet-validate').addEventListener('click', () => applySnooze($('sheet-date').value));
   $('sheet').querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', closeSnooze));
   $('af-submit').addEventListener('click', submitActionSheet);
