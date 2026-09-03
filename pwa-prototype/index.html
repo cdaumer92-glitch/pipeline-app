@@ -114,6 +114,22 @@
     </section>
   </div>
 
+  <!-- ── Feuille « Reporter l'action » ── -->
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet-card">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title" id="sheet-title">Reporter l'action</div>
+      <div class="sheet-presets" id="sheet-presets"></div>
+      <label class="field">
+        <span>Date précise</span>
+        <input id="sheet-date" type="date" />
+      </label>
+      <button id="sheet-validate" class="btn btn-primary">Reporter à cette date</button>
+      <button class="btn btn-ghost" data-close>Annuler</button>
+    </div>
+  </div>
+
   <div id="toast" class="toast" hidden></div>
   <script src="./app.js"></script>
 </body>

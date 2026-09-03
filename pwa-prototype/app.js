@@ -59,6 +59,11 @@ function dueInfo(dateStr) {
   if (days <= 7) return { label: `Dans ${days} j · ${fmt}`, cls: 'soon' };
   return { label: fmt, cls: 'far' };
 }
+function addDays(n) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return d; }
+function nextMonday() { const d = new Date(); d.setHours(0, 0, 0, 0); const diff = ((8 - d.getDay()) % 7) || 7; d.setDate(d.getDate() + diff); return d; }
+/* ISO local (évite le décalage d'un jour de toISOString qui est en UTC). */
+function toISO(d) { const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); }
+function frDate(d) { return (d instanceof Date ? d : new Date(d + 'T00:00:00')).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }); }
 
 /* ── Appel API (jamais mis en cache) ── */
 async function api(path, { method = 'GET', body, auth = true } = {}) {
@@ -194,6 +199,39 @@ async function markActionDone(id) {
     return false;
   }
 }
+/* ── Reporter / snooze (écriture : PUT /next_actions/:id reschedule) ── */
+let SNOOZE_CTX = null; // { id, onDone }
+function openSnooze(id, onDone) {
+  SNOOZE_CTX = { id, onDone };
+  const presets = [
+    { label: 'Demain', d: addDays(1) },
+    { label: 'Dans 3 jours', d: addDays(3) },
+    { label: 'Dans 1 semaine', d: addDays(7) },
+    { label: 'Lundi prochain', d: nextMonday() },
+  ];
+  $('sheet-presets').innerHTML = presets.map((p) =>
+    `<button class="preset" data-iso="${toISO(p.d)}"><span>${p.label}</span><em>${frDate(p.d)}</em></button>`).join('');
+  $('sheet-presets').querySelectorAll('.preset').forEach((el) =>
+    el.addEventListener('click', () => applySnooze(el.dataset.iso)));
+  $('sheet-date').value = toISO(addDays(1));
+  $('sheet').hidden = false;
+}
+function closeSnooze() { $('sheet').hidden = true; SNOOZE_CTX = null; }
+async function applySnooze(iso) {
+  if (!SNOOZE_CTX || !iso) return;
+  const { id, onDone } = SNOOZE_CTX;
+  try {
+    await api(`/next_actions/${id}`, { method: 'PUT', body: { reschedule: true, planned_date: iso } });
+  } catch (ex) {
+    if (handleAuthError(ex)) return;
+    toast('Échec : ' + ex.message);
+    return;
+  }
+  closeSnooze();
+  toast('Reportée au ' + frDate(iso));
+  if (onDone) onDone(iso);
+}
+
 function recomputeActionStats() {
   const retard = ACTIONS.filter((a) => a.planned_date && startOfDay(a.planned_date) < startOfDay(new Date())).length;
   $('stat-actions-total').textContent = ACTIONS.length;
@@ -237,12 +275,28 @@ function renderActions(filter) {
         <div class="meta">${esc(meta)}</div>
       </button>
       <span class="due ${due.cls}">${esc(due.label)}</span>
+      <button class="snooze" data-snooze="${a.id}" title="Reporter" aria-label="Reporter">⏰</button>
     </div>`;
   }).join('');
   box.querySelectorAll('.col.open').forEach((el) =>
     el.addEventListener('click', () => openFiche(Number(el.dataset.pid))));
   box.querySelectorAll('.check').forEach((el) =>
     el.addEventListener('click', (e) => onCheckGlobalAction(e.currentTarget)));
+  box.querySelectorAll('.snooze').forEach((el) =>
+    el.addEventListener('click', () => onSnoozeGlobalAction(Number(el.dataset.snooze))));
+}
+
+function onSnoozeGlobalAction(id) {
+  openSnooze(id, (iso) => {
+    const a = ACTIONS.find((x) => x.id === id);
+    if (a) a.planned_date = iso;
+    // même tri que le serveur : priorité DESC, puis date ASC
+    ACTIONS.sort((x, y) =>
+      (Number(y.priority || 1) - Number(x.priority || 1)) ||
+      String(x.planned_date || '').localeCompare(String(y.planned_date || '')));
+    recomputeActionStats();
+    renderActions($('search-actions').value);
+  });
 }
 
 async function onCheckGlobalAction(btn) {
@@ -364,13 +418,17 @@ function renderFicheActions(rows) {
     const left = isDone
       ? '<div class="ico">☑️</div>'
       : `<button class="check" data-fdone="${a.id}" title="Marquer faite" aria-label="Marquer faite"></button>`;
+    const right = isDone
+      ? '<span class="pill">Fait</span>'
+      : `<span class="due ${due.cls}">${esc(due.label)}</span>
+         <button class="snooze" data-fsnooze="${a.id}" title="Reporter" aria-label="Reporter">⏰</button>`;
     return `<div class="row${isDone ? ' done' : ''}">
       ${left}
       <div class="col">
         <div class="name">${esc(a.action_type || 'Action')}</div>
         <div class="meta">${esc(meta)}</div>
       </div>
-      ${isDone ? '<span class="pill">Fait</span>' : `<span class="due ${due.cls}">${esc(due.label)}</span>`}
+      ${right}
     </div>`;
   };
 
@@ -379,12 +437,23 @@ function renderFicheActions(rows) {
   if (done.length) html += `<div class="grouplab">Historique (${done.length})</div>` + done.slice(0, 50).map((a) => rowHtml(a, true)).join('');
   html += '</div>';
 
-  // brancher les cases à cocher après insertion dans le DOM
+  // brancher les contrôles après insertion dans le DOM
   setTimeout(() => {
     document.querySelectorAll('#tab-panel .check[data-fdone]').forEach((el) =>
       el.addEventListener('click', (e) => onCheckFicheAction(e.currentTarget)));
+    document.querySelectorAll('#tab-panel .snooze[data-fsnooze]').forEach((el) =>
+      el.addEventListener('click', () => onSnoozeFicheAction(Number(el.dataset.fsnooze))));
   }, 0);
   return html;
+}
+
+function onSnoozeFicheAction(id) {
+  openSnooze(id, (iso) => {
+    if (ACTIVE_TAB === 'actions') selectTab('actions'); // recharge et re-trie
+    // garde la liste globale cohérente si elle est déjà chargée
+    const a = ACTIONS.find((x) => x.id === id);
+    if (a) { a.planned_date = iso; recomputeActionStats(); }
+  });
 }
 
 async function onCheckFicheAction(btn) {
@@ -519,6 +588,8 @@ function init() {
   $('search-actions').addEventListener('input', (e) => renderActions(e.target.value));
   $('seg-societes').addEventListener('click', () => setMode('societes'));
   $('seg-actions').addEventListener('click', () => setMode('actions'));
+  $('sheet-validate').addEventListener('click', () => applySnooze($('sheet-date').value));
+  $('sheet').querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', closeSnooze));
 
   if (TOKEN) { showList(); loadSocietes(); } else { showLogin(); }
 
