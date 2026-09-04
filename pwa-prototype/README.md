@@ -42,7 +42,10 @@ Puis ouvrir **http://localhost:5173**.
      Principal / Décideur / Externe ; clic → fiche contact détaillée avec liens `tel:` / `mailto:`).
    - **Sites** — `GET /api/prospects/:id/sites`.
    - **Boutiques** — `GET /api/prospects/:id/boutiques`.
-   - **Affaires** — `GET /api/prospects/:id/affaires` (statut + montants + nb devis).
+   - **Affaires** — `GET /api/prospects/:id/affaires` (statut + montants + nb devis) ; chaque
+     affaire se déplie sur ses devis (`GET /api/affaires/:id/devis`) et « Voir la proposition »
+     ouvre le PDF du devis (`GET /api/devis/:id/download-pdf`, récupéré avec le jeton) dans un
+     panneau plein écran, avec partage (Web Share) sur mobile.
    - **Licences** — `GET /api/prospects/:id/licences`.
    - **Matériel** — `GET /api/prospects/:id/materiel`.
 5. **Actions à faire** (bascule en haut de la liste) : `GET /api/lists/actions`, triées par

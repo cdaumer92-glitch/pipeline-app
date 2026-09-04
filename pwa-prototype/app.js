@@ -536,6 +536,7 @@ const TABS = [
 
 function openFiche(id) {
   CURRENT = SOCIETES.find((s) => s.id === id) || { id, name: '—' };
+  Object.keys(DEVIS_CACHE).forEach((k) => delete DEVIS_CACHE[k]); // devis rechargés par fiche
   show('fiche-view');
   const st = CURRENT.statut_societe || CURRENT.status || '';
   $('fiche-avatar').textContent = initials(CURRENT.name, CURRENT.name && CURRENT.name.slice(1));
@@ -964,23 +965,131 @@ function renderBoutiques(rows) {
     </div>`;
   }).join('') + `</div>`;
 }
+function moneyLine(o) {
+  return [euro(o.setup_amount) !== '—' ? 'Setup ' + euro(o.setup_amount) : '',
+          euro(o.monthly_amount) !== '—' ? 'Mens. ' + euro(o.monthly_amount) : '',
+          euro(o.annual_amount) !== '—' ? 'Ann. ' + euro(o.annual_amount) : '']
+          .filter(Boolean).join(' · ') || '—';
+}
+function fmtDate(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  return isNaN(d) ? '' : d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function statutTag(st) {
+  if (!st) return '';
+  const cls = st === 'Gagné' ? 'Client' : /Perdu|Éliminé|Ajourné/.test(st) ? 'Suspect' : 'Prospect';
+  return `<span class="tag ${cls}">${esc(st)}</span>`;
+}
+
+/* Affaires : chaque ligne se déplie pour lister ses devis (chargés à la demande,
+   GET /affaires/:id/devis) ; un devis avec PDF propose « Voir la proposition ». */
 function renderAffaires(rows) {
   if (!rows.length) return empty('Aucune affaire.');
-  return `<div class="list">` + rows.map((a) => {
-    const st = a.statut_global || '';
-    const stc = st === 'Gagné' ? 'Client' : st === 'Perdu' ? 'Suspect' : 'Prospect';
-    const line = [euro(a.setup_amount) !== '—' ? 'Setup ' + euro(a.setup_amount) : '',
-                  euro(a.monthly_amount) !== '—' ? 'Mens. ' + euro(a.monthly_amount) : '',
-                  euro(a.annual_amount) !== '—' ? 'Ann. ' + euro(a.annual_amount) : '']
-                  .filter(Boolean).join(' · ') || '—';
-    return `<div class="row">
+  const html = `<div class="list">` + rows.map((a) => `
+    <button class="row link aff" data-aff="${a.id}">
       <div class="ico">📁</div>
       <div class="col">
-        <div class="name">${esc(a.nom_affaire || '(affaire)')} ${st ? `<span class="tag ${stc}">${esc(st)}</span>` : ''}</div>
-        <div class="meta">${esc(line)}${a.nb_devis ? ` · ${a.nb_devis} devis` : ''}</div>
+        <div class="name">${esc(a.nom_affaire || '(affaire)')} ${statutTag(a.statut_global)}</div>
+        <div class="meta">${esc(moneyLine(a))}${a.nb_devis ? ` · ${a.nb_devis} devis` : ''}</div>
       </div>
+      <span class="aff-chev">›</span>
+    </button>
+    <div class="devis-box" data-for="${a.id}" hidden></div>`).join('') + `</div>`;
+  setTimeout(() => {
+    document.querySelectorAll('#tab-panel .row.aff').forEach((el) =>
+      el.addEventListener('click', () => toggleAffaire(el)));
+  }, 0);
+  return html;
+}
+const DEVIS_CACHE = {}; // affaire id -> devis[] (vidé en changeant de fiche)
+async function toggleAffaire(rowEl) {
+  const id = Number(rowEl.dataset.aff);
+  const box = document.querySelector(`#tab-panel .devis-box[data-for="${id}"]`);
+  if (!box) return;
+  const opening = box.hidden;
+  rowEl.classList.toggle('open', opening);
+  box.hidden = !opening;
+  if (!opening) return;
+  if (!DEVIS_CACHE[id]) {
+    box.innerHTML = '<div class="empty">Chargement…</div>';
+    try {
+      const rows = await api(`/affaires/${id}/devis`);
+      DEVIS_CACHE[id] = Array.isArray(rows) ? rows : [];
+    } catch (ex) {
+      if (handleAuthError(ex)) return;
+      box.innerHTML = `<div class="empty">Échec : ${esc(ex.message)}</div>`;
+      return;
+    }
+  }
+  renderDevis(box, DEVIS_CACHE[id]);
+}
+function renderDevis(box, rows) {
+  if (!rows.length) { box.innerHTML = '<div class="empty">Aucun devis.</div>'; return; }
+  box.innerHTML = rows.map((d) => {
+    const name = d.devis_name || `Devis #${d.id}`;
+    const meta = [fmtDate(d.quote_date || d.created_at), moneyLine(d),
+                  d.chance_percent != null ? d.chance_percent + ' %' : ''].filter(Boolean).join(' · ');
+    return `<div class="devis">
+      <div class="col">
+        <div class="name">${esc(name)} ${statutTag(d.devis_status)}</div>
+        <div class="meta">${esc(meta)}</div>
+      </div>
+      ${d.pdf_url
+        ? `<button class="btn btn-primary btn-sm" data-pdf="${d.id}" data-pdfname="${esc(name)}">Voir la proposition</button>`
+        : `<span class="pill">Pas de PDF</span>`}
     </div>`;
-  }).join('') + `</div>`;
+  }).join('');
+  box.querySelectorAll('[data-pdf]').forEach((el) =>
+    el.addEventListener('click', () => openPdf(Number(el.dataset.pdf), el.dataset.pdfname)));
+}
+
+/* ── Visionneuse de proposition : le PDF est protégé par le jeton, on le
+   télécharge nous-mêmes (GET /devis/:id/download-pdf) puis on l'affiche
+   dans un panneau plein écran, avec partage (Web Share) quand disponible. ── */
+let PDF_URL = null, PDF_FILE = null;
+function openPdf(devisId, name) {
+  const view = $('pdf-view'), frame = $('pdf-frame'), status = $('pdf-status'), share = $('pdf-share');
+  $('pdf-title').textContent = name || 'Proposition';
+  frame.src = 'about:blank'; frame.hidden = true;
+  status.textContent = 'Chargement de la proposition…'; status.hidden = false;
+  share.hidden = true;
+  view.hidden = false;
+  fetch(`${apiBase()}/devis/${devisId}/download-pdf`, {
+    headers: { 'Authorization': 'Bearer ' + TOKEN }, cache: 'no-store',
+  }).then(async (res) => {
+    if (!res.ok) {
+      let msg = `Erreur ${res.status}`;
+      try { msg = (await res.json()).error || msg; } catch (_) {}
+      if (res.status === 401 || res.status === 403) { closePdf(); handleAuthError({ status: res.status, message: msg }); return; }
+      status.textContent = msg; return;
+    }
+    const blob = await res.blob();
+    if (PDF_URL) URL.revokeObjectURL(PDF_URL);
+    PDF_FILE = new File([blob], `${(name || 'proposition').replace(/[\\/:*?"<>|]+/g, '-')}.pdf`, { type: 'application/pdf' });
+    PDF_URL = URL.createObjectURL(blob);
+    frame.src = PDF_URL; frame.hidden = false;
+    status.hidden = true;
+    share.hidden = false;
+  }).catch((ex) => { status.textContent = 'Impossible de charger le PDF : ' + ex.message; });
+}
+function closePdf() {
+  const frame = $('pdf-frame');
+  frame.src = 'about:blank';
+  if (PDF_URL) { URL.revokeObjectURL(PDF_URL); PDF_URL = null; }
+  PDF_FILE = null;
+  $('pdf-view').hidden = true;
+}
+async function sharePdf() {
+  if (!PDF_FILE) return;
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [PDF_FILE] })) {
+      await navigator.share({ files: [PDF_FILE], title: PDF_FILE.name });
+      return;
+    }
+  } catch (ex) { if (ex && ex.name === 'AbortError') return; }
+  // Pas de partage de fichier (ex. navigateur de bureau) : ouvre dans un nouvel onglet.
+  window.open(PDF_URL, '_blank', 'noopener');
 }
 function renderLicences(rows) {
   if (!rows.length) return empty('Aucune licence.');
@@ -1042,6 +1151,10 @@ function init() {
   $('action-sheet').querySelectorAll('.prio').forEach((el) =>
     el.addEventListener('click', () => setActionPrio(Number(el.dataset.prio))));
   $('contact-sheet').querySelectorAll('[data-cclose]').forEach((el) => el.addEventListener('click', closeContactDetail));
+  // Visionneuse de proposition
+  $('pdf-view').querySelectorAll('[data-pclose]').forEach((el) => el.addEventListener('click', closePdf));
+  $('pdf-share').addEventListener('click', sharePdf);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('pdf-view').hidden) closePdf(); });
   // Nouvelle société
   $('add-soc').addEventListener('click', openSocSheet);
   $('sf-submit').addEventListener('click', submitSocSheet);

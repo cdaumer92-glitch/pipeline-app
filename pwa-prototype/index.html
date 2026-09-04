@@ -274,6 +274,17 @@
     </div>
   </div>
 
+  <!-- ── Visionneuse de proposition (PDF d'un devis) ── -->
+  <div id="pdf-view" class="pdfview" hidden>
+    <div class="pdf-bar">
+      <button class="btn btn-ghost" data-pclose>‹ Fermer</button>
+      <span id="pdf-title" class="pdf-title">Proposition</span>
+      <button id="pdf-share" class="btn btn-ghost" hidden>Partager</button>
+    </div>
+    <div id="pdf-status" class="empty" hidden></div>
+    <iframe id="pdf-frame" class="pdf-frame" title="Proposition commerciale"></iframe>
+  </div>
+
   <div id="toast" class="toast" hidden></div>
   <script src="./app.js"></script>
 </body>
