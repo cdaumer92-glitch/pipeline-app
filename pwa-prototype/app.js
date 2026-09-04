@@ -1047,17 +1047,52 @@ function renderDevis(box, rows) {
 /* ── Visionneuse de proposition : le PDF est protégé par le jeton, on le
    télécharge nous-mêmes (GET /devis/:id/download-pdf) puis on l'affiche
    dans un panneau plein écran, avec partage (Web Share) quand disponible. ── */
-let PDF_URL = null, PDF_FILE = null;
+let PDF_URL = null, PDF_FILE = null, PDF_SEQ = 0, PDF_DOC = null;
+/* PDF.js (vendor/, même origine) chargé à la première ouverture. Les pages sont
+   dessinées dans des <canvas> : fonctionne sur Android (Chrome n'affiche pas les
+   PDF dans un cadre intégré), iPhone et ordinateur, sans quitter l'app. */
+let PDFJS = null;
+async function loadPdfJs() {
+  if (PDFJS) return PDFJS;
+  const lib = await import('./vendor/pdf.min.js');
+  lib.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdf.worker.min.js', location.href).href;
+  PDFJS = lib;
+  return lib;
+}
+async function renderPdfPages(data, seq) {
+  const pages = $('pdf-pages');
+  const lib = await loadPdfJs();
+  const doc = await lib.getDocument({ data }).promise;
+  if (seq !== PDF_SEQ) { doc.destroy(); return; }
+  if (PDF_DOC) { try { PDF_DOC.destroy(); } catch (_) {} }
+  PDF_DOC = doc;
+  pages.innerHTML = '';
+  const width = Math.max(200, pages.clientWidth - 16);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  for (let n = 1; n <= doc.numPages; n++) {
+    if (seq !== PDF_SEQ) return;
+    const page = await doc.getPage(n);
+    const base = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: width / base.width });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.floor(vp.width * dpr); canvas.height = Math.floor(vp.height * dpr);
+    canvas.style.width = Math.floor(vp.width) + 'px'; canvas.style.height = Math.floor(vp.height) + 'px';
+    pages.appendChild(canvas);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null }).promise;
+  }
+}
 function openPdf(devisId, name) {
-  const view = $('pdf-view'), frame = $('pdf-frame'), status = $('pdf-status'), share = $('pdf-share');
+  const seq = ++PDF_SEQ;
+  const view = $('pdf-view'), pages = $('pdf-pages'), status = $('pdf-status'), share = $('pdf-share');
   $('pdf-title').textContent = name || 'Proposition';
-  frame.src = 'about:blank'; frame.hidden = true;
+  pages.innerHTML = '';
   status.textContent = 'Chargement de la proposition…'; status.hidden = false;
   share.hidden = true;
   view.hidden = false;
   fetch(`${apiBase()}/devis/${devisId}/download-pdf`, {
     headers: { 'Authorization': 'Bearer ' + TOKEN }, cache: 'no-store',
   }).then(async (res) => {
+    if (seq !== PDF_SEQ) return;
     if (!res.ok) {
       let msg = `Erreur ${res.status}`;
       try { msg = (await res.json()).error || msg; } catch (_) {}
@@ -1065,17 +1100,32 @@ function openPdf(devisId, name) {
       status.textContent = msg; return;
     }
     const blob = await res.blob();
+    if (seq !== PDF_SEQ) return;
     if (PDF_URL) URL.revokeObjectURL(PDF_URL);
     PDF_FILE = new File([blob], `${(name || 'proposition').replace(/[\\/:*?"<>|]+/g, '-')}.pdf`, { type: 'application/pdf' });
     PDF_URL = URL.createObjectURL(blob);
-    frame.src = PDF_URL; frame.hidden = false;
-    status.hidden = true;
-    share.hidden = false;
-  }).catch((ex) => { status.textContent = 'Impossible de charger le PDF : ' + ex.message; });
+    share.hidden = false; // le partage marche même si le rendu échoue
+    try {
+      await renderPdfPages(await blob.arrayBuffer(), seq);
+      if (seq === PDF_SEQ) status.hidden = true;
+    } catch (ex) {
+      if (seq !== PDF_SEQ) return;
+      // Rendu impossible (PDF atypique ou bibliothèque non chargée) : on propose
+      // le partage ou l'ouverture dans le navigateur plutôt qu'une page vide.
+      status.hidden = true;
+      pages.innerHTML = `<div class="pdf-fallback">
+        <div>Affichage impossible dans l'app (${esc(ex.message || 'erreur inconnue')}).</div>
+        <button class="btn btn-primary" id="pdf-open-ext">Ouvrir dans le navigateur</button>
+      </div>`;
+      const b = document.getElementById('pdf-open-ext');
+      if (b) b.addEventListener('click', () => window.open(PDF_URL, '_blank', 'noopener'));
+    }
+  }).catch((ex) => { if (seq === PDF_SEQ) status.textContent = 'Impossible de charger le PDF : ' + ex.message; });
 }
 function closePdf() {
-  const frame = $('pdf-frame');
-  frame.src = 'about:blank';
+  PDF_SEQ++;
+  $('pdf-pages').innerHTML = '';
+  if (PDF_DOC) { try { PDF_DOC.destroy(); } catch (_) {} PDF_DOC = null; }
   if (PDF_URL) { URL.revokeObjectURL(PDF_URL); PDF_URL = null; }
   PDF_FILE = null;
   $('pdf-view').hidden = true;

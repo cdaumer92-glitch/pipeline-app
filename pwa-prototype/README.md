@@ -45,7 +45,9 @@ Puis ouvrir **http://localhost:5173**.
    - **Affaires** — `GET /api/prospects/:id/affaires` (statut + montants + nb devis) ; chaque
      affaire se déplie sur ses devis (`GET /api/affaires/:id/devis`) et « Voir la proposition »
      ouvre le PDF du devis (`GET /api/devis/:id/download-pdf`, récupéré avec le jeton) dans un
-     panneau plein écran, avec partage (Web Share) sur mobile.
+     panneau plein écran, avec partage (Web Share) sur mobile. Le PDF est dessiné page par page
+     par **PDF.js** (`vendor/`, même origine, chargé à la première ouverture) : un `<iframe>` ne
+     convient pas, Chrome Android n'y affiche pas les PDF (bouton « Ouvrir » inopérant).
    - **Licences** — `GET /api/prospects/:id/licences`.
    - **Matériel** — `GET /api/prospects/:id/materiel`.
 5. **Actions à faire** (bascule en haut de la liste) : `GET /api/lists/actions`, triées par
