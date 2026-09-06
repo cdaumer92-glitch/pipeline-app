@@ -1181,6 +1181,70 @@ function logout() {
   showLogin();
 }
 
+/* ── Bouton « Retour » du téléphone (Android) ──────────────────────────────
+   L'app est une page unique : sans entrée d'historique, le premier Retour
+   fermait l'application. Chaque ouverture (fiche, feuille, visionneuse,
+   vue Actions) pousse une entrée ; Retour ferme l'élément le plus haut ;
+   à l'accueil, Retour est neutralisé (on ne quitte l'app que par le bouton
+   Accueil du téléphone). Fermer par l'interface ne touche pas l'historique :
+   les entrées « périmées » sont simplement absorbées par la garde. */
+let POPPING = false;
+function pushLayer(id) { try { history.pushState({ layer: id }, ''); } catch (_) {} }
+function wrapOpen(id, raw) {
+  return function () { const r = raw.apply(this, arguments); pushLayer(id); return r; };
+}
+const LAYER_CLOSE = {
+  'pdf-view': () => closePdf(),
+  'sheet': () => closeSnooze(),
+  'action-sheet': () => closeActionSheet(),
+  'ct-sheet': () => closeContactSheet(),
+  'contact-sheet': () => closeContactDetail(),
+  'soc-sheet': () => closeSocSheet(),
+  'note-sheet': () => closeNoteSheet(),
+  'fiche-view': () => showList(),
+  'mode-actions': () => setMode('societes'),
+};
+function topOpenLayer() {
+  for (const id of ['pdf-view', 'sheet', 'action-sheet', 'ct-sheet', 'contact-sheet', 'soc-sheet', 'note-sheet']) {
+    const el = document.getElementById(id);
+    if (el && !el.hidden) return id;
+  }
+  if (!$('fiche-view').hidden) return 'fiche-view';
+  if (!$('list-view').hidden && LIST_MODE === 'actions') return 'mode-actions';
+  return null;
+}
+window.addEventListener('popstate', () => {
+  const id = topOpenLayer();
+  if (id && LAYER_CLOSE[id]) {
+    POPPING = true;
+    try { LAYER_CLOSE[id](); } finally { POPPING = false; }
+    return;
+  }
+  // Accueil : on remet la garde et on reste dans l'app.
+  try { history.pushState({ guard: true }, ''); } catch (_) {}
+  toast("Tu es déjà à l'accueil de l'app");
+});
+// Les ouvertures poussent une entrée d'historique (les fonctions restent
+// appelées par leur nom : la liaison est simplement remplacée).
+openFiche = wrapOpen('fiche-view', openFiche);
+openSnooze = wrapOpen('sheet', openSnooze);
+openActionSheet = wrapOpen('action-sheet', openActionSheet);
+openContactDetail = wrapOpen('contact-sheet', openContactDetail);
+openContactSheet = wrapOpen('ct-sheet', openContactSheet);
+openSocSheet = wrapOpen('soc-sheet', openSocSheet);
+openNoteSheet = wrapOpen('note-sheet', openNoteSheet);
+openPdf = wrapOpen('pdf-view', openPdf);
+{
+  const rawSetMode = setMode;
+  setMode = function (mode) {
+    rawSetMode(mode);
+    if (mode === 'actions' && !POPPING && !(history.state && history.state.layer === 'mode-actions')) pushLayer('mode-actions');
+  };
+}
+document.addEventListener('DOMContentLoaded', () => {
+  try { history.replaceState({ root: true }, ''); history.pushState({ guard: true }, ''); } catch (_) {}
+});
+
 /* ── Init ── */
 function init() {
   $('api-base').value = apiBase();

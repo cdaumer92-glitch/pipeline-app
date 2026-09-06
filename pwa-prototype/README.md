@@ -72,6 +72,14 @@ apparaît dans le CRM.
 > Le champ « Commercial » d'une nouvelle société est pré-rempli avec l'utilisateur connecté :
 > un utilisateur non-admin ne voit que les sociétés qui lui sont attribuées.
 
+## Bouton « Retour » (Android)
+
+L'app est une page unique : chaque ouverture (fiche, feuille de saisie, visionneuse,
+vue Actions) pousse une entrée d'historique. Le bouton Retour du téléphone ferme
+l'élément le plus haut ; à l'accueil il est neutralisé (message « Tu es déjà à
+l'accueil ») pour ne pas quitter l'app par erreur. On quitte l'app avec le bouton
+Accueil du téléphone ; « Déconnexion » ramène à l'écran de connexion.
+
 ## Installer l'application (« Installer l'application »)
 
 - **Chrome / Edge (desktop)** : icône d'installation dans la barre d'adresse (à droite),
