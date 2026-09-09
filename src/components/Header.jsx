@@ -137,7 +137,6 @@ export function Header({ user, onLogout, onDashboard, isDashboard, onSettings, o
             {navBtn('Sociétés', activeListe === 'societes', () => onListe('societes'))}
             {navBtn('Devis', activeListe === 'devis', () => onListe('devis'))}
             {navBtn('Actions', activeListe === 'actions', () => onListe('actions'))}
-            {navBtn('Campagnes', showCampagnes, onCampagnes)}
           </nav>
 
           {/* RECHERCHE UNIQUE : sociétés + contacts + devis + affaires (Ctrl+K) */}
@@ -244,7 +243,8 @@ export function Header({ user, onLogout, onDashboard, isDashboard, onSettings, o
               <div style={{width:'28px',height:'28px',borderRadius:'50%',background:avatarColor.bg,color:avatarColor.fg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:600}}>{initials(user.name)}</div>
             </button>
             {showUserMenu && (
-              <div className="tw-search-dropdown" style={{left:'auto',right:0,minWidth:'220px'}}>
+              <div className="tw-search-dropdown" style={{left:'auto',right:0,minWidth:'240px'}}>
+                {menuItem('📣 Campagnes', 'Emailings, notes d\'information, opt-in', () => { setShowUserMenu(false); onCampagnes(); }, { style: showCampagnes ? { background: 'var(--tw-teal-light)' } : undefined })}
                 {isAdmin && menuItem('⚙️ Paramètres', null, () => { setShowUserMenu(false); onSettings(); })}
                 {user.name === 'Christian' && menuItem('🗂️ Attribution', 'Répartition des sociétés entre commerciaux', () => { setShowUserMenu(false); onAttribution(); })}
                 {menuItem('Déconnexion', null, () => { setShowUserMenu(false); onLogout(); }, { danger: true, style: { borderTop: '0.5px solid var(--tw-border)' } })}
