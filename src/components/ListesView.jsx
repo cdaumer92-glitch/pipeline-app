@@ -243,7 +243,10 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
               <tbody>
                 {rows.map(d => (
                   <tr key={d.id} style={{ cursor: 'pointer' }} {...rowHover} onClick={() => openFiche(d.prospect_id, d.affaire_id, 'devis', d.id)}>
-                    <td style={{ ...td, ...lk }}>{d.devis_name || ('Devis #' + d.id)}</td>
+                    <td style={{ ...td, ...lk }}>
+                      {d.devis_name || ('Devis #' + d.id)}
+                      {d.nom_affaire && <span title="Affaire" style={{ color: 'var(--tw-muted)', fontWeight: 400 }}> · {d.nom_affaire}</span>}
+                    </td>
                     <td style={td}>{d.prospect_name || '—'}</td>
                     <td style={td}>{d.devis_status || '—'}</td>
                     <td style={td} title="Réalisation probable de l'affaire">{formatDecisionPeriode(d.decision_periode) || '—'}</td>

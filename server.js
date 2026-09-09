@@ -2529,7 +2529,7 @@ app.get('/api/devis/all', auth, async (req, res) => {
     const owner = (await getUserRole(req.userId)) === 'admin' ? null : req.userName;
     const result = await pool.query(
       `SELECT d.*, p.name as prospect_name, p.assigned_to as commercial,
-              a.decision_periode
+              a.decision_periode, a.nom_affaire
        FROM devis d
        LEFT JOIN prospects p ON d.prospect_id = p.id
        LEFT JOIN affaires a ON a.id = d.affaire_id
