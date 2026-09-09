@@ -21,6 +21,9 @@ concurrency:
 env:
   SCW_REGION: fr-par
   REGISTRY_NAMESPACE: pipeline-app
+  # Conteneur Serverless « pipeline-app » (console Scaleway → Containers → pipeline-app → Overview).
+  # Redéployé automatiquement après chaque build réussi (job deploy-pipeline).
+  SCW_CONTAINER_ID_PIPELINE: 48018b2e-37f6-4330-9d23-2c9d90ac9858
   # Identifiants Docker Hub (optionnels). S'ils sont définis en secrets, les jobs
   # s'authentifient au Docker Hub avant le build → évite le rate-limit des pulls
   # anonymes qui fait échouer le boot du builder BuildKit ("registry-1.docker.io timeout").
@@ -133,6 +136,52 @@ jobs:
               .
 
   # ──────────────────────────────────────────────────────────────
+  # 2bis) Déploiement automatique du conteneur pipeline-app (Scaleway)
+  #   Fait pointer le conteneur sur l'image tout juste poussée (tag daté, traçable)
+  #   et déclenche le redéploiement via l'API Scaleway, puis attend le statut « ready ».
+  #   Nécessite que la clé SCW_SECRET_KEY ait le droit de modifier les conteneurs
+  #   (IAM : ContainersFullAccess) — sinon l'appel PATCH répond 403 et le job échoue.
+  # ──────────────────────────────────────────────────────────────
+  deploy-pipeline:
+    name: Deploy pipeline-app container
+    needs: build-and-push-pipeline
+    if: ${{ needs.build-and-push-pipeline.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Point the container at the new image and redeploy
+        env:
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          IMAGE: rg.${{ env.SCW_REGION }}.scw.cloud/${{ env.REGISTRY_NAMESPACE }}/pipeline-app:${{ needs.build-and-push-pipeline.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          API="https://api.scaleway.com/containers/v1beta1/regions/${SCW_REGION}/containers/${SCW_CONTAINER_ID_PIPELINE}"
+          echo "Image déployée : ${IMAGE}"
+          code=$(curl -sS -o /tmp/patch.json -w '%{http_code}' -X PATCH "$API" \
+            -H "X-Auth-Token: ${SCW_SECRET_KEY}" -H "Content-Type: application/json" \
+            -d "{\"registry_image\": \"${IMAGE}\", \"redeploy\": true}")
+          if [ "$code" != "200" ]; then
+            echo "::error::Scaleway a répondu HTTP $code à la demande de déploiement"
+            cat /tmp/patch.json; echo
+            exit 1
+          fi
+          # Attente du conteneur (statut ready), 5 minutes max.
+          status=""
+          for i in $(seq 1 30); do
+            sleep 10
+            status=$(curl -sS "$API" -H "X-Auth-Token: ${SCW_SECRET_KEY}" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status",""))')
+            echo "statut : $status"
+            case "$status" in
+              ready) echo "Conteneur déployé et prêt."; exit 0 ;;
+              error)
+                echo "::error::Le conteneur est en erreur après le déploiement."
+                curl -sS "$API" -H "X-Auth-Token: ${SCW_SECRET_KEY}" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("error_message",""))'
+                exit 1 ;;
+            esac
+          done
+          echo "::error::Délai dépassé, statut final : $status"
+          exit 1
+
+  # ──────────────────────────────────────────────────────────────
   # 3) Build & push propale-service (avec retry)
   # ──────────────────────────────────────────────────────────────
   build-and-push-propale-service:
@@ -189,6 +238,7 @@ jobs:
     name: Notify build success
     needs:
       - build-and-push-pipeline
+      - deploy-pipeline
       - build-and-push-propale-service
     if: always()
     runs-on: ubuntu-latest
@@ -196,14 +246,15 @@ jobs:
       - name: Check results
         run: |
           PIPELINE="${{ needs.build-and-push-pipeline.result }}"
+          DEPLOY="${{ needs.deploy-pipeline.result }}"
           PROPALE="${{ needs.build-and-push-propale-service.result }}"
-          echo "pipeline-app    : $PIPELINE (tag: ${{ needs.build-and-push-pipeline.outputs.image_tag }})"
-          echo "propale-service : $PROPALE (tag: ${{ needs.build-and-push-propale-service.outputs.image_tag }})"
+          echo "pipeline-app    : build $PIPELINE, déploiement $DEPLOY (tag: ${{ needs.build-and-push-pipeline.outputs.image_tag }})"
+          echo "propale-service : $PROPALE (tag: ${{ needs.build-and-push-propale-service.outputs.image_tag }}) — redéploiement manuel"
           echo "Registry: rg.${{ env.SCW_REGION }}.scw.cloud/${{ env.REGISTRY_NAMESPACE }}/"
 
           # Échec réel uniquement si un job a vraiment échoué (failure).
           # 'skipped' = service non concerné par ce push → OK.
-          if [ "$PIPELINE" = "failure" ] || [ "$PROPALE" = "failure" ]; then
+          if [ "$PIPELINE" = "failure" ] || [ "$DEPLOY" = "failure" ] || [ "$PROPALE" = "failure" ]; then
             echo "::error::Au moins un build a échoué."
             exit 1
           fi
