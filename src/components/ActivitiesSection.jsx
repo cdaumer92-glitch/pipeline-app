@@ -1,23 +1,10 @@
 import * as React from 'react';
 import { styles } from '../lib/styles.js';
 import { ACTION_TYPES } from '../lib/constants.js';
-import { I, ICONS, IconBtn, displayName } from '../lib/shared.jsx';
+import { I, ICONS, IconBtn, displayName, formatDecisionPeriode, decisionPeriodeOptions } from '../lib/shared.jsx';
 import { MotifPerteField } from './MotifPerteField.jsx';
 import { DevisSimpleForm } from './DevisSimpleForm.jsx';
 
-// Décision (réalisation probable d'une affaire) : stockée 'AAAA-Qn', affichée « Qn - AAAA ».
-export const formatDecisionPeriode = (v) => {
-  const m = String(v || '').match(/^(\d{4})-Q([1-4])$/);
-  return m ? `Q${m[2]} - ${m[1]}` : '';
-};
-// Trimestres proposés : de l'an dernier à dans 2 ans (+ la valeur courante si hors plage).
-export const decisionPeriodeOptions = (current) => {
-  const y = new Date().getFullYear();
-  const out = [];
-  for (let yy = y - 1; yy <= y + 2; yy++) for (let q = 1; q <= 4; q++) out.push(`${yy}-Q${q}`);
-  if (current && !out.includes(current)) out.unshift(current);
-  return out;
-};
 
 export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, fetchAffaires, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect, onRequestCompleteAction, fetchDevis }) {
       const [actionNotes, setActionNotes] = React.useState({});

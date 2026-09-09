@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { ACTION_TYPES } from '../lib/constants.js';
+import { formatDecisionPeriode } from '../lib/shared.jsx';
 import { ActionCompleteModal } from './ActionCompleteModal.jsx';
 
 export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
@@ -233,17 +234,19 @@ export function ListesView({ type, prospects, user, API_URL, listeCtx }) {
         const EN_COURS = ['En cours', 'Envoyé', 'Discussion', 'Négociation'];
         let rows = (devis || []).filter(d => EN_COURS.includes(d.devis_status) && inScope(d.commercial))
           .sort((a, b) => String(b.quote_date || '').localeCompare(String(a.quote_date || '')));
-        rows = applySort(rows, { societe: d => d.prospect_name, statut: d => d.devis_status, date: d => d.quote_date || '', commercial: d => d.commercial });
+        // decision : 'AAAA-Qn' se trie naturellement ; sans décision → en fin en tri croissant.
+        rows = applySort(rows, { societe: d => d.prospect_name, statut: d => d.devis_status, decision: d => d.decision_periode || '9999', date: d => d.quote_date || '', commercial: d => d.commercial });
         return Wrap('Devis en cours', `${rows.length} devis actif(s) — statuts hors Gagné / Perdu / Annulé`, commercialFilter,
           rows.length === 0 ? Empty('Aucun devis en cours.') : (
             <table style={tableStyle}>
-              <thead><tr><th style={th}>Devis</th>{SortTh('Société', 'societe')}{SortTh('Statut', 'statut')}<th style={th}>Mise en place</th><th style={th}>Abo / mois</th>{SortTh('Date', 'date')}{SortTh('Commercial', 'commercial')}</tr></thead>
+              <thead><tr><th style={th}>Devis</th>{SortTh('Société', 'societe')}{SortTh('Statut', 'statut')}{SortTh('Décision', 'decision')}<th style={th}>Mise en place</th><th style={th}>Abo / mois</th>{SortTh('Date', 'date')}{SortTh('Commercial', 'commercial')}</tr></thead>
               <tbody>
                 {rows.map(d => (
                   <tr key={d.id} style={{ cursor: 'pointer' }} {...rowHover} onClick={() => openFiche(d.prospect_id, d.affaire_id, 'devis', d.id)}>
                     <td style={{ ...td, ...lk }}>{d.devis_name || ('Devis #' + d.id)}</td>
                     <td style={td}>{d.prospect_name || '—'}</td>
                     <td style={td}>{d.devis_status || '—'}</td>
+                    <td style={td} title="Réalisation probable de l'affaire">{formatDecisionPeriode(d.decision_periode) || '—'}</td>
                     <td style={td}>{fmtEur(d.setup_amount)}</td>
                     <td style={td}>{fmtEur(d.monthly_amount)}</td>
                     <td style={td}>{fmtDate(d.quote_date)}</td>

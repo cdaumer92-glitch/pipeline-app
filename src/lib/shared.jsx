@@ -310,3 +310,18 @@ export function displayInitials(c) {
       const src = p || n || '?';
       return src.split(/\s+/).map(w => w[0]).filter(Boolean).join('').toUpperCase().slice(0, 2) || '?';
     }
+
+// Décision (réalisation probable d'une affaire) : stockée 'AAAA-Qn', affichée « Qn - AAAA ».
+export const formatDecisionPeriode = (v) => {
+  const m = String(v || '').match(/^(\d{4})-Q([1-4])$/);
+  return m ? `Q${m[2]} - ${m[1]}` : '';
+};
+// Trimestres proposés : de l'année courante à dans 2 ans (+ la valeur courante si hors plage,
+// pour ne pas perdre une décision ancienne déjà saisie).
+export const decisionPeriodeOptions = (current) => {
+  const y = new Date().getFullYear();
+  const out = [];
+  for (let yy = y; yy <= y + 2; yy++) for (let q = 1; q <= 4; q++) out.push(`${yy}-Q${q}`);
+  if (current && !out.includes(current)) out.unshift(current);
+  return out;
+};
