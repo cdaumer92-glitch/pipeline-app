@@ -701,7 +701,7 @@ const ReactDOM = { createRoot, createPortal };
           <NavTabBar
             currentView={currentView}
             onRestore={restoreView}
-            onOpenPalette={() => window.dispatchEvent(new CustomEvent('tw:palette'))}
+            onOpenPalette={() => window.dispatchEvent(new CustomEvent('tw:search-focus'))}
           />
           <Header
             user={user} 

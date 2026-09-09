@@ -251,7 +251,8 @@ const ReactDOM = { createRoot };
       useEffect(() => {
         const onKey = (e) => {
           const k = (e.key || '').toLowerCase();
-          if ((e.ctrlKey || e.metaKey) && k === 'k') { e.preventDefault(); if (openRef.current) closePalette(); else openPalette(); return; }
+          // Ctrl+K : la recherche unique vit dans la barre du haut (Header) ; on y place le curseur.
+          if ((e.ctrlKey || e.metaKey) && k === 'k') { e.preventDefault(); if (openRef.current) closePalette(); window.dispatchEvent(new CustomEvent('tw:search-focus')); return; }
           if (e.key === 'Escape') { if (peek) { closePeek(); return; } if (openRef.current) closePalette(); return; }
           if (!openRef.current) return;
           const flat = flatRef.current;
