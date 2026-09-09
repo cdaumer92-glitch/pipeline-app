@@ -43,7 +43,8 @@ export function useDevisAffaires({ user, API_URL, selectedProspect, fetchAllActi
       const [affaireFormData, setAffaireFormData] = React.useState({
         nom_affaire: '',
         description: '',
-        statut_global: 'En cours'
+        statut_global: 'En cours',
+        decision_periode: ''
       });
       const [selectedAffaireId, setSelectedAffaireId] = React.useState(null);
       const [expandedActionId, setExpandedActionId] = React.useState(null);
@@ -604,7 +605,7 @@ export function useDevisAffaires({ user, API_URL, selectedProspect, fetchAllActi
       };
 
       const handleAddAffaire = () => {
-        setAffaireFormData({ nom_affaire: '', description: '', statut_global: 'En cours' });
+        setAffaireFormData({ nom_affaire: '', description: '', statut_global: 'En cours', decision_periode: '' });
         setEditingAffaireId(null);
         setShowAffaireForm(true);
       };
@@ -613,7 +614,8 @@ export function useDevisAffaires({ user, API_URL, selectedProspect, fetchAllActi
         setAffaireFormData({
           nom_affaire: affaire.nom_affaire,
           description: affaire.description || '',
-          statut_global: affaire.statut_global
+          statut_global: affaire.statut_global,
+          decision_periode: affaire.decision_periode || ''
         });
         setEditingAffaireId(affaire.id);
         setShowAffaireForm(true);
@@ -644,7 +646,7 @@ export function useDevisAffaires({ user, API_URL, selectedProspect, fetchAllActi
             await fetchAffaires(selectedProspect.id);
             setShowAffaireForm(false);
             setEditingAffaireId(null);
-            setAffaireFormData({ nom_affaire: '', description: '', statut_global: 'En cours' });
+            setAffaireFormData({ nom_affaire: '', description: '', statut_global: 'En cours', decision_periode: '' });
           } else {
             window.showToast({title:'Erreur lors de l\'enregistrement', type:'error'});
           }

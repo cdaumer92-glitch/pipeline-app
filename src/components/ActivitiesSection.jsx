@@ -5,6 +5,20 @@ import { I, ICONS, IconBtn, displayName } from '../lib/shared.jsx';
 import { MotifPerteField } from './MotifPerteField.jsx';
 import { DevisSimpleForm } from './DevisSimpleForm.jsx';
 
+// Décision (réalisation probable d'une affaire) : stockée 'AAAA-Qn', affichée « Qn - AAAA ».
+export const formatDecisionPeriode = (v) => {
+  const m = String(v || '').match(/^(\d{4})-Q([1-4])$/);
+  return m ? `Q${m[2]} - ${m[1]}` : '';
+};
+// Trimestres proposés : de l'an dernier à dans 2 ans (+ la valeur courante si hors plage).
+export const decisionPeriodeOptions = (current) => {
+  const y = new Date().getFullYear();
+  const out = [];
+  for (let yy = y - 1; yy <= y + 2; yy++) for (let q = 1; q <= 4; q++) out.push(`${yy}-Q${q}`);
+  if (current && !out.includes(current)) out.unshift(current);
+  return out;
+};
+
 export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, fetchAffaires, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect, onRequestCompleteAction, fetchDevis }) {
       const [actionNotes, setActionNotes] = React.useState({});
       // ── Devis simple (grille Réf/Désignation/PU/Qté/Remise) ──
@@ -18,6 +32,20 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
       };
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
+      // Tri des affaires : 'statut' (ordre serveur : En cours → Gagné → Perdu, puis ordre
+      // personnalisé) ou 'decision' (trimestre de réalisation probable, non renseignées en fin).
+      const [affairesSort, setAffairesSort] = React.useState('statut');
+      const affairesSorted = React.useMemo(() => {
+        const list = affairesList || [];
+        if (affairesSort !== 'decision') return list;
+        return [...list].sort((a, b) => {
+          const da = a.decision_periode || '', db = b.decision_periode || '';
+          if (da && db) return da.localeCompare(db);
+          if (da) return -1;
+          if (db) return 1;
+          return 0;
+        });
+      }, [affairesList, affairesSort]);
 
       // ─── Drag & drop des affaires ───────────────────────────────
       // Le tri par statut (En cours → Gagné → Perdu) reste prioritaire côté serveur ;
@@ -89,18 +117,31 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                 <h3 style={{margin:0,fontSize:'14px',fontWeight:500,color:'var(--tw-ink)'}}>
                   Affaires <span style={{color:'var(--tw-muted)',fontWeight:400}}>· {affairesList?.length || 0}</span>
                 </h3>
-                <button onClick={handleAddAffaire}
-                  style={{background:'var(--tw-ink)',color:'white',border:'none',padding:'6px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:500,cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',fontFamily:"'Inter',sans-serif"}}
-                  onMouseEnter={(e) => e.currentTarget.style.background='#0d2424'}
-                  onMouseLeave={(e) => e.currentTarget.style.background='var(--tw-ink)'}
-                >
-                  {I(ICONS.plus, 11)} Nouvelle affaire
-                </button>
+                <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                  {(affairesList?.length || 0) > 1 && (
+                    <div style={{display:'flex',alignItems:'center',gap:'4px',marginRight:'4px'}} title="Ordre d'affichage des affaires">
+                      <span style={{fontSize:'11px',color:'var(--tw-muted)',marginRight:'2px'}}>Tri</span>
+                      {[['statut','Statut'],['decision','Décision']].map(([k, l]) => (
+                        <button key={k} type="button" onClick={() => setAffairesSort(k)}
+                          style={{border:'0.5px solid var(--tw-border)',background: affairesSort === k ? 'var(--tw-ink)' : 'white',color: affairesSort === k ? 'white' : 'var(--tw-slate)',padding:'4px 9px',borderRadius:'999px',fontSize:'11px',fontWeight:500,cursor:'pointer',fontFamily:"'Inter',sans-serif"}}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <button onClick={handleAddAffaire}
+                    style={{background:'var(--tw-ink)',color:'white',border:'none',padding:'6px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:500,cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',fontFamily:"'Inter',sans-serif"}}
+                    onMouseEnter={(e) => e.currentTarget.style.background='#0d2424'}
+                    onMouseLeave={(e) => e.currentTarget.style.background='var(--tw-ink)'}
+                  >
+                    {I(ICONS.plus, 11)} Nouvelle affaire
+                  </button>
+                </div>
               </div>
 
               {affairesList && affairesList.length > 0 ? (
                 <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
-                  {affairesList.map(affaire => {
+                  {affairesSorted.map(affaire => {
                     const isOpen = selectedAffaireId === affaire.id;
                     const affaireDevis = devisList.filter(d => d.affaire_id === affaire.id).sort((a, b) => new Date(b.quote_date || b.created_at || 0) - new Date(a.quote_date || a.created_at || 0));
                     const statutColor = affaire.statut_global === 'Gagné' ? {bg:'var(--success-soft)',fg:'var(--success)'}
@@ -123,11 +164,11 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                             <div style={{flex:1,minWidth:0}}>
                               <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
                                 <span
-                                  draggable={true}
+                                  draggable={affairesSort !== 'decision'}
                                   onDragStart={(e) => { e.stopPropagation(); handleAffaireDragStart(e, affaire.id); }}
                                   onDragEnd={handleAffaireDragEnd}
                                   onClick={(e) => e.stopPropagation()}
-                                  title="Glisser pour réorganiser"
+                                  title={affairesSort === 'decision' ? 'Réorganisation désactivée en tri par décision' : 'Glisser pour réorganiser'}
                                   style={{cursor:'grab',color:'var(--tw-muted)',fontSize:'14px',lineHeight:1,userSelect:'none',display:'inline-flex',letterSpacing:'-3px',paddingRight:'2px'}}>⋮⋮</span>
                                 <span style={{color:'var(--tw-muted)',display:'inline-flex'}}>
                                   {I(isOpen ? ICONS.chevron : ICONS.chevronR, 12)}
@@ -136,6 +177,11 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                                 <span style={{fontSize:'13px',fontWeight:500,color:'var(--tw-ink)'}}>{affaire.nom_affaire}</span>
                                 <span style={{fontSize:'11px',fontWeight:500,padding:'2px 8px',borderRadius:'10px',background:statutColor.bg,color:statutColor.fg}}>{affaire.statut_global || 'En cours'}</span>
                                 <span style={{fontSize:'11px',color:'var(--tw-muted)'}}>· {affaireDevis.length} devis</span>
+                                {affaire.decision_periode && (
+                                  <span title="Réalisation probable" style={{fontSize:'11px',fontWeight:500,padding:'2px 8px',borderRadius:'10px',background:'var(--tw-bg, #eef2f5)',color:'var(--tw-slate)',border:'0.5px solid var(--tw-border)'}}>
+                                    Décision : {formatDecisionPeriode(affaire.decision_periode)}
+                                  </span>
+                                )}
                               </div>
                               {/* Prochaine action */}
                               {(() => {
@@ -510,13 +556,27 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                   </select>
                 </div>
 
+                <div style={{marginBottom: '20px'}}>
+                  <label style={{display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold'}}>Décision <span style={{fontWeight:'normal',color:'#777'}}>(réalisation probable)</span></label>
+                  <select
+                    value={affaireFormData.decision_periode || ''}
+                    onChange={(e) => setAffaireFormData({...affaireFormData, decision_periode: e.target.value})}
+                    style={{padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '100%', fontSize: '14px'}}
+                  >
+                    <option value="">— Non renseignée —</option>
+                    {decisionPeriodeOptions(affaireFormData.decision_periode).map(v => (
+                      <option key={v} value={v}>{formatDecisionPeriode(v)}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div style={{display: 'flex', gap: '10px', justifyContent: 'flex-end'}}>
                   <button
                     type="button"
                     onClick={() => {
                       setShowAffaireForm(false);
                       setEditingAffaireId(null);
-                      setAffaireFormData({ nom_affaire: '', description: '', statut_global: 'En cours' });
+                      setAffaireFormData({ nom_affaire: '', description: '', statut_global: 'En cours', decision_periode: '' });
                     }}
                     style={{
                       backgroundColor: '#999',

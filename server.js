@@ -278,6 +278,9 @@ async function initDB() {
     // Le tri reste toujours groupé par statut (En cours → Gagné → Perdu) ; display_order
     // n'agit qu'à l'intérieur d'un même groupe de statut.
     await client.query(`ALTER TABLE affaires ADD COLUMN IF NOT EXISTS display_order INTEGER`);
+    // Décision : trimestre + année de réalisation probable de l'affaire, stockée au format
+    // triable 'AAAA-Qn' (ex. 2026-Q3), affichée « Q3 - 2026 ». NULL = non renseignée.
+    await client.query(`ALTER TABLE affaires ADD COLUMN IF NOT EXISTS decision_periode VARCHAR(7)`);
 
     // Table devis
     await client.query(`CREATE TABLE IF NOT EXISTS devis (
@@ -2321,17 +2324,27 @@ app.post('/api/prospects/:id/affaires/reset-order', auth, async (req, res) => {
 });
 
 // POST /api/prospects/:id/affaires - Créer une nouvelle affaire
+// Décision (réalisation probable) : 'AAAA-Qn' | '' | null → valeur normalisée
+// (null si vide), ou false si le format est invalide.
+function normalizeDecisionPeriode(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const m = String(v).trim().toUpperCase().match(/^(\d{4})-Q([1-4])$/);
+  return m ? `${m[1]}-Q${m[2]}` : false;
+}
+
 app.post('/api/prospects/:id/affaires', auth, async (req, res) => {
   if (!(await assertOwnsProspect(req, res, req.params.id))) return;
   try {
     const { id } = req.params;
-    const { nom_affaire, description, statut_global } = req.body;
-    
+    const { nom_affaire, description, statut_global, decision_periode } = req.body;
+    const decision = normalizeDecisionPeriode(decision_periode);
+    if (decision === false) return res.status(400).json({ error: 'decision_periode invalide (format attendu : AAAA-Qn, ex. 2026-Q3)' });
+
     const result = await pool.query(
-      `INSERT INTO affaires (prospect_id, nom_affaire, description, statut_global, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, NOW(), NOW())
+      `INSERT INTO affaires (prospect_id, nom_affaire, description, statut_global, decision_periode, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
        RETURNING *`,
-      [id, nom_affaire, description || null, statut_global || 'En cours']
+      [id, nom_affaire, description || null, statut_global || 'En cours', decision]
     );
     
     res.json(result.rows[0]);
@@ -2369,6 +2382,10 @@ app.put('/api/affaires/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
     const { nom_affaire, description, statut_global, motif_perte } = req.body;
+    // Décision : mise à jour seulement si la clé est fournie ('' ou null = effacer).
+    const hasDecision = Object.prototype.hasOwnProperty.call(req.body, 'decision_periode');
+    const decision = hasDecision ? normalizeDecisionPeriode(req.body.decision_periode) : null;
+    if (decision === false) return res.status(400).json({ error: 'decision_periode invalide (format attendu : AAAA-Qn, ex. 2026-Q3)' });
     // Si on rétablit l'affaire hors de "Perdu", on efface le motif de perte.
     const motifFinal = (statut_global && statut_global !== 'Perdu') ? null
                      : (motif_perte ?? null);
@@ -2383,10 +2400,11 @@ app.put('/api/affaires/:id', auth, async (req, res) => {
            statut_global = COALESCE($3, statut_global),
            motif_perte   = CASE WHEN $3 IS NOT NULL AND $3 <> 'Perdu' THEN NULL
                                 ELSE COALESCE($4, motif_perte) END,
+           decision_periode = CASE WHEN $6::int = 1 THEN $5 ELSE decision_periode END,
            updated_at = NOW()
-       WHERE id = $5
+       WHERE id = $7
        RETURNING *`,
-      [nom_affaire ?? null, description ?? null, statut_global ?? null, motif_perte ?? null, id]
+      [nom_affaire ?? null, description ?? null, statut_global ?? null, motif_perte ?? null, decision, hasDecision ? 1 : 0, id]
     );
     
     if (result.rows.length === 0) {
@@ -6336,6 +6354,7 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
               'id',       a.id,
               'nom',      a.nom_affaire,
               'statut',   a.statut_global,
+              'decision', a.decision_periode,
               'setup',    COALESCE(dpa.setup_amount, 0),
               'monthly',  COALESCE(dpa.monthly_amount, 0),
               'annual',   COALESCE(dpa.annual_amount, 0),

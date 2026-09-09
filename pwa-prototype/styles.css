@@ -178,6 +178,9 @@ button.col.open{background:transparent;border:0;font:inherit;color:inherit;text-
 .devis .name{font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .devis .meta{font-size:12px;color:var(--muted)}
 .btn-sm{padding:7px 11px;font-size:12.5px}
+.sortbar{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;color:var(--muted)}
+.sortbtn{padding:5px 11px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--slate);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.sortbtn.active{background:var(--teal);color:#fff;border-color:var(--teal)}
 
 /* ── Visionneuse PDF plein écran ── */
 .pdfview{position:fixed;inset:0;z-index:58;background:var(--bg);display:flex;flex-direction:column}

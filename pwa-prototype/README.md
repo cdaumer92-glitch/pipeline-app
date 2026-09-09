@@ -42,7 +42,9 @@ Puis ouvrir **http://localhost:5173**.
      Principal / Décideur / Externe ; clic → fiche contact détaillée avec liens `tel:` / `mailto:`).
    - **Sites** — `GET /api/prospects/:id/sites`.
    - **Boutiques** — `GET /api/prospects/:id/boutiques`.
-   - **Affaires** — `GET /api/prospects/:id/affaires` (statut + montants + nb devis) ; chaque
+   - **Affaires** — `GET /api/prospects/:id/affaires` (statut + montants + nb devis + **Décision**,
+     trimestre de réalisation probable saisi dans le CRM, ex. « Q3 - 2026 », avec tri Statut /
+     Décision) ; chaque
      affaire se déplie sur ses devis (`GET /api/affaires/:id/devis`) et « Voir la proposition »
      ouvre le PDF du devis (`GET /api/devis/:id/download-pdf`, récupéré avec le jeton) dans un
      panneau plein écran, avec partage (Web Share) sur mobile. Le PDF est dessiné page par page

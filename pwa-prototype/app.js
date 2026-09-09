@@ -984,13 +984,29 @@ function statutTag(st) {
 
 /* Affaires : chaque ligne se déplie pour lister ses devis (chargés à la demande,
    GET /affaires/:id/devis) ; un devis avec PDF propose « Voir la proposition ». */
+/* Décision (réalisation probable) : 'AAAA-Qn' → « Qn - AAAA ». */
+function fmtPeriode(v) { const m = String(v || '').match(/^(\d{4})-Q([1-4])$/); return m ? `Q${m[2]} - ${m[1]}` : ''; }
+let AFF_SORT = 'statut'; // 'statut' (ordre serveur) | 'decision' (trimestre, non renseignées en fin)
+let AFF_ROWS = [];
+function sortAffaires(rows) {
+  if (AFF_SORT !== 'decision') return rows;
+  return [...rows].sort((a, b) => {
+    const da = a.decision_periode || '', db = b.decision_periode || '';
+    if (da && db) return da.localeCompare(db);
+    return da ? -1 : db ? 1 : 0;
+  });
+}
 function renderAffaires(rows) {
+  AFF_ROWS = rows;
   if (!rows.length) return empty('Aucune affaire.');
-  const html = `<div class="list">` + rows.map((a) => `
+  const sortbar = rows.length > 1 ? `<div class="sortbar"><span>Tri</span>` +
+    `<button class="sortbtn${AFF_SORT === 'statut' ? ' active' : ''}" data-affsort="statut">Statut</button>` +
+    `<button class="sortbtn${AFF_SORT === 'decision' ? ' active' : ''}" data-affsort="decision">Décision</button></div>` : '';
+  const html = sortbar + `<div class="list">` + sortAffaires(rows).map((a) => `
     <button class="row link aff" data-aff="${a.id}">
       <div class="ico">📁</div>
       <div class="col">
-        <div class="name">${esc(a.nom_affaire || '(affaire)')} ${statutTag(a.statut_global)}</div>
+        <div class="name">${esc(a.nom_affaire || '(affaire)')} ${statutTag(a.statut_global)}${a.decision_periode ? `<span class="pill" title="Réalisation probable">Décision : ${esc(fmtPeriode(a.decision_periode))}</span>` : ''}</div>
         <div class="meta">${esc(moneyLine(a))}${a.nb_devis ? ` · ${a.nb_devis} devis` : ''}</div>
       </div>
       <span class="aff-chev">›</span>
@@ -999,6 +1015,8 @@ function renderAffaires(rows) {
   setTimeout(() => {
     document.querySelectorAll('#tab-panel .row.aff').forEach((el) =>
       el.addEventListener('click', () => toggleAffaire(el)));
+    document.querySelectorAll('#tab-panel [data-affsort]').forEach((el) =>
+      el.addEventListener('click', () => { AFF_SORT = el.dataset.affsort; $('tab-panel').innerHTML = renderAffaires(AFF_ROWS); }));
   }, 0);
   return html;
 }
