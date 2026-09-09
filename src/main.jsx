@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import './overlay.jsx';
 import { CampagnesPage } from './components/Campagnes.jsx';
 import { KanbanView } from './components/KanbanView.jsx';
+import { QuickDevisSimple } from './components/QuickDevisSimple.jsx';
 import { styles } from './lib/styles.js';
 import { ACTION_TYPES, API_URL } from './lib/constants.js';
 import { useProspectsData } from './hooks/useProspectsData.js';
@@ -162,6 +163,7 @@ const ReactDOM = { createRoot, createPortal };
       const [showAttribution, setShowAttribution] = React.useState(false);
       const [showCampagnes, setShowCampagnes] = React.useState(false);
       const [showPipeline, setShowPipeline] = React.useState(false); // vue Kanban du pipeline
+      const [quickDevisOpen, setQuickDevisOpen] = React.useState(false); // menu « Créer un devis → Devis simple »
       const isUserAdmin = (u) => u && ['Christian', 'Frédéric', 'Frederic'].includes(u.name);
       const [selectedCommercial, setSelectedCommercial] = React.useState(null);
       const [showSettings, setShowSettings] = React.useState(false);
@@ -720,12 +722,25 @@ const ReactDOM = { createRoot, createPortal };
             prospects={isUserAdmin(user) ? prospects : prospects.filter(p => p.assigned_to === user.name)}
             onSelectProspect={handleSelectProspect}
             onNewProspect={handleNewProspect}
+            onNewDevisConfigurateur={() => window.open('/configurateur?' + new URLSearchParams({ commercial: user.name || '' }).toString(), '_blank')}
+            onNewDevisSimple={() => setQuickDevisOpen(true)}
           />
 
           {/* Emplacement du fil d'Ariane (rempli par NavTabBar via portail) : sous le menu, au-dessus du contenu. */}
           <div id="tw-breadcrumb-slot"></div>
 
           {showSettings && <Settings onClose={() => setShowSettings(false)} user={user} />}
+
+          {/* « Créer un devis → Devis simple » depuis le menu : société choisie d'abord, puis la grille. */}
+          {quickDevisOpen && (
+            <QuickDevisSimple
+              prospects={isUserAdmin(user) ? prospects : prospects.filter(p => p.assigned_to === user.name)}
+              user={user}
+              API_URL={API_URL}
+              onClose={() => setQuickDevisOpen(false)}
+              onOpenFiche={(p) => { setQuickDevisOpen(false); handleSelectProspect(p); }}
+            />
+          )}
 
           {showAttribution && (
             <AttributionView

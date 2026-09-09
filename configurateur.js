@@ -3124,43 +3124,180 @@ function buildConfigObject() {
   };
 }
 
-// Ouvre la modale de confirmation avec récap
-function openSaveInAffaireModal() {
-  if (!CTX.affaire_id) {
-    window.showToast({title:"Ce devis n'est pas rattaché à une affaire. Ouvrez le configurateur depuis une fiche d'affaire pour l'enregistrer.", type:'info'});
-    return;
+// ── Enregistrement dans Pipeline ──────────────────────────────────────────
+// Un devis ne peut pas être enregistré sans société. Ouvert depuis une fiche, la
+// société (et éventuellement l'affaire) sont connues ; ouvert depuis le menu
+// « Créer un devis → Avec configurateur », on peut estimer librement, puis
+// choisir la société ici, et rattacher le devis à une affaire « En cours »
+// existante ou en créer une (nom + décision) au moment de l'enregistrement.
+const SAVE_CTX = { affaires: [], choice: 'new', newName: '', decision: '', searchTimer: null, searchSeq: 0 };
+
+function escHtmlSave(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function fmtPeriodeSave(v) {
+  const m = String(v || '').match(/^(\d{4})-Q([1-4])$/);
+  return m ? `Q${m[2]} - ${m[1]}` : '';
+}
+// Trimestres proposés : de l'année courante à dans 2 ans.
+function decisionOptionsHtmlSave(selected) {
+  const y = new Date().getFullYear();
+  let html = '';
+  for (let yy = y; yy <= y + 2; yy++) for (let q = 1; q <= 4; q++) {
+    const v = `${yy}-Q${q}`;
+    html += `<option value="${v}" ${v === selected ? 'selected' : ''}>${fmtPeriodeSave(v)}</option>`;
   }
-  const societe = document.getElementById('societe')?.value?.trim() || '';
-  if (!societe || societe === 'Nom de la Société') {
-    window.showToast({title:'Veuillez renseigner le nom de la société.', type:'warning'});
-    return;
+  return html;
+}
+
+// Recherche d'une société Pipeline (GET /api/search, entrées de type prospect).
+function searchSocieteForSave(q) {
+  clearTimeout(SAVE_CTX.searchTimer);
+  const box = document.getElementById('saveDevisSocieteResults');
+  if (!box) return;
+  const query = String(q || '').trim();
+  if (query.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  SAVE_CTX.searchTimer = setTimeout(async () => {
+    const seq = ++SAVE_CTX.searchSeq;
+    const token = getAuthToken();
+    try {
+      const resp = await fetch('/api/search?q=' + encodeURIComponent(query), { headers: { 'Authorization': `Bearer ${token}` } });
+      const rows = resp.ok ? await resp.json() : [];
+      if (seq !== SAVE_CTX.searchSeq) return;
+      const socs = (Array.isArray(rows) ? rows : []).filter(r => r.type === 'prospect');
+      box.innerHTML = socs.length
+        ? socs.map(r => `<div class="save-soc-item" data-id="${r.entityId}" data-name="${escHtmlSave(r.label)}" style="padding:8px 10px;cursor:pointer;border-top:1px solid #e6f1f1;font-size:0.9rem;"><strong>${escHtmlSave(r.label)}</strong>${r.sub ? ` <span style="color:#607a7a;">· ${escHtmlSave(r.sub)}</span>` : ''}</div>`).join('')
+        : `<div style="padding:8px 10px;color:#607a7a;font-size:0.85rem;">Aucune société trouvée.</div>`;
+      box.style.display = '';
+      box.querySelectorAll('.save-soc-item').forEach(el => el.addEventListener('click', () => pickSocieteForSave(el.dataset.id, el.dataset.name)));
+    } catch (_) { box.style.display = 'none'; }
+  }, 250);
+}
+
+async function pickSocieteForSave(id, name) {
+  CTX.prospect_id = String(id);
+  CTX.societe = name || '';
+  const chosen = document.getElementById('saveDevisSocieteChosen');
+  if (chosen) chosen.textContent = 'Société choisie : ' + (name || '#' + id);
+  const box = document.getElementById('saveDevisSocieteResults');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  const input = document.getElementById('saveDevisSocieteSearch');
+  if (input) input.value = name || '';
+  // Reporte le nom dans l'en-tête du devis s'il n'était pas renseigné.
+  const societeInput = document.getElementById('societe');
+  if (societeInput && (!societeInput.value.trim() || societeInput.value === 'Nom de la Société')) societeInput.value = name || '';
+  // Nom de devis par défaut recalculé avec le trigramme de la société.
+  const nameInput = document.getElementById('saveDevisName');
+  if (nameInput && name) nameInput.value = `${makeTrigramme(name)}_DTW_${todayShort()}`;
+  document.getElementById('saveDevisError').style.display = 'none';
+  await loadAffairesForSave();
+  renderSaveRecap();
+}
+
+async function loadAffairesForSave() {
+  SAVE_CTX.affaires = [];
+  if (!CTX.prospect_id || CTX.affaire_id) { renderSaveAffaireBlock(); return; }
+  try {
+    const token = getAuthToken();
+    const resp = await fetch(`/api/prospects/${CTX.prospect_id}/affaires`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const list = resp.ok ? await resp.json() : [];
+    SAVE_CTX.affaires = (Array.isArray(list) ? list : []).filter(a => (a.statut_global || 'En cours') === 'En cours');
+  } catch (_) { SAVE_CTX.affaires = []; }
+  // Par défaut : rattacher à la première affaire en cours (évite les doublons), sinon nouvelle.
+  SAVE_CTX.choice = SAVE_CTX.affaires.length ? String(SAVE_CTX.affaires[0].id) : 'new';
+  renderSaveAffaireBlock();
+}
+
+function renderSaveAffaireBlock() {
+  const block = document.getElementById('saveDevisAffaireBlock');
+  if (!block) return;
+  if (!CTX.prospect_id || CTX.affaire_id) { block.style.display = 'none'; block.innerHTML = ''; return; }
+  const lbl = 'display:block;font-size:0.8rem;color:#607a7a;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;';
+  const radio = 'display:flex;align-items:center;gap:8px;font-size:0.9rem;cursor:pointer;margin:4px 0;';
+  const field = 'width:100%;padding:7px 9px;border:1.5px solid #a8d0d3;border-radius:6px;font-family:\'Lato\',sans-serif;font-size:0.9rem;box-sizing:border-box;';
+  const defName = SAVE_CTX.newName || document.getElementById('saveDevisName')?.value || '';
+  let html = `<label style="${lbl}">Affaire</label>`;
+  html += SAVE_CTX.affaires.map(a =>
+    `<label style="${radio}"><input type="radio" name="saveAffaire" value="${a.id}" ${String(SAVE_CTX.choice) === String(a.id) ? 'checked' : ''}> Rattacher à <strong>${escHtmlSave(a.nom_affaire)}</strong>${a.decision_periode ? ` <span style="color:#607a7a;">· Décision ${fmtPeriodeSave(a.decision_periode)}</span>` : ''}</label>`
+  ).join('');
+  html += `<label style="${radio}"><input type="radio" name="saveAffaire" value="new" ${SAVE_CTX.choice === 'new' ? 'checked' : ''}> Nouvelle affaire</label>`;
+  if (SAVE_CTX.choice === 'new') {
+    html += `<div style="margin:4px 0 0 24px;display:grid;grid-template-columns:1fr 200px;gap:8px;">
+      <input type="text" id="saveAffaireName" placeholder="Nom de l'affaire" value="${escHtmlSave(defName)}" style="${field}">
+      <select id="saveAffaireDecision" title="Décision (réalisation probable)" style="${field}">
+        <option value="">Décision : non renseignée</option>${decisionOptionsHtmlSave(SAVE_CTX.decision)}
+      </select>
+    </div>`;
   }
+  block.innerHTML = html;
+  block.style.display = '';
+  block.querySelectorAll('input[name="saveAffaire"]').forEach(r => r.addEventListener('change', () => {
+    const n = document.getElementById('saveAffaireName'); if (n) SAVE_CTX.newName = n.value;
+    const d = document.getElementById('saveAffaireDecision'); if (d) SAVE_CTX.decision = d.value;
+    SAVE_CTX.choice = r.value;
+    renderSaveAffaireBlock();
+    renderSaveRecap();
+  }));
+  const n = document.getElementById('saveAffaireName'); if (n) n.addEventListener('input', () => { SAVE_CTX.newName = n.value; });
+  const d = document.getElementById('saveAffaireDecision'); if (d) d.addEventListener('change', () => { SAVE_CTX.decision = d.value; });
+}
+
+function renderSaveRecap() {
+  const societe = CTX.societe || document.getElementById('societe')?.value?.trim() || '';
   const contact = document.getElementById('contact')?.value?.trim() || '(aucun)';
   const m = extractMontantsForSave();
-
-  const recapHtml = `
-    <div><strong>Société :</strong> ${societe}</div>
-    <div><strong>Contact :</strong> ${contact}</div>
-    <div><strong>Affaire ID :</strong> #${CTX.affaire_id}</div>
+  let affaireTxt;
+  if (CTX.affaire_id) affaireTxt = `#${CTX.affaire_id}`;
+  else if (!CTX.prospect_id) affaireTxt = '<em>choisir la société d\'abord</em>';
+  else if (SAVE_CTX.choice === 'new') affaireTxt = 'nouvelle affaire';
+  else { const a = SAVE_CTX.affaires.find(x => String(x.id) === String(SAVE_CTX.choice)); affaireTxt = a ? escHtmlSave(a.nom_affaire) : '—'; }
+  document.getElementById('saveDevisRecap').innerHTML = `
+    <div><strong>Société :</strong> ${CTX.prospect_id ? escHtmlSave(societe) : '<em style="color:#b45309;">non choisie — obligatoire</em>'}</div>
+    <div><strong>Contact :</strong> ${escHtmlSave(contact)}</div>
+    <div><strong>Affaire :</strong> ${affaireTxt}</div>
     <hr style="border:none;border-top:1px solid #cde8e8;margin:10px 0;">
     <div><strong>Setup :</strong> ${fmtEur(m.setup)} HT</div>
     <div><strong>Abonnement mensuel :</strong> ${fmtEur(m.monthly)} HT</div>
     <div><strong>Abonnement annuel :</strong> ${fmtEur(m.annual)} HT</div>
     <div><strong>Formation :</strong> ${fmtEur(m.training)} HT</div>
   `;
-  document.getElementById('saveDevisRecap').innerHTML = recapHtml;
+}
+
+// Ouvre la modale d'enregistrement (société et affaire choisies ici si absentes).
+function openSaveInAffaireModal() {
+  const societeInput = document.getElementById('societe')?.value?.trim() || '';
+  if (!CTX.societe && societeInput && societeInput !== 'Nom de la Société') CTX.societe = societeInput;
 
   // Nom de devis pré-rempli : [TRIGRAMME]_DTW_DD/MM/YY
-  const defaultName = `${makeTrigramme(societe)}_DTW_${todayShort()}`;
-  document.getElementById('saveDevisName').value = defaultName;
+  const base = CTX.societe || societeInput;
+  document.getElementById('saveDevisName').value = `${makeTrigramme(base)}_DTW_${todayShort()}`;
 
+  // Bloc société : uniquement si le configurateur a été ouvert sans société (estimation).
+  const socBlock = document.getElementById('saveDevisSocieteBlock');
+  if (socBlock) {
+    socBlock.style.display = CTX.prospect_id ? 'none' : '';
+    const input = document.getElementById('saveDevisSocieteSearch');
+    if (input && !input.dataset.bound) {
+      input.dataset.bound = '1';
+      input.addEventListener('input', () => searchSocieteForSave(input.value));
+    }
+    if (input && !CTX.prospect_id) { input.value = societeInput !== 'Nom de la Société' ? societeInput : ''; }
+    const chosen = document.getElementById('saveDevisSocieteChosen'); if (chosen) chosen.textContent = '';
+    const res = document.getElementById('saveDevisSocieteResults'); if (res) { res.style.display = 'none'; res.innerHTML = ''; }
+    // Si un nom de société est déjà saisi dans l'en-tête, on lance la recherche tout de suite.
+    if (input && !CTX.prospect_id && input.value.trim().length >= 2) searchSocieteForSave(input.value);
+  }
+
+  SAVE_CTX.newName = ''; SAVE_CTX.decision = '';
   document.getElementById('saveDevisError').style.display = 'none';
   document.getElementById('saveDevisConfirmBtn').disabled = false;
   document.getElementById('saveDevisConfirmBtn').textContent = 'Enregistrer le devis';
   document.getElementById('saveDevisModal').classList.add('open');
+  renderSaveRecap();
+  loadAffairesForSave();
 }
 
-// Confirme la sauvegarde : POST vers /api/affaires/:id/devis
+// Confirme : crée l'affaire si demandé, puis POST /api/affaires/:id/devis
 async function confirmSaveDevis() {
   // Bug 3 : Validation cohérence licences MyReport (Manager + User + Center == qté Kub)
   const kubError = validateKubLicences();
@@ -3178,7 +3315,11 @@ async function confirmSaveDevis() {
 
   const token = getAuthToken();
   if (!token) {
-    showSaveError("Session expirée. Fermez cet onglet, reconnectez-vous à Pipeline, puis réouvrez le configurateur depuis l'affaire.");
+    showSaveError("Session expirée. Fermez cet onglet, reconnectez-vous à Pipeline, puis réouvrez le configurateur.");
+    return;
+  }
+  if (!CTX.prospect_id) {
+    showSaveError("Choisissez une société : un devis ne peut pas être enregistré sans société.");
     return;
   }
   const btn = document.getElementById('saveDevisConfirmBtn');
@@ -3186,45 +3327,54 @@ async function confirmSaveDevis() {
   btn.textContent = 'Enregistrement...';
 
   const devisName = document.getElementById('saveDevisName').value.trim()
-    || `${makeTrigramme(document.getElementById('societe').value)}_DTW_${todayShort()}`;
+    || `${makeTrigramme(CTX.societe || document.getElementById('societe').value)}_DTW_${todayShort()}`;
 
   const m = extractMontantsForSave();
   const modulesPayload = buildConfigObject();
-
   const today = new Date().toISOString().split('T')[0];
-
-  const body = {
-    devis_name: devisName,
-    devis_status: 'En cours',
-    quote_date: today,
-    setup_amount: m.setup,
-    monthly_amount: m.monthly,
-    annual_amount: m.annual,
-    training_amount: m.training,
-    chance_percent: 0,
-    modules: modulesPayload,
-    comment: ''
-  };
+  const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
 
   try {
-    const resp = await fetch(`/api/affaires/${CTX.affaire_id}/devis`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(body)
-    });
+    // Affaire cible : celle de l'URL, une affaire en cours choisie, ou une nouvelle affaire.
+    let affaireId = CTX.affaire_id;
+    if (!affaireId) {
+      if (SAVE_CTX.choice === 'new') {
+        const nom = (document.getElementById('saveAffaireName')?.value || SAVE_CTX.newName || devisName).trim() || devisName;
+        const decision = document.getElementById('saveAffaireDecision')?.value || SAVE_CTX.decision || null;
+        const ra = await fetch(`/api/prospects/${CTX.prospect_id}/affaires`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ nom_affaire: nom, description: 'Créée depuis le configurateur', statut_global: 'En cours', decision_periode: decision || null })
+        });
+        if (!ra.ok) { const e = await ra.json().catch(() => ({})); throw new Error("Création de l'affaire : " + (e.error || `HTTP ${ra.status}`)); }
+        affaireId = (await ra.json()).id;
+      } else {
+        affaireId = SAVE_CTX.choice;
+      }
+    }
+
+    const body = {
+      devis_name: devisName,
+      devis_status: 'En cours',
+      quote_date: today,
+      setup_amount: m.setup,
+      monthly_amount: m.monthly,
+      annual_amount: m.annual,
+      training_amount: m.training,
+      chance_percent: 0,
+      modules: modulesPayload,
+      comment: ''
+    };
+    const resp = await fetch(`/api/affaires/${affaireId}/devis`, { method: 'POST', headers, body: JSON.stringify(body) });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       throw new Error(err.error || `HTTP ${resp.status}`);
     }
+    CTX.affaire_id = String(affaireId);
     // Succès : notifier l'onglet parent + fermer
     if (window.opener && !window.opener.closed) {
       window.opener.postMessage({ type: 'devis_saved', prospect_id: CTX.prospect_id, affaire_id: CTX.affaire_id }, window.location.origin);
     }
     document.getElementById('saveDevisModal').classList.remove('open');
-    // Petit feedback avant fermeture
     window.showToast({title:'Devis enregistré ✓', type:'success'});
     setTimeout(() => window.close(), 2200);
   } catch (err) {
@@ -3233,7 +3383,6 @@ async function confirmSaveDevis() {
     btn.textContent = 'Enregistrer le devis';
   }
 }
-
 function showSaveError(msg) {
   const el = document.getElementById('saveDevisError');
   el.textContent = msg;
@@ -3290,8 +3439,8 @@ async function initFromUrlParams() {
       btnSave.style.borderColor = '#0284c7';
       btnSave.setAttribute('onclick', 'updateDevis()');
       btnSave.onclick = updateDevis; // double sécurité : écrase aussi le handler inline du HTML
-    } else if (CTX.affaire_id) {
-      // Mode création depuis une affaire
+    } else {
+      // Mode création : toujours proposé ; société et affaire sont choisies dans la modale si absentes.
       btnSave.style.display = '';
       btnSave.setAttribute('onclick', 'openSaveInAffaireModal()');
       btnSave.onclick = openSaveInAffaireModal;

@@ -197,7 +197,7 @@ export function useDevisAffaires({ user, API_URL, selectedProspect, fetchAllActi
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                nom_affaire: `${selectedProspect.name} / Affaire Tempo`,
+                nom_affaire: (devisFormData.devis_name && devisFormData.devis_name.trim()) || `${selectedProspect.name} / Affaire`,
                 description: 'Affaire créée automatiquement',
                 statut_global: 'En cours'
               })

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { displayName } from '../lib/shared.jsx';
+import { displayName, formatDecisionPeriode, decisionPeriodeOptions } from '../lib/shared.jsx';
 
 // ── Devis simple : grille de saisie Réf / Désignation / PU HT / Qté / Remise ──
 // Créé depuis la modale « Nouveau devis » → « Créer un devis ». Les lignes sont
@@ -45,6 +45,31 @@ export function DevisSimpleForm({ prospect, interlocuteurs = [], affaireId, user
   );
   const [saving, setSaving] = React.useState(false);
 
+  // ── Affaire (création seulement, quand aucune affaire n'est imposée par l'appelant) ──
+  // Un devis appartient toujours à une affaire : on rattache à une affaire « En cours »
+  // existante de la société, ou on en crée une (nom + décision) à l'enregistrement.
+  const needAffaire = !editingDevis && !affaireId;
+  const [affaires, setAffaires] = React.useState([]);
+  const [affaireChoice, setAffaireChoice] = React.useState('new'); // 'new' | id (string)
+  const [newAffaireName, setNewAffaireName] = React.useState('');
+  const [newAffaireDecision, setNewAffaireDecision] = React.useState('');
+  const defaultAffaireName = `${prospect?.name || 'Société'} – devis du ${quoteDate.split('-').reverse().join('/')}`;
+  React.useEffect(() => {
+    if (!needAffaire || !prospect?.id) return;
+    let alive = true;
+    fetch(`${API_URL}/prospects/${prospect.id}/affaires`, { headers: { 'Authorization': `Bearer ${user.token}` } })
+      .then(r => (r.ok ? r.json() : []))
+      .then(list => {
+        if (!alive) return;
+        const enCours = (Array.isArray(list) ? list : []).filter(a => (a.statut_global || 'En cours') === 'En cours');
+        setAffaires(enCours);
+        // Par défaut : rattacher à la première affaire en cours (évite les doublons), sinon nouvelle.
+        setAffaireChoice(enCours.length ? String(enCours[0].id) : 'new');
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [needAffaire, prospect?.id]);
+
   const maj = (i, champ, val) => setLignes(ls => ls.map((l, j) => j === i ? { ...l, [champ]: val } : l));
   const totalLigne = (l) => {
     const pu = parseMontant(l.pu), qte = parseFloat(l.qte) || 0, remise = parseFloat(l.remise) || 0;
@@ -79,6 +104,21 @@ export function DevisSimpleForm({ prospect, interlocuteurs = [], affaireId, user
     try {
       const hdrs = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` };
       const lignes_json = { lignes: lignesValides, validite: validite.trim() || '1 mois', attention_de: attentionDe, attention_civilite: civilite, tva_rate: 20 };
+      // Affaire cible : imposée par l'appelant, choisie parmi les affaires en cours, ou créée maintenant.
+      let affaireIdToUse = affaireId || null;
+      if (needAffaire) {
+        if (affaireChoice === 'new') {
+          const nom = newAffaireName.trim() || defaultAffaireName;
+          const ra = await fetch(`${API_URL}/prospects/${prospect.id}/affaires`, {
+            method: 'POST', headers: hdrs,
+            body: JSON.stringify({ nom_affaire: nom, description: 'Créée depuis le devis simple', statut_global: 'En cours', decision_periode: newAffaireDecision || null })
+          });
+          if (!ra.ok) throw new Error("Création de l'affaire : HTTP " + ra.status);
+          affaireIdToUse = (await ra.json()).id;
+        } else {
+          affaireIdToUse = parseInt(affaireChoice, 10);
+        }
+      }
       let devisId, devisName;
       if (editingDevis) {
         const r = await fetch(`${API_URL}/devis/${editingDevis.id}`, {
@@ -92,7 +132,7 @@ export function DevisSimpleForm({ prospect, interlocuteurs = [], affaireId, user
         const r = await fetch(`${API_URL}/prospects/${prospect.id}/devis`, {
           method: 'POST', headers: hdrs,
           body: JSON.stringify({
-            affaire_id: affaireId || null, devis_status: 'En cours', quote_date: quoteDate,
+            affaire_id: affaireIdToUse, devis_status: 'En cours', quote_date: quoteDate,
             setup_amount: totalHT, chance_percent: 50, lignes_json,
           })
         });
@@ -132,6 +172,40 @@ export function DevisSimpleForm({ prospect, interlocuteurs = [], affaireId, user
           {editingDevis ? `Devis ${editingDevis.devis_name}` : 'Nouveau devis'}
         </h3>
         <p style={{ margin: '0 0 16px', fontSize: '13px', color: 'var(--tw-muted)' }}>{prospect?.name}</p>
+
+        {needAffaire && (
+          <div style={{ border: '1px solid var(--tw-border)', borderRadius: '10px', padding: '12px 14px', marginBottom: '16px', background: 'var(--tw-bg, #f6f8fa)' }}>
+            <label style={lbl}>Affaire</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {affaires.map(a => (
+                <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+                  <input type="radio" name="affaire-choice" checked={affaireChoice === String(a.id)} onChange={() => setAffaireChoice(String(a.id))} />
+                  <span>Rattacher à <strong>{a.nom_affaire}</strong>{a.decision_periode ? <span style={{ color: 'var(--tw-muted)' }}> · Décision {formatDecisionPeriode(a.decision_periode)}</span> : null}</span>
+                </label>
+              ))}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+                <input type="radio" name="affaire-choice" checked={affaireChoice === 'new'} onChange={() => setAffaireChoice('new')} />
+                <span>Nouvelle affaire</span>
+              </label>
+              {affaireChoice === 'new' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: '10px', marginLeft: '24px' }}>
+                  <div>
+                    <label style={lbl}>Nom de l'affaire</label>
+                    <input value={newAffaireName} onChange={e => setNewAffaireName(e.target.value)} placeholder={defaultAffaireName} style={inp} />
+                  </div>
+                  <div>
+                    <label style={lbl}>Décision (réalisation probable)</label>
+                    <select value={newAffaireDecision} onChange={e => setNewAffaireDecision(e.target.value)} style={inp}>
+                      <option value="">— Non renseignée —</option>
+                      {decisionPeriodeOptions(newAffaireDecision).map(v => <option key={v} value={v}>{formatDecisionPeriode(v)}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.4fr', gap: '10px', marginBottom: '16px' }}>
           <div>

@@ -1,15 +1,18 @@
 import * as React from 'react';
 import { prospectDisplayName } from '../lib/shared.jsx';
 
-export function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSettings, onAttribution, showAttribution, onCampagnes, showCampagnes, onPipeline, showPipeline, onListe, activeListe, prospects, onSelectProspect, onNewProspect, dueTodayCount, onOpenMyActions }) {
+export function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSettings, onAttribution, showAttribution, onCampagnes, showCampagnes, onPipeline, showPipeline, onListe, activeListe, prospects, onSelectProspect, onNewProspect, dueTodayCount, onOpenMyActions, onNewDevisConfigurateur, onNewDevisSimple }) {
       const [globalSearch, setGlobalSearch] = React.useState('');
       const [showResults, setShowResults] = React.useState(false);
       const [searchIndex, setSearchIndex] = React.useState(-1);
       const searchRef = React.useRef(null);
+      const [showDevisMenu, setShowDevisMenu] = React.useState(false);
+      const devisMenuRef = React.useRef(null);
 
       React.useEffect(() => {
         const handleClickOutside = (e) => {
           if (searchRef.current && !searchRef.current.contains(e.target)) setShowResults(false);
+          if (devisMenuRef.current && !devisMenuRef.current.contains(e.target)) setShowDevisMenu(false);
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -135,6 +138,33 @@ export function Header({ user, onLogout, onDashboard, onSuivi, isDashboard, onSe
               🔔 {dueTodayCount} à faire
             </button>
           )}
+
+          {/* CRÉER UN DEVIS — deux portes : configurateur (estimation libre, société choisie à
+              l'enregistrement) ou devis simple (société choisie d'abord). */}
+          <div ref={devisMenuRef} style={{position:'relative'}}>
+            <button
+              onClick={() => setShowDevisMenu(v => !v)}
+              title="Créer un devis"
+              style={{display:'flex',alignItems:'center',gap:'6px',background: showDevisMenu ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.10)',border:'1px solid rgba(255,255,255,.16)',borderRadius:'999px',padding:'6px 12px',fontSize:'13px',fontWeight:600,fontFamily:'Inter,sans-serif',color:'#fff',cursor:'pointer',whiteSpace:'nowrap',transition:'all .15s'}}
+              onMouseEnter={(e) => { e.currentTarget.style.background='rgba(255,255,255,.22)'; }}
+              onMouseLeave={(e) => { if (!showDevisMenu) e.currentTarget.style.background='rgba(255,255,255,.10)'; }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6M9 11h2"/></svg>
+              Créer un devis <span style={{fontSize:'9px',opacity:.8}}>▾</span>
+            </button>
+            {showDevisMenu && (
+              <div className="tw-search-dropdown" style={{left:'auto',right:0,minWidth:'300px'}}>
+                <div className="tw-search-item" onClick={() => { setShowDevisMenu(false); if (onNewDevisConfigurateur) onNewDevisConfigurateur(); }}>
+                  <div style={{fontWeight:600,fontSize:'13px',color:'var(--tw-ink)'}}>📦 Avec configurateur</div>
+                  <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'2px'}}>Modules, abonnements, formation. Estimation libre ; la société est choisie à l'enregistrement.</div>
+                </div>
+                <div className="tw-search-item" onClick={() => { setShowDevisMenu(false); if (onNewDevisSimple) onNewDevisSimple(); }}>
+                  <div style={{fontWeight:600,fontSize:'13px',color:'var(--tw-ink)'}}>📝 Devis simple</div>
+                  <div style={{fontSize:'11px',color:'var(--tw-muted)',marginTop:'2px'}}>Grille Réf / Désignation / PU / Qté → PDF. La société est choisie d'abord.</div>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* CTA NOUVELLE SOCIÉTÉ — bouton primaire noir style Vercel/Stripe */}
           <button
