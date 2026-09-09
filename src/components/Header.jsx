@@ -244,8 +244,8 @@ export function Header({ user, onLogout, onDashboard, isDashboard, onSettings, o
             </button>
             {showUserMenu && (
               <div className="tw-search-dropdown" style={{left:'auto',right:0,minWidth:'240px'}}>
-                {menuItem('📣 Campagnes', 'Emailings, notes d\'information, opt-in', () => { setShowUserMenu(false); onCampagnes(); }, { style: showCampagnes ? { background: 'var(--tw-teal-light)' } : undefined })}
                 {isAdmin && menuItem('⚙️ Paramètres', null, () => { setShowUserMenu(false); onSettings(); })}
+                {menuItem('📣 Campagnes', 'Emailings, notes d\'information, opt-in', () => { setShowUserMenu(false); onCampagnes(); }, { style: showCampagnes ? { background: 'var(--tw-teal-light)' } : undefined })}
                 {user.name === 'Christian' && menuItem('🗂️ Attribution', 'Répartition des sociétés entre commerciaux', () => { setShowUserMenu(false); onAttribution(); })}
                 {menuItem('Déconnexion', null, () => { setShowUserMenu(false); onLogout(); }, { danger: true, style: { borderTop: '0.5px solid var(--tw-border)' } })}
               </div>
