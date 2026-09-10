@@ -23,6 +23,7 @@ export function Header({ user, onLogout, onDashboard, isDashboard, onSettings, o
       const createRef = React.useRef(null);
       const userRef = React.useRef(null);
       const seqRef = React.useRef(0);
+      const [focused, setFocused] = React.useState(false); // boîte de recherche active (mise en évidence + panneau d'aide)
 
       React.useEffect(() => {
         const handleClickOutside = (e) => {
@@ -40,7 +41,8 @@ export function Header({ user, onLogout, onDashboard, isDashboard, onSettings, o
           if (!inputRef.current) return;
           inputRef.current.focus();
           inputRef.current.select();
-          if (globalSearch.length >= 2) setShowResults(true);
+          setFocused(true);     // mise en évidence même si l'événement focus ne part pas (fenêtre inactive)
+          setShowResults(true); // panneau ouvert tout de suite : aide si vide, résultats sinon
         };
         // Ctrl+K géré ici aussi (repli si l'overlay n'est pas monté) ; l'overlay dispatche
         // le même événement, l'effet est idempotent.
@@ -82,7 +84,7 @@ export function Header({ user, onLogout, onDashboard, isDashboard, onSettings, o
         ...filteredProspects.map(p => ({ kind: 'societe', key: 'p' + p.id, p })),
         ...['interlocuteur', 'devis', 'affaire'].flatMap(t => serverResults.filter(r => r.type === t).slice(0, 4).map(r => ({ kind: 'entity', key: r.id, r }))),
       ];
-      const closeSearch = () => { setGlobalSearch(''); setShowResults(false); setSearchIndex(-1); setServerResults([]); };
+      const closeSearch = () => { setGlobalSearch(''); setShowResults(false); setSearchIndex(-1); setServerResults([]); setFocused(false); };
       const runItem = (it) => {
         if (!it) return;
         if (it.kind === 'societe') onSelectProspect(it.p);
@@ -141,15 +143,16 @@ export function Header({ user, onLogout, onDashboard, isDashboard, onSettings, o
 
           {/* RECHERCHE UNIQUE : sociétés + contacts + devis + affaires (Ctrl+K) */}
           <div ref={searchRef} style={{position:'relative',flex:1,maxWidth:'520px',marginLeft:'8px'}}>
-            <div style={{display:'flex',alignItems:'center',gap:'8px',background:'rgba(255,255,255,.10)',border:'1px solid rgba(255,255,255,.16)',borderRadius:'999px',padding:'6px 12px'}}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <div style={{display:'flex',alignItems:'center',gap:'8px',background: focused ? 'rgba(255,255,255,.96)' : 'rgba(255,255,255,.10)',border: focused ? '1px solid #fff' : '1px solid rgba(255,255,255,.16)',boxShadow: focused ? '0 0 0 3px rgba(43,107,240,.45)' : 'none',borderRadius:'999px',padding:'6px 12px',transition:'background .12s, box-shadow .12s'}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={focused ? 'var(--tw-slate)' : 'rgba(255,255,255,.7)'} strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               <input
                 ref={inputRef}
                 type="text"
                 placeholder="Rechercher une société, un contact, un devis, une affaire…"
                 value={globalSearch}
-                onChange={(e) => { setGlobalSearch(e.target.value); setShowResults(e.target.value.length >= 2); setSearchIndex(-1); }}
-                onFocus={() => globalSearch.length >= 2 && setShowResults(true)}
+                onChange={(e) => { setGlobalSearch(e.target.value); setShowResults(true); setSearchIndex(-1); }}
+                onFocus={() => { setFocused(true); setShowResults(true); }}
+                onBlur={() => setFocused(false)}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') { closeSearch(); e.currentTarget.blur(); return; }
                   if (!showResults || flat.length === 0) return;
@@ -157,13 +160,19 @@ export function Header({ user, onLogout, onDashboard, isDashboard, onSettings, o
                   else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchIndex(i => Math.max(i-1, 0)); }
                   else if (e.key === 'Enter') { e.preventDefault(); runItem(flat[searchIndex >= 0 ? searchIndex : 0]); }
                 }}
-                style={{flex:1,border:'none',outline:'none',background:'transparent',fontSize:'13px',fontFamily:'Inter,sans-serif',color:'#fff',minWidth:0}}
+                style={{flex:1,border:'none',outline:'none',background:'transparent',fontSize:'13px',fontFamily:'Inter,sans-serif',color: focused ? 'var(--tw-ink)' : '#fff',minWidth:0}}
               />
-              <kbd title="Ctrl+K : aller à la recherche" style={{fontFamily:'Inter,sans-serif',fontSize:'10px',fontWeight:600,background:'rgba(255,255,255,.14)',border:'1px solid rgba(255,255,255,.2)',borderRadius:'4px',padding:'1px 5px',color:'rgba(255,255,255,.85)',whiteSpace:'nowrap'}}>Ctrl K</kbd>
+              <kbd title="Ctrl+K : aller à la recherche" style={{fontFamily:'Inter,sans-serif',fontSize:'10px',fontWeight:600,background: focused ? 'var(--tw-bg, #eef2f5)' : 'rgba(255,255,255,.14)',border: focused ? '1px solid var(--tw-border)' : '1px solid rgba(255,255,255,.2)',borderRadius:'4px',padding:'1px 5px',color: focused ? 'var(--tw-slate)' : 'rgba(255,255,255,.85)',whiteSpace:'nowrap'}}>Ctrl K</kbd>
             </div>
             {showResults && (
               <div className="tw-search-dropdown">
-                {flat.length === 0 ? (
+                {globalSearch.trim().length < 2 ? (
+                  <div style={{padding: '12px 14px', fontSize: '12.5px', color: 'var(--tw-slate)', lineHeight: 1.5}}>
+                    <div style={{fontWeight: 600, color: 'var(--tw-ink)', marginBottom: '4px'}}>Rechercher partout</div>
+                    Tapez au moins deux lettres : société, contact, devis ou affaire.
+                    <div style={{marginTop: '6px', color: 'var(--tw-muted)', fontSize: '11.5px'}}>↑ ↓ pour choisir · Entrée pour ouvrir · Échap pour fermer</div>
+                  </div>
+                ) : flat.length === 0 ? (
                   <div style={{padding: '16px', textAlign: 'center', color: 'var(--tw-muted)', fontSize: '13px'}}>Aucun résultat</div>
                 ) : (() => {
                   const out = [];
