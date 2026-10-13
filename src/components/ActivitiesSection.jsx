@@ -19,6 +19,19 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
       };
       const [showCompletedActions, setShowCompletedActions] = React.useState(false);
       const [showAllDevis, setShowAllDevis] = React.useState(false);
+      // ── Déplacer un devis vers une autre affaire ──
+      // Menu ancré sur l'icône « Déplacer » d'un devis : liste les autres affaires de la
+      // société (toutes, y compris gagnées/perdues : on corrige une erreur de rattachement).
+      const [moveDevisId, setMoveDevisId] = React.useState(null);
+      const moveMenuRef = React.useRef(null);
+      React.useEffect(() => {
+        if (moveDevisId == null) return;
+        const close = (e) => { if (moveMenuRef.current && !moveMenuRef.current.contains(e.target)) setMoveDevisId(null); };
+        const esc = (e) => { if (e.key === 'Escape') setMoveDevisId(null); };
+        document.addEventListener('mousedown', close);
+        document.addEventListener('keydown', esc);
+        return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc); };
+      }, [moveDevisId]);
       // Tri des affaires : 'statut' (ordre serveur : En cours → Gagné → Perdu, puis ordre
       // personnalisé) ou 'decision' (trimestre de réalisation probable, non renseignées en fin).
       const [affairesSort, setAffairesSort] = React.useState('statut');
@@ -299,6 +312,31 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                                             </>
                                           )}
                                           <IconBtn title="Modifier le devis" onClick={() => openDevisEdit(devis)}>{I(ICONS.edit, 13)}</IconBtn>
+                                          {/* Déplacer vers une autre affaire (corrige un rattachement fait par erreur) */}
+                                          <div style={{position:'relative',display:'inline-flex'}} ref={moveDevisId === devis.id ? moveMenuRef : null}>
+                                            <IconBtn title="Déplacer vers une autre affaire" onClick={(e) => { e.stopPropagation(); setMoveDevisId(moveDevisId === devis.id ? null : devis.id); }}>{I(ICONS.moveTo, 13)}</IconBtn>
+                                            {moveDevisId === devis.id && (() => {
+                                              const autres = (affairesList || []).filter(a => a.id !== affaire.id);
+                                              return (
+                                                <div onClick={(e) => e.stopPropagation()}
+                                                  style={{position:'absolute',top:'calc(100% + 4px)',right:0,zIndex:50,minWidth:'260px',background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'10px',boxShadow:'0 10px 30px rgba(17,24,39,.18)',padding:'6px'}}>
+                                                  <div style={{fontSize:'10.5px',fontWeight:600,letterSpacing:'.4px',textTransform:'uppercase',color:'var(--tw-muted)',padding:'6px 10px 4px'}}>Déplacer « {devis.devis_name || ('Devis #' + devis.id)} » vers</div>
+                                                  {autres.length === 0 ? (
+                                                    <div style={{padding:'8px 10px',fontSize:'12.5px',color:'var(--tw-muted)'}}>Aucune autre affaire pour cette société. Créez-la d'abord avec « Nouvelle affaire ».</div>
+                                                  ) : autres.map(a => (
+                                                    <div key={a.id}
+                                                      onClick={async () => { setMoveDevisId(null); await handleRattacherDevisAffaire(devis.id, a.id); setSelectedAffaireId(a.id); }}
+                                                      style={{padding:'8px 10px',borderRadius:'7px',cursor:'pointer',fontSize:'13px',color:'var(--tw-ink)',display:'flex',alignItems:'center',gap:'8px'}}
+                                                      onMouseOver={e => e.currentTarget.style.background = 'var(--tw-teal-light, #eef7fb)'}
+                                                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                                                      <span style={{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.nom_affaire}</span>
+                                                      <span style={{fontSize:'11px',fontWeight:500,padding:'1px 7px',borderRadius:'10px',background: a.statut_global === 'Gagné' ? 'var(--success-soft)' : a.statut_global === 'Perdu' ? 'var(--danger-soft)' : 'var(--primary-soft)',color: a.statut_global === 'Gagné' ? 'var(--success)' : a.statut_global === 'Perdu' ? 'var(--danger)' : 'var(--primary)'}}>{a.statut_global || 'En cours'}</span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              );
+                                            })()}
+                                          </div>
                                           <IconBtn title="Supprimer le devis" danger onClick={() => handleDeleteDevis(devis.id)}>{I(ICONS.trash, 13)}</IconBtn>
                                         </div>
                                       </div>

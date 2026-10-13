@@ -13,6 +13,8 @@ export const ICONS = {
       attach:     React.createElement('path', {d:'M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48'}),
       download:   React.createElement(React.Fragment, null, React.createElement('path',{d:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'}), React.createElement('polyline',{points:'7 10 12 15 17 10'}), React.createElement('line',{x1:12,y1:15,x2:12,y2:3})),
       plus:       React.createElement('path', {d:'M12 5v14M5 12h14'}),
+      // Déplacer vers une autre affaire (flèche entrant dans un dossier)
+      moveTo:     React.createElement(React.Fragment, null, React.createElement('path',{d:'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'}), React.createElement('path',{d:'M12 11v6M9 14l3 3 3-3'})),
       alert:      React.createElement(React.Fragment, null, React.createElement('circle',{cx:12,cy:12,r:10}), React.createElement('path',{d:'M12 8v4M12 16h.01'})),
       spark:      React.createElement('path', {d:'M13 2L3 14h9l-1 8 10-12h-9l1-8z'}),
       clock:      React.createElement(React.Fragment, null, React.createElement('circle',{cx:12,cy:12,r:10}), React.createElement('polyline',{points:'12 6 12 12 16 14'})),
