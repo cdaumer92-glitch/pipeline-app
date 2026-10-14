@@ -297,20 +297,19 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                                                 }}
                                               >{I(ICONS.download, 13)}</IconBtn>
                                             </>
-                                          ) : (
-                                            <>
-                                              <input type="file" accept="application/pdf,.pdf" id={`pdf-upload-${devis.id}`} style={{display:'none'}}
-                                                onChange={async (e) => {
-                                                  const file = e.target.files?.[0];
-                                                  if (file) await handleUploadDevisPdfDirect(devis.id, file);
-                                                  e.target.value = '';
-                                                }}
-                                              />
-                                              <IconBtn title="Joindre un PDF"
-                                                onClick={(e) => { e.stopPropagation(); document.getElementById(`pdf-upload-${devis.id}`).click(); }}
-                                              >{I(ICONS.attach, 13)}</IconBtn>
-                                            </>
-                                          )}
+                                          ) : null}
+                                          {/* Sélecteur de fichier commun : joindre (pas de PDF) ou remplacer (PDF présent).
+                                              Le serveur écrase l'URL et supprime l'ancien fichier du stockage. */}
+                                          <input type="file" accept="application/pdf,.pdf" id={`pdf-upload-${devis.id}`} style={{display:'none'}}
+                                            onChange={async (e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) await handleUploadDevisPdfDirect(devis.id, file, !!devis.pdf_url);
+                                              e.target.value = '';
+                                            }}
+                                          />
+                                          <IconBtn title={devis.pdf_url ? 'Remplacer le PDF par un autre fichier' : 'Joindre un PDF'}
+                                            onClick={(e) => { e.stopPropagation(); document.getElementById(`pdf-upload-${devis.id}`).click(); }}
+                                          >{I(devis.pdf_url ? ICONS.replacePdf : ICONS.attach, 13)}</IconBtn>
                                           <IconBtn title="Modifier le devis" onClick={() => openDevisEdit(devis)}>{I(ICONS.edit, 13)}</IconBtn>
                                           {/* Déplacer vers une autre affaire (corrige un rattachement fait par erreur) */}
                                           <div style={{position:'relative',display:'inline-flex'}} ref={moveDevisId === devis.id ? moveMenuRef : null}>

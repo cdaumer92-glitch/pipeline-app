@@ -505,8 +505,14 @@ export function useDevisAffaires({ user, API_URL, selectedProspect, fetchAllActi
       };
 
       // ── Upload direct depuis la liste des devis (sans passer par le state devisPdfFile) ──
-      const handleUploadDevisPdfDirect = async (devisId, file) => {
+      // isReplace : un PDF existe déjà → le serveur l'écrase et supprime l'ancien fichier.
+      const handleUploadDevisPdfDirect = async (devisId, file, isReplace = false) => {
         if (!file) return;
+        if (file.type && file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name || '')) {
+          window.showToast({title:'Le fichier doit être un PDF', type:'warning'});
+          return;
+        }
+        if (isReplace && !window.confirm(`Remplacer le PDF actuel par « ${file.name} » ?\n\nL'ancien fichier sera supprimé.`)) return;
         try {
           const formData = new FormData();
           formData.append('pdf', file);
@@ -516,6 +522,7 @@ export function useDevisAffaires({ user, API_URL, selectedProspect, fetchAllActi
             body: formData
           });
           if (res.ok) {
+            window.showToast({title: isReplace ? 'PDF remplacé' : 'PDF joint au devis', type:'success'});
             if (selectedProspect) await fetchDevis(selectedProspect.id);
           } else {
             const err = await res.json().catch(() => ({}));
