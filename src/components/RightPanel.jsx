@@ -6,6 +6,7 @@ import { ActionCompleteModal } from './ActionCompleteModal.jsx';
 import { ActivitiesSection } from './ActivitiesSection.jsx';
 import { CommercialEditor } from './CommercialEditor.jsx';
 import { ProspectForm } from './ProspectForm.jsx';
+import { AffairesGagnees } from './AffairesGagnees.jsx';
 
 export function RightPanel({ selectedProspect, activities, nextActions, allActions, statusHistory, onEdit, onUpdateProspect, onDelete, onAddActivity, onAddNextAction, onToggleNextAction, onDeleteNextAction, fetchAllActions, fetchNextActions, fetchAffaires, showForm, formData, onFormChange, onSave, onCancel, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, showInterlocuteurForm, setShowInterlocuteurForm, interlocuteurForm, setInterlocuteurForm, handleSaveInterlocuteur, handleDeleteInterlocuteur, fetchInterlocuteurs, historyExpanded, setHistoryExpanded, historyLoading, setHistoryLoading, historyData, setHistoryData, historyError, setHistoryError, draggedContactId, setDraggedContactId, dragOverContactId, setDragOverContactId, devisList, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleRattacherDevisAffaire, handleUploadDevisPdf, handleUploadDevisPdfDirect, handleDeleteDevisPDF, affairesList, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, users, codesNaf, prospects, onSelectProspect, fetchProspects, fetchDevis }) {
       const [newActivityType, setNewActivityType] = React.useState('Appel');
@@ -571,6 +572,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
               users:   React.createElement(React.Fragment, null, React.createElement('path',{d:'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'}), React.createElement('circle',{cx:9,cy:7,r:4}), React.createElement('path',{d:'M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'})),
               actions: React.createElement(React.Fragment, null, React.createElement('path',{d:'M9 11l3 3L22 4'}), React.createElement('path',{d:'M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'})),
               building:React.createElement(React.Fragment, null, React.createElement('path',{d:'M3 21h18'}), React.createElement('path',{d:'M6 21V7l6-4 6 4v14'}), React.createElement('path',{d:'M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h.01M15 17h.01'})),
+              trophy:  React.createElement(React.Fragment, null, React.createElement('path',{d:'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z'}), React.createElement('path',{d:'M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3'})),
             };
             return (
             <div style={{marginBottom:'16px',background:'white',border:'0.5px solid var(--tw-border)',borderRadius:'12px',overflow:'hidden'}}>
@@ -578,6 +580,7 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
               <div style={{display:'flex',gap:'2px',borderBottom:'0.5px solid var(--tw-border)',overflowX:'auto',padding:'0 14px'}}>
                 {(() => {
                   const nbAffaires = affairesList.filter(a => a.statut_global !== 'Perdu' && a.statut_global !== 'Gagné').length;
+                  const nbGagnees = affairesList.filter(a => a.statut_global === 'Gagné').length;
                   const tabs = [
                     {id:'infos',        label:'Informations',   icon: ICON.info},
                     {id:'contacts',     label:'Contacts',       icon: ICON.users, count: (interlocuteurs || []).length},
@@ -595,6 +598,9 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                     {id:'affaires',     label:'Affaires',       icon: ICON.folder,  count: nbAffaires,
                       iconFill: nbAffaires > 0 ? '#10a0dc' : 'white',
                       iconStroke: nbAffaires > 0 ? '#10a0dc' : undefined},
+                    // Affaires gagnées : synthèse, propositions, bons de commande, factures.
+                    // Onglet affiché dès qu'il y a au moins une affaire gagnée.
+                    ...(nbGagnees > 0 ? [{id:'gagnees', label:'Affaires gagnées', icon: ICON.trophy, count: nbGagnees, iconFill:'#0f6e56', iconStroke:'#0f6e56', countBg:'#0f6e56'}] : []),
                     {id:'communication',label:'Actions / Tâches', icon: ICON.actions},
                   ];
                   return tabs;
@@ -619,9 +625,9 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                       {t.label}
                       {t.count > 0 && (
                         <span style={{fontSize:'11px',fontWeight:600,padding:'1px 7px',borderRadius:'10px',
-                          background: active ? 'var(--tw-teal)' : (t.id === 'affaires' ? 'var(--tw-teal)' : 'var(--tw-bg)'),
-                          color: active ? 'white' : (t.id === 'affaires' ? 'white' : 'var(--tw-ink)'),
-                          border: (active || t.id === 'affaires') ? 'none' : '0.5px solid var(--tw-border)'}}>{t.count}</span>
+                          background: active ? 'var(--tw-teal)' : (t.countBg || (t.id === 'affaires' ? 'var(--tw-teal)' : 'var(--tw-bg)')),
+                          color: active ? 'white' : ((t.countBg || t.id === 'affaires') ? 'white' : 'var(--tw-ink)'),
+                          border: (active || t.countBg || t.id === 'affaires') ? 'none' : '0.5px solid var(--tw-border)'}}>{t.count}</span>
                       )}
                     </button>
                   );
@@ -2205,6 +2211,22 @@ export function RightPanel({ selectedProspect, activities, nextActions, allActio
                 )}
 
                 {/* ── Onglet Actions/Tâches ── */}
+                {/* ── Onglet Affaires gagnées ── */}
+                {clientTab === 'gagnees' && (
+                  <AffairesGagnees
+                    affairesList={affairesList}
+                    devisList={devisList}
+                    user={user}
+                    API_URL={API_URL}
+                    onReopen={async (a) => {
+                      if (!window.confirm(`Repasser l'affaire « ${a.nom_affaire} » en cours ?`)) return;
+                      const r = await fetch(`${API_URL}/affaires/${a.id}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ statut_global: 'En cours' }) });
+                      if (r.ok) { window.showToast({ title: 'Affaire rouverte', type: 'success' }); if (fetchAffaires) await fetchAffaires(selectedProspect.id); setClientTab('affaires'); }
+                      else window.showToast({ title: 'Erreur lors de la réouverture', type: 'error' });
+                    }}
+                  />
+                )}
+
                 {clientTab === 'communication' && (
                   <div>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>

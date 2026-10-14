@@ -500,6 +500,42 @@ async function initDB() {
       updated_at TIMESTAMP DEFAULT NOW()
     )`);
 
+    // ── Affaires gagnées : bons de commande et factures (références recopiées, PDF en Object Storage) ──
+    // Un BDC/une facture appartient à une affaire (donc à une société via prospect_id, pour les droits).
+    // nature : Setup / Abonnement / Formation / Matériel / Autre. Montant HT unique, détail dans le PDF.
+    await client.query(`CREATE TABLE IF NOT EXISTS bons_commande (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      affaire_id INTEGER REFERENCES affaires(id) ON DELETE CASCADE,
+      devis_id INTEGER REFERENCES devis(id) ON DELETE SET NULL,
+      reference TEXT NOT NULL,
+      date_bdc DATE,
+      montant_ht NUMERIC(12,2) DEFAULT 0,
+      nature TEXT DEFAULT 'Setup',
+      statut TEXT DEFAULT 'Reçu',
+      notes TEXT,
+      pdf_url TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await client.query(`CREATE TABLE IF NOT EXISTS factures (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      affaire_id INTEGER REFERENCES affaires(id) ON DELETE CASCADE,
+      bdc_id INTEGER REFERENCES bons_commande(id) ON DELETE SET NULL,
+      reference TEXT NOT NULL,
+      date_facture DATE,
+      montant_ht NUMERIC(12,2) DEFAULT 0,
+      nature TEXT DEFAULT 'Setup',
+      statut TEXT DEFAULT 'Émise',
+      notes TEXT,
+      pdf_url TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_bons_commande_affaire ON bons_commande(affaire_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_factures_affaire ON factures(affaire_id)`);
+
     // Rattachement d'un contact : en priorité à UN site OU UNE boutique (au plus un).
     // Le contact non rattaché reste au niveau société (rattachement = siège par défaut).
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL`);
@@ -1453,7 +1489,7 @@ async function assertOwnsProspect(req, res, prospectId) {
 // en remontant à son prospect. `table` est une valeur littérale contrôlée (pas d'injection).
 async function assertOwnsViaProspect(req, res, table, id) {
   if ((await getUserRole(req.userId)) === 'admin') return true;
-  if (!['next_actions', 'affaires', 'devis', 'interlocuteurs', 'boutiques', 'sites', 'client_licences', 'client_materiel'].includes(table)) { res.status(500).json({ error: 'Table invalide' }); return false; }
+  if (!['next_actions', 'affaires', 'devis', 'interlocuteurs', 'boutiques', 'sites', 'client_licences', 'client_materiel', 'bons_commande', 'factures'].includes(table)) { res.status(500).json({ error: 'Table invalide' }); return false; }
   const q = await pool.query(
     `SELECT p.assigned_to FROM ${table} t JOIN prospects p ON p.id = t.prospect_id WHERE t.id = $1`,
     [id]
@@ -6687,6 +6723,121 @@ app.delete('/api/materiel-client/:id', auth, async (req, res) => {
     res.json({ok: true});
   } catch(err) { res.status(500).json({error: err.message}); }
 });
+
+// ===================== AFFAIRES GAGNÉES : BONS DE COMMANDE & FACTURES =====================
+// Même modèle pour les deux : liste par affaire, création, modification, suppression,
+// PDF (upload = remplace, download, delete). Droits : via l'affaire (assertOwnsViaProspect)
+// ou via la ressource elle-même. Les références viennent du client / de la compta : recopiées.
+const BDC_STATUTS = ['Reçu', 'Signé'];
+const FACTURE_STATUTS = ['Émise', 'Payée', 'Annulée'];
+const NATURES = ['Setup', 'Abonnement', 'Formation', 'Matériel', 'Autre'];
+const cleanNature = (v) => (NATURES.includes(v) ? v : 'Autre');
+const cleanMontant = (v) => { const n = Number(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+
+function registerDocRoutes({ table, path, singular, statuts, dateCol, linkCol, linkTable }) {
+  // GET /api/affaires/:id/<path>
+  app.get(`/api/affaires/:id/${path}`, auth, async (req, res) => {
+    if (!(await assertOwnsViaProspect(req, res, 'affaires', req.params.id))) return;
+    try {
+      const r = await pool.query(`SELECT * FROM ${table} WHERE affaire_id = $1 ORDER BY ${dateCol} DESC NULLS LAST, id DESC`, [req.params.id]);
+      res.json(r.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+  // POST /api/affaires/:id/<path>
+  app.post(`/api/affaires/:id/${path}`, auth, async (req, res) => {
+    if (!(await assertOwnsViaProspect(req, res, 'affaires', req.params.id))) return;
+    const reference = String(req.body.reference || '').trim();
+    if (!reference) return res.status(400).json({ error: 'La référence est obligatoire' });
+    const statut = statuts.includes(req.body.statut) ? req.body.statut : statuts[0];
+    try {
+      const aff = await pool.query('SELECT prospect_id FROM affaires WHERE id = $1', [req.params.id]);
+      if (aff.rows.length === 0) return res.status(404).json({ error: 'Affaire introuvable' });
+      const link = req.body[linkCol] ? parseInt(req.body[linkCol], 10) || null : null;
+      const r = await pool.query(
+        `INSERT INTO ${table} (prospect_id, affaire_id, ${linkCol}, reference, ${dateCol}, montant_ht, nature, statut, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [aff.rows[0].prospect_id, req.params.id, link, reference, req.body[dateCol] || null, cleanMontant(req.body.montant_ht), cleanNature(req.body.nature), statut, req.body.notes || null]
+      );
+      res.json(r.rows[0]);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+  // PUT /api/<path>/:id  (partiel)
+  app.put(`/api/${path}/:id`, auth, async (req, res) => {
+    if (!(await assertOwnsViaProspect(req, res, table, req.params.id))) return;
+    const has = (k) => Object.prototype.hasOwnProperty.call(req.body, k);
+    const sets = [], vals = [];
+    const add = (col, v) => { vals.push(v); sets.push(`${col} = $${vals.length}`); };
+    if (has('reference')) { const ref = String(req.body.reference || '').trim(); if (!ref) return res.status(400).json({ error: 'La référence est obligatoire' }); add('reference', ref); }
+    if (has(dateCol)) add(dateCol, req.body[dateCol] || null);
+    if (has('montant_ht')) add('montant_ht', cleanMontant(req.body.montant_ht));
+    if (has('nature')) add('nature', cleanNature(req.body.nature));
+    if (has('statut')) { if (!statuts.includes(req.body.statut)) return res.status(400).json({ error: 'Statut invalide' }); add('statut', req.body.statut); }
+    if (has('notes')) add('notes', req.body.notes || null);
+    if (has(linkCol)) add(linkCol, req.body[linkCol] ? parseInt(req.body[linkCol], 10) || null : null);
+    if (sets.length === 0) return res.status(400).json({ error: 'Rien à modifier' });
+    vals.push(req.params.id);
+    try {
+      const r = await pool.query(`UPDATE ${table} SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${vals.length} RETURNING *`, vals);
+      if (r.rows.length === 0) return res.status(404).json({ error: `${singular} introuvable` });
+      res.json(r.rows[0]);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+  // DELETE /api/<path>/:id  (+ PDF du stockage)
+  app.delete(`/api/${path}/:id`, auth, async (req, res) => {
+    if (!(await assertOwnsViaProspect(req, res, table, req.params.id))) return;
+    try {
+      const r = await pool.query(`DELETE FROM ${table} WHERE id = $1 RETURNING pdf_url`, [req.params.id]);
+      if (r.rows.length === 0) return res.status(404).json({ error: `${singular} introuvable` });
+      if (r.rows[0].pdf_url) { try { await deleteObject(r.rows[0].pdf_url); } catch (e) { console.error(`Suppression PDF ${table}:`, e.message); } }
+      res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+  // POST /api/<path>/:id/upload-pdf  (joindre ou remplacer)
+  app.post(`/api/${path}/:id/upload-pdf`, auth, async (req, res) => {
+    if (!(await assertOwnsViaProspect(req, res, table, req.params.id))) return;
+    try {
+      const f = req.files && req.files.pdf;
+      if (!f) return res.status(400).json({ error: 'Aucun fichier fourni' });
+      if (f.mimetype !== 'application/pdf') return res.status(400).json({ error: 'Le fichier doit être un PDF' });
+      const cur = await pool.query(`SELECT pdf_url FROM ${table} WHERE id = $1`, [req.params.id]);
+      if (cur.rows.length === 0) return res.status(404).json({ error: `${singular} introuvable` });
+      const fileName = `${path}/${path}-${req.params.id}-${Date.now()}.pdf`;
+      await saveObject(fileName, f.data, 'application/pdf');
+      await pool.query(`UPDATE ${table} SET pdf_url = $1, updated_at = NOW() WHERE id = $2`, [fileName, req.params.id]);
+      if (cur.rows[0].pdf_url) { try { await deleteObject(cur.rows[0].pdf_url); } catch (e) { console.error(`Suppression ancien PDF ${table}:`, e.message); } }
+      res.json({ pdf_url: fileName });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+  // GET /api/<path>/:id/download-pdf
+  app.get(`/api/${path}/:id/download-pdf`, auth, async (req, res) => {
+    if (!(await assertOwnsViaProspect(req, res, table, req.params.id))) return;
+    try {
+      const r = await pool.query(`SELECT pdf_url, reference FROM ${table} WHERE id = $1`, [req.params.id]);
+      if (r.rows.length === 0) return res.status(404).json({ error: `${singular} introuvable` });
+      const { pdf_url, reference } = r.rows[0];
+      if (!pdf_url) return res.status(404).json({ error: 'Aucun PDF disponible' });
+      if (!(await objectExists(pdf_url))) return res.status(404).json({ error: 'Fichier PDF non trouvé' });
+      const content = await downloadObject(pdf_url);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${String(reference).replace(/[^\w.-]+/g, '_')}.pdf"`);
+      res.send(content);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+  // DELETE /api/<path>/:id/pdf
+  app.delete(`/api/${path}/:id/pdf`, auth, async (req, res) => {
+    if (!(await assertOwnsViaProspect(req, res, table, req.params.id))) return;
+    try {
+      const r = await pool.query(`SELECT pdf_url FROM ${table} WHERE id = $1`, [req.params.id]);
+      if (r.rows.length === 0) return res.status(404).json({ error: `${singular} introuvable` });
+      if (!r.rows[0].pdf_url) return res.status(404).json({ error: 'Aucun PDF à supprimer' });
+      try { await deleteObject(r.rows[0].pdf_url); } catch (e) { console.error(`Suppression PDF ${table}:`, e.message); }
+      await pool.query(`UPDATE ${table} SET pdf_url = NULL, updated_at = NOW() WHERE id = $1`, [req.params.id]);
+      res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+}
+registerDocRoutes({ table: 'bons_commande', path: 'bons-commande', singular: 'Bon de commande', statuts: BDC_STATUTS, dateCol: 'date_bdc', linkCol: 'devis_id', linkTable: 'devis' });
+registerDocRoutes({ table: 'factures', path: 'factures', singular: 'Facture', statuts: FACTURE_STATUTS, dateCol: 'date_facture', linkCol: 'bdc_id', linkTable: 'bons_commande' });
 
 // ===================== RECAP EMAIL =====================
 // Clé secrète pour le scheduler (Cloud Scheduler l'envoie en header)
