@@ -35,8 +35,10 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
       // Tri des affaires : 'statut' (ordre serveur : En cours → Gagné → Perdu, puis ordre
       // personnalisé) ou 'decision' (trimestre de réalisation probable, non renseignées en fin).
       const [affairesSort, setAffairesSort] = React.useState('statut');
+      // Les affaires gagnées vivent dans l'onglet « Affaires gagnées » : ici, en cours et perdues seulement.
+      const affairesVisibles = React.useMemo(() => (affairesList || []).filter(a => a.statut_global !== 'Gagné'), [affairesList]);
       const affairesSorted = React.useMemo(() => {
-        const list = affairesList || [];
+        const list = affairesVisibles;
         if (affairesSort !== 'decision') return list;
         return [...list].sort((a, b) => {
           const da = a.decision_periode || '', db = b.decision_periode || '';
@@ -45,7 +47,7 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
           if (db) return 1;
           return 0;
         });
-      }, [affairesList, affairesSort]);
+      }, [affairesVisibles, affairesSort]);
 
       // ─── Drag & drop des affaires ───────────────────────────────
       // Le tri par statut (En cours → Gagné → Perdu) reste prioritaire côté serveur ;
@@ -115,10 +117,10 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
               {/* Header section "Affaires" */}
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
                 <h3 style={{margin:0,fontSize:'14px',fontWeight:500,color:'var(--tw-ink)'}}>
-                  Affaires <span style={{color:'var(--tw-muted)',fontWeight:400}}>· {affairesList?.length || 0}</span>
+                  Affaires <span style={{color:'var(--tw-muted)',fontWeight:400}}>· {affairesVisibles.length}</span>
                 </h3>
                 <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                  {(affairesList?.length || 0) > 1 && (
+                  {affairesVisibles.length > 1 && (
                     <div style={{display:'flex',alignItems:'center',gap:'4px',marginRight:'4px'}} title="Ordre d'affichage des affaires">
                       <span style={{fontSize:'11px',color:'var(--tw-muted)',marginRight:'2px'}}>Tri</span>
                       {[['statut','Statut'],['decision','Décision']].map(([k, l]) => (
@@ -139,7 +141,7 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                 </div>
               </div>
 
-              {affairesList && affairesList.length > 0 ? (
+              {affairesVisibles.length > 0 ? (
                 <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
                   {affairesSorted.map(affaire => {
                     const isOpen = selectedAffaireId === affaire.id;

@@ -9,6 +9,14 @@ import { I, ICONS, IconBtn, formatDecisionPeriode } from '../lib/shared.jsx';
 // depuis un BDC (montant et lien pré-remplis).
 
 const NATURES = ['Setup', 'Abonnement', 'Formation', 'Matériel', 'Autre'];
+// Familles d'un bon de commande (cases à cocher) et leurs champs de montant HT.
+const FAMILLES = [
+  { key: 'licences', label: 'Licences', champs: [['setup', 'Setup'], ['lic_mensuelles', 'Licences mensuelles'], ['lic_annuelles', 'Licences annuelles'], ['prestations', 'Prestations'], ['formation', 'Formation']] },
+  { key: 'developpement', label: 'Développement', champs: [['montant', 'Montant HT']] },
+  { key: 'materiel', label: 'Matériel', champs: [['montant', 'Montant HT'], ['integration', 'Intégration']] },
+];
+const num = (v) => { const n = Number(String(v ?? '').replace(/\s/g, '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+const detailTotal = (detail) => Object.values(detail || {}).reduce((s, fam) => s + Object.values(fam || {}).reduce((t, v) => t + num(v), 0), 0);
 const BDC_STATUTS = ['Reçu', 'Signé'];
 const FACTURE_STATUTS = ['Émise', 'Payée', 'Annulée'];
 const fmtEur = (v) => { const n = Number(v); return (!v || isNaN(n)) ? '—' : n.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €'; };
@@ -28,28 +36,67 @@ const secTitle = { fontSize: '11px', fontWeight: 600, letterSpacing: '.4px', tex
 function DocForm({ kind, initial, devisList, bdcList, onCancel, onSave }) {
   const isBdc = kind === 'bdc';
   const dateKey = isBdc ? 'date_bdc' : 'date_facture';
+  // BDC : détail par famille (cases cochées). Un BDC ancien sans détail garde son montant global.
+  const initDetail = () => {
+    const d = initial?.detail && typeof initial.detail === 'object' ? initial.detail : null;
+    const out = {};
+    for (const fam of FAMILLES) if (d && d[fam.key]) out[fam.key] = Object.fromEntries(fam.champs.map(([c]) => [c, d[fam.key][c] != null && d[fam.key][c] !== 0 ? String(d[fam.key][c]) : '']));
+    return out;
+  };
   const [f, setF] = React.useState({
     reference: initial?.reference || '', [dateKey]: initial?.[dateKey] ? String(initial[dateKey]).slice(0, 10) : today(),
     montant_ht: initial?.montant_ht != null ? String(initial.montant_ht) : '', nature: initial?.nature || 'Setup',
     statut: initial?.statut || (isBdc ? 'Reçu' : 'Émise'), notes: initial?.notes || '',
     devis_id: initial?.devis_id || '', bdc_id: initial?.bdc_id || '',
   });
+  const [detail, setDetail] = React.useState(initDetail);
   const [saving, setSaving] = React.useState(false);
   const set = (k) => (e) => setF(x => ({ ...x, [k]: e.target.value }));
+  const toggleFam = (key) => setDetail(d => { const n = { ...d }; if (n[key]) delete n[key]; else n[key] = Object.fromEntries(FAMILLES.find(x => x.key === key).champs.map(([c]) => [c, ''])); return n; });
+  const setChamp = (fam, c) => (e) => setDetail(d => ({ ...d, [fam]: { ...d[fam], [c]: e.target.value } }));
+  const famChecked = Object.keys(detail).length > 0;
+  const total = isBdc && famChecked ? detailTotal(detail) : num(f.montant_ht);
   const submit = async () => {
     if (!f.reference.trim()) { window.showToast({ title: 'La référence est obligatoire', type: 'warning' }); return; }
+    if (isBdc && !famChecked) { window.showToast({ title: 'Cochez au moins une famille : Licences, Développement ou Matériel', type: 'warning' }); return; }
     setSaving(true);
-    try { await onSave({ ...f, montant_ht: Number(String(f.montant_ht).replace(',', '.')) || 0 }); } finally { setSaving(false); }
+    try {
+      const payload = { ...f, montant_ht: total };
+      if (isBdc) payload.detail = Object.fromEntries(Object.entries(detail).map(([k, v]) => [k, Object.fromEntries(Object.entries(v).map(([c, x]) => [c, num(x)]))]));
+      await onSave(payload);
+    } finally { setSaving(false); }
   };
+  const montantInput = (value, onChange, placeholder = '0') => <input type="text" inputMode="decimal" value={value} onChange={onChange} placeholder={placeholder} style={{ ...inp, textAlign: 'right' }} />;
   return (
     <div style={{ border: '1px solid var(--tw-border)', borderRadius: '10px', padding: '12px 14px', background: '#fafaf9', margin: '6px 0 10px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 1fr 1fr', gap: '10px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isBdc ? '1.4fr 1fr 1fr' : '1.3fr 1fr 1fr 1fr 1fr', gap: '10px' }}>
         <div><label style={lbl}>Référence *</label><input value={f.reference} onChange={set('reference')} placeholder={isBdc ? 'BC-2026-0412' : 'F-2026-1187'} style={inp} autoFocus /></div>
         <div><label style={lbl}>Date</label><input type="date" value={f[dateKey]} onChange={set(dateKey)} style={inp} /></div>
-        <div><label style={lbl}>Montant HT</label><input type="text" inputMode="decimal" value={f.montant_ht} onChange={set('montant_ht')} placeholder="0" style={{ ...inp, textAlign: 'right' }} /></div>
-        <div><label style={lbl}>Nature</label><select value={f.nature} onChange={set('nature')} style={inp}>{NATURES.map(n => <option key={n}>{n}</option>)}</select></div>
+        {!isBdc && <div><label style={lbl}>Montant HT</label>{montantInput(f.montant_ht, set('montant_ht'))}</div>}
+        {!isBdc && <div><label style={lbl}>Nature</label><select value={f.nature} onChange={set('nature')} style={inp}>{NATURES.map(n => <option key={n}>{n}</option>)}</select></div>}
         <div><label style={lbl}>Statut</label><select value={f.statut} onChange={set('statut')} style={inp}>{(isBdc ? BDC_STATUTS : FACTURE_STATUTS).map(s => <option key={s}>{s}</option>)}</select></div>
       </div>
+      {isBdc && (
+        <div style={{ marginTop: '12px' }}>
+          <label style={lbl}>Contenu du bon de commande (HT)</label>
+          <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '8px' }}>
+            {FAMILLES.map(fam => (
+              <label key={fam.key} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: detail[fam.key] ? 'var(--tw-ink)' : 'var(--tw-slate)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={!!detail[fam.key]} onChange={() => toggleFam(fam.key)} /> {fam.label}
+              </label>
+            ))}
+          </div>
+          {FAMILLES.filter(fam => detail[fam.key]).map(fam => (
+            <div key={fam.key} style={{ border: '0.5px solid var(--tw-border)', borderRadius: '8px', padding: '8px 10px', background: 'white', marginBottom: '6px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tw-teal)', marginBottom: '6px' }}>{fam.label}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(fam.champs.length, 5)}, minmax(0, 1fr))`, gap: '8px' }}>
+                {fam.champs.map(([c, label]) => <div key={c}><label style={lbl}>{label}</label>{montantInput(detail[fam.key][c], setChamp(fam.key, c))}</div>)}
+              </div>
+            </div>
+          ))}
+          <div style={{ textAlign: 'right', fontSize: '13px', color: 'var(--tw-ink)' }}>Total HT : <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtEur(total)}</strong>{!famChecked && num(f.montant_ht) ? <span style={{ color: 'var(--tw-muted)', fontSize: '11.5px' }}> (montant global, ancien BDC : cochez une famille pour détailler)</span> : null}</div>
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px', marginTop: '10px' }}>
         <div>
           <label style={lbl}>{isBdc ? 'Proposition liée' : 'Bon de commande lié'}</label>
@@ -110,7 +157,7 @@ function AffaireGagneeCard({ affaire, devisList, user, API_URL, onReopen }) {
     const isBdc = kind === 'bdc';
     const path = isBdc ? 'bons-commande' : 'factures';
     const body = isBdc
-      ? { reference: data.reference, date_bdc: data.date_bdc, montant_ht: data.montant_ht, nature: data.nature, statut: data.statut, notes: data.notes, devis_id: data.devis_id || null }
+      ? { reference: data.reference, date_bdc: data.date_bdc, montant_ht: data.montant_ht, nature: data.nature, statut: data.statut, notes: data.notes, devis_id: data.devis_id || null, detail: data.detail || null }
       : { reference: data.reference, date_facture: data.date_facture, montant_ht: data.montant_ht, nature: data.nature, statut: data.statut, notes: data.notes, bdc_id: data.bdc_id || null };
     const url = initial?.id ? `${API_URL}/${path}/${initial.id}` : `${API_URL}/affaires/${affaire.id}/${path}`;
     const r = await fetch(url, { method: initial?.id ? 'PUT' : 'POST', headers: jhdrs, body: JSON.stringify(body) });
@@ -155,8 +202,18 @@ function AffaireGagneeCard({ affaire, devisList, user, API_URL, onReopen }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '13px', fontWeight: 600, color: 'var(--tw-ink)' }}>{doc.reference} <Pill>{doc.statut}</Pill></div>
           <div style={{ fontSize: '12px', color: 'var(--tw-muted)', marginTop: '2px' }}>
-            {fmtDate(isBdc ? doc.date_bdc : doc.date_facture)} · {fmtEur(doc.montant_ht)} HT · {doc.nature}{linked ? ` · ${isBdc ? 'proposition' : 'BDC'} ${linked}` : ''}{doc.notes ? ` · ${doc.notes}` : ''}
+            {fmtDate(isBdc ? doc.date_bdc : doc.date_facture)} · {fmtEur(doc.montant_ht)} HT{isBdc ? '' : ` · ${doc.nature}`}{linked ? ` · ${isBdc ? 'proposition' : 'BDC'} ${linked}` : ''}{doc.notes ? ` · ${doc.notes}` : ''}
           </div>
+          {isBdc && doc.detail && typeof doc.detail === 'object' && (
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '5px' }}>
+              {FAMILLES.filter(fam => doc.detail[fam.key]).map(fam => (
+                <span key={fam.key} title={fam.champs.map(([c, l]) => `${l} : ${fmtEur(doc.detail[fam.key][c])}`).join(' · ')}
+                  style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', background: 'var(--tw-bg)', border: '0.5px solid var(--tw-border)', color: 'var(--tw-slate)' }}>
+                  {fam.label} · {fmtEur(detailTotal({ [fam.key]: doc.detail[fam.key] }))}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
           <input type="file" accept="application/pdf,.pdf" id={inputId} style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; await uploadPdf(kind, doc, f); e.target.value = ''; }} />
@@ -181,7 +238,7 @@ function AffaireGagneeCard({ affaire, devisList, user, API_URL, onReopen }) {
         {d.pdf_url ? (
           <button onClick={() => openPdf(`${API_URL}/devis/${d.id}/download-pdf`)} style={{ padding: '5px 10px', border: main ? 'none' : '1px solid var(--tw-border)', borderRadius: '7px', background: main ? 'var(--tw-teal)' : 'white', color: main ? 'white' : 'var(--tw-ink)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: "'Inter',sans-serif" }}>Voir le PDF</button>
         ) : <span style={{ fontSize: '11px', color: 'var(--tw-muted)' }}>Pas de PDF</span>}
-        {main && <button title="Pré-remplit un bon de commande avec le montant de cette proposition" onClick={() => setForm({ kind: 'bdc', initial: { reference: '', date_bdc: today(), montant_ht: (Number(d.setup_amount) || 0) + (Number(d.training_amount) || 0), nature: 'Setup', statut: 'Reçu', devis_id: d.id } })}
+        {main && <button title="Pré-remplit un bon de commande Licences avec les montants de cette proposition" onClick={() => setForm({ kind: 'bdc', initial: { reference: '', date_bdc: today(), statut: 'Reçu', devis_id: d.id, detail: { licences: { setup: Number(d.setup_amount) || 0, lic_mensuelles: Number(d.monthly_amount) || 0, lic_annuelles: Number(d.annual_amount) || 0, prestations: 0, formation: Number(d.training_amount) || 0 } } } })}
           style={{ padding: '5px 10px', border: '1px solid var(--tw-teal)', borderRadius: '7px', background: 'white', color: 'var(--tw-teal)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: "'Inter',sans-serif" }}>Créer le BDC</button>}
       </div>
     </div>

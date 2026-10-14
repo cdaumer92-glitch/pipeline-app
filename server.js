@@ -533,6 +533,10 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     )`);
+    // detail : familles cochées et leurs montants. montant_ht reste le total (recalculé par le serveur).
+    //   { licences: {setup, lic_mensuelles, lic_annuelles, prestations, formation},
+    //     developpement: {montant}, materiel: {montant, integration} }  (clé absente = famille non cochée)
+    await client.query(`ALTER TABLE bons_commande ADD COLUMN IF NOT EXISTS detail JSONB`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_bons_commande_affaire ON bons_commande(affaire_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_factures_affaire ON factures(affaire_id)`);
 
@@ -6733,6 +6737,24 @@ const FACTURE_STATUTS = ['Émise', 'Payée', 'Annulée'];
 const NATURES = ['Setup', 'Abonnement', 'Formation', 'Matériel', 'Autre'];
 const cleanNature = (v) => (NATURES.includes(v) ? v : 'Autre');
 const cleanMontant = (v) => { const n = Number(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+// Détail d'un bon de commande : ne garde que les familles connues et leurs champs, montants nettoyés.
+// Retourne { detail, total } ; detail = null si aucune famille cochée.
+const BDC_FAMILLES = {
+  licences: ['setup', 'lic_mensuelles', 'lic_annuelles', 'prestations', 'formation'],
+  developpement: ['montant'],
+  materiel: ['montant', 'integration'],
+};
+function cleanBdcDetail(raw) {
+  if (!raw || typeof raw !== 'object') return { detail: null, total: null };
+  const detail = {}; let total = 0; let any = false;
+  for (const [fam, champs] of Object.entries(BDC_FAMILLES)) {
+    const src = raw[fam];
+    if (!src || typeof src !== 'object') continue;
+    any = true; detail[fam] = {};
+    for (const c of champs) { const n = cleanMontant(src[c]); detail[fam][c] = n; total += n; }
+  }
+  return any ? { detail, total: Math.round(total * 100) / 100 } : { detail: null, total: null };
+}
 
 function registerDocRoutes({ table, path, singular, statuts, dateCol, linkCol, linkTable }) {
   // GET /api/affaires/:id/<path>
@@ -6753,11 +6775,18 @@ function registerDocRoutes({ table, path, singular, statuts, dateCol, linkCol, l
       const aff = await pool.query('SELECT prospect_id FROM affaires WHERE id = $1', [req.params.id]);
       if (aff.rows.length === 0) return res.status(404).json({ error: 'Affaire introuvable' });
       const link = req.body[linkCol] ? parseInt(req.body[linkCol], 10) || null : null;
-      const r = await pool.query(
-        `INSERT INTO ${table} (prospect_id, affaire_id, ${linkCol}, reference, ${dateCol}, montant_ht, nature, statut, notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-        [aff.rows[0].prospect_id, req.params.id, link, reference, req.body[dateCol] || null, cleanMontant(req.body.montant_ht), cleanNature(req.body.nature), statut, req.body.notes || null]
-      );
+      // BDC : si un détail par famille est fourni, le total HT en découle.
+      const { detail, total } = table === 'bons_commande' ? cleanBdcDetail(req.body.detail) : { detail: null, total: null };
+      const montant = total != null ? total : cleanMontant(req.body.montant_ht);
+      const r = table === 'bons_commande'
+        ? await pool.query(
+            `INSERT INTO ${table} (prospect_id, affaire_id, ${linkCol}, reference, ${dateCol}, montant_ht, nature, statut, notes, detail)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+            [aff.rows[0].prospect_id, req.params.id, link, reference, req.body[dateCol] || null, montant, cleanNature(req.body.nature), statut, req.body.notes || null, detail ? JSON.stringify(detail) : null])
+        : await pool.query(
+            `INSERT INTO ${table} (prospect_id, affaire_id, ${linkCol}, reference, ${dateCol}, montant_ht, nature, statut, notes)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+            [aff.rows[0].prospect_id, req.params.id, link, reference, req.body[dateCol] || null, montant, cleanNature(req.body.nature), statut, req.body.notes || null]);
       res.json(r.rows[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
@@ -6769,7 +6798,12 @@ function registerDocRoutes({ table, path, singular, statuts, dateCol, linkCol, l
     const add = (col, v) => { vals.push(v); sets.push(`${col} = $${vals.length}`); };
     if (has('reference')) { const ref = String(req.body.reference || '').trim(); if (!ref) return res.status(400).json({ error: 'La référence est obligatoire' }); add('reference', ref); }
     if (has(dateCol)) add(dateCol, req.body[dateCol] || null);
-    if (has('montant_ht')) add('montant_ht', cleanMontant(req.body.montant_ht));
+    if (table === 'bons_commande' && has('detail')) {
+      const { detail, total } = cleanBdcDetail(req.body.detail);
+      add('detail', detail ? JSON.stringify(detail) : null);
+      if (total != null) add('montant_ht', total);
+      else if (has('montant_ht')) add('montant_ht', cleanMontant(req.body.montant_ht));
+    } else if (has('montant_ht')) add('montant_ht', cleanMontant(req.body.montant_ht));
     if (has('nature')) add('nature', cleanNature(req.body.nature));
     if (has('statut')) { if (!statuts.includes(req.body.statut)) return res.status(400).json({ error: 'Statut invalide' }); add('statut', req.body.statut); }
     if (has('notes')) add('notes', req.body.notes || null);
