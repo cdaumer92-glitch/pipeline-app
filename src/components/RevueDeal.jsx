@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { ACTION_TYPES } from '../lib/constants.js';
 import { I, ICONS, IconBtn, displayName } from '../lib/shared.jsx';
-import { REVUE_QUESTIONS, REVUE_ETATS, etatInfo, emptyReponses, normalizeReponses, computeScore, scoreTone, daysSince, ageLabel, santeDeal, revueUrgence } from '../lib/revueDeal.js';
+import { REVUE_QUESTIONS, REVUE_TOTAL, REVUE_ETATS, etatInfo, emptyReponses, normalizeReponses, computeScore, scoreTone, daysSince, ageLabel, santeDeal, revueUrgence } from '../lib/revueDeal.js';
 
 // ─── Revue de deal ─────────────────────────────────────────────────────────────
 // Espace « Revue de deal » d'une affaire : qualification en six questions (état
@@ -58,9 +58,9 @@ const ScoreBar = ({ score }) => {
     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'white', border: `0.5px solid ${C.border}`, borderRadius: '8px', padding: '8px 12px' }}>
       <span style={{ fontSize: '12px', fontWeight: 600, color: C.dark, whiteSpace: 'nowrap' }}>Santé du deal</span>
       <div style={{ flex: 1, height: '8px', borderRadius: '4px', background: '#e8e5f3', overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${(Math.max(0, Math.min(6, score)) / 6) * 100}%`, background: t.color, transition: 'width .2s' }} />
+        <div style={{ height: '100%', width: `${(Math.max(0, Math.min(REVUE_TOTAL, score)) / REVUE_TOTAL) * 100}%`, background: t.color, transition: 'width .2s' }} />
       </div>
-      <span data-testid="revue-score" style={{ fontSize: '13px', fontWeight: 600, color: t.fg, whiteSpace: 'nowrap' }}>{score} / 6 solides · {t.label}</span>
+      <span data-testid="revue-score" style={{ fontSize: '13px', fontWeight: 600, color: t.fg, whiteSpace: 'nowrap' }}>{score} / {REVUE_TOTAL} solides · {t.label}</span>
     </div>
   );
 };
@@ -187,7 +187,7 @@ function RevueForm({ affaire, initial, user, API_URL, interlocuteurs, onSaved, o
     <div data-testid="revue-form" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }} onClick={(e) => e.stopPropagation()}>
       {/* 1. Qualification */}
       <div>
-        {secTitle(1, 'Qualification', <span style={{ fontSize: '10px', fontWeight: 500, padding: '1px 7px', borderRadius: '10px', background: '#e8e5f3', color: C.dark, textTransform: 'none', letterSpacing: 0 }}>6 questions</span>)}
+        {secTitle(1, 'Qualification', <span style={{ fontSize: '10px', fontWeight: 500, padding: '1px 7px', borderRadius: '10px', background: '#e8e5f3', color: C.dark, textTransform: 'none', letterSpacing: 0 }}>{REVUE_TOTAL} questions</span>)}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {REVUE_QUESTIONS.map(q => (
             <div key={q.key} style={{ display: 'grid', gridTemplateColumns: '130px 1fr auto', gap: '10px', alignItems: 'start', padding: '8px 10px', background: 'white', border: '0.5px solid var(--tw-border)', borderRadius: '8px' }}>
@@ -328,7 +328,7 @@ export function RevueDealContent({ affaire, user, API_URL, interlocuteurs, nbDev
       <span style={{ fontWeight: 600, color: 'var(--tw-ink)' }}>{fmtDate(r.date_revue)}</span>
       {r.auteur && <span> · {r.auteur}</span>}
       <span> · </span>
-      <span style={{ fontWeight: 600, color: scoreTone(r.score).fg }}>{r.score}/6</span>
+      <span style={{ fontWeight: 600, color: scoreTone(r.score).fg }}>{r.score}/{REVUE_TOTAL}</span>
     </span>
   );
 

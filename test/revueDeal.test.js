@@ -1,13 +1,21 @@
 import { describe, it, expect } from 'vitest'
-import { REVUE_QUESTIONS, emptyReponses, normalizeReponses, computeScore, scoreTone, daysSince, ageLabel, santeDeal, revueUrgence } from '../src/lib/revueDeal.js'
+import { REVUE_QUESTIONS, REVUE_TOTAL, emptyReponses, normalizeReponses, computeScore, scoreTone, daysSince, ageLabel, santeDeal, revueUrgence } from '../src/lib/revueDeal.js'
 
 // Helpers purs de la revue de deal (score de santé, pastilles).
 
 describe('revue de deal : réponses et score', () => {
-  it('six questions, toutes inconnues au départ', () => {
+  it('huit questions : objectifs, douleur puis valeur en tête, toutes inconnues au départ', () => {
     const r = emptyReponses()
+    expect(REVUE_TOTAL).toBe(8)
+    expect(REVUE_QUESTIONS.slice(0, 3).map(q => q.key)).toEqual(['objectifs', 'douleur', 'valeur'])
     expect(Object.keys(r)).toEqual(REVUE_QUESTIONS.map(q => q.key))
     expect(computeScore(r)).toBe(0)
+  })
+  it('une ancienne revue à six questions reste lisible : objectifs et valeur inconnus', () => {
+    const r = normalizeReponses({ douleur: { texte: 'x', etat: 'solide' } })
+    expect(r.objectifs).toEqual({ texte: '', etat: 'inconnu' })
+    expect(r.valeur).toEqual({ texte: '', etat: 'inconnu' })
+    expect(computeScore(r)).toBe(1)
   })
   it('le score compte les réponses solides seulement', () => {
     const r = emptyReponses()
@@ -26,12 +34,12 @@ describe('revue de deal : réponses et score', () => {
 })
 
 describe('revue de deal : tonalité et âge', () => {
-  it('4 et plus sain, 2 à 3 fragile, moins critique', () => {
+  it('6 et plus sain, 3 à 5 fragile, moins critique', () => {
+    expect(scoreTone(8).label).toBe('sain')
     expect(scoreTone(6).label).toBe('sain')
-    expect(scoreTone(4).label).toBe('sain')
+    expect(scoreTone(5).label).toBe('fragile')
     expect(scoreTone(3).label).toBe('fragile')
-    expect(scoreTone(2).label).toBe('fragile')
-    expect(scoreTone(1).label).toBe('critique')
+    expect(scoreTone(2).label).toBe('critique')
     expect(scoreTone(undefined).label).toBe('critique')
   })
   it('compte les jours entre deux dates civiles', () => {
@@ -63,13 +71,13 @@ describe('revue de deal : pastille de santé', () => {
   })
   it('score et âge de la dernière revue', () => {
     const s = santeDeal({ score: 2, date: '2026-09-12', nbDevis: 1 }, now)
-    expect(s.label).toBe('Santé 2/6')
-    expect(s.tone).toBe('fragile')
+    expect(s.label).toBe('Santé 2/8')
+    expect(s.tone).toBe('critique')
     expect(s.days).toBe(33)
     expect(s.stale).toBe(true)
     expect(s.title).toContain('il y a 33 jours')
-    const r = santeDeal({ score: 5, date: '2026-10-09', nbDevis: 0 }, now)
-    expect(r.label).toBe('Santé 5/6')
+    const r = santeDeal({ score: 6, date: '2026-10-09', nbDevis: 0 }, now)
+    expect(r.label).toBe('Santé 6/8')
     expect(r.stale).toBe(false)
     expect(r.color).toBe('#1d9e75')
   })
@@ -93,7 +101,7 @@ describe('revue de deal : urgence du bouton', () => {
     expect(old.label).toBe('À revoir · il y a 33 jours')
     const ok = revueUrgence({ score: 5, date: '2026-10-09', nbDevis: 1 }, now)
     expect(ok.level).toBe('ok')
-    expect(ok.label).toBe('Santé 5/6 · il y a 6 jours')
+    expect(ok.label).toBe('Santé 5/8 · il y a 6 jours')
     expect(ok.fg).toBe('#085041')
     expect(revueUrgence({ score: 1, date: '2026-09-15', nbDevis: 1 }, now).level).toBe('ok') // 30 jours pile : encore acceptable
   })

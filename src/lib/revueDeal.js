@@ -4,13 +4,18 @@
 // la probabilité du devis, il la confronte.
 
 export const REVUE_QUESTIONS = [
-  { key: 'douleur',         label: 'Douleur',         hint: 'Quel problème concret le client veut-il résoudre ? Que lui coûte-t-il aujourd\'hui ?' },
+  { key: 'objectifs',       label: 'Objectifs',       hint: 'Que veut atteindre le client (croissance, marge, ouverture, organisation) ? C\'est de là que part la douleur.' },
+  { key: 'douleur',         label: 'Douleur',         hint: 'Qu\'est-ce qui l\'empêche d\'y arriver aujourd\'hui, et pour qui (personnelle, équipe, entreprise) ? Que lui coûte ce blocage ?' },
+  { key: 'valeur',          label: 'Valeur',          hint: 'Quelle valeur de notre produit avons-nous montrée au client, rapportée à ses objectifs et à sa douleur ? L\'a-t-il reformulée lui-même ?' },
   { key: 'decideur',        label: 'Décideur',        hint: 'Qui signe ? L\'avons-nous rencontré ?' },
   { key: 'budget',          label: 'Budget',          hint: 'Un budget est-il validé, ou au moins un ordre de grandeur accepté ?' },
   { key: 'echeance',        label: 'Échéance',        hint: 'Quel événement impose une date côté client ?' },
   { key: 'concurrence',     label: 'Concurrence',     hint: 'Qui d\'autre est consulté ? Le statu quo compte aussi.' },
   { key: 'prochaine_etape', label: 'Prochaine étape', hint: 'Qu\'est-ce qui est daté et engagé des deux côtés ?' },
 ];
+
+// Nombre de questions : le score est noté « n / REVUE_TOTAL ».
+export const REVUE_TOTAL = REVUE_QUESTIONS.length;
 
 export const REVUE_ETATS = [
   { key: 'solide',  symbol: '✓', label: 'Solide',  color: '#1d9e75', bg: '#e1f5ee', fg: '#085041' },
@@ -42,11 +47,11 @@ export function computeScore(reponses) {
   return REVUE_QUESTIONS.reduce((n, q) => n + (r[q.key].etat === 'solide' ? 1 : 0), 0);
 }
 
-// Couleur d'un score : 4 à 6 sain, 2 à 3 fragile, 0 à 1 critique.
+// Couleur d'un score (sur 8) : 6 et plus sain, 3 à 5 fragile, 0 à 2 critique.
 export function scoreTone(score) {
   const s = Number(score) || 0;
-  if (s >= 4) return { label: 'sain',     color: '#1d9e75', bg: '#e1f5ee', fg: '#085041' };
-  if (s >= 2) return { label: 'fragile',  color: '#ef9f27', bg: '#faeeda', fg: '#633806' };
+  if (s >= 6) return { label: 'sain',     color: '#1d9e75', bg: '#e1f5ee', fg: '#085041' };
+  if (s >= 3) return { label: 'fragile',  color: '#ef9f27', bg: '#faeeda', fg: '#633806' };
   return        { label: 'critique', color: '#e24b4a', bg: '#fcebeb', fg: '#791f1f' };
 }
 
@@ -92,9 +97,9 @@ export function revueUrgence({ score, date, nbDevis, createdAt } = {}, now = new
   const days = daysSince(date, now);
   const s = Number(score) || 0;
   if (days != null && days > REVUE_DELAI_JOURS) {
-    return { level: 'urgent', ...RED, days, label: `À revoir · ${ageLabel(days)}`, title: `Dernière revue ${ageLabel(days)} (${s}/6) : à refaire` };
+    return { level: 'urgent', ...RED, days, label: `À revoir · ${ageLabel(days)}`, title: `Dernière revue ${ageLabel(days)} (${s}/${REVUE_TOTAL}) : à refaire` };
   }
-  return { level: 'ok', ...GREEN, days, label: `Santé ${s}/6 · ${ageLabel(days)}`, title: `Revue ${ageLabel(days)} · ${s} réponse(s) solide(s) sur 6 · ${scoreTone(s).label}` };
+  return { level: 'ok', ...GREEN, days, label: `Santé ${s}/${REVUE_TOTAL} · ${ageLabel(days)}`, title: `Revue ${ageLabel(days)} · ${s} réponse(s) solide(s) sur ${REVUE_TOTAL} · ${scoreTone(s).label}` };
 }
 
 // Pastille de santé d'une affaire pour les listes. Retourne null quand il n'y a
@@ -109,9 +114,9 @@ export function santeDeal({ score, date, nbDevis } = {}, now = new Date()) {
   const tone = scoreTone(score);
   return {
     color: tone.color, bg: tone.bg, fg: tone.fg, tone: tone.label,
-    label: `Santé ${Number(score) || 0}/6`,
+    label: `Santé ${Number(score) || 0}/${REVUE_TOTAL}`,
     days,
     stale: days != null && days > 30,
-    title: `Revue ${ageLabel(days)} · ${Number(score) || 0} réponse(s) solide(s) sur 6 · ${tone.label}`,
+    title: `Revue ${ageLabel(days)} · ${Number(score) || 0} réponse(s) solide(s) sur ${REVUE_TOTAL} · ${tone.label}`,
   };
 }

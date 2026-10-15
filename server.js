@@ -542,8 +542,8 @@ async function initDB() {
 
     // ── Revues de deal (qualification en six questions + cascade des pourquoi) ──
     // Une revue est un instantané horodaté et signé ; on n'édite pas, on refait une revue.
-    //   reponses : { douleur|decideur|budget|echeance|concurrence|prochaine_etape: { texte, etat } }
-    //              etat ∈ solide / partiel / inconnu ; score = nombre de « solide » (0..6), recalculé serveur.
+    //   reponses : { objectifs|douleur|valeur|decideur|budget|echeance|concurrence|prochaine_etape: { texte, etat } }
+    //              etat ∈ solide / partiel / inconnu ; score = nombre de « solide » (0..8), recalculé serveur.
     //   pourquoi : ["constat", "pourquoi 2", ...] ; cause_fond : texte ; action_corrective : texte,
     //   action_id : l'action créée dans l'affaire à partir de la revue (conservée si la revue est supprimée).
     await client.query(`CREATE TABLE IF NOT EXISTS revues_deal (
@@ -6917,7 +6917,8 @@ registerDocRoutes({ table: 'factures', path: 'factures', singular: 'Facture', st
 // ===================== REVUES DE DEAL =====================
 // Six questions de qualification, chacune avec un texte et un état ; le score est le
 // nombre de réponses « solides ». Même grille que src/lib/revueDeal.js côté front.
-const REVUE_KEYS = ['douleur', 'decideur', 'budget', 'echeance', 'concurrence', 'prochaine_etape'];
+const REVUE_KEYS = ['objectifs', 'douleur', 'valeur', 'decideur', 'budget', 'echeance', 'concurrence', 'prochaine_etape'];
+const REVUE_TOTAL = REVUE_KEYS.length;
 const REVUE_ETATS = ['solide', 'partiel', 'inconnu'];
 function cleanRevueReponses(raw) {
   const reponses = {};
@@ -7253,8 +7254,8 @@ function buildEmailHTML(data, isGlobal = false) {
     } else {
       body += `<table><tr><th>Société</th><th>Affaire</th><th>Santé</th><th>Dernière revue</th></tr>`;
       for (const a of aRevoir) {
-        const sante = a.date_revue == null ? '—' : `${a.score}/6`;
-        const santeColor = a.date_revue == null ? '#9eb5b5' : (a.score >= 4 ? '#2ec27e' : a.score >= 2 ? '#f0932b' : '#e74c3c');
+        const sante = a.date_revue == null ? '—' : `${a.score}/${REVUE_TOTAL}`;
+        const santeColor = a.date_revue == null ? '#9eb5b5' : (a.score >= 6 ? '#2ec27e' : a.score >= 3 ? '#f0932b' : '#e74c3c');
         body += `<tr><td>${a.prospect_name}</td><td>${a.nom_affaire||'—'}</td><td style="color:${santeColor};font-weight:600">${sante}</td><td style="color:${a.date_revue ? '#f0932b' : '#e74c3c'};font-weight:600">${a.date_revue ? fmtDate(a.date_revue) : 'Jamais revue'}</td></tr>`;
       }
       body += `</table>`;
