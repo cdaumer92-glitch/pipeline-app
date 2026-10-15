@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { getStatusColor, prospectDisplayName, formatCurrency } from '../lib/shared.jsx';
+import { SantePill } from './RevueDeal.jsx';
 
 // Vue Kanban du pipeline : les sociétés réparties en colonnes par statut, glisser-déposer
 // d'une carte vers une autre colonne pour changer son statut (PATCH ciblé côté serveur).
@@ -210,8 +211,12 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
                 {/* Une seule affaire : on la nomme directement, sans dépliage — utile
                     maintenant qu'une même société peut apparaître dans deux colonnes. */}
                 {affaires.length === 1 && affaires[0].nom && (
-                  <div style={{ fontSize: '10.5px', color: 'var(--tw-muted)', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {affaires[0].nom}
+                  <div style={{ fontSize: '10.5px', color: 'var(--tw-muted)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{affaires[0].nom}</span>
+                    {/* Santé du deal (dernière revue) : affaires ouvertes seulement */}
+                    {!isAffaireGagnee(affaires[0]) && !isAffairePerdue(affaires[0]) && (
+                      <SantePill score={affaires[0].revue_score} date={affaires[0].revue_date} nbDevis={1} size={9.5} style={{ padding: '1px 6px' }} />
+                    )}
                   </div>
                 )}
                 {affaires.length !== 1 && <div style={{ height: '3px' }} />}
@@ -245,8 +250,13 @@ export function KanbanView({ prospects, user, API_URL, onSelectProspect, onStatu
                         <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tw-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {a.nom || 'Affaire'}
                         </div>
-                        {a.statut && (
-                          <div style={{ fontSize: '9.5px', color: 'var(--tw-muted)', marginTop: '1px', marginBottom: '3px' }}>{a.statut}</div>
+                        {(a.statut || (!isAffaireGagnee(a) && !isAffairePerdue(a))) && (
+                          <div style={{ fontSize: '9.5px', color: 'var(--tw-muted)', marginTop: '1px', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {a.statut && <span>{a.statut}</span>}
+                            {!isAffaireGagnee(a) && !isAffairePerdue(a) && (
+                              <SantePill score={a.revue_score} date={a.revue_date} nbDevis={1} size={9.5} style={{ padding: '1px 6px' }} />
+                            )}
+                          </div>
                         )}
                         {moneyBlock({ setup: Number(a.setup) || 0, monthly: Number(a.monthly) || 0, annual: Number(a.annual) || 0 }, { size: 10 })}
                       </div>

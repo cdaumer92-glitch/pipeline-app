@@ -4,6 +4,7 @@ import { ACTION_TYPES } from '../lib/constants.js';
 import { I, ICONS, IconBtn, displayName, formatDecisionPeriode, decisionPeriodeOptions } from '../lib/shared.jsx';
 import { MotifPerteField } from './MotifPerteField.jsx';
 import { DevisSimpleForm } from './DevisSimpleForm.jsx';
+import { RevueDealBlock, SantePill } from './RevueDeal.jsx';
 
 
 export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, fetchAffaires, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect, onRequestCompleteAction, fetchDevis }) {
@@ -183,6 +184,10 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                                   <span title="Réalisation probable" style={{fontSize:'11px',fontWeight:500,padding:'2px 8px',borderRadius:'10px',background:'var(--tw-bg, #eef2f5)',color:'var(--tw-slate)',border:'0.5px solid var(--tw-border)'}}>
                                     Décision : {formatDecisionPeriode(affaire.decision_periode)}
                                   </span>
+                                )}
+                                {/* Santé du deal (dernière revue) : seulement pour les affaires encore ouvertes */}
+                                {affaire.statut_global !== 'Perdu' && (
+                                  <SantePill score={affaire.revue_score} date={affaire.revue_date} nbDevis={affaireDevis.length} />
                                 )}
                               </div>
                               {/* Prochaine action */}
@@ -419,6 +424,18 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                                 })}
                               </div>
                             )}
+
+                            {/* ========== REVUE DE DEAL ==========
+                                Qualification en six questions, cascade des pourquoi, action corrective.
+                                Espace violet, entre les devis et les actions (l'action créée apparaît en dessous). */}
+                            <RevueDealBlock
+                              affaire={affaire}
+                              user={user}
+                              API_URL={API_URL}
+                              interlocuteurs={interlocuteurs}
+                              nbDevis={affaireDevis.length}
+                              onChanged={() => { if (typeof fetchAffaires === 'function' && selectedProspect) fetchAffaires(selectedProspect.id); }}
+                            />
 
                             {/* ========== ACTIONS DE L'AFFAIRE ==========
                                 Espace distinct des devis : intitulé, compteur et bouton dans l'orange

@@ -540,6 +540,29 @@ async function initDB() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_bons_commande_affaire ON bons_commande(affaire_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_factures_affaire ON factures(affaire_id)`);
 
+    // ── Revues de deal (qualification en six questions + cascade des pourquoi) ──
+    // Une revue est un instantané horodaté et signé ; on n'édite pas, on refait une revue.
+    //   reponses : { douleur|decideur|budget|echeance|concurrence|prochaine_etape: { texte, etat } }
+    //              etat ∈ solide / partiel / inconnu ; score = nombre de « solide » (0..6), recalculé serveur.
+    //   pourquoi : ["constat", "pourquoi 2", ...] ; cause_fond : texte ; action_corrective : texte,
+    //   action_id : l'action créée dans l'affaire à partir de la revue (conservée si la revue est supprimée).
+    await client.query(`CREATE TABLE IF NOT EXISTS revues_deal (
+      id SERIAL PRIMARY KEY,
+      affaire_id INTEGER REFERENCES affaires(id) ON DELETE CASCADE,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      user_id INTEGER,
+      auteur TEXT,
+      date_revue DATE DEFAULT CURRENT_DATE,
+      reponses JSONB,
+      score INTEGER DEFAULT 0,
+      pourquoi JSONB,
+      cause_fond TEXT,
+      action_corrective TEXT,
+      action_id INTEGER REFERENCES next_actions(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_revues_deal_affaire ON revues_deal(affaire_id)`);
+
     // Rattachement d'un contact : en priorité à UN site OU UNE boutique (au plus un).
     // Le contact non rattaché reste au niveau société (rattachement = siège par défaut).
     await client.query(`ALTER TABLE interlocuteurs ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL`);
@@ -1493,7 +1516,7 @@ async function assertOwnsProspect(req, res, prospectId) {
 // en remontant à son prospect. `table` est une valeur littérale contrôlée (pas d'injection).
 async function assertOwnsViaProspect(req, res, table, id) {
   if ((await getUserRole(req.userId)) === 'admin') return true;
-  if (!['next_actions', 'affaires', 'devis', 'interlocuteurs', 'boutiques', 'sites', 'client_licences', 'client_materiel', 'bons_commande', 'factures'].includes(table)) { res.status(500).json({ error: 'Table invalide' }); return false; }
+  if (!['next_actions', 'affaires', 'devis', 'interlocuteurs', 'boutiques', 'sites', 'client_licences', 'client_materiel', 'bons_commande', 'factures', 'revues_deal'].includes(table)) { res.status(500).json({ error: 'Table invalide' }); return false; }
   const q = await pool.query(
     `SELECT p.assigned_to FROM ${table} t JOIN prospects p ON p.id = t.prospect_id WHERE t.id = $1`,
     [id]
@@ -2288,14 +2311,25 @@ app.get('/api/prospects/:id/affaires', auth, async (req, res) => {
   try {
     const { id } = req.params;
 
+    // rv : dernière revue de deal (score, date, auteur) + nombre de revues, pour la pastille de santé.
     const result = await pool.query(
       `SELECT a.*,
               COUNT(d.id) as nb_devis,
-              MAX(d.created_at) as dernier_devis_date
+              MAX(d.created_at) as dernier_devis_date,
+              rv.score      AS revue_score,
+              rv.date_revue AS revue_date,
+              rv.auteur     AS revue_auteur,
+              COALESCE(rv.nb_revues, 0)::int AS nb_revues
        FROM affaires a
        LEFT JOIN devis d ON d.affaire_id = a.id
+       LEFT JOIN LATERAL (
+         SELECT r.score, r.date_revue, r.auteur,
+                (SELECT COUNT(*) FROM revues_deal r2 WHERE r2.affaire_id = a.id) AS nb_revues
+         FROM revues_deal r WHERE r.affaire_id = a.id
+         ORDER BY r.date_revue DESC, r.id DESC LIMIT 1
+       ) rv ON true
        WHERE a.prospect_id = $1
-       GROUP BY a.id
+       GROUP BY a.id, rv.score, rv.date_revue, rv.auteur, rv.nb_revues
        ORDER BY
          CASE a.statut_global WHEN 'Gagné' THEN 1 WHEN 'Perdu' THEN 2 ELSE 0 END,
          a.display_order ASC NULLS LAST,
@@ -6400,12 +6434,19 @@ app.get('/api/prospects/enriched', auth, async (req, res) => {
               'setup',    COALESCE(dpa.setup_amount, 0),
               'monthly',  COALESCE(dpa.monthly_amount, 0),
               'annual',   COALESCE(dpa.annual_amount, 0),
-              'training', COALESCE(dpa.training_amount, 0)
+              'training', COALESCE(dpa.training_amount, 0),
+              -- Dernière revue de deal : pastille de santé sur les cartes du Kanban
+              'revue_score', rv.score,
+              'revue_date',  rv.date_revue
             )
             ORDER BY a.display_order ASC NULLS LAST, a.created_at DESC
           ) AS affaires
         FROM affaires a
         INNER JOIN devis_par_affaire dpa ON dpa.affaire_id = a.id
+        LEFT JOIN LATERAL (
+          SELECT r.score, r.date_revue FROM revues_deal r WHERE r.affaire_id = a.id
+          ORDER BY r.date_revue DESC, r.id DESC LIMIT 1
+        ) rv ON true
         GROUP BY a.prospect_id
       ),
       -- Résoudre le prospect_id même quand il est NULL (anciennes actions sans prospect_id)
@@ -6873,6 +6914,96 @@ function registerDocRoutes({ table, path, singular, statuts, dateCol, linkCol, l
 registerDocRoutes({ table: 'bons_commande', path: 'bons-commande', singular: 'Bon de commande', statuts: BDC_STATUTS, dateCol: 'date_bdc', linkCol: 'devis_id', linkTable: 'devis' });
 registerDocRoutes({ table: 'factures', path: 'factures', singular: 'Facture', statuts: FACTURE_STATUTS, dateCol: 'date_facture', linkCol: 'bdc_id', linkTable: 'bons_commande' });
 
+// ===================== REVUES DE DEAL =====================
+// Six questions de qualification, chacune avec un texte et un état ; le score est le
+// nombre de réponses « solides ». Même grille que src/lib/revueDeal.js côté front.
+const REVUE_KEYS = ['douleur', 'decideur', 'budget', 'echeance', 'concurrence', 'prochaine_etape'];
+const REVUE_ETATS = ['solide', 'partiel', 'inconnu'];
+function cleanRevueReponses(raw) {
+  const reponses = {};
+  let score = 0;
+  for (const k of REVUE_KEYS) {
+    const r = raw && typeof raw === 'object' && raw[k] && typeof raw[k] === 'object' ? raw[k] : {};
+    const etat = REVUE_ETATS.includes(r.etat) ? r.etat : 'inconnu';
+    reponses[k] = { texte: String(r.texte || '').trim().slice(0, 2000), etat };
+    if (etat === 'solide') score++;
+  }
+  return { reponses, score };
+}
+const cleanRevuePourquoi = (raw) => Array.isArray(raw)
+  ? raw.map(s => String(s || '').trim().slice(0, 2000)).filter(Boolean).slice(0, 10)
+  : [];
+const cleanRevueTexte = (v) => { const s = String(v || '').trim().slice(0, 4000); return s || null; };
+
+// GET /api/affaires/:id/revues — toutes les revues de l'affaire, la plus récente d'abord.
+// Visibles par toute l'équipe ayant accès à la société (même règle que les devis).
+app.get('/api/affaires/:id/revues', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'affaires', req.params.id))) return;
+  try {
+    const r = await pool.query(
+      `SELECT * FROM revues_deal WHERE affaire_id = $1 ORDER BY date_revue DESC, id DESC`,
+      [req.params.id]
+    );
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/affaires/:id/revues — enregistre une revue et, si demandé, crée l'action
+// corrective dans l'affaire (next_actions) dans la même transaction.
+// Body : { reponses, pourquoi[], cause_fond, action_corrective, creer_action,
+//          action_type, action_date, action_actor, action_contact, date_revue? }
+app.post('/api/affaires/:id/revues', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'affaires', req.params.id))) return;
+  const { reponses, score } = cleanRevueReponses(req.body.reponses);
+  const pourquoi = cleanRevuePourquoi(req.body.pourquoi);
+  const causeFond = cleanRevueTexte(req.body.cause_fond);
+  const actionCorrective = cleanRevueTexte(req.body.action_corrective);
+  const creerAction = !!req.body.creer_action && !!actionCorrective;
+  const dateRevue = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body.date_revue || '')) ? req.body.date_revue : null;
+  if (creerAction && !/^\d{4}-\d{2}-\d{2}$/.test(String(req.body.action_date || ''))) {
+    return res.status(400).json({ error: 'Date de l\'action corrective manquante' });
+  }
+  const client = await pool.connect();
+  try {
+    const aff = await client.query('SELECT prospect_id FROM affaires WHERE id = $1', [req.params.id]);
+    if (aff.rows.length === 0) return res.status(404).json({ error: 'Affaire introuvable' });
+    const prospectId = aff.rows[0].prospect_id;
+    await client.query('BEGIN');
+    let actionId = null;
+    if (creerAction) {
+      const actionType = String(req.body.action_type || 'Appel').slice(0, 50);
+      const act = await client.query(
+        `INSERT INTO next_actions (prospect_id, affaire_id, action_type, planned_date, actor, contact, completed_note, user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [prospectId, req.params.id, actionType, req.body.action_date, String(req.body.action_actor || req.userName || '').slice(0, 100) || null,
+         String(req.body.action_contact || '').slice(0, 200) || null, actionCorrective, req.userId]
+      );
+      actionId = act.rows[0].id;
+    }
+    const r = await client.query(
+      `INSERT INTO revues_deal (affaire_id, prospect_id, user_id, auteur, date_revue, reponses, score, pourquoi, cause_fond, action_corrective, action_id)
+       VALUES ($1, $2, $3, $4, COALESCE($5::date, CURRENT_DATE), $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [req.params.id, prospectId, req.userId, req.userName || null, dateRevue, JSON.stringify(reponses), score, JSON.stringify(pourquoi), causeFond, actionCorrective, actionId]
+    );
+    await client.query('COMMIT');
+    res.json(r.rows[0]);
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (e) { /* déjà hors transaction */ }
+    console.error('Erreur POST /api/affaires/:id/revues:', err);
+    res.status(500).json({ error: err.message });
+  } finally { client.release(); }
+});
+
+// DELETE /api/revues/:id — supprime une revue (l'action créée est conservée).
+app.delete('/api/revues/:id', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'revues_deal', req.params.id))) return;
+  try {
+    const r = await pool.query('DELETE FROM revues_deal WHERE id = $1 RETURNING id', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Revue introuvable' });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ===================== RECAP EMAIL =====================
 // Clé secrète pour le scheduler (Cloud Scheduler l'envoie en header)
 const SCHEDULER_KEY = process.env.SCHEDULER_KEY || 'recap-secret-key';
@@ -6970,13 +7101,31 @@ async function buildRecapData(commercialName) {
     ORDER BY MAX(na.completed_date) ASC NULLS FIRST, p.name
   `, [commercialName, since15]);
 
+  // Affaires en cours avec devis, jamais revues ou dont la dernière revue de deal
+  // remonte à plus de 30 jours (les plus anciennes d'abord, jamais revues en tête).
+  const affairesARevoir = await pool.query(`
+    SELECT a.id, a.nom_affaire, p.name AS prospect_name, rv.score, rv.date_revue
+    FROM affaires a
+    INNER JOIN prospects p ON p.id = a.prospect_id
+    LEFT JOIN LATERAL (
+      SELECT r.score, r.date_revue FROM revues_deal r WHERE r.affaire_id = a.id
+      ORDER BY r.date_revue DESC, r.id DESC LIMIT 1
+    ) rv ON true
+    WHERE p.assigned_to = $1
+      AND a.statut_global NOT IN ('Gagné','Perdu')
+      AND EXISTS (SELECT 1 FROM devis d WHERE d.affaire_id = a.id)
+      AND (rv.date_revue IS NULL OR rv.date_revue < CURRENT_DATE - INTERVAL '30 days')
+    ORDER BY rv.date_revue ASC NULLS FIRST, p.name, a.nom_affaire
+  `, [commercialName]);
+
   return {
     commercial: commercialName,
     sansActions: sansActions.rows,
     enRetard: enRetard.rows,
     aVenir: aVenir.rows,
     suspectsSansAction: suspectsSansAction.rows,
-    suspectsInactifs: suspectsInactifs.rows
+    suspectsInactifs: suspectsInactifs.rows,
+    affairesARevoir: affairesARevoir.rows
   };
 }
 
@@ -7092,6 +7241,21 @@ function buildEmailHTML(data, isGlobal = false) {
       body += `<table><tr><th>Société</th><th>Contact</th><th>Dernière action</th></tr>`;
       for (const p of suspInactifs) {
         body += `<tr><td>${p.name}</td><td>${p.contact_name||'—'}</td><td style="color:#f0932b;font-weight:600">${p.last_action_date ? fmtDate(p.last_action_date) : 'Jamais'}</td></tr>`;
+      }
+      body += `</table>`;
+    }
+
+    // Affaires à revoir (revue de deal absente ou vieille de plus de 30 jours)
+    const aRevoir = d.affairesARevoir || [];
+    body += `<div class="section-title" style="color:#5a47b0;margin-top:20px">🩺 Affaires à revoir <span class="badge" style="background:#eeedfe;color:#5a47b0">${aRevoir.length}</span></div>`;
+    if (aRevoir.length === 0) {
+      body += `<p class="empty">✓ Toutes les affaires en cours ont une revue de deal de moins d'un mois</p>`;
+    } else {
+      body += `<table><tr><th>Société</th><th>Affaire</th><th>Santé</th><th>Dernière revue</th></tr>`;
+      for (const a of aRevoir) {
+        const sante = a.date_revue == null ? '—' : `${a.score}/6`;
+        const santeColor = a.date_revue == null ? '#9eb5b5' : (a.score >= 4 ? '#2ec27e' : a.score >= 2 ? '#f0932b' : '#e74c3c');
+        body += `<tr><td>${a.prospect_name}</td><td>${a.nom_affaire||'—'}</td><td style="color:${santeColor};font-weight:600">${sante}</td><td style="color:${a.date_revue ? '#f0932b' : '#e74c3c'};font-weight:600">${a.date_revue ? fmtDate(a.date_revue) : 'Jamais revue'}</td></tr>`;
       }
       body += `</table>`;
     }
