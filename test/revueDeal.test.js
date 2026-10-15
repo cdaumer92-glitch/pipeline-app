@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { REVUE_QUESTIONS, emptyReponses, normalizeReponses, computeScore, scoreTone, daysSince, ageLabel, santeDeal } from '../src/lib/revueDeal.js'
+import { REVUE_QUESTIONS, emptyReponses, normalizeReponses, computeScore, scoreTone, daysSince, ageLabel, santeDeal, revueUrgence } from '../src/lib/revueDeal.js'
 
 // Helpers purs de la revue de deal (score de santé, pastilles).
 
@@ -72,5 +72,29 @@ describe('revue de deal : pastille de santé', () => {
     expect(r.label).toBe('Santé 5/6')
     expect(r.stale).toBe(false)
     expect(r.color).toBe('#1d9e75')
+  })
+})
+
+describe('revue de deal : urgence du bouton', () => {
+  const now = new Date(2026, 9, 15)
+  it('rouge quand jamais revue avec un devis, ou affaire de plus de 14 jours', () => {
+    expect(revueUrgence({ date: null, nbDevis: 1, createdAt: '2026-10-14' }, now).level).toBe('urgent')
+    expect(revueUrgence({ date: null, nbDevis: 0, createdAt: '2026-09-01' }, now).level).toBe('urgent')
+    expect(revueUrgence({ date: null, nbDevis: 0, createdAt: '2026-09-01' }, now).label).toBe('À revoir · jamais revue')
+  })
+  it('neutre pour une affaire neuve sans devis', () => {
+    const u = revueUrgence({ date: null, nbDevis: 0, createdAt: '2026-10-10' }, now)
+    expect(u.level).toBe('none')
+    expect(u.label).toBe('Revue de deal')
+  })
+  it('rouge au-delà de 30 jours, vert avec le score sinon', () => {
+    const old = revueUrgence({ score: 2, date: '2026-09-12', nbDevis: 1 }, now)
+    expect(old.level).toBe('urgent')
+    expect(old.label).toBe('À revoir · il y a 33 jours')
+    const ok = revueUrgence({ score: 5, date: '2026-10-09', nbDevis: 1 }, now)
+    expect(ok.level).toBe('ok')
+    expect(ok.label).toBe('Santé 5/6 · il y a 6 jours')
+    expect(ok.fg).toBe('#085041')
+    expect(revueUrgence({ score: 1, date: '2026-09-15', nbDevis: 1 }, now).level).toBe('ok') // 30 jours pile : encore acceptable
   })
 })

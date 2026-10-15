@@ -69,6 +69,34 @@ export function ageLabel(days) {
   return `il y a ${Math.round(days / 30)} mois`;
 }
 
+// Délai au-delà duquel une revue est considérée comme trop ancienne, et âge d'une
+// affaire sans devis à partir duquel on réclame une première revue.
+export const REVUE_DELAI_JOURS = 30;
+export const AFFAIRE_AGE_SANS_REVUE_JOURS = 14;
+
+// Urgence de la revue d'une affaire : pilote le bouton « Revue de deal » de la liste.
+//   level 'urgent' : jamais revue alors que le deal a un devis ou dure depuis plus de
+//                    14 jours, ou dernière revue vieille de plus de 30 jours → rouge
+//   level 'ok'     : revue récente → vert, avec le score
+//   level 'none'   : affaire toute neuve sans devis ni revue → neutre
+export function revueUrgence({ score, date, nbDevis, createdAt } = {}, now = new Date()) {
+  const RED = { color: '#c62828', bg: '#c62828', fg: '#ffffff' };
+  const GREEN = { color: '#1d9e75', bg: '#e1f5ee', fg: '#085041' };
+  const GREY = { color: '#8a95a5', bg: '#ffffff', fg: '#5b6775' };
+  if (!date) {
+    const age = daysSince(createdAt, now);
+    const urgent = Number(nbDevis) > 0 || (age != null && age > AFFAIRE_AGE_SANS_REVUE_JOURS);
+    if (urgent) return { level: 'urgent', ...RED, label: 'À revoir · jamais revue', title: 'Ce deal n\'a jamais été revu : six questions, dix minutes' };
+    return { level: 'none', ...GREY, label: 'Revue de deal', title: 'Faire une première revue de ce deal' };
+  }
+  const days = daysSince(date, now);
+  const s = Number(score) || 0;
+  if (days != null && days > REVUE_DELAI_JOURS) {
+    return { level: 'urgent', ...RED, days, label: `À revoir · ${ageLabel(days)}`, title: `Dernière revue ${ageLabel(days)} (${s}/6) : à refaire` };
+  }
+  return { level: 'ok', ...GREEN, days, label: `Santé ${s}/6 · ${ageLabel(days)}`, title: `Revue ${ageLabel(days)} · ${s} réponse(s) solide(s) sur 6 · ${scoreTone(s).label}` };
+}
+
 // Pastille de santé d'une affaire pour les listes. Retourne null quand il n'y a
 // rien à dire (affaire sans devis et jamais revue).
 //   score : score de la dernière revue ; date : sa date ; nbDevis : devis de l'affaire.

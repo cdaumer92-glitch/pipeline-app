@@ -4,7 +4,7 @@ import { ACTION_TYPES } from '../lib/constants.js';
 import { I, ICONS, IconBtn, displayName, formatDecisionPeriode, decisionPeriodeOptions } from '../lib/shared.jsx';
 import { MotifPerteField } from './MotifPerteField.jsx';
 import { DevisSimpleForm } from './DevisSimpleForm.jsx';
-import { RevueDealBlock, SantePill } from './RevueDeal.jsx';
+import { RevueDealBlock, RevueButton } from './RevueDeal.jsx';
 
 
 export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction, onToggleNextAction, onDeleteNextAction, newActionType, onActionTypeChange, newActionDate, onActionDateChange, newActionActor, onActionActorChange, newActionContact, onActionContactChange, newActionComment, onActionCommentChange, user, API_URL, interlocuteurs, affairesList, fetchAffaires, selectedAffaireId, setSelectedAffaireId, expandedActionId, setExpandedActionId, handleAddAffaire, handleEditAffaire, handleSaveAffaire, handleDeleteAffaire, showAffaireForm, setShowAffaireForm, editingAffaireId, setEditingAffaireId, affaireFormData, setAffaireFormData, affairesActions, handleOpenActionAffaireForm, handleToggleActionAffaire, handleDeleteActionAffaire, showActionAffaireForm, setShowActionAffaireForm, actionAffaireFormData, setActionAffaireFormData, handleSaveActionAffaire, devisList, onEdit, showDevisForm, setShowDevisForm, editingDevisId, setEditingDevisId, editingDevis, setEditingDevis, devisFormData, setDevisFormData, devisPdfFile, setDevisPdfFile, isUploadingDevisPdf, handleAddDevis, handleAddDevisLibre, handleAddDevisTexasWin, showDevisTypeModal, setShowDevisTypeModal, handleEditDevis, handleSaveDevis, handleQuickDevisStatus, handleAnnulerRemplacer, handleSaveMotifPerte, handleDeleteDevis, handleDeleteDevisPDF, handleUploadDevisPdfDirect, handleRattacherDevisAffaire, selectedProspect, onRequestCompleteAction, fetchDevis }) {
@@ -36,6 +36,8 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
       // Tri des affaires : 'statut' (ordre serveur : En cours → Gagné → Perdu, puis ordre
       // personnalisé) ou 'decision' (trimestre de réalisation probable, non renseignées en fin).
       const [affairesSort, setAffairesSort] = React.useState('statut');
+      // Affaire dont le formulaire de revue de deal doit s'ouvrir (bouton de la ligne).
+      const [revueOpenFor, setRevueOpenFor] = React.useState(null);
       // Les affaires gagnées vivent dans l'onglet « Affaires gagnées » : ici, en cours et perdues seulement.
       const affairesVisibles = React.useMemo(() => (affairesList || []).filter(a => a.statut_global !== 'Gagné'), [affairesList]);
       const affairesSorted = React.useMemo(() => {
@@ -185,10 +187,6 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                                     Décision : {formatDecisionPeriode(affaire.decision_periode)}
                                   </span>
                                 )}
-                                {/* Santé du deal (dernière revue) : seulement pour les affaires encore ouvertes */}
-                                {affaire.statut_global !== 'Perdu' && (
-                                  <SantePill score={affaire.revue_score} date={affaire.revue_date} nbDevis={affaireDevis.length} />
-                                )}
                               </div>
                               {/* Prochaine action */}
                               {(() => {
@@ -224,7 +222,13 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                               )}
                             </div>
                             {/* Actions sur l'affaire */}
-                            <div style={{display:'flex',alignItems:'center',gap:'2px'}} onClick={(e) => e.stopPropagation()}>
+                            <div style={{display:'flex',alignItems:'center',gap:'6px'}} onClick={(e) => e.stopPropagation()}>
+                              {/* Revue de deal : rouge quand le deal traîne sans revue, vert quand c'est acceptable.
+                                  Ouvre l'affaire et le formulaire directement. */}
+                              {affaire.statut_global !== 'Perdu' && (
+                                <RevueButton affaire={affaire} nbDevis={affaireDevis.length}
+                                  onClick={() => { setSelectedAffaireId(affaire.id); setRevueOpenFor(affaire.id); }} />
+                              )}
                               <IconBtn onClick={() => handleEditAffaire(affaire)} title="Modifier l'affaire">{I(ICONS.edit, 13)}</IconBtn>
                               <IconBtn onClick={() => handleDeleteAffaire(affaire.id)} title="Supprimer l'affaire" danger>{I(ICONS.trash, 13)}</IconBtn>
                             </div>
@@ -435,6 +439,8 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                               interlocuteurs={interlocuteurs}
                               nbDevis={affaireDevis.length}
                               onChanged={() => { if (typeof fetchAffaires === 'function' && selectedProspect) fetchAffaires(selectedProspect.id); }}
+                              autoOpen={revueOpenFor === affaire.id}
+                              onAutoOpened={() => setRevueOpenFor(null)}
                             />
 
                             {/* ========== ACTIONS DE L'AFFAIRE ==========

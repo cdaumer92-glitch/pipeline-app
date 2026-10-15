@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { ACTION_TYPES } from '../lib/constants.js';
 import { I, ICONS, IconBtn, displayName } from '../lib/shared.jsx';
-import { REVUE_QUESTIONS, REVUE_ETATS, etatInfo, emptyReponses, normalizeReponses, computeScore, scoreTone, daysSince, ageLabel, santeDeal } from '../lib/revueDeal.js';
+import { REVUE_QUESTIONS, REVUE_ETATS, etatInfo, emptyReponses, normalizeReponses, computeScore, scoreTone, daysSince, ageLabel, santeDeal, revueUrgence } from '../lib/revueDeal.js';
 
 // ─── Revue de deal ─────────────────────────────────────────────────────────────
 // Espace « Revue de deal » d'une affaire : qualification en six questions (état
@@ -21,14 +21,34 @@ const fmtDate = (d) => {
 };
 const isoPlusDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]; };
 
-// Pastille de santé (listes d'affaires, Kanban). Rien si l'affaire n'a ni devis ni revue.
-export function SantePill({ score, date, nbDevis, size = 11, style }) {
+// Pastille de santé (Kanban). Rouge pleine quand la revue est en retard, verte quand
+// elle est récente. Rien si l'affaire n'a ni devis ni revue.
+export function SantePill({ score, date, nbDevis, createdAt, size = 11, style }) {
   const s = santeDeal({ score, date, nbDevis });
   if (!s) return null;
+  const u = revueUrgence({ score, date, nbDevis, createdAt });
   return (
-    <span title={s.title} style={{ fontSize: `${size}px`, fontWeight: 600, padding: '2px 8px', borderRadius: '10px', background: s.bg, color: s.fg, border: `0.5px solid ${s.color}66`, whiteSpace: 'nowrap', ...style }}>
-      {s.label}
+    <span title={u.title} style={{ fontSize: `${size}px`, fontWeight: 600, padding: '2px 8px', borderRadius: '10px', background: u.bg, color: u.fg, border: `0.5px solid ${u.color}`, whiteSpace: 'nowrap', ...style }}>
+      {u.level === 'urgent' ? 'À revoir' : s.label}
     </span>
+  );
+}
+
+// Bouton « Revue de deal » de la ligne d'affaire : rouge plein quand le deal dure
+// depuis trop longtemps sans revue, vert quand c'est acceptable (avec le score),
+// neutre pour une affaire toute neuve. Un clic ouvre directement le formulaire.
+export function RevueButton({ affaire, nbDevis, onClick }) {
+  const u = revueUrgence({ score: affaire.revue_score, date: affaire.revue_date, nbDevis, createdAt: affaire.created_at });
+  const urgent = u.level === 'urgent';
+  return (
+    <button type="button" onClick={(e) => { e.stopPropagation(); onClick(); }} title={u.title} data-testid={`revue-btn-${affaire.id}`} data-level={u.level}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '7px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', fontFamily: FONT, whiteSpace: 'nowrap',
+        background: u.bg, color: u.fg, border: `1px solid ${u.color}`, boxShadow: urgent ? '0 1px 4px rgba(198,40,40,.4)' : 'none' }}
+      onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(.93)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}>
+      <span style={{ display: 'inline-flex' }}>{I(ICONS.pulse, 12)}</span>
+      {u.label}
+    </button>
   );
 }
 
@@ -264,12 +284,22 @@ function RevueForm({ affaire, initial, user, API_URL, interlocuteurs, onSaved, o
 }
 
 // ── Bloc « Revue de deal » d'une affaire ────────────────────────────────────
-export function RevueDealBlock({ affaire, user, API_URL, interlocuteurs, nbDevis, onChanged }) {
+// autoOpen : demandé par le bouton de la ligne d'affaire → ouvre le formulaire et
+// amène le bloc à l'écran ; onAutoOpened est rappelé pour consommer la demande.
+export function RevueDealBlock({ affaire, user, API_URL, interlocuteurs, nbDevis, onChanged, autoOpen, onAutoOpened }) {
   const [revues, setRevues] = React.useState(null);
   const [formOpen, setFormOpen] = React.useState(false);
   const [showLast, setShowLast] = React.useState(false);
   const [histOpen, setHistOpen] = React.useState(false);
   const [viewId, setViewId] = React.useState(null);
+  const rootRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!autoOpen) return;
+    setFormOpen(true);
+    if (typeof onAutoOpened === 'function') onAutoOpened();
+    const t = setTimeout(() => { if (rootRef.current && rootRef.current.scrollIntoView) rootRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+    return () => clearTimeout(t);
+  }, [autoOpen]);
 
   const load = React.useCallback(async () => {
     try {
@@ -304,7 +334,7 @@ export function RevueDealBlock({ affaire, user, API_URL, interlocuteurs, nbDevis
   );
 
   return (
-    <section data-testid={`revue-block-${affaire.id}`} style={{ marginTop: '18px', paddingTop: '14px', borderTop: '0.5px solid var(--tw-border)' }} onClick={(e) => e.stopPropagation()}>
+    <section ref={rootRef} data-testid={`revue-block-${affaire.id}`} style={{ marginTop: '18px', paddingTop: '14px', borderTop: '0.5px solid var(--tw-border)', scrollMarginTop: '80px' }} onClick={(e) => e.stopPropagation()}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
         <p style={{ margin: 0, fontSize: '11px', color: C.color, textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           <span style={{ display: 'inline-flex' }}>{I(ICONS.pulse, 13)}</span>
