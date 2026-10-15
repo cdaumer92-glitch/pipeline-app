@@ -562,6 +562,19 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT NOW()
     )`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_revues_deal_affaire ON revues_deal(affaire_id)`);
+    // Lecture assistée d'un deal (bouton « Analyser ») : la dernière analyse est conservée
+    // pour que l'équipe la relise sans relancer l'appel. contenu = JSON structuré rendu par Claude.
+    await client.query(`CREATE TABLE IF NOT EXISTS analyses_deal (
+      id SERIAL PRIMARY KEY,
+      affaire_id INTEGER REFERENCES affaires(id) ON DELETE CASCADE,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      user_id INTEGER,
+      auteur TEXT,
+      modele TEXT,
+      contenu JSONB,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_analyses_deal_affaire ON analyses_deal(affaire_id)`);
 
     // Rattachement d'un contact : en priorité à UN site OU UNE boutique (au plus un).
     // Le contact non rattaché reste au niveau société (rattachement = siège par défaut).
@@ -6993,6 +7006,155 @@ app.post('/api/affaires/:id/revues', auth, async (req, res) => {
     console.error('Erreur POST /api/affaires/:id/revues:', err);
     res.status(500).json({ error: err.message });
   } finally { client.release(); }
+});
+
+// ── Lecture assistée (analyse d'un deal par Claude, à la demande) ──
+// Le serveur assemble le dossier du deal depuis la base (société, contacts, affaire,
+// devis, actions, notes, revues, comparables gagnés/perdus) et demande à Claude une
+// lecture courte en JSON : situation, risque principal, signaux, questions à poser,
+// une action corrective, ce qui manque pour trancher. Le commercial décide.
+const ANALYSE_MODEL = process.env.ANTHROPIC_ANALYSE_MODEL || 'claude-sonnet-5-5';
+const ANALYSE_MODEL_FALLBACK = 'claude-sonnet-4-5-20250929';
+
+const fmtD = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+const fmtE = (v) => (v == null ? null : Math.round(Number(v) || 0));
+
+async function buildDossierDeal(affaireId) {
+  const affR = await pool.query(`SELECT a.*, p.name AS prospect_name FROM affaires a JOIN prospects p ON p.id = a.prospect_id WHERE a.id = $1`, [affaireId]);
+  if (affR.rows.length === 0) return null;
+  const a = affR.rows[0];
+  const pid = a.prospect_id;
+  const [soc, contacts, devis, actionsAff, actionsSoc, notes, revues, nbBoutiques, licences] = await Promise.all([
+    pool.query(`SELECT name, statut_societe, status, secteur, ville, marques, assigned_to, created_at FROM prospects WHERE id = $1`, [pid]),
+    pool.query(`SELECT prenom, nom, fonction, decideur, principal FROM interlocuteurs WHERE prospect_id = $1 ORDER BY principal DESC NULLS LAST, decideur DESC NULLS LAST, id LIMIT 12`, [pid]),
+    pool.query(`SELECT id, devis_name, devis_status, quote_date, setup_amount, monthly_amount, annual_amount, training_amount, chance_percent, comment, motif_perte, remplace_devis_id, created_at
+                FROM devis WHERE affaire_id = $1 ORDER BY quote_date ASC NULLS LAST, created_at ASC`, [affaireId]),
+    pool.query(`SELECT action_type, planned_date, actor, contact, completed, completed_date, completed_note FROM next_actions WHERE affaire_id = $1 ORDER BY planned_date ASC NULLS LAST, id ASC LIMIT 60`, [affaireId]),
+    pool.query(`SELECT action_type, planned_date, actor, contact, completed, completed_date, completed_note FROM next_actions WHERE prospect_id = $1 AND affaire_id IS NULL ORDER BY planned_date DESC NULLS LAST LIMIT 20`, [pid]),
+    pool.query(`SELECT contenu, created_by, created_at FROM prospect_notes WHERE prospect_id = $1 ORDER BY created_at DESC LIMIT 10`, [pid]),
+    pool.query(`SELECT date_revue, auteur, score, reponses, pourquoi, cause_fond, action_corrective FROM revues_deal WHERE affaire_id = $1 ORDER BY date_revue DESC, id DESC LIMIT 3`, [affaireId]),
+    pool.query(`SELECT COUNT(*)::int AS n FROM boutiques WHERE prospect_id = $1`, [pid]),
+    pool.query(`SELECT l.nom, cl.nb_utilisateurs FROM client_licences cl JOIN licences l ON l.id = cl.licence_id WHERE cl.prospect_id = $1`, [pid]),
+  ]);
+  const s = soc.rows[0] || {};
+  // Comparables : affaires closes du même secteur si connu, sinon toutes. Cycle = création → clôture.
+  const secteur = s.secteur || null;
+  const comp = await pool.query(`
+    SELECT a.statut_global, a.motif_perte,
+           EXTRACT(EPOCH FROM (a.updated_at - a.created_at)) / 86400 AS cycle_jours
+    FROM affaires a JOIN prospects p ON p.id = a.prospect_id
+    WHERE a.statut_global IN ('Gagné','Perdu') AND a.id <> $1
+      AND ($2::text IS NULL OR p.secteur = $2)
+    ORDER BY a.updated_at DESC LIMIT 200`, [affaireId, secteur]);
+  const gagnes = comp.rows.filter(r => r.statut_global === 'Gagné');
+  const perdus = comp.rows.filter(r => r.statut_global === 'Perdu');
+  const median = (arr) => { const v = arr.map(Number).filter(n => Number.isFinite(n) && n >= 0).sort((x, y) => x - y); return v.length ? Math.round(v[Math.floor(v.length / 2)]) : null; };
+  const ageJours = Math.round((Date.now() - new Date(a.created_at).getTime()) / 86400000);
+  const act = (r) => ({ type: r.action_type, date: fmtD(r.planned_date), de: r.actor, vers: r.contact, faite: r.completed === 1 || r.completed === true, faite_le: fmtD(r.completed_date), commentaire: r.completed_note || null });
+  return {
+    aujourd_hui: fmtD(new Date()),
+    societe: { nom: s.name, statut: s.statut_societe, etape_pipeline: s.status, secteur, ville: s.ville, marques: s.marques || null, nb_boutiques: nbBoutiques.rows[0].n, commercial: s.assigned_to,
+      licences_deja_client: licences.rows.map(l => `${l.nom} (${l.nb_utilisateurs || 0} util.)`) },
+    contacts: contacts.rows.map(c => ({ nom: [c.prenom, c.nom].filter(Boolean).join(' '), fonction: c.fonction || null, decideur: !!c.decideur, principal: !!c.principal })),
+    affaire: { nom: a.nom_affaire, description: a.description || null, statut: a.statut_global, decision_prevue: a.decision_periode || null, creee_le: fmtD(a.created_at), age_jours: ageJours, motif_perte: a.motif_perte || null },
+    devis: devis.rows.map(d => ({ nom: d.devis_name, statut: d.devis_status, date: fmtD(d.quote_date), setup: fmtE(d.setup_amount), mensuel: fmtE(d.monthly_amount), annuel: fmtE(d.annual_amount), formation: fmtE(d.training_amount), probabilite: d.chance_percent, commentaire: d.comment || null, motif_perte: d.motif_perte || null, remplace_un_devis_precedent: !!d.remplace_devis_id })),
+    actions_affaire: actionsAff.rows.map(act),
+    actions_societe_hors_affaire: actionsSoc.rows.map(act),
+    notes_societe: notes.rows.map(n => ({ date: fmtD(n.created_at), par: n.created_by, texte: String(n.contenu || '').slice(0, 1500) })),
+    revues: revues.rows.map(r => ({ date: fmtD(r.date_revue), auteur: r.auteur, score: r.score, reponses: r.reponses, pourquoi: r.pourquoi, cause_fond: r.cause_fond, action_corrective: r.action_corrective })),
+    comparables: { perimetre: secteur ? `secteur ${secteur}` : 'toutes affaires closes', nb_gagnes: gagnes.length, nb_perdus: perdus.length,
+      cycle_median_jours_gagnes: median(gagnes.map(r => r.cycle_jours)), cycle_median_jours_perdus: median(perdus.map(r => r.cycle_jours)),
+      motifs_de_perte_recents: perdus.map(r => r.motif_perte).filter(Boolean).slice(0, 10) },
+  };
+}
+
+const ANALYSE_SYSTEM = `Tu es le directeur commercial de TexasWin, éditeur français de logiciels de gestion (ERP, caisse, B2B) pour les marques et détaillants de mode et textile. Tu relis un deal avec un commercial de l'équipe, à la manière des « 5 pourquoi » de Toyota : tu cherches la cause de fond, pas le symptôme.
+Tu reçois le dossier du deal en JSON, tel qu'il est dans le CRM. Règles :
+- Tu te fondes uniquement sur les faits du dossier. Tu ne supposes rien que le dossier ne dit pas ; si une information manque, tu le dis dans « manque ».
+- Tu confrontes le déclaré (réponses de la revue, probabilité du devis) à l'observé (actions, délais, silences, versions de devis, contacts rencontrés). Les contradictions sont le cœur de ta lecture.
+- Tu vérifies que la valeur de notre produit a été rapportée aux objectifs et à la douleur du client, et que le client l'a reformulée lui-même.
+- Tu utilises les comparables (cycles, motifs de perte) pour situer ce deal, avec les chiffres.
+- Tu écris en français, direct, sans jargon, sans flatterie. Phrases courtes. Pas de liste à puces dans les champs texte.
+Tu réponds UNIQUEMENT par un objet JSON, sans texte autour ni balises de code, avec exactement ces clés :
+{"situation": "où en est vraiment ce deal, 2 à 4 phrases",
+ "risque_principal": "le risque numéro un, 1 à 2 phrases",
+ "signaux": ["3 à 5 faits précis du dossier qui fondent ta lecture, datés quand c'est possible"],
+ "questions": ["2 à 3 questions à poser au client au prochain contact, formulées telles quelles"],
+ "action": {"texte": "une seule action corrective, concrète : qui fait quoi, pour quand", "type": "Appel|Relance|Email|À faire|Point technique|Démo|Négociation|Signature", "delai_jours": 7},
+ "manque": "ce qu'il faudrait savoir pour trancher, 1 à 2 phrases",
+ "confiance": "faible|moyenne|bonne"}`;
+
+function parseAnalyseJson(text) {
+  const raw = String(text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  const start = raw.indexOf('{'); const end = raw.lastIndexOf('}');
+  if (start < 0 || end <= start) throw new Error('Réponse sans JSON');
+  const o = JSON.parse(raw.slice(start, end + 1));
+  const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  const list = (v, max) => (Array.isArray(v) ? v.map(x => str(x, 400)).filter(Boolean).slice(0, max) : []);
+  const action = o.action && typeof o.action === 'object' ? o.action : {};
+  return {
+    situation: str(o.situation, 1500), risque_principal: str(o.risque_principal, 800),
+    signaux: list(o.signaux, 6), questions: list(o.questions, 4),
+    action: { texte: str(action.texte, 600), type: str(action.type, 30) || 'Appel', delai_jours: Math.max(1, Math.min(90, parseInt(action.delai_jours, 10) || 7)) },
+    manque: str(o.manque, 800), confiance: ['faible', 'moyenne', 'bonne'].includes(o.confiance) ? o.confiance : 'moyenne',
+  };
+}
+
+async function appelAnalyse(apiKey, model, dossier) {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model, max_tokens: 2000, system: ANALYSE_SYSTEM, messages: [{ role: 'user', content: `Dossier du deal :\n${JSON.stringify(dossier, null, 1)}` }] }),
+  });
+  return r;
+}
+
+// GET /api/affaires/:id/analyse — dernière analyse enregistrée (ou 204 s'il n'y en a pas).
+app.get('/api/affaires/:id/analyse', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'affaires', req.params.id))) return;
+  try {
+    const r = await pool.query(`SELECT id, auteur, modele, contenu, created_at FROM analyses_deal WHERE affaire_id = $1 ORDER BY id DESC LIMIT 1`, [req.params.id]);
+    if (r.rows.length === 0) return res.status(204).end();
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/affaires/:id/analyse — lance une analyse (appel Claude), l'enregistre et la renvoie.
+app.post('/api/affaires/:id/analyse', auth, async (req, res) => {
+  if (!(await assertOwnsViaProspect(req, res, 'affaires', req.params.id))) return;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY manquante sur le serveur' });
+  try {
+    const affInfo = await pool.query('SELECT prospect_id FROM affaires WHERE id = $1', [req.params.id]);
+    if (affInfo.rows.length === 0) return res.status(404).json({ error: 'Affaire introuvable' });
+    const prospectId = affInfo.rows[0].prospect_id;
+    const dossier = await buildDossierDeal(req.params.id);
+    if (!dossier) return res.status(404).json({ error: 'Affaire introuvable' });
+    let model = ANALYSE_MODEL;
+    let apiRes = await appelAnalyse(apiKey, model, dossier);
+    if (apiRes.status === 404 && model !== ANALYSE_MODEL_FALLBACK) {
+      console.warn(`[Analyse] modèle ${model} indisponible, repli sur ${ANALYSE_MODEL_FALLBACK}`);
+      model = ANALYSE_MODEL_FALLBACK;
+      apiRes = await appelAnalyse(apiKey, model, dossier);
+    }
+    if (!apiRes.ok) {
+      const errText = await apiRes.text();
+      console.error('[Analyse] Erreur Anthropic API:', apiRes.status, errText.slice(0, 500));
+      return res.status(502).json({ error: `Erreur API Anthropic (${apiRes.status})` });
+    }
+    const data = await apiRes.json();
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+    const contenu = parseAnalyseJson(text);
+    const ins = await pool.query(
+      `INSERT INTO analyses_deal (affaire_id, prospect_id, user_id, auteur, modele, contenu) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, auteur, modele, contenu, created_at`,
+      [req.params.id, prospectId, req.userId, req.userName || null, model, JSON.stringify(contenu)]
+    );
+    console.log(`[Analyse] affaire ${req.params.id} par ${req.userName} · ${model} · usage ${JSON.stringify(data.usage || {})}`);
+    res.json(ins.rows[0]);
+  } catch (err) {
+    console.error('Erreur POST /api/affaires/:id/analyse:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // DELETE /api/revues/:id — supprime une revue (l'action créée est conservée).

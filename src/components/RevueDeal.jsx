@@ -131,14 +131,15 @@ function RevueView({ revue }) {
 // ── Formulaire d'une nouvelle revue ─────────────────────────────────────────
 // Pré-rempli avec la dernière revue (réponses, pourquoi, cause) pour ne corriger
 // que ce qui a changé ; l'action corrective est toujours nouvelle.
-function RevueForm({ affaire, initial, user, API_URL, interlocuteurs, onSaved, onCancel }) {
+// initialAction : action proposée par la lecture assistée ({ texte, type, delai_jours }), reprise telle quelle.
+function RevueForm({ affaire, initial, initialAction, user, API_URL, interlocuteurs, onSaved, onCancel }) {
   const [reponses, setReponses] = React.useState(() => initial ? normalizeReponses(initial.reponses) : emptyReponses());
   const [pourquoi, setPourquoi] = React.useState(() => (initial && Array.isArray(initial.pourquoi) && initial.pourquoi.length) ? initial.pourquoi.map(String) : ['']);
   const [cause, setCause] = React.useState((initial && initial.cause_fond) || '');
-  const [actionTexte, setActionTexte] = React.useState('');
+  const [actionTexte, setActionTexte] = React.useState((initialAction && initialAction.texte) || '');
   const [creerAction, setCreerAction] = React.useState(true);
-  const [actionType, setActionType] = React.useState('Appel');
-  const [actionDate, setActionDate] = React.useState(() => isoPlusDays(7));
+  const [actionType, setActionType] = React.useState(() => (initialAction && ACTION_TYPES.includes(initialAction.type)) ? initialAction.type : 'Appel');
+  const [actionDate, setActionDate] = React.useState(() => isoPlusDays((initialAction && Number(initialAction.delai_jours)) || 7));
   const [actionActor, setActionActor] = React.useState((user && user.name) || '');
   const [actionContact, setActionContact] = React.useState('');
   const [saving, setSaving] = React.useState(false);
@@ -295,7 +296,14 @@ export function RevueDealContent({ affaire, user, API_URL, interlocuteurs, nbDev
   const [showLast, setShowLast] = React.useState(false);
   const [histOpen, setHistOpen] = React.useState(false);
   const [viewId, setViewId] = React.useState(null);
+  // Action proposée par la lecture assistée, reprise dans le formulaire (remonte le formulaire).
+  const [actionProposee, setActionProposee] = React.useState(null);
   const rootRef = React.useRef(null);
+  const reprendreAction = (action) => {
+    setActionProposee({ ...action, _k: Date.now() });
+    setFormOpen(true);
+    setTimeout(() => { if (rootRef.current && rootRef.current.scrollIntoView) rootRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+  };
 
   const load = React.useCallback(async () => {
     try {
@@ -357,9 +365,9 @@ export function RevueDealContent({ affaire, user, API_URL, interlocuteurs, nbDev
 
       <div style={{ border: `1px solid ${C.border}`, borderLeft: `4px solid ${C.color}`, borderRadius: '10px', background: C.bg, padding: '12px 14px' }}>
         {formOpen ? (
-          <RevueForm affaire={affaire} initial={derniere} user={user} API_URL={API_URL} interlocuteurs={interlocuteurs}
-            onCancel={() => { if (derniere) setFormOpen(false); }}
-            onSaved={async () => { setFormOpen(false); setShowLast(false); await load(); if (typeof onChanged === 'function') onChanged(); }} />
+          <RevueForm key={actionProposee ? actionProposee._k : 'form'} affaire={affaire} initial={derniere} initialAction={actionProposee} user={user} API_URL={API_URL} interlocuteurs={interlocuteurs}
+            onCancel={() => { if (derniere) setFormOpen(false); setActionProposee(null); }}
+            onSaved={async () => { setFormOpen(false); setShowLast(false); setActionProposee(null); await load(); if (typeof onChanged === 'function') onChanged(); }} />
         ) : revues === null ? (
           <div style={{ fontSize: '12px', color: 'var(--tw-muted)', fontStyle: 'italic' }}>Chargement…</div>
         ) : !derniere ? (
@@ -427,6 +435,106 @@ export function RevueDealContent({ affaire, user, API_URL, interlocuteurs, nbDev
                 )}
               </div>
             )}
+          </div>
+        )}
+      </div>
+
+      <AnalyseSection affaire={affaire} user={user} API_URL={API_URL} onReprendre={reprendreAction} />
+    </section>
+  );
+}
+
+// ── Lecture assistée : analyse du deal par Claude, à la demande ─────────────
+// Affiche la dernière analyse enregistrée (visible par l'équipe) et un bouton
+// « Analyser » qui en lance une nouvelle. L'action proposée peut être reprise
+// dans le formulaire de revue d'un clic.
+const AI = { color: '#4f46a5', bg: '#eeedfe', border: '#afa9ec', fg: '#26215c' };
+export function AnalyseSection({ affaire, user, API_URL, onReprendre }) {
+  const [analyse, setAnalyse] = React.useState(undefined); // undefined = pas chargé, null = aucune
+  const [running, setRunning] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/affaires/${affaire.id}/analyse`, { headers: { 'Authorization': `Bearer ${user.token}` } });
+        if (!alive) return;
+        setAnalyse(res.status === 204 || !res.ok ? null : await res.json());
+      } catch (e) { if (alive) setAnalyse(null); }
+    })();
+    return () => { alive = false; };
+  }, [API_URL, affaire.id, user.token]);
+
+  const run = async () => {
+    setRunning(true); setError(null);
+    try {
+      const res = await fetch(`${API_URL}/affaires/${affaire.id}/analyse`, { method: 'POST', headers: { 'Authorization': `Bearer ${user.token}` } });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
+      setAnalyse(await res.json());
+    } catch (err) { setError(err.message); }
+    finally { setRunning(false); }
+  };
+
+  const c = analyse && analyse.contenu;
+  const confiance = c && { faible: { label: 'confiance faible', color: '#b06e2a' }, moyenne: { label: 'confiance moyenne', color: '#5b6775' }, bonne: { label: 'confiance bonne', color: '#1d9e75' } }[c.confiance];
+  const btn = (
+    <button type="button" onClick={run} disabled={running} data-testid="revue-analyser"
+      style={{ background: running ? '#8f89d9' : AI.color, border: 'none', padding: '6px 14px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, color: 'white', cursor: running ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', fontFamily: FONT, boxShadow: '0 1px 3px rgba(79,70,165,.35)' }}>
+      {running ? <span style={{ width: '12px', height: '12px', border: '2px solid rgba(255,255,255,.4)', borderTopColor: 'white', borderRadius: '50%', display: 'inline-block', animation: 'twspin .8s linear infinite' }} /> : I(ICONS.spark, 12)}
+      {running ? 'Analyse en cours…' : (c ? 'Relancer l\'analyse' : 'Analyser')}
+    </button>
+  );
+
+  return (
+    <section data-testid="revue-analyse" style={{ marginTop: '18px', paddingTop: '14px', borderTop: '0.5px solid var(--tw-border)' }}>
+      <style>{'@keyframes twspin{to{transform:rotate(360deg)}}'}</style>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+        <p style={{ margin: 0, fontSize: '11px', color: AI.color, textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ display: 'inline-flex' }}>{I(ICONS.spark, 13)}</span> Lecture assistée
+          <span style={{ fontSize: '10px', fontWeight: 500, padding: '1px 7px', borderRadius: '10px', background: AI.bg, color: AI.fg, textTransform: 'none', letterSpacing: 0 }}>Claude</span>
+          {analyse && (
+            <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--tw-muted)', textTransform: 'none', letterSpacing: 0 }}>
+              {ageLabel(daysSince(analyse.created_at))}{analyse.auteur ? ` par ${analyse.auteur}` : ''}{confiance ? ` · ` : ''}{confiance && <span style={{ color: confiance.color, fontWeight: 600 }}>{confiance.label}</span>}
+            </span>
+          )}
+        </p>
+        {btn}
+      </div>
+      <div style={{ border: `1px solid ${AI.border}`, borderLeft: `4px solid ${AI.color}`, borderRadius: '10px', background: AI.bg, padding: '12px 14px', color: AI.fg, fontSize: '12.5px', lineHeight: 1.5 }}>
+        {error && <div style={{ color: '#a52d2d', fontWeight: 600, marginBottom: '8px' }}>Analyse impossible : {error}</div>}
+        {analyse === undefined && !error ? (
+          <span style={{ color: 'var(--tw-muted)', fontStyle: 'italic' }}>Chargement…</span>
+        ) : !c ? (
+          <span>Claude relit le dossier tel qu'il est dans le CRM (contacts, devis, actions, notes, revues, comparables gagnés et perdus) et confronte ce qui est déclaré à ce qui s'est réellement passé. Cinq lignes, deux ou trois questions à poser, une action. C'est toi qui décides.</span>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div data-testid="analyse-situation"><span style={{ fontWeight: 700 }}>Situation. </span>{c.situation}</div>
+            {c.risque_principal && <div><span style={{ fontWeight: 700, color: '#a52d2d' }}>Risque principal. </span>{c.risque_principal}</div>}
+            {c.signaux && c.signaux.length > 0 && (
+              <div>
+                <div style={{ fontWeight: 700, marginBottom: '3px' }}>Ce qui le montre</div>
+                <ul style={{ margin: 0, paddingLeft: '18px' }}>{c.signaux.map((s, i) => <li key={i}>{s}</li>)}</ul>
+              </div>
+            )}
+            {c.questions && c.questions.length > 0 && (
+              <div>
+                <div style={{ fontWeight: 700, marginBottom: '3px' }}>À poser au prochain contact</div>
+                <ul style={{ margin: 0, paddingLeft: '18px' }}>{c.questions.map((q, i) => <li key={i} style={{ fontStyle: 'italic' }}>« {q} »</li>)}</ul>
+              </div>
+            )}
+            {c.action && c.action.texte && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', border: '1px solid #1d9e75', borderRadius: '8px', padding: '8px 10px', background: '#e1f5ee', color: '#04342c' }}>
+                <span style={{ flex: 1 }}><span style={{ fontWeight: 700 }}>Action proposée. </span>{c.action.texte} <span style={{ color: 'var(--tw-muted)' }}>({c.action.type}, sous {c.action.delai_jours} j)</span></span>
+                {typeof onReprendre === 'function' && (
+                  <button type="button" onClick={() => onReprendre(c.action)} data-testid="analyse-reprendre"
+                    style={{ background: '#1d9e75', border: 'none', color: 'white', padding: '5px 10px', borderRadius: '7px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: FONT, whiteSpace: 'nowrap' }}>
+                    Reprendre dans la revue
+                  </button>
+                )}
+              </div>
+            )}
+            {c.manque && <div style={{ color: 'var(--tw-slate)' }}><span style={{ fontWeight: 700 }}>Pour trancher, il manque. </span>{c.manque}</div>}
           </div>
         )}
       </div>
