@@ -13,6 +13,8 @@ export const ICONS = {
       attach:     React.createElement('path', {d:'M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48'}),
       download:   React.createElement(React.Fragment, null, React.createElement('path',{d:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'}), React.createElement('polyline',{points:'7 10 12 15 17 10'}), React.createElement('line',{x1:12,y1:15,x2:12,y2:3})),
       plus:       React.createElement('path', {d:'M12 5v14M5 12h14'}),
+      // Actions / tâches (coche dans un cadre)
+      actions:    React.createElement(React.Fragment, null, React.createElement('path',{d:'M9 11l3 3L22 4'}), React.createElement('path',{d:'M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'})),
       // Bon de commande (presse-papiers coché) et facture (reçu)
       clipboard:  React.createElement(React.Fragment, null, React.createElement('path',{d:'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2'}), React.createElement('rect',{x:8,y:2,width:8,height:4,rx:1}), React.createElement('path',{d:'M9 14l2 2 4-4'})),
       receipt:    React.createElement(React.Fragment, null, React.createElement('path',{d:'M4 2v20l2.5-1.5L9 22l2.5-1.5L14 22l2.5-1.5L19 22V2l-2.5 1.5L14 2l-2.5 1.5L9 2 6.5 3.5z'}), React.createElement('path',{d:'M8 9h8M8 13h8M8 17h5'})),

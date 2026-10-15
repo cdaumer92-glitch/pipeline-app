@@ -420,24 +420,27 @@ export function ActivitiesSection({ nextActions, statusHistory, onAddNextAction,
                               </div>
                             )}
 
-                            {/* ========== ACTIONS DE L'AFFAIRE ========== */}
-                            <div style={{marginTop:'18px'}}>
+                            {/* ========== ACTIONS DE L'AFFAIRE ==========
+                                Espace distinct des devis : intitulé, compteur et bouton dans l'orange
+                                des actions (même couleur que la pastille « Action » de la liste). */}
+                            <div style={{marginTop:'18px',paddingTop:'14px',borderTop:'0.5px solid var(--tw-border)'}}>
                               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
                                 {(() => {
                                   const actionsAffaire = affairesActions[affaire.id] || [];
                                   const nbEnCours = actionsAffaire.filter(a => !a.completed).length;
                                   return (
-                                    <p style={{margin:0,fontSize:'11px',color:'var(--tw-ink)',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:700}}>
+                                    <p style={{margin:0,fontSize:'11px',color:'#b06e2a',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:700,display:'flex',alignItems:'center',gap:'6px'}}>
+                                      <span style={{display:'inline-flex'}}>{I(ICONS.actions, 13)}</span>
                                       Actions de l'affaire <span style={{color:'var(--tw-muted)',fontWeight:500}}>·</span>{' '}
-                                      <span style={{color:'#10a0dc'}}>{nbEnCours}</span>
+                                      <span style={{color:'#b06e2a'}}>{nbEnCours}</span>
                                       <span style={{color:'var(--tw-muted)',fontWeight:500}}>/{actionsAffaire.length}</span>
                                     </p>
                                   );
                                 })()}
                                 <button onClick={() => handleOpenActionAffaireForm(affaire.id)}
-                                  style={{background:'var(--tw-teal)',border:'none',padding:'5px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:600,color:'white',cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',fontFamily:"'Inter',sans-serif",boxShadow:'0 1px 3px rgba(26,86,219,.35)'}}
-                                  onMouseEnter={(e) => { e.currentTarget.style.background='var(--primary-dark)'; }}
-                                  onMouseLeave={(e) => { e.currentTarget.style.background='var(--tw-teal)'; }}
+                                  style={{background:'#b06e2a',border:'none',padding:'5px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:600,color:'white',cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',fontFamily:"'Inter',sans-serif",boxShadow:'0 1px 3px rgba(176,110,42,.35)'}}
+                                  onMouseEnter={(e) => { e.currentTarget.style.background='#8f5620'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background='#b06e2a'; }}
                                 >
                                   {I(ICONS.plus, 11)} Action
                                 </button>
