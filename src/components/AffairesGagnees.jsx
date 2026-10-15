@@ -30,7 +30,25 @@ const statutStyle = (s) => ({
 const Pill = ({ children, s }) => { const c = statutStyle(s || children); return <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', background: c.bg, color: c.fg, whiteSpace: 'nowrap' }}>{children}</span>; };
 const lbl = { display: 'block', fontSize: '10.5px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.4px', color: 'var(--tw-slate)', marginBottom: '4px' };
 const inp = { width: '100%', padding: '7px 10px', border: '1px solid var(--tw-border)', borderRadius: '6px', fontSize: '13px', fontFamily: "'Inter',sans-serif", boxSizing: 'border-box', background: 'white' };
-const secTitle = { fontSize: '11px', fontWeight: 600, letterSpacing: '.4px', textTransform: 'uppercase', color: 'var(--tw-muted)', margin: '14px 0 6px' };
+// Trois espaces bien distincts : propositions (bleu), bons de commande (vert), factures (orange).
+const SPACES = {
+  devis:    { color: '#0a5085', bg: '#f0f6fb', border: '#b7d4ea', icon: 'doc' },
+  bdc:      { color: '#0f6e56', bg: '#eef8f3', border: '#b5dccb', icon: 'clipboard' },
+  facture:  { color: '#b06e2a', bg: '#fdf6ec', border: '#eccfa8', icon: 'receipt' },
+};
+const Space = ({ kind, title, count, children }) => {
+  const s = SPACES[kind];
+  return (
+    <section style={{ marginTop: '14px', border: `1px solid ${s.border}`, borderLeft: `4px solid ${s.color}`, borderRadius: '10px', background: s.bg, padding: '10px 12px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <span style={{ display: 'inline-flex', color: s.color }}>{I(ICONS[s.icon], 15)}</span>
+        <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: s.color }}>{title}</span>
+        {count != null && <span style={{ fontSize: '11px', fontWeight: 600, padding: '1px 8px', borderRadius: '10px', background: s.color, color: 'white' }}>{count}</span>}
+      </div>
+      {children}
+    </section>
+  );
+};
 
 // ── Formulaire BDC / facture (création et édition) ──
 function DocForm({ kind, initial, devisList, bdcList, onCancel, onSave }) {
@@ -244,8 +262,8 @@ function AffaireGagneeCard({ affaire, devisList, user, API_URL, onReopen }) {
     </div>
   );
 
-  const addBtn = (label, onClick) => (
-    <button onClick={onClick} style={{ background: 'none', border: 'none', color: 'var(--tw-teal)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer', padding: '4px 0', fontFamily: "'Inter',sans-serif", display: 'inline-flex', alignItems: 'center', gap: '5px' }}>{I(ICONS.plus, 11)} {label}</button>
+  const addBtn = (label, onClick, color = 'var(--tw-teal)') => (
+    <button onClick={onClick} style={{ background: 'white', border: `1px dashed ${color}`, borderRadius: '8px', color, fontSize: '12.5px', fontWeight: 600, cursor: 'pointer', padding: '6px 12px', marginTop: '2px', fontFamily: "'Inter',sans-serif", display: 'inline-flex', alignItems: 'center', gap: '5px' }}>{I(ICONS.plus, 11)} {label}</button>
   );
 
   return (
@@ -276,28 +294,32 @@ function AffaireGagneeCard({ affaire, devisList, user, API_URL, onReopen }) {
             ))}
           </div>
 
-          <div style={secTitle}>Proposition retenue</div>
-          {retenu ? devisRow(retenu, true) : <div style={{ fontSize: '12.5px', color: 'var(--tw-muted)' }}>Aucune proposition sur cette affaire.</div>}
-          {autres.length > 0 && (
-            <>
-              <button onClick={() => setShowAllDevis(v => !v)} style={{ background: 'none', border: 'none', color: 'var(--tw-teal)', fontSize: '12px', cursor: 'pointer', padding: '2px 0 6px', fontFamily: "'Inter',sans-serif" }}>
-                {showAllDevis ? 'Masquer' : 'Voir'} les {devisAff.length} propositions de cette affaire {showAllDevis ? '▴' : '▾'}
-              </button>
-              {showAllDevis && autres.map(d => devisRow(d, false))}
-            </>
-          )}
+          <Space kind="devis" title="Propositions" count={devisAff.length}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tw-muted)', margin: '0 0 4px' }}>Proposition retenue</div>
+            {retenu ? devisRow(retenu, true) : <div style={{ fontSize: '12.5px', color: 'var(--tw-muted)' }}>Aucune proposition sur cette affaire.</div>}
+            {autres.length > 0 && (
+              <>
+                <button onClick={() => setShowAllDevis(v => !v)} style={{ background: 'none', border: 'none', color: SPACES.devis.color, fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: '2px 0 4px', fontFamily: "'Inter',sans-serif" }}>
+                  {showAllDevis ? 'Masquer' : 'Voir'} les {devisAff.length} propositions de cette affaire {showAllDevis ? '▴' : '▾'}
+                </button>
+                {showAllDevis && autres.map(d => devisRow(d, false))}
+              </>
+            )}
+          </Space>
 
-          <div style={secTitle}>Bons de commande</div>
-          {form?.kind === 'bdc' && <DocForm kind="bdc" initial={form.initial} devisList={devisAff} onCancel={() => setForm(null)} onSave={(data) => save('bdc', form.initial, data)} />}
-          {bdcs === null ? <div style={{ fontSize: '12px', color: 'var(--tw-muted)' }}>Chargement…</div> : bdcs.map(b => docRow('bdc', b))}
-          {bdcs && bdcs.length === 0 && form?.kind !== 'bdc' && <div style={{ fontSize: '12.5px', color: 'var(--tw-muted)', marginBottom: '4px' }}>Aucun bon de commande.</div>}
-          {form?.kind !== 'bdc' && addBtn('Ajouter un bon de commande', () => setForm({ kind: 'bdc', initial: null }))}
+          <Space kind="bdc" title="Bons de commande" count={bdcs ? bdcs.length : null}>
+            {form?.kind === 'bdc' && <DocForm kind="bdc" initial={form.initial} devisList={devisAff} onCancel={() => setForm(null)} onSave={(data) => save('bdc', form.initial, data)} />}
+            {bdcs === null ? <div style={{ fontSize: '12px', color: 'var(--tw-muted)' }}>Chargement…</div> : bdcs.map(b => docRow('bdc', b))}
+            {bdcs && bdcs.length === 0 && form?.kind !== 'bdc' && <div style={{ fontSize: '12.5px', color: 'var(--tw-muted)', marginBottom: '4px' }}>Aucun bon de commande.</div>}
+            {form?.kind !== 'bdc' && addBtn('Ajouter un bon de commande', () => setForm({ kind: 'bdc', initial: null }), SPACES.bdc.color)}
+          </Space>
 
-          <div style={secTitle}>Factures</div>
-          {form?.kind === 'facture' && <DocForm kind="facture" initial={form.initial} bdcList={bdcs || []} onCancel={() => setForm(null)} onSave={(data) => save('facture', form.initial, data)} />}
-          {factures === null ? <div style={{ fontSize: '12px', color: 'var(--tw-muted)' }}>Chargement…</div> : factures.map(f => docRow('facture', f))}
-          {factures && factures.length === 0 && form?.kind !== 'facture' && <div style={{ fontSize: '12.5px', color: 'var(--tw-muted)', marginBottom: '4px' }}>Aucune facture.</div>}
-          {form?.kind !== 'facture' && addBtn('Ajouter une facture', () => setForm({ kind: 'facture', initial: null }))}
+          <Space kind="facture" title="Factures" count={factures ? factures.length : null}>
+            {form?.kind === 'facture' && <DocForm kind="facture" initial={form.initial} bdcList={bdcs || []} onCancel={() => setForm(null)} onSave={(data) => save('facture', form.initial, data)} />}
+            {factures === null ? <div style={{ fontSize: '12px', color: 'var(--tw-muted)' }}>Chargement…</div> : factures.map(f => docRow('facture', f))}
+            {factures && factures.length === 0 && form?.kind !== 'facture' && <div style={{ fontSize: '12.5px', color: 'var(--tw-muted)', marginBottom: '4px' }}>Aucune facture.</div>}
+            {form?.kind !== 'facture' && addBtn('Ajouter une facture', () => setForm({ kind: 'facture', initial: null }), SPACES.facture.color)}
+          </Space>
         </div>
       )}
     </div>
