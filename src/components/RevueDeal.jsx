@@ -270,10 +270,12 @@ function RevueForm({ affaire, initial, user, API_URL, interlocuteurs, onSaved, o
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-        <button type="button" onClick={onCancel} disabled={saving}
-          style={{ background: 'white', border: '0.5px solid var(--tw-border)', color: 'var(--tw-slate)', padding: '7px 14px', borderRadius: '7px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', fontFamily: FONT }}>
-          Annuler
-        </button>
+        {!!initial && (
+          <button type="button" onClick={onCancel} disabled={saving}
+            style={{ background: 'white', border: '0.5px solid var(--tw-border)', color: 'var(--tw-slate)', padding: '7px 14px', borderRadius: '7px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', fontFamily: FONT }}>
+            Annuler
+          </button>
+        )}
         <button type="button" onClick={save} disabled={saving} data-testid="revue-save"
           style={{ background: C.color, border: 'none', color: 'white', padding: '7px 14px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, cursor: saving ? 'wait' : 'pointer', fontFamily: FONT, boxShadow: '0 1px 3px rgba(90,71,176,.35)', opacity: saving ? .7 : 1 }}>
           {saving ? 'Enregistrement…' : (creerAction && actionTexte.trim() ? 'Enregistrer + créer l\'action' : 'Enregistrer la revue')}
@@ -283,28 +285,25 @@ function RevueForm({ affaire, initial, user, API_URL, interlocuteurs, onSaved, o
   );
 }
 
-// ── Bloc « Revue de deal » d'une affaire ────────────────────────────────────
-// autoOpen : demandé par le bouton de la ligne d'affaire → ouvre le formulaire et
-// amène le bloc à l'écran ; onAutoOpened est rappelé pour consommer la demande.
-export function RevueDealBlock({ affaire, user, API_URL, interlocuteurs, nbDevis, onChanged, autoOpen, onAutoOpened }) {
+// ── Contenu « Revue de deal » d'une affaire ─────────────────────────────────
+// Affiché dans le panneau latéral droit (RevueDealDrawer). Sans revue existante,
+// le formulaire s'ouvre directement ; sinon on voit la dernière revue, l'historique
+// et un bouton pour en refaire une.
+export function RevueDealContent({ affaire, user, API_URL, interlocuteurs, nbDevis, onChanged }) {
   const [revues, setRevues] = React.useState(null);
   const [formOpen, setFormOpen] = React.useState(false);
   const [showLast, setShowLast] = React.useState(false);
   const [histOpen, setHistOpen] = React.useState(false);
   const [viewId, setViewId] = React.useState(null);
   const rootRef = React.useRef(null);
-  React.useEffect(() => {
-    if (!autoOpen) return;
-    setFormOpen(true);
-    if (typeof onAutoOpened === 'function') onAutoOpened();
-    const t = setTimeout(() => { if (rootRef.current && rootRef.current.scrollIntoView) rootRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
-    return () => clearTimeout(t);
-  }, [autoOpen]);
 
   const load = React.useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/affaires/${affaire.id}/revues`, { headers: { 'Authorization': `Bearer ${user.token}` } });
-      setRevues(res.ok ? await res.json() : []);
+      const data = res.ok ? await res.json() : [];
+      setRevues(data);
+      // Première revue : pas de détour, le formulaire tout de suite.
+      if (!Array.isArray(data) || data.length === 0) setFormOpen(true);
     } catch (err) { console.error('Erreur chargement revues:', err); setRevues([]); }
   }, [API_URL, affaire.id, user.token]);
   React.useEffect(() => { load(); }, [load]);
@@ -334,14 +333,13 @@ export function RevueDealBlock({ affaire, user, API_URL, interlocuteurs, nbDevis
   );
 
   return (
-    <section ref={rootRef} data-testid={`revue-block-${affaire.id}`} style={{ marginTop: '18px', paddingTop: '14px', borderTop: '0.5px solid var(--tw-border)', scrollMarginTop: '80px' }} onClick={(e) => e.stopPropagation()}>
+    <section ref={rootRef} data-testid={`revue-block-${affaire.id}`} onClick={(e) => e.stopPropagation()}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
         <p style={{ margin: 0, fontSize: '11px', color: C.color, textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           <span style={{ display: 'inline-flex' }}>{I(ICONS.pulse, 13)}</span>
-          Revue de deal <span style={{ color: 'var(--tw-muted)', fontWeight: 500 }}>·</span>{' '}
-          <span style={{ color: C.color }}>{list.length}</span>
-          {sante && <SantePill score={derniere && derniere.score} date={derniere && derniere.date_revue} nbDevis={nbDevis} style={{ textTransform: 'none', letterSpacing: 0, marginLeft: '4px' }} />}
-          {derniere && (
+          {formOpen ? (derniere ? 'Nouvelle revue' : 'Première revue') : 'Revues'}
+          {!formOpen && <><span style={{ color: 'var(--tw-muted)', fontWeight: 500 }}>·</span> <span style={{ color: C.color }}>{list.length}</span></>}
+          {derniere && !formOpen && (
             <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--tw-muted)', textTransform: 'none', letterSpacing: 0 }}>
               dernière revue {ageLabel(daysSince(derniere.date_revue))}{derniere.auteur ? ` par ${derniere.auteur}` : ''}
             </span>
@@ -360,7 +358,7 @@ export function RevueDealBlock({ affaire, user, API_URL, interlocuteurs, nbDevis
       <div style={{ border: `1px solid ${C.border}`, borderLeft: `4px solid ${C.color}`, borderRadius: '10px', background: C.bg, padding: '12px 14px' }}>
         {formOpen ? (
           <RevueForm affaire={affaire} initial={derniere} user={user} API_URL={API_URL} interlocuteurs={interlocuteurs}
-            onCancel={() => setFormOpen(false)}
+            onCancel={() => { if (derniere) setFormOpen(false); }}
             onSaved={async () => { setFormOpen(false); setShowLast(false); await load(); if (typeof onChanged === 'function') onChanged(); }} />
         ) : revues === null ? (
           <div style={{ fontSize: '12px', color: 'var(--tw-muted)', fontStyle: 'italic' }}>Chargement…</div>
@@ -433,5 +431,56 @@ export function RevueDealBlock({ affaire, user, API_URL, interlocuteurs, nbDevis
         )}
       </div>
     </section>
+  );
+}
+
+// ── Panneau latéral droit ───────────────────────────────────────────────────
+// Ouvert par le bouton de la ligne d'affaire. Fond assombri, fermeture par ×,
+// clic hors du panneau ou Échap. L'affaire reste visible derrière.
+export function RevueDealDrawer({ affaire, prospect, devis, user, API_URL, interlocuteurs, onChanged, onClose }) {
+  const [shown, setShown] = React.useState(false);
+  React.useEffect(() => {
+    const t = requestAnimationFrame(() => setShown(true));
+    const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
+    document.addEventListener('keydown', esc);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { cancelAnimationFrame(t); document.removeEventListener('keydown', esc); document.body.style.overflow = prevOverflow; };
+  }, [onClose]);
+  if (!affaire) return null;
+  const nbDevis = Array.isArray(devis) ? devis.length : 0;
+  const dernierDevis = Array.isArray(devis) && devis.length ? devis[0] : null;
+  const sante = santeDeal({ score: affaire.revue_score, date: affaire.revue_date, nbDevis });
+  return (
+    <div data-testid="revue-drawer" role="dialog" aria-modal="true" aria-label={`Revue de deal : ${affaire.nom_affaire || ''}`}
+      style={{ position: 'fixed', inset: 0, zIndex: 9990, display: 'flex', justifyContent: 'flex-end' }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,.38)', opacity: shown ? 1 : 0, transition: 'opacity .2s' }} />
+      <aside style={{ position: 'relative', width: '640px', maxWidth: '95vw', height: '100%', background: 'white', boxShadow: '-12px 0 40px rgba(0,0,0,.18)', display: 'flex', flexDirection: 'column',
+        transform: shown ? 'none' : 'translateX(100%)', transition: 'transform .22s cubic-bezier(.2,.8,.3,1)', fontFamily: FONT }}>
+        <header style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '16px 20px', borderBottom: '0.5px solid var(--tw-border)', borderTop: `4px solid ${C.color}` }}>
+          <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: C.bg, color: C.color, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{I(ICONS.pulse, 18)}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: C.color, textTransform: 'uppercase', letterSpacing: '.5px' }}>Revue de deal</div>
+            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--tw-ink)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{affaire.nom_affaire}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '5px', fontSize: '11.5px', color: 'var(--tw-slate)' }}>
+              {prospect && prospect.name && <span style={{ fontWeight: 600, color: 'var(--tw-ink)' }}>{prospect.name}</span>}
+              <span style={{ fontSize: '11px', fontWeight: 500, padding: '2px 8px', borderRadius: '10px', background: 'var(--primary-soft)', color: 'var(--primary)' }}>{affaire.statut_global || 'En cours'}</span>
+              {dernierDevis && (
+                <span style={{ fontSize: '11px', fontWeight: 500, padding: '2px 8px', borderRadius: '10px', background: '#faeeda', color: '#633806' }}>
+                  Devis {dernierDevis.chance_percent != null ? `${dernierDevis.chance_percent} %` : ''}{dernierDevis.devis_status ? ` · ${dernierDevis.devis_status}` : ''}
+                </span>
+              )}
+              {affaire.decision_periode && <span style={{ fontSize: '11px', fontWeight: 500, padding: '2px 8px', borderRadius: '10px', background: 'var(--tw-bg, #eef2f5)', color: 'var(--tw-slate)', border: '0.5px solid var(--tw-border)' }}>Décision : {String(affaire.decision_periode).replace(/^(\d{4})-(Q\d)$/, '$2 - $1')}</span>}
+              {sante && <SantePill score={affaire.revue_score} date={affaire.revue_date} nbDevis={nbDevis} createdAt={affaire.created_at} />}
+            </div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Fermer la revue" title="Fermer (Échap)" data-testid="revue-drawer-close"
+            style={{ width: '30px', height: '30px', border: '0.5px solid var(--tw-border)', background: 'white', borderRadius: '7px', cursor: 'pointer', color: 'var(--tw-slate)', fontSize: '18px', lineHeight: 1, flexShrink: 0 }}>×</button>
+        </header>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 24px' }}>
+          <RevueDealContent affaire={affaire} user={user} API_URL={API_URL} interlocuteurs={interlocuteurs} nbDevis={nbDevis} onChanged={onChanged} />
+        </div>
+      </aside>
+    </div>
   );
 }
